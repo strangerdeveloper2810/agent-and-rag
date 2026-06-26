@@ -7,6 +7,7 @@ import {
   type Conversation,
   type Message,
 } from "../lib/api";
+import Markdown from "./Markdown";
 
 export default function ChatView() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -92,11 +93,19 @@ export default function ChatView() {
               key={i}
               className={`max-w-2xl rounded-lg p-3 ${
                 m.role === "user"
-                  ? "ml-auto bg-blue-600 text-white"
+                  ? "ml-auto bg-blue-600 text-white whitespace-pre-wrap"
                   : "bg-gray-100 text-gray-800"
               }`}
             >
-              {m.content || (streaming ? "…" : "")}
+              {m.role === "assistant" ? (
+                m.content ? (
+                  <Markdown content={m.content} />
+                ) : (
+                  streaming && "…"
+                )
+              ) : (
+                m.content
+              )}
             </div>
           ))}
           <div ref={endRef} />
