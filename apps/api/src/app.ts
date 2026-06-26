@@ -1,5 +1,6 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
+import { chatRoutes } from "./modules/chat/chat.routes";
 
 export function buildApp(): FastifyInstance {
   const app = Fastify({ logger: true });
@@ -12,6 +13,8 @@ export function buildApp(): FastifyInstance {
   // app.register(chatRoutes, { prefix: "/api" });
   // app.register(documentsRoutes, { prefix: "/api" });
   // app.register(tasksRoutes, { prefix: "/api" });
+
+  app.register(chatRoutes, { prefix: "/api" });
 
   return app;
 }
