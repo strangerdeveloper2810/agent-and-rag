@@ -33,4 +33,23 @@ export const generateReply = async (
   return textBlock && textBlock.type === "text" ? textBlock.text : "";
 };
 
+export async function* streamReply(
+  history: ChatMessage[],
+): AsyncGenerator<string> {
+  const stream = await claude.messages.stream({
+    model: CLAUDE_MODEL,
+    max_tokens: 1024,
+    system: SYSTEM_PROMPT,
+    messages: toAnthropicMessages(history),
+  });
+  for await (const event of stream) {
+    if (
+      event.type === "content_block_delta" &&
+      event.delta.type === "text_delta"
+    ) {
+      yield event.delta.text;
+    }
+  }
+}
+
 export { toAnthropicMessages, SYSTEM_PROMPT };
