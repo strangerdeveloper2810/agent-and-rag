@@ -3,8 +3,8 @@
   "tasks": {
     "dev": { "cache": false, "persistent": true },
     "build": { "dependsOn": ["^build"], "outputs": ["dist/**"] },
+    "start": { "dependsOn": ["build"], "cache": false, "persistent": true },
     "test": { "dependsOn": ["^build"] },
-    "typecheck": {},
-    "lint": {}
+    "typecheck": {}
   }
 }
