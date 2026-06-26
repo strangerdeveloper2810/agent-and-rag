@@ -1,3 +1,67 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background-color: #f4f2ec;
+    color: #21201c;
+    font-family: "Be Vietnam Pro", ui-sans-serif, system-ui, sans-serif;
+    /* Nền không khí ấm: hai vầng sáng nhẹ ở góc tạo chiều sâu thay vì màu phẳng */
+    background-image:
+      radial-gradient(
+        1100px 560px at 100% -8%,
+        rgba(21, 127, 105, 0.07),
+        transparent 60%
+      ),
+      radial-gradient(
+        820px 480px at -8% 108%,
+        rgba(193, 140, 74, 0.06),
+        transparent 55%
+      );
+    background-attachment: fixed;
+  }
+}
+
+@layer components {
+  /* Thanh cuộn mảnh, ấm, chỉ hiện khi cần */
+  .scroll-fine {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(33, 32, 28, 0.18) transparent;
+  }
+  .scroll-fine::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  .scroll-fine::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scroll-fine::-webkit-scrollbar-thumb {
+    background: rgba(33, 32, 28, 0.16);
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
+  }
+  .scroll-fine::-webkit-scrollbar-thumb:hover {
+    background: rgba(33, 32, 28, 0.3);
+    background-clip: padding-box;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
