@@ -7,7 +7,11 @@ import {
   type Conversation,
   type Message,
 } from "../lib/api";
-import Markdown from "./Markdown";
+import Sidebar from "./Sidebar";
+import MessageBubble from "./MessageBubble";
+import Composer from "./Composer";
+import EmptyState from "./EmptyState";
+import { MenuIcon, SparkIcon } from "./icons";
 
 export default function ChatView() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -15,6 +19,7 @@ export default function ChatView() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -29,9 +34,16 @@ export default function ChatView() {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const send = async () => {
-    if (!input.trim() || streaming) return;
-    const content = input.trim();
+  const startNew = () => {
+    setActiveId(null);
+    setMessages([]);
+    setSidebarOpen(false);
+  };
+
+  // text tùy chọn: dùng khi bấm chip gợi ý (không phụ thuộc state input async)
+  const send = async (text?: string) => {
+    const content = (text ?? input).trim();
+    if (!content || streaming) return;
     setInput("");
 
     let convId = activeId;
@@ -42,91 +54,97 @@ export default function ChatView() {
       setConversations((c) => [conv, ...c]);
     }
 
-    setMessages((m) => [...m, { role: "user", content }]);
-    setMessages((m) => [...m, { role: "assistant", content: "" }]);
+    setMessages((m) => [
+      ...m,
+      { role: "user", content },
+      { role: "assistant", content: "" },
+    ]);
     setStreaming(true);
 
     await streamChat(convId, content, (token) => {
       setMessages((m) => {
         const copy = [...m];
-        copy[copy.length - 1] = {
-          role: "assistant",
-          content: copy[copy.length - 1].content + token,
-        };
+        const last = copy[copy.length - 1];
+        copy[copy.length - 1] = { role: "assistant", content: last.content + token };
         return copy;
       });
     });
     setStreaming(false);
   };
 
-  return (
-    <div className="flex h-screen">
-      {/* Sidebar hội thoại */}
-      <aside className="w-64 border-r bg-gray-50 p-3 overflow-y-auto">
-        <button
-          className="w-full mb-3 rounded bg-blue-600 text-white py-2 text-sm"
-          onClick={() => {
-            setActiveId(null);
-            setMessages([]);
-          }}
-        >
-          + Hội thoại mới
-        </button>
-        {conversations.map((c) => (
-          <button
-            key={c._id}
-            onClick={() => setActiveId(c._id)}
-            className={`block w-full text-left text-sm p-2 rounded truncate ${
-              c._id === activeId ? "bg-blue-100" : "hover:bg-gray-100"
-            }`}
-          >
-            {c.title}
-          </button>
-        ))}
-      </aside>
+  const hasMessages = messages.length > 0;
 
-      {/* Khung chat */}
-      <main className="flex-1 flex flex-col">
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          {messages.map((m, i) => (
-            <div
-              key={i}
-              className={`max-w-2xl rounded-lg p-3 ${
-                m.role === "user"
-                  ? "ml-auto bg-blue-600 text-white whitespace-pre-wrap"
-                  : "bg-gray-100 text-gray-800"
-              }`}
-            >
-              {m.role === "assistant" ? (
-                m.content ? (
-                  <Markdown content={m.content} />
-                ) : (
-                  streaming && "…"
-                )
-              ) : (
-                m.content
-              )}
-            </div>
-          ))}
-          <div ref={endRef} />
-        </div>
-        <div className="border-t p-3 flex gap-2">
-          <input
-            className="flex-1 border rounded px-3 py-2"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && send()}
-            placeholder="Nhập tin nhắn..."
-            disabled={streaming}
-          />
+  return (
+    <div className="flex h-screen overflow-hidden">
+      <Sidebar
+        conversations={conversations}
+        activeId={activeId}
+        open={sidebarOpen}
+        onSelect={(id) => {
+          setActiveId(id);
+          setSidebarOpen(false);
+        }}
+        onNew={startNew}
+        onClose={() => setSidebarOpen(false)}
+      />
+
+      <main className="flex min-w-0 flex-1 flex-col">
+        {/* Thanh trên cùng (chủ yếu cho mobile + ngữ cảnh) */}
+        <header className="flex items-center gap-3 border-b border-line/70 px-4 py-3 sm:px-6">
           <button
-            onClick={send}
-            disabled={streaming}
-            className="rounded bg-blue-600 text-white px-4 disabled:opacity-50"
+            type="button"
+            onClick={() => setSidebarOpen(true)}
+            aria-label="Mở menu"
+            className="rounded-lg p-1.5 text-ink-soft hover:bg-line/60 md:hidden"
           >
-            Gửi
+            <MenuIcon />
           </button>
+          <div className="flex items-center gap-2">
+            <div className="flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-br from-accent-glow to-accent-ink text-white md:hidden">
+              <SparkIcon width={13} height={13} />
+            </div>
+            <h2 className="truncate font-display text-sm font-semibold text-ink">
+              {conversations.find((c) => c._id === activeId)?.title ??
+                "Hội thoại mới"}
+            </h2>
+          </div>
+          {streaming && (
+            <span className="ml-auto flex items-center gap-1.5 text-xs text-accent-ink">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
+              đang trả lời…
+            </span>
+          )}
+        </header>
+
+        {/* Vùng tin nhắn */}
+        <div className="scroll-fine flex-1 overflow-y-auto">
+          {hasMessages ? (
+            <div className="mx-auto max-w-3xl space-y-6 px-4 py-6 sm:px-6">
+              {messages.map((m, i) => (
+                <MessageBubble
+                  key={m._id ?? i}
+                  message={m}
+                  streaming={
+                    streaming &&
+                    i === messages.length - 1 &&
+                    m.role === "assistant"
+                  }
+                />
+              ))}
+              <div ref={endRef} />
+            </div>
+          ) : (
+            <EmptyState onPick={(p) => send(p)} />
+          )}
         </div>
+
+        {/* Ô soạn tin */}
+        <Composer
+          value={input}
+          onChange={setInput}
+          onSend={() => send()}
+          disabled={streaming}
+        />
       </main>
     </div>
   );
