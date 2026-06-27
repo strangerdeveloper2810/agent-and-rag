@@ -12,7 +12,10 @@ import {
   deleteTask,
 } from "../modules/tasks/tasks.repository";
 import { embed } from "../lib/voyage";
-import { searchSimilar } from "../modules/documents/documents.repository";
+import {
+  searchSimilar,
+  listSources,
+} from "../modules/documents/documents.repository";
 
 type Tool = {
   name: string;
@@ -24,6 +27,8 @@ type Tool = {
 const ragSearchSchema = z.object({
   query: z.string().describe("Câu truy vấn để tìm trong tài liệu"),
 });
+
+const listDocumentsSchema = z.object({});
 
 const deleteTaskSchema = z.object({ id: z.string() });
 
@@ -38,6 +43,13 @@ const tools: Tool[] = [
       const results = await searchSimilar(vec, 5);
       return results;
     },
+  },
+  {
+    name: "listDocuments",
+    description:
+      "Liệt kê các tài liệu đã được nạp (tên file + số chunk). Dùng khi người dùng hỏi 'có bao nhiêu tài liệu' hoặc 'có những tài liệu nào'.",
+    schema: listDocumentsSchema,
+    execute: async () => listSources(),
   },
   {
     name: "createTask",
