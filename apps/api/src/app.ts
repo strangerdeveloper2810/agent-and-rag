@@ -3,6 +3,7 @@ import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import { chatRoutes } from "./modules/chat/chat.routes";
 import { documentsRoutes } from "./modules/documents/documents.routes";
+import { tasksRoutes } from "./modules/tasks/tasks.routes";
 
 export function buildApp(): FastifyInstance {
   const app = Fastify({ logger: true });
@@ -15,7 +16,7 @@ export function buildApp(): FastifyInstance {
   // Các module:
   app.register(chatRoutes, { prefix: "/api" });
   app.register(documentsRoutes, { prefix: "/api" });
-  // app.register(tasksRoutes, { prefix: "/api" });
+  app.register(tasksRoutes, { prefix: "/api" });
 
   return app;
 }
