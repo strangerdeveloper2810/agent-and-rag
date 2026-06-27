@@ -19,3 +19,4 @@ export function buildApp(): FastifyInstance {
 
   return app;
 }
+
