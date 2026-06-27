@@ -940,6 +940,95 @@ git commit -m "feat(web): add documents upload view and tab navigation"
 
 ---
 
+## Task 11 (bổ sung): Tool liệt kê & đọc tài liệu
+
+> **Vì sao cần:** ban đầu agent chỉ có `ragSearch` (tìm ngữ nghĩa) nên KHÔNG trả lời được "có bao nhiêu tài liệu" hay "đọc nội dung tài liệu X". `listSources` đã có nhưng chỉ là REST API, chưa expose thành tool. Bài học: **agent chỉ làm được những gì ta cấp tool** — có logic ở backend ≠ agent dùng được.
+>
+> Ta thêm 2 tool: `listDocuments` (liệt kê tên + số chunk) và `readDocument` (đọc toàn bộ nội dung một tài liệu theo tên).
+
+**Files:**
+- Modify: `apps/api/src/modules/documents/documents.repository.ts` (thêm `getDocumentContent`)
+- Modify: `apps/api/src/agent/tools.ts` (thêm 2 tool)
+- Modify: `apps/api/src/agent/agent-loop.ts` (cập nhật system prompt)
+
+**Step 1: Thêm `getDocumentContent` vào `documents.repository.ts`**
+```ts
+// Đọc toàn bộ 1 tài liệu: gom các chunk theo thứ tự rồi ghép lại
+export async function getDocumentContent(source: string) {
+  const chunks = await getDb()
+    .collection("documents")
+    .find({ source })
+    .sort({ chunkIndex: 1 })
+    .project({ _id: 0, text: 1 })
+    .toArray();
+  return {
+    source,
+    found: chunks.length > 0,
+    chunks: chunks.length,
+    content: chunks.map((c) => c.text).join("\n\n"),
+  };
+}
+```
+> Lưu ý: chunk có overlap (~100 ký tự) nên nội dung ghép lại có thể lặp nhẹ ở ranh giới — chấp nhận được cho mục đích đọc. (Muốn chính xác tuyệt đối thì phải lưu thêm text gốc lúc upload.)
+
+**Step 2: Thêm 2 tool vào `tools.ts`**
+```ts
+// import thêm getDocumentContent (và listSources nếu chưa có)
+import {
+  searchSimilar,
+  listSources,
+  getDocumentContent,
+} from "../modules/documents/documents.repository";
+
+const listDocumentsSchema = z.object({});
+const readDocumentSchema = z.object({
+  source: z.string().describe("Tên file tài liệu cần đọc, ví dụ test-rag.txt"),
+});
+
+// thêm 2 phần tử này vào mảng tools:
+{
+  name: "listDocuments",
+  description:
+    "Liệt kê các tài liệu đã nạp (tên file + số chunk). Dùng khi hỏi 'có bao nhiêu tài liệu' hoặc 'có những tài liệu nào'.",
+  schema: listDocumentsSchema,
+  execute: async () => listSources(),
+},
+{
+  name: "readDocument",
+  description:
+    "Đọc TOÀN BỘ nội dung của MỘT tài liệu theo tên file. Dùng khi người dùng muốn xem nội dung đầy đủ của một tài liệu cụ thể. Nếu chưa biết tên file, gọi listDocuments trước.",
+  schema: readDocumentSchema,
+  execute: async ({ source }: z.infer<typeof readDocumentSchema>) =>
+    getDocumentContent(source),
+},
+```
+> Ghi chú: tool `listDocuments` có thể đã được thêm từ trước trong session — nếu vậy chỉ cần thêm `readDocument`.
+
+**Step 3: Cập nhật `SYSTEM_PROMPT` trong `agent-loop.ts`**
+Thêm 2 câu để Claude biết khi nào dùng:
+```ts
+"Khi người dùng hỏi có bao nhiêu/những tài liệu nào, dùng tool listDocuments. " +
+"Khi người dùng muốn đọc nội dung đầy đủ một tài liệu, dùng tool readDocument (truyền tên file). " +
+```
+
+**Step 4: Chạy thử**
+```bash
+cd apps/api && pnpm dev
+# trong chat hỏi: "Có bao nhiêu tài liệu?"            → agent gọi listDocuments
+# rồi: "Đọc giúp tôi nội dung file test-rag.txt"      → agent gọi readDocument
+```
+Expected: event `tool_start name=listDocuments` / `readDocument`, rồi trả lời đúng nội dung.
+
+**Step 5: Commit**
+```bash
+git add apps/api/src/agent apps/api/src/modules/documents/documents.repository.ts
+git commit -m "feat(api): add listDocuments and readDocument agent tools"
+```
+
+> ⚠️ Cân nhắc: `readDocument` trả nguyên văn tài liệu → tài liệu dài sẽ tốn nhiều token. Với dự án học (file nhỏ) thì ổn. Production nên giới hạn độ dài hoặc tóm tắt.
+
+---
+
 ## Định nghĩa "Done" cho Mốc 2
 - [ ] Upload `.txt/.md` → chunk → embed Voyage → lưu Atlas
 - [ ] Atlas Vector Search Index `vector_index` đã Active
