@@ -22,11 +22,19 @@ export const getMessages = async (id: string): Promise<Message[]> => {
   return response.json();
 };
 
-// Gửi tin nhắn và stream token về qua callback
+// Một event SSE từ agent: token (text), hoặc tool_start/tool_end, hoặc done
+export type ChatEvent = {
+  token?: string;
+  type?: "text" | "tool_start" | "tool_end";
+  name?: string;
+  done?: boolean;
+};
+
+// Gửi tin nhắn và stream event (token + tool) về qua callback
 export const streamChat = async (
   conversationId: string,
   content: string,
-  onToken: (token: string) => void,
+  onEvent: (e: ChatEvent) => void,
 ): Promise<void> => {
   const response = await fetch(`/api/conversations/${conversationId}/chat`, {
     method: "POST",
@@ -44,8 +52,34 @@ export const streamChat = async (
     buffer = lines.pop() ?? "";
     for (const line of lines) {
       if (!line.startsWith("data: ")) continue;
-      const data = JSON.parse(line.slice(6));
-      if (data.token) onToken(data.token);
+      onEvent(JSON.parse(line.slice(6)) as ChatEvent);
     }
   }
+};
+
+// ----- Documents (RAG) -----
+export type DocumentInfo = { source: string; chunks: number };
+
+export const listDocuments = async (): Promise<DocumentInfo[]> => {
+  const response = await fetch("/api/documents");
+  return response.json();
+};
+
+export const uploadDocument = async (
+  file: File,
+): Promise<{ source: string; chunks: number }> => {
+  const form = new FormData();
+  form.append("file", file);
+  const response = await fetch("/api/documents/upload", {
+    method: "POST",
+    body: form,
+  });
+  if (!response.ok) throw new Error("Upload thất bại");
+  return response.json();
+};
+
+export const deleteDocument = async (source: string): Promise<void> => {
+  await fetch(`/api/documents/${encodeURIComponent(source)}`, {
+    method: "DELETE",
+  });
 };

@@ -63,3 +63,22 @@ export const ChatIcon = (p: IconProps) => (
     <path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v7a2.5 2.5 0 0 1-2.5 2.5H9l-4 3.5V16H6.5A2.5 2.5 0 0 1 4 13.5Z" />
   </svg>
 );
+
+export const DocIcon = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+    <path d="M14 3v5h5M9 13h6M9 17h6" />
+  </svg>
+);
+
+export const UploadIcon = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 20h14" />
+  </svg>
+);
+
+export const TrashIcon = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m2 0v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7M10 11v6M14 11v6" />
+  </svg>
+);
