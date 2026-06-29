@@ -6,36 +6,33 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['"Be Vietnam Pro"', "ui-sans-serif", "system-ui", "sans-serif"],
-        display: ['"Bricolage Grotesque"', "ui-sans-serif", "sans-serif"],
+        sans: ['"Roboto"', "ui-sans-serif", "system-ui", "Arial", "sans-serif"],
       },
       colors: {
-        paper: "#F4F2EC",
-        surface: "#FBFAF7",
-        ink: { DEFAULT: "#21201C", soft: "#6B665C", faint: "#9A9486" },
-        line: "#E7E3D9",
-        accent: {
-          DEFAULT: "#157F69",
-          ink: "#0E5A4A",
-          soft: "#E3F1EC",
-          glow: "#1FA688",
-        },
+        // Bảng màu kiểu Google / Gemini
+        surface: "#ffffff",
+        // nền phụ xanh-xám nhạt (sidebar, input, bubble user) — đặc trưng Gemini
+        subtle: "#f0f4f9",
+        subtle2: "#e9eef6",
+        ink: { DEFAULT: "#1f1f1f", soft: "#444746", faint: "#5e5e5e" },
+        line: "#dde3ea",
+        // Google Blue
+        gblue: { DEFAULT: "#0b57d0", bright: "#1a73e8", soft: "#d3e3fd" },
+      },
+      backgroundImage: {
+        // Dải gradient sao Gemini (xanh → tím → hồng)
+        gemini: "linear-gradient(74deg, #4285f4 0%, #9b72cb 47%, #d96570 100%)",
       },
       boxShadow: {
-        soft: "0 1px 2px rgba(33,32,28,0.04), 0 8px 24px -12px rgba(33,32,28,0.14)",
-        bubble:
-          "0 1px 1px rgba(33,32,28,0.06), 0 8px 18px -10px rgba(21,127,105,0.45)",
-        ring: "0 0 0 1px rgba(33,32,28,0.06)",
+        soft: "0 1px 3px rgba(0,0,0,0.08), 0 4px 12px -6px rgba(0,0,0,0.12)",
+        ring: "0 0 0 1px rgba(0,0,0,0.06)",
       },
       keyframes: {
         "msg-in": {
-          from: { opacity: "0", transform: "translateY(10px)" },
+          from: { opacity: "0", transform: "translateY(8px)" },
           to: { opacity: "1", transform: "none" },
         },
-        "fade-in": {
-          from: { opacity: "0" },
-          to: { opacity: "1" },
-        },
+        "fade-in": { from: { opacity: "0" }, to: { opacity: "1" } },
         "dot-bounce": {
           "0%, 80%, 100%": { transform: "translateY(0)", opacity: "0.4" },
           "40%": { transform: "translateY(-4px)", opacity: "1" },
@@ -46,7 +43,7 @@ export default {
         },
       },
       animation: {
-        "msg-in": "msg-in 0.45s cubic-bezier(0.22, 0.8, 0.36, 1) both",
+        "msg-in": "msg-in 0.4s cubic-bezier(0.22, 0.8, 0.36, 1) both",
         "fade-in": "fade-in 0.4s ease both",
         "dot-bounce": "dot-bounce 1.2s ease-in-out infinite",
         "caret-blink": "caret-blink 1s step-end infinite",

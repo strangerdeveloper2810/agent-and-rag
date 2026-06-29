@@ -12,30 +12,30 @@
   body {
     margin: 0;
     min-height: 100vh;
-    background-color: #f4f2ec;
-    color: #21201c;
-    font-family: "Be Vietnam Pro", ui-sans-serif, system-ui, sans-serif;
-    /* Nền không khí ấm: hai vầng sáng nhẹ ở góc tạo chiều sâu thay vì màu phẳng */
-    background-image:
-      radial-gradient(
-        1100px 560px at 100% -8%,
-        rgba(21, 127, 105, 0.07),
-        transparent 60%
-      ),
-      radial-gradient(
-        820px 480px at -8% 108%,
-        rgba(193, 140, 74, 0.06),
-        transparent 55%
-      );
-    background-attachment: fixed;
+    background-color: #ffffff;
+    color: #1f1f1f;
+    font-family: "Roboto", ui-sans-serif, system-ui, Arial, sans-serif;
   }
 }
 
 @layer components {
-  /* Thanh cuộn mảnh, ấm, chỉ hiện khi cần */
+  /* Chữ gradient kiểu Gemini */
+  .text-gemini {
+    background-image: linear-gradient(
+      74deg,
+      #4285f4 0%,
+      #9b72cb 47%,
+      #d96570 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* Thanh cuộn mảnh kiểu Google */
   .scroll-fine {
     scrollbar-width: thin;
-    scrollbar-color: rgba(33, 32, 28, 0.18) transparent;
+    scrollbar-color: rgba(31, 31, 31, 0.18) transparent;
   }
   .scroll-fine::-webkit-scrollbar {
     width: 10px;
@@ -45,13 +45,13 @@
     background: transparent;
   }
   .scroll-fine::-webkit-scrollbar-thumb {
-    background: rgba(33, 32, 28, 0.16);
+    background: rgba(31, 31, 31, 0.16);
     border-radius: 999px;
     border: 3px solid transparent;
     background-clip: padding-box;
   }
   .scroll-fine::-webkit-scrollbar-thumb:hover {
-    background: rgba(33, 32, 28, 0.3);
+    background: rgba(31, 31, 31, 0.3);
     background-clip: padding-box;
   }
 }
