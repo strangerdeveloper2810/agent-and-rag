@@ -14,7 +14,7 @@ import {
 import { embed } from "../lib/voyage";
 import {
   searchSimilar,
-  listSources,
+  listDocuments,
   getDocumentContent,
 } from "../modules/documents/documents.repository";
 
@@ -54,7 +54,7 @@ const tools: Tool[] = [
     description:
       "Liệt kê các tài liệu đã được nạp (tên file + số chunk). Dùng khi người dùng hỏi 'có bao nhiêu tài liệu' hoặc 'có những tài liệu nào'.",
     schema: listDocumentsSchema,
-    execute: async () => listSources(),
+    execute: async () => listDocuments(),
   },
   {
     name: "readDocument",
