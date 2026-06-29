@@ -8,7 +8,7 @@ import {
   TrashIcon,
 } from "./icons";
 import ConfirmDialog from "./ConfirmDialog";
-import type { Conversation } from "../lib/api";
+import type { Conversation } from "@/modules/chat/chat.api";
 
 export type View = "chat" | "documents";
 
