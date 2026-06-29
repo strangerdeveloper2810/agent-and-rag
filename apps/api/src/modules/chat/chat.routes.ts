@@ -6,7 +6,7 @@ import {
   addMessage,
   deleteConversation,
 } from "./chat.repository";
-import { runAgent, type AgentEvent } from "../../agent/agent-loop";
+import { runGraph, type AgentEvent } from "../../agent/graph-runner";
 
 export const chatRoutes = async (app: FastifyInstance) => {
   app.post("/conversations", async (request) => {
@@ -26,7 +26,7 @@ export const chatRoutes = async (app: FastifyInstance) => {
     return deleteConversation(id);
   });
 
-  // SSE streaming + agent loop: Claude có thể gọi tool (ragSearch, task...) giữa chừng
+  // SSE streaming + LangGraph: graph tự lặp agent ↔ tools, stream token + event tool
   app.post("/conversations/:id/chat", async (req, reply) => {
     const { id } = req.params as { id: string };
     const { content } = req.body as { content: string };
@@ -43,8 +43,8 @@ export const chatRoutes = async (app: FastifyInstance) => {
       Connection: "keep-alive",
     });
 
-    // Duyệt từng event của agent: text → token; tool_start/tool_end → cho UI hiện badge
-    const gen = runAgent(history);
+    // Duyệt từng event của graph: text → token; tool_start/tool_end → cho UI hiện badge
+    const gen = runGraph(history);
     let full = "";
     let next = await gen.next();
     while (!next.done) {
