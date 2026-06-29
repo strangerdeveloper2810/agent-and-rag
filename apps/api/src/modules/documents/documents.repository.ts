@@ -87,18 +87,31 @@ export async function searchSimilar(queryEmbedding: number[], k = 5) {
     .toArray();
 }
 
-/** Đọc toàn bộ nội dung bản mới nhất theo TÊN FILE (tool readDocument dùng). */
-export async function getDocumentContent(source: string) {
+/**
+ * Đọc nội dung bản mới nhất theo TÊN FILE (tool readDocument dùng).
+ * Cắt bớt nếu quá dài: tài liệu lớn (vd PDF mấy trăm trang) trả nguyên văn sẽ
+ * tốn cả trăm nghìn token → chậm & đắt. Khi bị cắt, báo agent dùng ragSearch.
+ */
+export async function getDocumentContent(source: string, maxChars = 24000) {
   const chunks = await docs()
     .find({ source })
     .sort({ chunkIndex: 1 })
     .project({ _id: 0, text: 1 })
     .toArray();
+
+  const full = chunks.map((c) => c.text).join("\n\n");
+  const truncated = full.length > maxChars;
   return {
     source,
     found: chunks.length > 0,
     chunks: chunks.length,
-    content: chunks.map((c) => c.text).join("\n\n"),
+    truncated,
+    content: truncated ? full.slice(0, maxChars) : full,
+    ...(truncated
+      ? {
+          note: "Tài liệu dài đã bị cắt bớt. Dùng ragSearch để tìm chi tiết cụ thể trong tài liệu.",
+        }
+      : {}),
   };
 }
 
