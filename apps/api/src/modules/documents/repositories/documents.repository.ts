@@ -1,4 +1,4 @@
-import { getDb } from "../../lib/mongo";
+import { getDb } from "../../../lib/mongo";
 
 /**
  * Một chunk của tài liệu (bản MỚI NHẤT) — nằm trong collection `documents`.

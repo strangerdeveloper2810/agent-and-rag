@@ -10,13 +10,13 @@ import {
   updateTask,
   listTasks,
   deleteTask,
-} from "../modules/tasks/tasks.repository";
+} from "../modules/tasks/repositories";
 import { embed } from "../lib/voyage";
 import {
   searchSimilar,
   listDocuments,
   getDocumentContent,
-} from "../modules/documents/documents.repository";
+} from "../modules/documents/repositories";
 
 type Tool = {
   name: string;
