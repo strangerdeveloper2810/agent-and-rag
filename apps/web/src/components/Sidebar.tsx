@@ -1,4 +1,11 @@
-import { SparkIcon, PlusIcon, ChatIcon, DocIcon, CloseIcon } from "./icons";
+import {
+  SparkIcon,
+  PlusIcon,
+  ChatIcon,
+  DocIcon,
+  CloseIcon,
+  TrashIcon,
+} from "./icons";
 import type { Conversation } from "../lib/api";
 
 export type View = "chat" | "documents";
@@ -7,20 +14,24 @@ export default function Sidebar({
   conversations,
   activeId,
   open,
+  collapsed,
   view,
   onSelect,
   onNew,
   onClose,
   onViewChange,
+  onDelete,
 }: {
   conversations: Conversation[];
   activeId: string | null;
   open: boolean;
+  collapsed: boolean;
   view: View;
   onSelect: (id: string) => void;
   onNew: () => void;
   onClose: () => void;
   onViewChange: (v: View) => void;
+  onDelete: (id: string) => void;
 }) {
   const navItem = (active: boolean) =>
     `flex w-full items-center gap-3 rounded-full px-4 py-2.5 text-sm transition ${
@@ -40,8 +51,12 @@ export default function Sidebar({
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-30 flex w-[300px] flex-col bg-subtle transition-transform duration-300 md:static md:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-30 flex w-[84vw] max-w-[320px] flex-col overflow-hidden bg-subtle transition-all duration-300 md:static md:max-w-none ${
           open ? "translate-x-0" : "-translate-x-full"
+        } ${
+          collapsed
+            ? "md:w-0 md:-translate-x-full"
+            : "md:w-[300px] md:translate-x-0"
         }`}
       >
         {/* Thương hiệu */}
@@ -111,22 +126,38 @@ export default function Sidebar({
                 conversations.map((c) => {
                   const active = c._id === activeId;
                   return (
-                    <button
+                    <div
                       key={c._id}
-                      onClick={() => onSelect(c._id)}
-                      className={`flex w-full items-center gap-3 rounded-full px-4 py-2 text-left text-sm transition ${
+                      className={`group/item flex w-full items-center gap-2 rounded-full pr-2 transition ${
                         active
                           ? "bg-gblue-soft text-gblue"
                           : "text-ink-soft hover:bg-subtle2"
                       }`}
                     >
-                      <ChatIcon
-                        width={16}
-                        height={16}
-                        className="shrink-0 opacity-70"
-                      />
-                      <span className="truncate">{c.title}</span>
-                    </button>
+                      <button
+                        onClick={() => onSelect(c._id)}
+                        className="flex min-w-0 flex-1 items-center gap-3 py-2 pl-4 text-left text-sm"
+                      >
+                        <ChatIcon
+                          width={16}
+                          height={16}
+                          className="shrink-0 opacity-70"
+                        />
+                        <span className="truncate">{c.title}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (confirm(`Xóa hội thoại "${c.title}"?`)) {
+                            onDelete(c._id);
+                          }
+                        }}
+                        aria-label={`Xóa hội thoại ${c.title}`}
+                        className="shrink-0 rounded-full p-1.5 text-ink-faint opacity-0 transition hover:bg-red-100 hover:text-red-600 focus:opacity-100 group-hover/item:opacity-100"
+                      >
+                        <TrashIcon width={15} height={15} />
+                      </button>
+                    </div>
                   );
                 })
               )}

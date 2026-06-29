@@ -1,18 +1,25 @@
 import { useCallback, useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
-import { listConversations, type Conversation } from "../lib/api";
+import {
+  listConversations,
+  deleteConversation,
+  type Conversation,
+} from "../lib/api";
 
 // Dữ liệu chia sẻ xuống các page con qua Outlet context
 export type OutletCtx = {
   conversations: Conversation[];
   reloadConversations: () => Promise<void>;
-  openSidebar: () => void;
+  toggleSidebar: () => void;
 };
 
 export default function AppLayout() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false); // drawer trên mobile
+  const [collapsed, setCollapsed] = useState(
+    () => localStorage.getItem("sb-collapsed") === "1",
+  ); // thu gọn trên desktop (nhớ qua reload)
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -23,6 +30,19 @@ export default function AppLayout() {
   useEffect(() => {
     reloadConversations();
   }, [reloadConversations]);
+
+  useEffect(() => {
+    localStorage.setItem("sb-collapsed", collapsed ? "1" : "0");
+  }, [collapsed]);
+
+  // Cùng 1 nút: desktop → thu gọn/mở; mobile → bật/tắt drawer
+  const toggleSidebar = () => {
+    if (window.matchMedia("(min-width: 768px)").matches) {
+      setCollapsed((c) => !c);
+    } else {
+      setSidebarOpen((o) => !o);
+    }
+  };
 
   // Trạng thái active suy ra TỪ URL → reload trang vẫn đúng phiên
   const activeId = location.pathname.startsWith("/messages/")
@@ -36,6 +56,7 @@ export default function AppLayout() {
         conversations={conversations}
         activeId={activeId}
         open={sidebarOpen}
+        collapsed={collapsed}
         view={view}
         onSelect={(id) => {
           navigate(`/messages/${id}`);
@@ -50,6 +71,12 @@ export default function AppLayout() {
           navigate(v === "documents" ? "/documents" : "/");
           setSidebarOpen(false);
         }}
+        onDelete={async (id) => {
+          await deleteConversation(id);
+          await reloadConversations();
+          // nếu đang mở hội thoại vừa xóa → về home
+          if (activeId === id) navigate("/");
+        }}
       />
 
       <Outlet
@@ -57,7 +84,7 @@ export default function AppLayout() {
           {
             conversations,
             reloadConversations,
-            openSidebar: () => setSidebarOpen(true),
+            toggleSidebar,
           } satisfies OutletCtx
         }
       />
