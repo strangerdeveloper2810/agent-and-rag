@@ -1029,6 +1029,44 @@ git commit -m "feat(api): add listDocuments and readDocument agent tools"
 
 ---
 
+## Task 12 (bổ sung, nâng cao): Giữ kết quả tool qua các lượt hội thoại
+
+> **Vấn đề:** hiện chỉ lưu *text trả lời* của assistant vào DB. Các khối `tool_use` (Claude gọi tool) và `tool_result` (kết quả, vd nội dung RAG) **chỉ tồn tại trong bộ nhớ tạm của 1 lượt** rồi mất. Sang lượt sau, agent không còn dữ liệu đã tra → phải gọi lại tool, hoặc dễ **bịa** nếu prompt không chặt.
+>
+> **Mục tiêu:** lưu đầy đủ "khối hội thoại" để lượt sau Claude vẫn thấy tool_use + tool_result trước đó.
+
+> **Lưu ý ràng buộc của Anthropic API:** mỗi `tool_use` (trong message assistant) phải có `tool_result` tương ứng (`tool_use_id` khớp) nằm ở message `user` NGAY SAU đó. Vì vậy phải lưu & dựng lại đúng cấu trúc khối, không thể chỉ nối text.
+
+**Cách làm (pragmatic — lưu nguyên content blocks):**
+
+**Step 1:** Mở rộng schema message để lưu content dạng khối. Trong `message.ts` thêm field tùy chọn:
+```ts
+// content có thể là string (như cũ) hoặc mảng block của Anthropic
+blocks: z.array(z.any()).optional(), // lưu res.content / toolResults
+```
+
+**Step 2:** Sửa agent loop để trả về các message phát sinh trong lượt (không chỉ text).
+- `runAgent` thu thập một mảng `turnMessages: Anthropic.MessageParam[]` gồm: `{role:"assistant", content: res.content}` và `{role:"user", content: toolResults}` mỗi vòng có tool.
+- Trả về cùng `finalText` (đổi kiểu trả về, hoặc yield thêm 1 event "done" mang turnMessages).
+
+**Step 3:** Ở chat route, lưu các message theo khối:
+- Thay vì chỉ `addMessage(id,"assistant", full)`, lưu từng message trong `turnMessages` với `blocks` = content array (role tương ứng). Message user gốc vẫn lưu string như cũ.
+
+**Step 4:** Khi dựng history cho lượt mới (`getMessages` → runAgent):
+- Nếu message có `blocks` → dùng `content: m.blocks`; nếu không → `content: m.content` (string).
+- Bỏ filter "chỉ user/assistant" cứng nhắc — nhưng vẫn phải giữ ĐÚNG thứ tự và cặp tool_use/tool_result.
+
+**Step 5:** Chạy thử: hỏi về 1 tài liệu (agent gọi ragSearch) → lượt sau hỏi tiếp dựa trên kết quả đó → agent trả lời đúng mà KHÔNG cần gọi ragSearch lại.
+
+> ⚠️ Đánh đổi: context phình to nhanh (mỗi tool_result có thể dài) → tốn token và chạm giới hạn context. Giải pháp thật ở **Mốc 3 (LangGraph)**: quản lý state, cắt tỉa/tóm tắt lịch sử, hoặc chỉ giữ tool_result gần nhất. Task này để *hiểu vấn đề*; bản chính quy làm ở Mốc 3.
+
+**Commit:**
+```bash
+git commit -m "feat(api): persist tool_use/tool_result across turns"
+```
+
+---
+
 ## Định nghĩa "Done" cho Mốc 2
 - [ ] Upload `.txt/.md` → chunk → embed Voyage → lưu Atlas
 - [ ] Atlas Vector Search Index `vector_index` đã Active
