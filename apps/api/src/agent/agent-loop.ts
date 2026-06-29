@@ -48,7 +48,8 @@ export async function* runAgent(
 
   // Giới hạn số vòng để tránh loop vô hạn (an toàn)
   for (let step = 0; step < 8; step++) {
-    const res = await claude.messages.create({
+    // Stream để token hiện ra NGAY khi Claude sinh, thay vì chờ xong cả câu.
+    const stream = claude.messages.stream({
       model: CLAUDE_MODEL,
       max_tokens: 4096, // đủ dài để câu trả lời không bị cắt cụt
       system: SYSTEM_PROMPT,
@@ -56,13 +57,19 @@ export async function* runAgent(
       messages,
     });
 
-    // Phát phần text Claude nói ra (nếu có)
-    for (const block of res.content) {
-      if (block.type === "text") {
-        finalText += block.text;
-        yield { type: "text", text: block.text };
+    // Đẩy từng mẩu text ra ngoài theo thời gian thực
+    for await (const event of stream) {
+      if (
+        event.type === "content_block_delta" &&
+        event.delta.type === "text_delta"
+      ) {
+        finalText += event.delta.text;
+        yield { type: "text", text: event.delta.text };
       }
     }
+
+    // Lấy message hoàn chỉnh để xử lý tool_use / kiểm tra stop_reason
+    const res = await stream.finalMessage();
 
     // Claude không yêu cầu gọi tool → kết thúc loop
     if (res.stop_reason !== "tool_use") {
