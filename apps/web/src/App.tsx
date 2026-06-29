@@ -1,7 +1,7 @@
 import { Routes, Route } from "react-router-dom";
-import AppLayout from "./components/AppLayout";
-import ChatPage from "./components/ChatPage";
-import DocumentsView from "./components/DocumentsView";
+import AppLayout from "@/shared/components/AppLayout";
+import ChatPage from "@/modules/chat/components/ChatPage";
+import DocumentsView from "@/modules/documents/components/DocumentsView";
 
 export default function App() {
   return (

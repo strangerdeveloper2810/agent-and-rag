@@ -1,7 +1,7 @@
 import { useState } from "react";
 import Markdown from "./Markdown";
-import { SparkIcon, CopyIcon, CheckIcon } from "./icons";
-import type { Message } from "../lib/api";
+import { SparkIcon, CopyIcon, CheckIcon } from "@/shared/components/icons";
+import type { Message } from "@/modules/chat/chat.api";
 
 function TypingDots() {
   return (

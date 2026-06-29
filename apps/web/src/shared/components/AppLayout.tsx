@@ -5,7 +5,7 @@ import {
   listConversations,
   deleteConversation,
   type Conversation,
-} from "../lib/api";
+} from "@/modules/chat/chat.api";
 
 // Dữ liệu chia sẻ xuống các page con qua Outlet context
 export type OutletCtx = {

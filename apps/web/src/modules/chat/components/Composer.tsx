@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { SendIcon } from "./icons";
+import { SendIcon } from "@/shared/components/icons";
 
 export default function Composer({
   value,

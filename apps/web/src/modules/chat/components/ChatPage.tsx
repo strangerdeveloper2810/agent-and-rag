@@ -5,12 +5,12 @@ import {
   getMessages,
   streamChat,
   type Message,
-} from "../lib/api";
-import type { OutletCtx } from "./AppLayout";
+} from "@/modules/chat/chat.api";
+import type { OutletCtx } from "@/shared/components/AppLayout";
 import MessageBubble from "./MessageBubble";
 import Composer from "./Composer";
 import EmptyState from "./EmptyState";
-import { MenuIcon } from "./icons";
+import { MenuIcon } from "@/shared/components/icons";
 
 const TOOL_LABELS: Record<string, string> = {
   ragSearch: "🔍 Đang tìm trong tài liệu…",
