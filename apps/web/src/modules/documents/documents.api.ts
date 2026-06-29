@@ -1,3 +1,5 @@
+import { http } from "@/shared/api/http";
+
 // ----- Documents (RAG) -----
 export type DocumentInfo = {
   documentId: string;
@@ -21,62 +23,26 @@ export type VersionContent = {
   isLatest: boolean;
 };
 
-export const listDocuments = async (): Promise<DocumentInfo[]> => {
-  const response = await fetch("/api/documents");
-  return response.json();
-};
-
-export const uploadDocument = async (file: File): Promise<DocumentInfo> => {
+const fileForm = (file: File) => {
   const form = new FormData();
   form.append("file", file);
-  const response = await fetch("/api/documents/upload", {
-    method: "POST",
-    body: form,
-  });
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
-    throw new Error(data.error ?? "Upload thất bại");
-  }
-  return response.json();
+  return form;
 };
+
+export const listDocuments = () => http.get<DocumentInfo[]>("/documents");
+
+export const uploadDocument = (file: File) =>
+  http.post<DocumentInfo>("/documents/upload", fileForm(file));
 
 // Cập nhật tài liệu đã có → tạo version mới (file mới có thể khác tên)
-export const updateDocument = async (
-  documentId: string,
-  file: File,
-): Promise<DocumentInfo> => {
-  const form = new FormData();
-  form.append("file", file);
-  const response = await fetch(`/api/documents/${documentId}`, {
-    method: "PUT",
-    body: form,
-  });
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
-    throw new Error(data.error ?? "Cập nhật thất bại");
-  }
-  return response.json();
-};
+export const updateDocument = (documentId: string, file: File) =>
+  http.put<DocumentInfo>(`/documents/${documentId}`, fileForm(file));
 
-export const getVersions = async (
-  documentId: string,
-): Promise<DocumentVersion[]> => {
-  const response = await fetch(`/api/documents/${documentId}/versions`);
-  return response.json();
-};
+export const getVersions = (documentId: string) =>
+  http.get<DocumentVersion[]>(`/documents/${documentId}/versions`);
 
-export const getVersionContent = async (
-  documentId: string,
-  version: number,
-): Promise<VersionContent> => {
-  const response = await fetch(
-    `/api/documents/${documentId}/versions/${version}`,
-  );
-  return response.json();
-};
+export const getVersionContent = (documentId: string, version: number) =>
+  http.get<VersionContent>(`/documents/${documentId}/versions/${version}`);
 
-export const deleteDocument = async (documentId: string): Promise<void> => {
-  await fetch(`/api/documents/${documentId}`, {
-    method: "DELETE",
-  });
-};
+export const deleteDocument = (documentId: string) =>
+  http.delete<void>(`/documents/${documentId}`);

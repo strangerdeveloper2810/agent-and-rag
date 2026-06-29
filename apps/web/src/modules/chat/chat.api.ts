@@ -1,30 +1,19 @@
+import { http } from "@/shared/api/http";
+
 export type Conversation = { _id: string; title: string };
 export type Message = { _id?: string; role: string; content: string };
 
-export const createConversation = async (
-  firstMessage: string,
-): Promise<Conversation> => {
-  const response = await fetch("/api/conversations", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ firstMessage }),
-  });
-  return response.json();
-};
+export const createConversation = (firstMessage: string) =>
+  http.post<Conversation>("/conversations", { firstMessage });
 
-export const listConversations = async (): Promise<Conversation[]> => {
-  const response = await fetch("/api/conversations");
-  return response.json();
-};
+export const listConversations = () =>
+  http.get<Conversation[]>("/conversations");
 
-export const getMessages = async (id: string): Promise<Message[]> => {
-  const response = await fetch(`/api/conversations/${id}/messages`);
-  return response.json();
-};
+export const getMessages = (id: string) =>
+  http.get<Message[]>(`/conversations/${id}/messages`);
 
-export const deleteConversation = async (id: string): Promise<void> => {
-  await fetch(`/api/conversations/${id}`, { method: "DELETE" });
-};
+export const deleteConversation = (id: string) =>
+  http.delete<void>(`/conversations/${id}`);
 
 // Một event SSE từ agent: token (text), hoặc tool_start/tool_end, hoặc done
 export type ChatEvent = {
@@ -40,10 +29,8 @@ export const streamChat = async (
   content: string,
   onEvent: (e: ChatEvent) => void,
 ): Promise<void> => {
-  const response = await fetch(`/api/conversations/${conversationId}/chat`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ content }),
+  const response = await http.stream(`/conversations/${conversationId}/chat`, {
+    content,
   });
   const reader = response.body!.getReader();
   const decoder = new TextDecoder();
