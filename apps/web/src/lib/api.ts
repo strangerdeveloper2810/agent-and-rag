@@ -74,7 +74,10 @@ export const uploadDocument = async (
     method: "POST",
     body: form,
   });
-  if (!response.ok) throw new Error("Upload thất bại");
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error ?? "Upload thất bại");
+  }
   return response.json();
 };
 
