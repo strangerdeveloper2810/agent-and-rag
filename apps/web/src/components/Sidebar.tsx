@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   SparkIcon,
   PlusIcon,
@@ -6,6 +7,7 @@ import {
   CloseIcon,
   TrashIcon,
 } from "./icons";
+import ConfirmDialog from "./ConfirmDialog";
 import type { Conversation } from "../lib/api";
 
 export type View = "chat" | "documents";
@@ -33,6 +35,9 @@ export default function Sidebar({
   onViewChange: (v: View) => void;
   onDelete: (id: string) => void;
 }) {
+  // Hội thoại đang chờ xác nhận xóa (mở modal)
+  const [pendingDelete, setPendingDelete] = useState<Conversation | null>(null);
+
   const navItem = (active: boolean) =>
     `flex w-full items-center gap-3 rounded-full px-4 py-2.5 text-sm transition ${
       active
@@ -147,11 +152,7 @@ export default function Sidebar({
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          if (confirm(`Xóa hội thoại "${c.title}"?`)) {
-                            onDelete(c._id);
-                          }
-                        }}
+                        onClick={() => setPendingDelete(c)}
                         aria-label={`Xóa hội thoại ${c.title}`}
                         className="shrink-0 rounded-full p-1.5 text-ink-faint opacity-0 transition hover:bg-red-100 hover:text-red-600 focus:opacity-100 group-hover/item:opacity-100"
                       >
@@ -165,6 +166,23 @@ export default function Sidebar({
           </>
         )}
       </aside>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Xóa hội thoại?"
+        message={
+          pendingDelete
+            ? `Hội thoại "${pendingDelete.title}" và toàn bộ tin nhắn sẽ bị xóa vĩnh viễn.`
+            : undefined
+        }
+        confirmLabel="Xóa"
+        danger
+        onConfirm={() => {
+          if (pendingDelete) onDelete(pendingDelete._id);
+          setPendingDelete(null);
+        }}
+        onCancel={() => setPendingDelete(null)}
+      />
     </>
   );
 }
