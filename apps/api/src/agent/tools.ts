@@ -15,6 +15,7 @@ import { embed } from "../lib/voyage";
 import {
   searchSimilar,
   listSources,
+  getDocumentContent,
 } from "../modules/documents/documents.repository";
 
 type Tool = {
@@ -31,6 +32,10 @@ const ragSearchSchema = z.object({
 const listDocumentsSchema = z.object({});
 
 const deleteTaskSchema = z.object({ id: z.string() });
+
+const readDocumentSchema = z.object({
+  source: z.string().describe("Tên file tài liệu cần đọc, ví dụ test-rag.txt"),
+});
 
 const tools: Tool[] = [
   {
@@ -50,6 +55,14 @@ const tools: Tool[] = [
       "Liệt kê các tài liệu đã được nạp (tên file + số chunk). Dùng khi người dùng hỏi 'có bao nhiêu tài liệu' hoặc 'có những tài liệu nào'.",
     schema: listDocumentsSchema,
     execute: async () => listSources(),
+  },
+  {
+    name: "readDocument",
+    description:
+      "Đọc TOÀN BỘ nội dung của MỘT tài liệu theo tên file. Dùng khi người dùng muốn xem nội dung đầy đủ của một tài liệu cụ thể. Nếu chưa biết tên file, gọi listDocuments trước.",
+    schema: readDocumentSchema,
+    execute: async ({ source }: z.infer<typeof readDocumentSchema>) =>
+      getDocumentContent(source),
   },
   {
     name: "createTask",

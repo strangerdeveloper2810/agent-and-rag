@@ -58,3 +58,18 @@ export async function searchSimilar(queryEmbedding: number[], k = 5) {
     ])
     .toArray();
 }
+
+export async function getDocumentContent(source: string) {
+  const chunks = await getDb()
+    .collection("documents")
+    .find({ source })
+    .sort({ chunkIndex: 1 })
+    .project({ _id: 0, text: 1 })
+    .toArray();
+  return {
+    source,
+    found: chunks.length > 0,
+    chunks: chunks.length,
+    content: chunks.map((c) => c.text).join("\n\n"),
+  };
+}
