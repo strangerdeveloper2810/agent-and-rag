@@ -1067,6 +1067,76 @@ git commit -m "feat(api): persist tool_use/tool_result across turns"
 
 ---
 
+## Task 13 (bổ sung): Versioning tài liệu (cập nhật + xem bản cũ)
+
+> **Vì sao cần:** ban đầu upload chỉ `insertMany` chunk → upload lại CÙNG tên file không ghi đè mà trộn lẫn chunk cũ/mới (rác); file khác tên thì thành tài liệu mới, không có khái niệm "bản cập nhật". Ta thêm versioning: mỗi tài liệu có `documentId` ổn định; cập nhật → tạo version mới; bản cũ lưu lại để xem lại.
+>
+> **Quyết định thiết kế (chốt qua brainstorming):**
+> - Search chỉ chạy trên **bản mới nhất**.
+> - Nhận diện "cập nhật" bằng **chọn tài liệu** (`PUT /documents/:documentId`), không theo tên file → file mới có thể khác tên.
+> - Bản cũ giữ lại để **xem lại nội dung** (không cần khôi phục).
+> - **2 collection:** `documents` chỉ chứa bản mới nhất (có embedding, để search) → `searchSimilar` và Atlas index **KHÔNG đổi**. Bản cũ đẩy sang `document_versions` (chỉ text, không embedding → đỡ tốn quota Voyage).
+
+**Files:**
+- Modify: `apps/api/src/modules/documents/documents.repository.ts` (thêm `documentId`/`version`; `listDocuments`, `getCurrentVersion`, `archiveCurrentVersion`, `getVersions`, `getVersionContent`, `deleteDocument`)
+- Modify: `apps/api/src/modules/documents/documents.service.ts` (`buildChunkDocs`, `updateDocument`)
+- Test: `apps/api/src/modules/documents/documents.service.test.ts` (test `buildChunkDocs`)
+- Modify: `apps/api/src/modules/documents/documents.routes.ts` (PUT update, GET versions, GET version content, DELETE theo documentId)
+- Modify: `apps/api/src/agent/tools.ts` (đổi import `listSources` → `listDocuments`)
+- Modify: `apps/web/src/lib/api.ts` + `apps/web/src/components/DocumentsView.tsx` (badge version, nút Cập nhật, xem Lịch sử)
+
+**Mô hình dữ liệu:**
+```ts
+// documents (bản mới nhất, có embedding — search như cũ)
+{ documentId, source, version, chunkIndex, text, embedding, createdAt }
+// document_versions (bản cũ, chỉ text để xem lại)
+{ documentId, version, source, content, archivedAt }
+```
+
+**Step 1: Luồng cập nhật (service)**
+```ts
+export async function updateDocument(documentId, source, content) {
+  const prevVersion = await archiveCurrentVersion(documentId); // archive + xóa bản cũ khỏi documents
+  if (prevVersion === null) throw new Error("Tài liệu không tồn tại");
+  const version = prevVersion + 1;
+  const chunks = await chunkText(content);
+  const embeddings = await embed(chunks, "document");
+  await insertChunks(buildChunkDocs(documentId, source, version, chunks, embeddings, new Date()));
+  return { documentId, source, version, chunks: chunks.length };
+}
+```
+
+**Step 2: Endpoint mới**
+```
+PUT    /documents/:documentId                    → tạo version mới
+GET    /documents/:documentId/versions           → lịch sử version
+GET    /documents/:documentId/versions/:version  → nội dung 1 version
+DELETE /documents/:documentId                    → xóa cả bản mới + lịch sử
+```
+
+**Step 3: Test pure logic (không cần Mongo)**
+```bash
+cd apps/api && pnpm test src/modules/documents/documents.service.test.ts
+```
+
+**Step 4: Chạy thử**
+```bash
+curl -X POST localhost:3001/api/documents/upload -F file=@v1.txt           # → { documentId, version: 1 }
+curl -X PUT  localhost:3001/api/documents/<documentId> -F file=@v2.txt     # → version 2 (file mới có thể khác tên)
+curl localhost:3001/api/documents/<documentId>/versions                    # lịch sử
+curl localhost:3001/api/documents/<documentId>/versions/1                  # nội dung bản cũ
+```
+
+**Step 5: Commit**
+```bash
+git add apps/api/src/modules/documents apps/api/src/agent/tools.ts apps/web/src
+git commit -m "feat: add document versioning (update + view old versions)"
+```
+
+> ⚠️ **Migration:** tài liệu upload TRƯỚC khi có versioning không có `documentId` → `listDocuments` gom vào nhóm `null`, không cập nhật được. Với data học chỉ cần xóa và upload lại. Atlas Vector Index **không cần** đổi.
+
+---
+
 ## Định nghĩa "Done" cho Mốc 2
 - [ ] Upload `.txt/.md` → chunk → embed Voyage → lưu Atlas
 - [ ] Atlas Vector Search Index `vector_index` đã Active
