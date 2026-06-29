@@ -25,7 +25,7 @@ const TOOL_LABELS: Record<string, string> = {
 export default function ChatPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { reloadConversations, openSidebar } = useOutletContext<OutletCtx>();
+  const { reloadConversations, toggleSidebar } = useOutletContext<OutletCtx>();
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -102,9 +102,9 @@ export default function ChatPage() {
       <header className="flex items-center gap-3 px-4 py-3 sm:px-6">
         <button
           type="button"
-          onClick={openSidebar}
-          aria-label="Mở menu"
-          className="rounded-full p-2 text-ink-soft hover:bg-subtle md:hidden"
+          onClick={toggleSidebar}
+          aria-label="Ẩn/hiện menu"
+          className="rounded-full p-2 text-ink-soft hover:bg-subtle"
         >
           <MenuIcon />
         </button>

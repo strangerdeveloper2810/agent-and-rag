@@ -10,7 +10,7 @@ import type { OutletCtx } from "./AppLayout";
 import { UploadIcon, DocIcon, TrashIcon, MenuIcon } from "./icons";
 
 export default function DocumentsView() {
-  const { openSidebar } = useOutletContext<OutletCtx>();
+  const { toggleSidebar } = useOutletContext<OutletCtx>();
   const [docs, setDocs] = useState<DocumentInfo[]>([]);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,9 +45,9 @@ export default function DocumentsView() {
       <header className="flex items-center gap-3 px-4 py-3 sm:px-6">
         <button
           type="button"
-          onClick={openSidebar}
-          aria-label="Mở menu"
-          className="rounded-full p-2 text-ink-soft hover:bg-subtle md:hidden"
+          onClick={toggleSidebar}
+          aria-label="Ẩn/hiện menu"
+          className="rounded-full p-2 text-ink-soft hover:bg-subtle"
         >
           <MenuIcon />
         </button>
