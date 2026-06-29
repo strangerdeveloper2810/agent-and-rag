@@ -1,6 +1,6 @@
 import { ObjectId, type Db } from "mongodb";
-import { getDb } from "../../lib/mongo";
-import type { MessageRole } from "../../schemas/message";
+import { getDb } from "../../../lib/mongo";
+import type { MessageRole } from "../../../schemas/message";
 
 export const buildConversationDocs = (firstMessage: string, now: Date) => {
   const title = firstMessage.trim().slice(0, 50) || "Hội thoại mới";
@@ -30,15 +30,6 @@ export const getMessages = async (conversationId: string) =>
     .sort({ createdAt: 1 })
     .toArray();
 
-// Xóa một hội thoại + toàn bộ tin nhắn của nó
-export const deleteConversation = async (conversationId: string) => {
-  await db().collection("messages").deleteMany({ conversationId });
-  await db()
-    .collection("conversations")
-    .deleteOne({ _id: new ObjectId(conversationId) });
-  return { ok: true };
-};
-
 export const addMessage = async (
   conversationId: string,
   role: MessageRole,
@@ -60,4 +51,14 @@ export const addMessage = async (
       { $set: { updatedAt: new Date() } },
     );
   return doc;
+};
+
+export const deleteConversation = async (conversationId: string) => {
+  await db()
+    .collection("messages")
+    .deleteMany({ conversationId });
+  await db()
+    .collection("conversations")
+    .deleteOne({ _id: new ObjectId(conversationId) });
+  return { ok: true };
 };

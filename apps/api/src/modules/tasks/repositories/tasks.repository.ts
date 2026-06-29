@@ -1,10 +1,10 @@
 import { ObjectId } from "mongodb";
-import { getDb } from "../../lib/mongo";
+import { getDb } from "../../../lib/mongo";
 import type {
   CreateTaskInput,
   UpdateTaskInput,
   ListTasksInput,
-} from "../../schemas/task";
+} from "../../../schemas/task";
 
 const col = () => getDb().collection("tasks");
 
