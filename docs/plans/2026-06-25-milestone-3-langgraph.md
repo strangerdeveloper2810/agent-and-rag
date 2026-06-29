@@ -8,7 +8,9 @@
 
 **Tech Stack:** `@langchain/langgraph`, `@langchain/anthropic`, `@langchain/core`, Zod, các tool đã có ở Mốc 2.
 
-**Tiền đề:** Mốc 2 đã xong (tool registry, RAG, agent loop thủ công).
+**Tiền đề:** Mốc 2 đã xong (tool registry đủ 7 tool, RAG, agent loop thủ công). Sau Mốc 2 đã có thêm: streaming token (agent loop dùng `messages.stream`), cắt bớt `readDocument` ở 24k ký tự, và indicator tool dạng chip shimmer ở frontend.
+
+> **Giữ lại khi chuyển sang LangGraph:** streaming vẫn hoạt động qua `streamEvents` v2 (`on_chat_model_stream`) → không mất tính năng. Phần cắt `readDocument` nằm ở `documents.repository`, tool chỉ gọi lại nên tự kế thừa. Frontend (gồm chip shimmer) không phải đổi vì format `AgentEvent` giữ nguyên.
 
 > **Vì sao chuyển sang LangGraph?** Vòng `while` ở Mốc 2 hoạt động, nhưng khó mở rộng khi cần: thêm node "lập kế hoạch", "kiểm tra kết quả", rẽ nhánh phức tạp, checkpoint/resume, hay visualize. LangGraph mô hình hóa agent thành đồ thị state machine — đúng cách các project agent thực tế tổ chức.
 
@@ -43,14 +45,22 @@ git commit -m "chore(api): add langgraph and langchain anthropic"
 **Step 1: Write the failing test**
 ```ts
 import { describe, it, expect } from "vitest";
-import { lcTools } from "./lc-tools.js";
+import { lcTools } from "./lc-tools";
 
 describe("lcTools", () => {
-  it("exposes langchain tools with names", () => {
+  it("exposes đủ 7 langchain tool", () => {
     const names = lcTools.map((t) => t.name);
-    expect(names).toContain("ragSearch");
-    expect(names).toContain("createTask");
-    expect(names).toContain("listTasks");
+    expect(names).toEqual(
+      expect.arrayContaining([
+        "ragSearch",
+        "listDocuments",
+        "readDocument",
+        "createTask",
+        "listTasks",
+        "updateTask",
+        "deleteTask",
+      ]),
+    );
   });
 });
 ```
@@ -58,6 +68,9 @@ describe("lcTools", () => {
 **Step 2: Run test → FAIL**
 
 **Step 3: Tạo `apps/api/src/agent/lc-tools.ts`**
+
+> Bọc lại ĐÚNG 7 tool đã có ở Mốc 2 (gồm `listDocuments` + `readDocument` thêm ở Task 11/13), tái dùng nguyên logic execute và mô tả tool như trong `agent/tools.ts`. Import KHÔNG đuôi `.js` theo convention repo hiện tại.
+
 ```ts
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
@@ -65,15 +78,19 @@ import {
   createTaskInputSchema,
   updateTaskInputSchema,
   listTasksInputSchema,
-} from "../schemas/task.js";
+} from "../schemas/task";
 import {
   createTask,
   listTasks,
   updateTask,
   deleteTask,
-} from "../modules/tasks/tasks.repository.js";
-import { embed } from "../lib/voyage.js";
-import { searchSimilar } from "../modules/documents/documents.repository.js";
+} from "../modules/tasks/tasks.repository";
+import { embed } from "../lib/voyage";
+import {
+  searchSimilar,
+  listDocuments,
+  getDocumentContent,
+} from "../modules/documents/documents.repository";
 
 const ragSearch = tool(
   async ({ query }) => {
@@ -85,16 +102,43 @@ const ragSearch = tool(
     name: "ragSearch",
     description:
       "Tìm kiếm thông tin trong các tài liệu người dùng đã nạp. Dùng khi câu hỏi liên quan đến nội dung tài liệu.",
-    schema: z.object({ query: z.string().describe("Câu truy vấn") }),
+    schema: z.object({
+      query: z.string().describe("Câu truy vấn để tìm trong tài liệu"),
+    }),
+  },
+);
+
+const listDocumentsTool = tool(
+  async () => JSON.stringify(await listDocuments()),
+  {
+    name: "listDocuments",
+    description:
+      "Liệt kê các tài liệu đã được nạp (tên file + số chunk). Dùng khi người dùng hỏi 'có bao nhiêu tài liệu' hoặc 'có những tài liệu nào'.",
+    schema: z.object({}),
+  },
+);
+
+const readDocumentTool = tool(
+  async ({ source }) => JSON.stringify(await getDocumentContent(source)),
+  {
+    name: "readDocument",
+    description:
+      "Đọc TOÀN BỘ nội dung của MỘT tài liệu theo tên file. Dùng khi người dùng muốn xem nội dung đầy đủ của một tài liệu cụ thể. Nếu chưa biết tên file, gọi listDocuments trước.",
+    schema: z.object({
+      source: z
+        .string()
+        .describe("Tên file tài liệu cần đọc, ví dụ test-rag.txt"),
+    }),
   },
 );
 
 const createTaskTool = tool(
-  async (input) => JSON.stringify(await createTask(createTaskInputSchema.parse(input), "agent")),
+  async (input) =>
+    JSON.stringify(await createTask(createTaskInputSchema.parse(input), "agent")),
   {
     name: "createTask",
     description:
-      "Tạo một task/công việc mới. Trích xuất title, priority, tags, dueDate, remindAt từ yêu cầu.",
+      "Tạo một task/công việc mới. Trích xuất title, priority, tags, dueDate, remindAt từ yêu cầu người dùng.",
     schema: createTaskInputSchema,
   },
 );
@@ -103,7 +147,7 @@ const listTasksTool = tool(
   async (input) => JSON.stringify(await listTasks(listTasksInputSchema.parse(input))),
   {
     name: "listTasks",
-    description: "Liệt kê task, lọc theo status, priority, hoặc tag.",
+    description: "Liệt kê task, có thể lọc theo status, priority, hoặc tag.",
     schema: listTasksInputSchema,
   },
 );
@@ -112,7 +156,7 @@ const updateTaskTool = tool(
   async (input) => JSON.stringify(await updateTask(updateTaskInputSchema.parse(input))),
   {
     name: "updateTask",
-    description: "Cập nhật task theo id.",
+    description: "Cập nhật một task theo id (đổi status, priority, title...).",
     schema: updateTaskInputSchema,
   },
 );
@@ -121,13 +165,15 @@ const deleteTaskTool = tool(
   async ({ id }) => JSON.stringify(await deleteTask(id)),
   {
     name: "deleteTask",
-    description: "Xóa task theo id.",
+    description: "Xóa một task theo id.",
     schema: z.object({ id: z.string() }),
   },
 );
 
 export const lcTools = [
   ragSearch,
+  listDocumentsTool,
+  readDocumentTool,
   createTaskTool,
   listTasksTool,
   updateTaskTool,
@@ -158,25 +204,39 @@ git commit -m "feat(api): wrap tools as langchain tools"
 > - Cạnh `tools → agent` (quay lại để Claude xử lý kết quả).
 
 **Step 1: Tạo `apps/api/src/agent/graph.ts`**
+
+> Dùng LẠI system prompt đã hardened ở `agent/agent-loop.ts` (chống bịa đặt + nhắc gọi lại tool mỗi lượt) và `maxTokens: 4096` như Mốc 2 — đừng dùng prompt/token yếu hơn. Import KHÔNG đuôi `.js`.
+
 ```ts
 import { StateGraph, MessagesAnnotation, END, START } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { ChatAnthropic } from "@langchain/anthropic";
 import { SystemMessage } from "@langchain/core/messages";
-import { config } from "../config.js";
-import { lcTools } from "./lc-tools.js";
+import { config } from "../config";
+import { lcTools } from "./lc-tools";
 
-const SYSTEM_PROMPT =
-  "Bạn là một trợ lý AI có thể tra cứu tài liệu và quản lý task. " +
-  "Dùng ragSearch khi cần thông tin từ tài liệu (dẫn nguồn source). " +
-  "Dùng các tool task khi người dùng muốn tạo/sửa/xem/xóa task. " +
-  "Có thể kết hợp nhiều bước: ví dụ tìm trong tài liệu rồi tạo task. " +
-  "Trả lời ngắn gọn, rõ ràng bằng tiếng Việt.";
+const SYSTEM_PROMPT = [
+  "Bạn là một trợ lý AI có thể tra cứu tài liệu (RAG) và quản lý task.",
+  "",
+  "QUY TẮC QUAN TRỌNG:",
+  "- TUYỆT ĐỐI KHÔNG bịa đặt thông tin (tên công ty, số liệu, ngày tháng, sự kiện...). Chỉ trả lời dựa trên ngữ cảnh hội thoại hoặc kết quả tool.",
+  "- Nếu câu hỏi liên quan đến NỘI DUNG tài liệu, hãy GỌI LẠI ragSearch hoặc readDocument để lấy dữ liệu mới ở MỖI lượt — đừng trả lời từ trí nhớ, vì nội dung tài liệu KHÔNG được giữ lại giữa các lượt hội thoại.",
+  "- Nếu không đủ thông tin để trả lời, hãy nói rõ bạn chưa có dữ liệu / cần hỏi lại, thay vì đoán.",
+  "",
+  "Công cụ:",
+  "- ragSearch: tìm thông tin trong nội dung tài liệu.",
+  "- listDocuments: đếm/liệt kê các tài liệu đã nạp.",
+  "- readDocument: đọc toàn bộ một tài liệu theo tên file.",
+  "- createTask/listTasks/updateTask/deleteTask: quản lý task.",
+  "",
+  "Có thể kết hợp nhiều bước: ví dụ tìm trong tài liệu rồi tạo task.",
+  "Trả lời rõ ràng bằng tiếng Việt. Khi dùng ragSearch, hãy dẫn nguồn (source).",
+].join("\n");
 
 const model = new ChatAnthropic({
   apiKey: config.ANTHROPIC_API_KEY,
   model: config.CLAUDE_MODEL,
-  maxTokens: 1024,
+  maxTokens: 4096,
 }).bindTools(lcTools);
 
 const toolNode = new ToolNode(lcTools);
@@ -223,7 +283,7 @@ git commit -m "feat(api): build langgraph state graph for agent"
 **Step 1: Write the failing test (test hàm map event)**
 ```ts
 import { describe, it, expect } from "vitest";
-import { mapGraphEvent } from "./graph-runner.js";
+import { mapGraphEvent } from "./graph-runner";
 
 describe("mapGraphEvent", () => {
   it("maps chat model token", () => {
@@ -252,7 +312,7 @@ describe("mapGraphEvent", () => {
 **Step 3: Tạo `apps/api/src/agent/graph-runner.ts`**
 ```ts
 import { HumanMessage, AIMessage } from "@langchain/core/messages";
-import { agentGraph } from "./graph.js";
+import { agentGraph } from "./graph";
 
 export type AgentEvent =
   | { type: "text"; text: string }
@@ -321,7 +381,7 @@ git commit -m "feat(api): stream langgraph events as agent events"
 
 **Step 1: Đổi import và lời gọi trong endpoint chat**
 ```ts
-import { runGraph, type AgentEvent } from "../../agent/graph-runner.js";
+import { runGraph, type AgentEvent } from "../../agent/graph-runner";
 // ...
 const gen = runGraph(history);
 // phần while...next giữ nguyên y như Mốc 2
@@ -350,7 +410,7 @@ git commit -m "feat(api): use langgraph in chat endpoint"
 
 **Step 1: Tạo script in cấu trúc graph dạng Mermaid**
 ```ts
-import { agentGraph } from "./graph.js";
+import { agentGraph } from "./graph";
 
 const repr = await agentGraph.getGraphAsync();
 console.log(repr.drawMermaid());
