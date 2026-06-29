@@ -41,12 +41,18 @@ export default {
           "0%, 100%": { opacity: "1" },
           "50%": { opacity: "0" },
         },
+        // Quét sáng chạy ngang chữ — hiệu ứng "đang xử lý" mềm mại
+        shimmer: {
+          "0%": { backgroundPosition: "200% 0" },
+          "100%": { backgroundPosition: "-200% 0" },
+        },
       },
       animation: {
         "msg-in": "msg-in 0.4s cubic-bezier(0.22, 0.8, 0.36, 1) both",
         "fade-in": "fade-in 0.4s ease both",
         "dot-bounce": "dot-bounce 1.2s ease-in-out infinite",
         "caret-blink": "caret-blink 1s step-end infinite",
+        shimmer: "shimmer 1.8s linear infinite",
       },
     },
   },
