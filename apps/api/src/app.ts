@@ -9,7 +9,8 @@ export function buildApp(): FastifyInstance {
   const app = Fastify({ logger: true });
 
   app.register(cors, { origin: true });
-  app.register(multipart);
+  // PDF lớn hơn text nhiều → nới giới hạn file lên 25MB
+  app.register(multipart, { limits: { fileSize: 25 * 1024 * 1024 } });
 
   app.get("/api/health", async () => ({ status: "ok" }));
 
