@@ -6,10 +6,21 @@ import {
   getVersions,
   getVersionContent,
 } from "./documents.repository";
+import {
+  extractDocumentText,
+  UnsupportedFileError,
+  EmptyContentError,
+} from "./extract";
 import { VoyageError } from "../../lib/voyage";
 
-// Lỗi rate limit của Voyage (429) → trả message hướng dẫn thay vì 500
-function handleVoyageError(err: unknown, reply: FastifyReply) {
+// Map lỗi nạp tài liệu sang HTTP status + message thân thiện (toast hiển thị).
+function handleUploadError(err: unknown, reply: FastifyReply) {
+  if (err instanceof UnsupportedFileError) {
+    return reply.code(415).send({ error: err.message });
+  }
+  if (err instanceof EmptyContentError) {
+    return reply.code(422).send({ error: err.message });
+  }
   if (err instanceof VoyageError && err.status === 429) {
     return reply.code(429).send({
       error:
@@ -18,32 +29,41 @@ function handleVoyageError(err: unknown, reply: FastifyReply) {
         "hoặc đợi ~1 phút rồi thử lại với file nhỏ hơn.",
     });
   }
+  // File quá lớn (vượt limits.fileSize của multipart)
+  if (
+    err instanceof Error &&
+    (err as { code?: string }).code === "FST_REQ_FILE_TOO_LARGE"
+  ) {
+    return reply.code(413).send({ error: "File quá lớn (tối đa 25MB)." });
+  }
   throw err;
 }
 
 export async function documentsRoutes(app: FastifyInstance) {
-  // Upload file .txt/.md MỚI → chunk → embed → lưu (version 1)
+  // Upload file .txt/.md/.pdf MỚI → trích text → chunk → embed → lưu (version 1)
   app.post("/documents/upload", async (req, reply) => {
     const file = await req.file();
     if (!file) return reply.code(400).send({ error: "Thiếu file" });
-    const content = (await file.toBuffer()).toString("utf-8");
     try {
+      const buffer = await file.toBuffer();
+      const content = await extractDocumentText(file.filename, buffer);
       return await ingestDocument(file.filename, content);
     } catch (err) {
-      return handleVoyageError(err, reply);
+      return handleUploadError(err, reply);
     }
   });
 
-  // CẬP NHẬT tài liệu đã có → tạo version mới (file mới có thể khác tên)
+  // CẬP NHẬT tài liệu đã có → tạo version mới (file mới có thể khác tên/định dạng)
   app.put("/documents/:documentId", async (req, reply) => {
     const { documentId } = req.params as { documentId: string };
     const file = await req.file();
     if (!file) return reply.code(400).send({ error: "Thiếu file" });
-    const content = (await file.toBuffer()).toString("utf-8");
     try {
+      const buffer = await file.toBuffer();
+      const content = await extractDocumentText(file.filename, buffer);
       return await updateDocument(documentId, file.filename, content);
     } catch (err) {
-      return handleVoyageError(err, reply);
+      return handleUploadError(err, reply);
     }
   });
 
