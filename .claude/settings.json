@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm --filter @app/web add react-router-dom)",
+      "Bash(node /tmp/verify_gemini.mjs)",
+      "Bash(lsof -ti:3000)",
+      "Bash(pkill -f \"tsx watch\")",
+      "Bash(pkill -f vite)",
+      "Bash(rm -f /tmp/sb_toggle.mjs /tmp/sb-*.png)",
+      "Bash(node /tmp/mobile_v2.mjs)",
+      "Bash(rm -f /tmp/mobile_check.mjs /tmp/mobile_v2.mjs /tmp/m-*.png /tmp/m2-*.png)",
+      "Bash(pnpm migrate:docs)",
+      "Bash(git rm *)",
+      "Bash(node /tmp/pdf-smoke.mjs)",
+      "Bash(git mv *)",
+      "Bash(node _smoke.mjs)",
+      "Bash(node -e \"require.resolve\\('unpdf'\\); console.log\\('✓ installed'\\)\")"
+    ],
+    "additionalDirectories": [
+      "/Users/mdm/.claude/projects/-Users-mdm-Desktop-company-NewPineTech-ai-agent-tut"
+    ]
+  }
+}
