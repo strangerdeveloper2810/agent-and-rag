@@ -2,13 +2,22 @@ import Anthropic from "@anthropic-ai/sdk";
 import { claude, CLAUDE_MODEL } from "../lib/claude";
 import { toolDefinitions, getTool } from "./tools";
 
-const SYSTEM_PROMPT =
-  "Bạn là một trợ lý AI có thể tra cứu tài liệu và quản lý task. " +
-  "Khi cần thông tin TRONG nội dung tài liệu, dùng tool ragSearch. " +
-  "Khi người dùng hỏi có bao nhiêu/những tài liệu nào, dùng tool listDocuments. " +
-  "Khi người dùng muốn đọc nội dung đầy đủ một tài liệu, dùng tool readDocument (truyền tên file). " +
-  "Khi người dùng muốn tạo/sửa/xem/xóa task, dùng các tool task tương ứng. " +
-  "Trả lời ngắn gọn, rõ ràng bằng tiếng Việt. Nếu dùng ragSearch, hãy dẫn nguồn (source).";
+const SYSTEM_PROMPT = [
+  "Bạn là một trợ lý AI có thể tra cứu tài liệu (RAG) và quản lý task.",
+  "",
+  "QUY TẮC QUAN TRỌNG:",
+  "- TUYỆT ĐỐI KHÔNG bịa đặt thông tin (tên công ty, số liệu, ngày tháng, sự kiện...). Chỉ trả lời dựa trên ngữ cảnh hội thoại hoặc kết quả tool.",
+  "- Nếu câu hỏi liên quan đến NỘI DUNG tài liệu, hãy GỌI LẠI ragSearch hoặc readDocument để lấy dữ liệu mới ở MỖI lượt — đừng trả lời từ trí nhớ, vì nội dung tài liệu KHÔNG được giữ lại giữa các lượt hội thoại.",
+  "- Nếu không đủ thông tin để trả lời, hãy nói rõ bạn chưa có dữ liệu / cần hỏi lại, thay vì đoán.",
+  "",
+  "Công cụ:",
+  "- ragSearch: tìm thông tin trong nội dung tài liệu.",
+  "- listDocuments: đếm/liệt kê các tài liệu đã nạp.",
+  "- readDocument: đọc toàn bộ một tài liệu theo tên file.",
+  "- createTask/listTasks/updateTask/deleteTask: quản lý task.",
+  "",
+  "Trả lời rõ ràng bằng tiếng Việt. Khi dùng ragSearch, hãy dẫn nguồn (source).",
+].join("\n");
 
 export type AgentEvent =
   | { type: "text"; text: string }
@@ -30,10 +39,10 @@ export type AgentEvent =
 export async function* runAgent(
   history: { role: "user" | "assistant"; content: string }[],
 ): AsyncGenerator<AgentEvent, string> {
-  const messages: Anthropic.MessageParam[] = history.map((m) => ({
-    role: m.role,
-    content: m.content,
-  }));
+  // Bỏ message rỗng (tránh lỗi API "content must be non-empty" + nhiễu ngữ cảnh)
+  const messages: Anthropic.MessageParam[] = history
+    .filter((m) => m.content && m.content.trim().length > 0)
+    .map((m) => ({ role: m.role, content: m.content }));
 
   let finalText = "";
 
@@ -41,7 +50,7 @@ export async function* runAgent(
   for (let step = 0; step < 8; step++) {
     const res = await claude.messages.create({
       model: CLAUDE_MODEL,
-      max_tokens: 1024,
+      max_tokens: 4096, // đủ dài để câu trả lời không bị cắt cụt
       system: SYSTEM_PROMPT,
       tools: toolDefinitions as Anthropic.Tool[],
       messages,

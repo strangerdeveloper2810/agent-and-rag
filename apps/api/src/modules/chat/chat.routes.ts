@@ -4,6 +4,7 @@ import {
   listConversations,
   getMessages,
   addMessage,
+  deleteConversation,
 } from "./chat.repository";
 import { runAgent, type AgentEvent } from "../../agent/agent-loop";
 
@@ -18,6 +19,11 @@ export const chatRoutes = async (app: FastifyInstance) => {
   app.get("/conversations/:id/messages", async (req) => {
     const { id } = req.params as { id: string };
     return getMessages(id);
+  });
+
+  app.delete("/conversations/:id", async (req) => {
+    const { id } = req.params as { id: string };
+    return deleteConversation(id);
   });
 
   // SSE streaming + agent loop: Claude có thể gọi tool (ragSearch, task...) giữa chừng
@@ -54,7 +60,9 @@ export const chatRoutes = async (app: FastifyInstance) => {
     reply.raw.write(`data: ${JSON.stringify({ done: true })}\n\n`);
     reply.raw.end();
 
-    // Lưu câu trả lời hoàn chỉnh vào DB sau khi stream xong
-    await addMessage(id, "assistant", full);
+    // Lưu câu trả lời hoàn chỉnh vào DB (bỏ qua nếu rỗng để không làm nhiễu lượt sau)
+    if (full.trim().length > 0) {
+      await addMessage(id, "assistant", full);
+    }
   });
 };

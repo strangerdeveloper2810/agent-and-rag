@@ -27,8 +27,17 @@ export const getMessages = async (conversationId: string) =>
   db()
     .collection("messages")
     .find({ conversationId })
-    .sort({ createAt: 1 })
+    .sort({ createdAt: 1 })
     .toArray();
+
+// Xóa một hội thoại + toàn bộ tin nhắn của nó
+export const deleteConversation = async (conversationId: string) => {
+  await db().collection("messages").deleteMany({ conversationId });
+  await db()
+    .collection("conversations")
+    .deleteOne({ _id: new ObjectId(conversationId) });
+  return { ok: true };
+};
 
 export const addMessage = async (
   conversationId: string,
