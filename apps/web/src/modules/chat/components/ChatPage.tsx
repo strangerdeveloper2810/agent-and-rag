@@ -12,16 +12,6 @@ import Composer from "./Composer";
 import EmptyState from "./EmptyState";
 import { MenuIcon } from "@/shared/components/icons";
 
-const TOOL_LABELS: Record<string, string> = {
-  ragSearch: "🔍 Đang tìm trong tài liệu…",
-  listDocuments: "📚 Đang xem danh sách tài liệu…",
-  readDocument: "📖 Đang đọc tài liệu…",
-  createTask: "📝 Đang tạo task…",
-  listTasks: "📋 Đang xem danh sách task…",
-  updateTask: "✏️ Đang cập nhật task…",
-  deleteTask: "🗑️ Đang xóa task…",
-};
-
 export default function ChatPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -30,7 +20,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
-  const [toolStatus, setToolStatus] = useState<string | null>(null);
+  const [activeTool, setActiveTool] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const loadedIdRef = useRef<string | null>(null);
 
@@ -74,11 +64,11 @@ export default function ChatPage() {
 
     await streamChat(convId, content, (e) => {
       if (e.type === "tool_start") {
-        setToolStatus(TOOL_LABELS[e.name ?? ""] ?? `⚙️ ${e.name}…`);
+        setActiveTool(e.name ?? null);
       } else if (e.type === "tool_end") {
-        setToolStatus(null);
+        setActiveTool(null);
       } else if (e.token) {
-        setToolStatus(null);
+        setActiveTool(null);
         setMessages((m) => {
           const copy = [...m];
           const last = copy[copy.length - 1];
@@ -90,7 +80,7 @@ export default function ChatPage() {
         });
       }
     });
-    setToolStatus(null);
+    setActiveTool(null);
     setStreaming(false);
   };
 
@@ -130,6 +120,11 @@ export default function ChatPage() {
                 streaming={
                   streaming && i === messages.length - 1 && m.role === "assistant"
                 }
+                activeTool={
+                  i === messages.length - 1 && m.role === "assistant"
+                    ? activeTool
+                    : null
+                }
               />
             ))}
             <div ref={endRef} />
@@ -138,18 +133,6 @@ export default function ChatPage() {
           <EmptyState onPick={(p) => send(p)} />
         )}
       </div>
-
-      {/* Badge agent đang gọi tool */}
-      {toolStatus && (
-        <div className="px-4 sm:px-6">
-          <div className="mx-auto flex max-w-3xl pb-1">
-            <span className="inline-flex items-center gap-2 rounded-full bg-gblue-soft px-3 py-1 text-xs font-medium text-gblue">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-gblue" />
-              {toolStatus}
-            </span>
-          </div>
-        </div>
-      )}
 
       <Composer
         value={input}
