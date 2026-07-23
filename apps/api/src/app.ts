@@ -7,11 +7,18 @@ import { documentsRoutes } from "./modules/documents";
 import { tasksRoutes } from "./modules/tasks";
 import { registerErrorHandler } from "./middleware/error-handler";
 import { getDb } from "./lib/mongo";
+import { config } from "./config";
 
 export function buildApp(): FastifyInstance {
-  const app = Fastify({ logger: true });
+  // Tắt logger khi chạy test cho đỡ nhiễu output.
+  const app = Fastify({ logger: config.NODE_ENV !== "test" });
 
-  app.register(cors, { origin: true });
+  // CORS: whitelist theo CORS_ORIGIN (prod) hoặc mọi origin (dev khi rỗng).
+  app.register(cors, {
+    origin: config.CORS_ORIGIN
+      ? config.CORS_ORIGIN.split(",").map((o) => o.trim())
+      : true,
+  });
   // PDF lớn hơn text nhiều → nới giới hạn file lên 25MB. Tối đa 7 file/lần upload.
   app.register(multipart, {
     limits: { fileSize: 25 * 1024 * 1024, files: 7 },

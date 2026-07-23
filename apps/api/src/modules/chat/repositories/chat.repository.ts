@@ -1,62 +1,75 @@
-import { type Db } from "mongodb";
-import { getDb } from "../../../lib/mongo";
+import type { Collection } from "mongodb";
+import {
+  collections,
+  type ConversationDoc,
+  type MessageDoc,
+} from "../../../lib/collections";
 import { toObjectId } from "../../../lib/object-id";
 import type { MessageRole } from "../../../schemas/message";
 
+// Hàm thuần (không I/O) — giữ standalone để test dễ.
 export const buildConversationDocs = (firstMessage: string, now: Date) => {
   const title = firstMessage.trim().slice(0, 50) || "Hội thoại mới";
-
   return { title, createdAt: now, updatedAt: now };
 };
 
-const db = (): Db => getDb();
-
-export const createCoversation = async (firstMessage: string) => {
-  const doc = buildConversationDocs(firstMessage, new Date());
-  const response = await db().collection("conversations").insertOne(doc);
-
+/**
+ * Factory tạo chat repository. Nhận getter cho 2 collection (conversations, messages)
+ * — mặc định wire vào Mongo thật; test inject fake được. Getter gọi lazy trong method.
+ */
+export function createChatRepository(
+  conversations: () => Collection<ConversationDoc> = collections.conversations,
+  messages: () => Collection<MessageDoc> = collections.messages,
+) {
   return {
-    _id: response.insertedId,
-    ...doc,
+    createConversation: async (firstMessage: string) => {
+      const doc = buildConversationDocs(firstMessage, new Date());
+      const response = await conversations().insertOne(doc);
+      return { _id: response.insertedId, ...doc };
+    },
+
+    listConversations: async () =>
+      conversations().find().sort({ updatedAt: -1 }).toArray(),
+
+    getMessages: async (conversationId: string) =>
+      messages().find({ conversationId }).sort({ createdAt: 1 }).toArray(),
+
+    addMessage: async (
+      conversationId: string,
+      role: MessageRole,
+      content: string,
+      toolCalls?: unknown[],
+    ) => {
+      const doc = {
+        conversationId,
+        role,
+        content,
+        ...(toolCalls ? { toolCalls } : {}),
+        createdAt: new Date(),
+      };
+      await messages().insertOne(doc);
+      await conversations().updateOne(
+        { _id: toObjectId(conversationId) },
+        { $set: { updatedAt: new Date() } },
+      );
+      return doc;
+    },
+
+    deleteConversation: async (conversationId: string) => {
+      const _id = toObjectId(conversationId); // validate sớm, trước khi chạm DB
+      await messages().deleteMany({ conversationId });
+      await conversations().deleteOne({ _id });
+      return { ok: true };
+    },
   };
-};
+}
 
-export const listConversations = async () =>
-  db().collection("conversations").find().sort({ updatedAt: -1 }).toArray();
-
-export const getMessages = async (conversationId: string) =>
-  db()
-    .collection("messages")
-    .find({ conversationId })
-    .sort({ createdAt: 1 })
-    .toArray();
-
-export const addMessage = async (
-  conversationId: string,
-  role: MessageRole,
-  content: string,
-  toolCalls?: unknown[],
-) => {
-  const doc = {
-    conversationId,
-    role,
-    content,
-    ...(toolCalls ? { toolCalls } : {}),
-    createdAt: new Date(),
-  };
-  await db().collection("messages").insertOne(doc);
-  await db()
-    .collection("conversations")
-    .updateOne(
-      { _id: toObjectId(conversationId) },
-      { $set: { updatedAt: new Date() } },
-    );
-  return doc;
-};
-
-export const deleteConversation = async (conversationId: string) => {
-  const _id = toObjectId(conversationId); // validate sớm, trước khi chạm DB
-  await db().collection("messages").deleteMany({ conversationId });
-  await db().collection("conversations").deleteOne({ _id });
-  return { ok: true };
-};
+// Instance mặc định + named exports (caller không phải đổi).
+export const chatRepository = createChatRepository();
+export const {
+  createConversation,
+  listConversations,
+  getMessages,
+  addMessage,
+  deleteConversation,
+} = chatRepository;

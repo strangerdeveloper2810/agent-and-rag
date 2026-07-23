@@ -45,5 +45,6 @@ describe("chat routes - validation", () => {
     });
     expect(res.statusCode).toBe(400);
     expect(res.json().error).toContain("id");
+    expect(res.json().code).toBe("BAD_REQUEST"); // response chuẩn hoá { error, code }
   });
 });
