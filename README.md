@@ -12,7 +12,7 @@ Dự án **học tập** build AI Agent chatbot (RAG + task management) với Cl
 | 1 | Chatbot có memory + SSE streaming | ✅ | [milestone-1](docs/plans/2026-06-25-milestone-1-chatbot-memory.md) |
 | 2 | Agent + Tools: RAG + task management | ✅ | [milestone-2](docs/plans/2026-06-25-milestone-2-agent-tools.md) |
 | 3 | LangGraph multi-step agent (StateGraph) | ✅ | [milestone-3](docs/plans/2026-06-25-milestone-3-langgraph.md) |
-| 4 | Structured memory (hybrid) | 🔜 dự kiến | — |
+| 4 | Structured memory (hybrid) | 📝 có plan | [milestone-4](docs/plans/2026-07-23-milestone-4-structured-memory.md) |
 
 ## Tính năng hiện có
 - **Chat streaming** qua SSE — token chảy real-time, hiển thị chip khi agent đang gọi tool.
@@ -23,7 +23,7 @@ Dự án **học tập** build AI Agent chatbot (RAG + task management) với Cl
 - **Quan sát** — `pnpm graph:print` (sơ đồ Mermaid) + LangSmith tracing (token/tool/latency mỗi lượt).
 
 ## Techstack
-pnpm + Turborepo · Fastify + TypeScript · Vite + React + Tailwind · MongoDB Atlas (Vector Search) · Anthropic Claude · Voyage AI (embedding) · LangChain + LangGraph · Zod · Vitest
+pnpm + Turborepo · Fastify + TypeScript · Vite + React + Tailwind · MongoDB Atlas (Vector Search) · Anthropic Claude **hoặc** Google Gemini (chọn qua `LLM_PROVIDER`) · Voyage AI (embedding) · LangChain + LangGraph · Zod · Vitest
 
 ## Chạy local
 1. **Chuẩn bị** (chi tiết trong plan Mốc 0):
