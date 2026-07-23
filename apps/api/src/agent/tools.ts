@@ -34,7 +34,9 @@ const listDocumentsSchema = z.object({});
 const deleteTaskSchema = z.object({ id: z.string() });
 
 const readDocumentSchema = z.object({
-  source: z.string().describe("Tên file tài liệu cần đọc, ví dụ test-rag.txt"),
+  documentId: z
+    .string()
+    .describe("documentId của tài liệu (lấy từ listDocuments/ragSearch)"),
 });
 
 const tools: Tool[] = [
@@ -59,10 +61,10 @@ const tools: Tool[] = [
   {
     name: "readDocument",
     description:
-      "Đọc TOÀN BỘ nội dung của MỘT tài liệu theo tên file. Dùng khi người dùng muốn xem nội dung đầy đủ của một tài liệu cụ thể. Nếu chưa biết tên file, gọi listDocuments trước.",
+      "Đọc TOÀN BỘ nội dung của MỘT tài liệu theo documentId. Dùng khi người dùng muốn xem nội dung đầy đủ của một tài liệu cụ thể. Lấy documentId từ listDocuments/ragSearch trước (KHÔNG dùng tên file).",
     schema: readDocumentSchema,
-    execute: async ({ source }: z.infer<typeof readDocumentSchema>) =>
-      getDocumentContent(source),
+    execute: async ({ documentId }: z.infer<typeof readDocumentSchema>) =>
+      getDocumentContent(documentId),
   },
   {
     name: "createTask",
