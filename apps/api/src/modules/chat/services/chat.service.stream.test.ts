@@ -1,28 +1,27 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { AgentEvent } from "../../../agent/graph-runner";
+import type { AgentClient } from "../../../agent/client";
 
-// Mock repository (DB) + agent để test riêng logic orchestration của streamReply.
+// Mock repository (DB). Agent được INJECT qua tham số (không cần mock module).
 vi.mock("../repositories", () => ({
-  createCoversation: vi.fn(),
+  createConversation: vi.fn(),
   listConversations: vi.fn(),
   getMessages: vi.fn(),
   addMessage: vi.fn(),
   deleteConversation: vi.fn(),
 }));
-vi.mock("../../../agent/graph-runner", () => ({ runGraph: vi.fn() }));
 
 import { streamReply } from "./chat.service";
 import * as repo from "../repositories";
-import { runGraph } from "../../../agent/graph-runner";
 
-// Dựng async generator giả lập luồng event của agent.
-// TReturn = string để khớp chữ ký runGraph (): AsyncGenerator<AgentEvent, string>.
-async function* fakeStream(
-  events: AgentEvent[],
-): AsyncGenerator<AgentEvent, string> {
+async function* fakeStream(events: AgentEvent[]): AsyncGenerator<AgentEvent> {
   for (const e of events) yield e;
-  return "";
 }
+
+// AgentClient giả: bỏ qua history, phát các event cấu hình sẵn.
+const fakeAgent = (events: AgentEvent[]): AgentClient => ({
+  stream: () => fakeStream(events),
+});
 
 const drain = async (gen: AsyncGenerator<AgentEvent>) => {
   const out: AgentEvent[] = [];
@@ -37,16 +36,19 @@ describe("streamReply", () => {
     vi.mocked(repo.getMessages).mockResolvedValue([
       { role: "user", content: "hi" },
     ] as never);
-    vi.mocked(runGraph).mockReturnValue(
-      fakeStream([
-        { type: "tool_start", name: "ragSearch" },
-        { type: "tool_end", name: "ragSearch" },
-        { type: "text", text: "Xin " },
-        { type: "text", text: "chào" },
-      ]),
-    );
 
-    const out = await drain(streamReply("c1") as AsyncGenerator<AgentEvent>);
+    const out = await drain(
+      streamReply(
+        "c1",
+        undefined,
+        fakeAgent([
+          { type: "tool_start", name: "ragSearch" },
+          { type: "tool_end", name: "ragSearch" },
+          { type: "text", text: "Xin " },
+          { type: "text", text: "chào" },
+        ]),
+      ) as AsyncGenerator<AgentEvent>,
+    );
 
     expect(out.map((e) => e.type)).toEqual([
       "tool_start",
@@ -60,22 +62,26 @@ describe("streamReply", () => {
 
   it("không lưu khi output rỗng (tránh làm nhiễu lượt sau)", async () => {
     vi.mocked(repo.getMessages).mockResolvedValue([] as never);
-    vi.mocked(runGraph).mockReturnValue(fakeStream([]));
 
-    await drain(streamReply("c1") as AsyncGenerator<AgentEvent>);
+    await drain(
+      streamReply("c1", undefined, fakeAgent([])) as AsyncGenerator<AgentEvent>,
+    );
 
     expect(repo.addMessage).not.toHaveBeenCalled();
   });
 
   it("vẫn lưu phần đã sinh khi bị ngắt giữa chừng (finally)", async () => {
     vi.mocked(repo.getMessages).mockResolvedValue([] as never);
-    async function* boom(): AsyncGenerator<AgentEvent, string> {
-      yield { type: "text", text: "một phần" };
-      throw new Error("aborted");
-    }
-    vi.mocked(runGraph).mockReturnValue(boom());
+    const boomAgent: AgentClient = {
+      stream: async function* () {
+        yield { type: "text", text: "một phần" } as AgentEvent;
+        throw new Error("aborted");
+      },
+    };
 
-    const run = drain(streamReply("c1") as AsyncGenerator<AgentEvent>);
+    const run = drain(
+      streamReply("c1", undefined, boomAgent) as AsyncGenerator<AgentEvent>,
+    );
     await expect(run).rejects.toThrow();
     // Nhờ khối finally: phần đã sinh không bị mất.
     expect(repo.addMessage).toHaveBeenCalledWith("c1", "assistant", "một phần");
