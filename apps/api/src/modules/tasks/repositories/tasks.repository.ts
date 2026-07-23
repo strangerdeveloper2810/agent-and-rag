@@ -1,4 +1,4 @@
-import { getDb } from "../../../lib/mongo";
+import { collections } from "../../../lib/collections";
 import { toObjectId } from "../../../lib/object-id";
 import type {
   CreateTaskInput,
@@ -6,7 +6,7 @@ import type {
   ListTasksInput,
 } from "../../../schemas/task";
 
-const col = () => getDb().collection("tasks");
+const col = () => collections.tasks();
 
 export const createTask = async (
   input: CreateTaskInput,
