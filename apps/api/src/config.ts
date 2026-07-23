@@ -21,6 +21,18 @@ const envSchema = z
     // Backend chạy agent: "langgraph" (in-process, hiện tại) | "go" (proxy sang
     // service agent-go — bật ở P12). Gateway chọn AgentClient theo giá trị này.
     AGENT_BACKEND: z.enum(["langgraph", "go"]).default("langgraph"),
+
+    // ----- Vận hành -----
+    NODE_ENV: z
+      .enum(["development", "production", "test"])
+      .default("development"),
+    // Danh sách origin cho CORS, phân tách bằng dấu phẩy. Rỗng = cho mọi origin (dev).
+    CORS_ORIGIN: z.string().optional(),
+    // LangSmith tracing (tùy chọn) — LangChain đọc trực tiếp process.env; khai ở
+    // đây để env là 1 NGUỒN SỰ THẬT (validate mềm, không bắt buộc).
+    LANGSMITH_TRACING: z.string().optional(),
+    LANGSMITH_PROJECT: z.string().optional(),
+    LANGSMITH_API_KEY: z.string().optional(),
   })
   // Nếu chọn Google thì bắt buộc có GOOGLE_API_KEY.
   .refine((c) => c.LLM_PROVIDER !== "google" || !!c.GOOGLE_API_KEY, {
