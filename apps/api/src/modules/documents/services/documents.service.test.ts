@@ -1,5 +1,24 @@
-import { describe, it, expect } from "vitest";
-import { buildChunkDocs } from "./documents.service";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+// Mock các phụ thuộc I/O để test thuần logic orchestration của service.
+vi.mock("../chunk", () => ({
+  chunkText: vi.fn(async (text: string) => [text]),
+}));
+vi.mock("../../../lib/voyage", () => ({ embedBatched: vi.fn() }));
+vi.mock("../repositories", () => ({
+  getCurrentVersion: vi.fn(),
+  archiveCurrentVersion: vi.fn(),
+  insertChunks: vi.fn(),
+  listDocuments: vi.fn(),
+  getVersions: vi.fn(),
+  getVersionContent: vi.fn(),
+  deleteDocument: vi.fn(),
+}));
+
+import { buildChunkDocs, updateDocument } from "./documents.service";
+import * as repo from "../repositories";
+import * as voyage from "../../../lib/voyage";
+import { NotFoundError } from "../../../lib/errors";
 
 describe("buildChunkDocs", () => {
   const now = new Date("2026-06-29T00:00:00Z");
@@ -30,5 +49,60 @@ describe("buildChunkDocs", () => {
 
   it("trả mảng rỗng khi không có chunk", () => {
     expect(buildChunkDocs("doc-1", "x.txt", 1, [], [], now)).toEqual([]);
+  });
+});
+
+describe("updateDocument", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("ném NotFoundError khi tài liệu không tồn tại", async () => {
+    vi.mocked(repo.getCurrentVersion).mockResolvedValue(null);
+
+    await expect(
+      updateDocument("missing", "x.txt", "nội dung"),
+    ).rejects.toBeInstanceOf(NotFoundError);
+    expect(repo.archiveCurrentVersion).not.toHaveBeenCalled();
+  });
+
+  it("KHÔNG archive/xóa bản cũ khi embed lỗi (chống mất dữ liệu)", async () => {
+    vi.mocked(repo.getCurrentVersion).mockResolvedValue({
+      documentId: "d1",
+      version: 2,
+      source: "x.txt",
+      content: "nội dung cũ",
+    });
+    vi.mocked(voyage.embedBatched).mockRejectedValue(new Error("Voyage 429"));
+
+    await expect(
+      updateDocument("d1", "x.txt", "nội dung mới"),
+    ).rejects.toThrow();
+    // Điểm mấu chốt: bản cũ KHÔNG bị đụng tới khi embed thất bại.
+    expect(repo.archiveCurrentVersion).not.toHaveBeenCalled();
+    expect(repo.insertChunks).not.toHaveBeenCalled();
+  });
+
+  it("archive TRƯỚC rồi insert bản mới khi embed thành công", async () => {
+    vi.mocked(repo.getCurrentVersion).mockResolvedValue({
+      documentId: "d1",
+      version: 2,
+      source: "x.txt",
+      content: "nội dung cũ",
+    });
+    vi.mocked(voyage.embedBatched).mockResolvedValue([[0.1]]);
+
+    const order: string[] = [];
+    vi.mocked(repo.archiveCurrentVersion).mockImplementation(async () => {
+      order.push("archive");
+      return 2;
+    });
+    vi.mocked(repo.insertChunks).mockImplementation(async () => {
+      order.push("insert");
+    });
+
+    const res = await updateDocument("d1", "x.txt", "nội dung mới");
+
+    expect(order).toEqual(["archive", "insert"]);
+    expect(res.version).toBe(3);
+    expect(res.chunks).toBe(1);
   });
 });

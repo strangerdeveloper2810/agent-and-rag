@@ -37,10 +37,13 @@ function toLcMessages(history: { role: string; content: string }[]) {
 
 export async function* runGraph(
   history: { role: string; content: string }[],
+  signal?: AbortSignal,
 ): AsyncGenerator<AgentEvent, string> {
   const stream = agentGraph.streamEvents(
     { messages: toLcMessages(history) },
-    { version: "v2" },
+    // signal: hủy khi client ngắt. recursionLimit: chốt an toàn số vòng
+    // agent↔tools (mặc định 25) → tránh loop tốn token và đứt SSE bất ngờ.
+    { version: "v2", signal, recursionLimit: 12 },
   );
 
   let finalText = "";

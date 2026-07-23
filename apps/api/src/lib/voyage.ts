@@ -61,3 +61,34 @@ export async function embed(
     throw new VoyageError(res.status, detail);
   }
 }
+
+// Voyage giới hạn số text mỗi request (tối đa ~1000). Tài liệu lớn có thể sinh
+// hàng nghìn chunk → nếu gửi 1 request sẽ vỡ. Chia thành các batch nhỏ.
+// Tách hàm thuần để test không cần gọi mạng.
+export function batchTexts(texts: string[], batchSize: number): string[][] {
+  if (batchSize < 1) throw new Error("batchSize phải >= 1");
+  const batches: string[][] = [];
+  for (let i = 0; i < texts.length; i += batchSize) {
+    batches.push(texts.slice(i, i + batchSize));
+  }
+  return batches;
+}
+
+const EMBED_BATCH_SIZE = 96; // an toàn dưới giới hạn số text/token của Voyage
+
+/**
+ * Embed nhiều text theo BATCH (tuần tự để tôn trọng rate limit free tier).
+ * Trả về mảng vector đúng thứ tự đầu vào. Dùng khi nạp/cập nhật tài liệu lớn.
+ */
+export async function embedBatched(
+  texts: string[],
+  inputType: "document" | "query",
+  batchSize = EMBED_BATCH_SIZE,
+): Promise<number[][]> {
+  const out: number[][] = [];
+  for (const batch of batchTexts(texts, batchSize)) {
+    const vectors = await embed(batch, inputType);
+    out.push(...vectors);
+  }
+  return out;
+}
