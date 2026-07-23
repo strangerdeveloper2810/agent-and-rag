@@ -1,23 +1,7 @@
-import { collections } from "../../../lib/collections";
+import { collections, type DocChunkDoc } from "../../../lib/collections";
 
-/**
- * Một chunk của tài liệu (bản MỚI NHẤT) — nằm trong collection `documents`.
- * - documentId: id logic ỔN ĐỊNH của tài liệu, KHÔNG đổi qua các version.
- * - source: tên file của version hiện tại (để hiển thị, có thể đổi khi cập nhật).
- * - version: số phiên bản (1, 2, 3...).
- *
- * `documents` LUÔN chỉ chứa bản mới nhất → searchSimilar/Atlas index không phải đổi.
- * Bản cũ được đẩy sang collection `document_versions` (chỉ text, không embedding).
- */
-export type DocChunk = {
-  documentId: string;
-  source: string;
-  version: number;
-  chunkIndex: number;
-  text: string;
-  embedding: number[];
-  createdAt: Date;
-};
+// DocChunk = hình dạng chunk tài liệu (định nghĩa tập trung ở lib/collections).
+export type DocChunk = DocChunkDoc;
 
 const docs = () => collections.documents();
 const versions = () => collections.documentVersions();
