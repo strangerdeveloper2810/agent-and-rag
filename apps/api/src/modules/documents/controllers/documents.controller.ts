@@ -31,7 +31,10 @@ export const getVersionContent = async (req: FastifyRequest) => {
     documentId: string;
     version: string;
   };
-  const result = await docService.getVersionContent(documentId, Number(version));
+  const result = await docService.getVersionContent(
+    documentId,
+    Number(version),
+  );
   if (!result.found) throw new NotFoundError("Không tìm thấy version");
   return result;
 };

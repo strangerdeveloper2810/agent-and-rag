@@ -48,7 +48,9 @@ export default function AppLayout() {
   const activeId = location.pathname.startsWith("/messages/")
     ? (location.pathname.split("/")[2] ?? null)
     : null;
-  const view = location.pathname.startsWith("/documents") ? "documents" : "chat";
+  const view = location.pathname.startsWith("/documents")
+    ? "documents"
+    : "chat";
 
   return (
     <div className="flex h-screen overflow-hidden bg-surface">
