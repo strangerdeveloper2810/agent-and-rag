@@ -1,14 +1,17 @@
 import {
-  createCoversation,
+  createConversation as createConversationRepo,
   listConversations as listConversationsRepo,
   getMessages as getMessagesRepo,
   addMessage,
   deleteConversation as deleteConversationRepo,
 } from "../repositories";
-import { runGraph } from "../../../agent/graph-runner";
+import { createAgentClient, type AgentClient } from "../../../agent/client";
 import type { MessageRole } from "../../../schemas/message";
 
 type ChatMessage = { role: MessageRole; content: string };
+
+// Agent backend (LangGraph in-process hôm nay; P12 swap sang agent-go qua config).
+const defaultAgent = createAgentClient();
 
 /**
  * Pure helper: lọc bỏ message role "tool", map về {role, content} cho agent.
@@ -21,7 +24,7 @@ export const toAnthropicMessages = (history: ChatMessage[]) =>
 
 // ----- CRUD hội thoại -----
 export const createConversation = (firstMessage: string) =>
-  createCoversation(firstMessage);
+  createConversationRepo(firstMessage);
 
 export const listConversations = () => listConversationsRepo();
 
@@ -40,6 +43,7 @@ export const appendUserMessage = (conversationId: string, content: string) =>
 export async function* streamReply(
   conversationId: string,
   signal?: AbortSignal,
+  agent: AgentClient = defaultAgent,
 ) {
   const raw = (await getMessagesRepo(
     conversationId,
@@ -48,7 +52,7 @@ export async function* streamReply(
 
   let full = "";
   try {
-    for await (const ev of runGraph(history, signal)) {
+    for await (const ev of agent.stream(history, { signal })) {
       if (ev.type === "text") full += ev.text;
       yield ev;
     }

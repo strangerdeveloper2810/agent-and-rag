@@ -11,7 +11,7 @@ export const buildConversationDocs = (firstMessage: string, now: Date) => {
 
 const db = (): Db => getDb();
 
-export const createCoversation = async (firstMessage: string) => {
+export const createConversation = async (firstMessage: string) => {
   const doc = buildConversationDocs(firstMessage, new Date());
   const response = await db().collection("conversations").insertOne(doc);
 

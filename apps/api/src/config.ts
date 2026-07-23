@@ -18,6 +18,9 @@ const envSchema = z
     GOOGLE_THINKING_LEVEL: z
       .enum(["OFF", "LOW", "MEDIUM", "HIGH"])
       .default("LOW"),
+    // Backend chạy agent: "langgraph" (in-process, hiện tại) | "go" (proxy sang
+    // service agent-go — bật ở P12). Gateway chọn AgentClient theo giá trị này.
+    AGENT_BACKEND: z.enum(["langgraph", "go"]).default("langgraph"),
   })
   // Nếu chọn Google thì bắt buộc có GOOGLE_API_KEY.
   .refine((c) => c.LLM_PROVIDER !== "google" || !!c.GOOGLE_API_KEY, {
