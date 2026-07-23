@@ -22,7 +22,11 @@ type Body = unknown;
 class HttpClient {
   constructor(private readonly baseURL = "") {}
 
-  private buildInit(method: string, body?: Body, opts?: RequestOptions): RequestInit {
+  private buildInit(
+    method: string,
+    body?: Body,
+    opts?: RequestOptions,
+  ): RequestInit {
     const headers: Record<string, string> = { ...opts?.headers };
     let payload: BodyInit | undefined;
 
@@ -43,7 +47,10 @@ class HttpClient {
     body?: Body,
     opts?: RequestOptions,
   ): Promise<Response> {
-    const res = await fetch(this.baseURL + url, this.buildInit(method, body, opts));
+    const res = await fetch(
+      this.baseURL + url,
+      this.buildInit(method, body, opts),
+    );
     if (!res.ok) {
       const data = await res.json().catch(() => ({}) as { error?: string });
       throw new HttpError(res.status, data?.error ?? res.statusText);

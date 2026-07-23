@@ -1,7 +1,14 @@
+import { lazy } from "react";
 import { Routes, Route } from "react-router-dom";
 import AppLayout from "@/shared/components/AppLayout";
-import ChatPage from "@/modules/chat/components/ChatPage";
-import DocumentsView from "@/modules/documents/components/DocumentsView";
+
+// Lazy-load trang theo route → code-splitting: bundle vào đầu nhẹ hơn, trang
+// Documents (và các dep của nó) chỉ tải khi thực sự mở. Suspense đặt trong
+// AppLayout (quanh Outlet) nên sidebar vẫn hiển thị khi chunk đang tải.
+const ChatPage = lazy(() => import("@/modules/chat/components/ChatPage"));
+const DocumentsView = lazy(
+  () => import("@/modules/documents/components/DocumentsView"),
+);
 
 export default function App() {
   return (

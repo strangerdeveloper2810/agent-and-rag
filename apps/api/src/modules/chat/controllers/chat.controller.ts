@@ -1,9 +1,14 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import * as chatService from "../services";
 import type { AgentEvent } from "../../../agent/graph-runner";
+import { parseOrBadRequest } from "../../../lib/validate";
+import {
+  chatBodySchema,
+  createConversationBodySchema,
+} from "../../../schemas/chat-request";
 
 export const postConversation = async (req: FastifyRequest) => {
-  const body = req.body as { firstMessage?: string };
+  const body = parseOrBadRequest(createConversationBodySchema, req.body);
   return chatService.createConversation(body.firstMessage ?? "");
 };
 
@@ -22,10 +27,18 @@ export const deleteConversation = async (req: FastifyRequest) => {
 // Chat qua SSE: agent (LangGraph) có thể gọi tool giữa chừng.
 export const postChat = async (req: FastifyRequest, reply: FastifyReply) => {
   const { id } = req.params as { id: string };
-  const { content } = req.body as { content: string };
+  const { content } = parseOrBadRequest(chatBodySchema, req.body);
 
-  // Lưu user msg TRƯỚC khi mở SSE → lỗi sớm vẫn trả HTTP bình thường qua error handler
+  // Lưu user msg TRƯỚC khi mở SSE → lỗi sớm (validate/DB) vẫn trả HTTP bình
+  // thường qua error handler (chưa "chiếm" reply nên còn gửi JSON được).
   await chatService.appendUserMessage(id, content);
+
+  // hijack(): ta tự ghi thẳng vào socket (SSE); Fastify không serialize/gửi nữa.
+  reply.hijack();
+
+  // Client đóng kết nối (đóng tab, đổi trang) → abort agent để không đốt token.
+  const ac = new AbortController();
+  req.raw.on("close", () => ac.abort());
 
   reply.raw.writeHead(200, {
     "Content-Type": "text/event-stream",
@@ -33,21 +46,28 @@ export const postChat = async (req: FastifyRequest, reply: FastifyReply) => {
     Connection: "keep-alive",
   });
 
+  const write = (payload: unknown) => {
+    if (!reply.raw.writableEnded) {
+      reply.raw.write(`data: ${JSON.stringify(payload)}\n\n`);
+    }
+  };
+
   try {
     for await (const ev of chatService.streamReply(
       id,
+      ac.signal,
     ) as AsyncGenerator<AgentEvent>) {
-      if (ev.type === "text") {
-        reply.raw.write(`data: ${JSON.stringify({ token: ev.text })}\n\n`);
-      } else {
-        reply.raw.write(`data: ${JSON.stringify(ev)}\n\n`);
-      }
+      if (ev.type === "text") write({ token: ev.text });
+      else write(ev);
     }
   } catch (err) {
-    // Lỗi giữa chừng (đã gửi header) → không thể trả JSON, chỉ log rồi đóng stream
-    req.log.error(err);
+    // Client chủ động ngắt (AbortError) là bình thường — không phải lỗi.
+    if (!ac.signal.aborted) {
+      req.log.error(err);
+      write({ type: "error", message: "Đã xảy ra lỗi khi tạo câu trả lời." });
+    }
   }
 
-  reply.raw.write(`data: ${JSON.stringify({ done: true })}\n\n`);
-  reply.raw.end();
+  write({ done: true });
+  if (!reply.raw.writableEnded) reply.raw.end();
 };

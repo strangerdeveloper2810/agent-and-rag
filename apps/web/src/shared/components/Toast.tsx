@@ -61,13 +61,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   );
 }
 
-function Toast({
-  toast,
-  onClose,
-}: {
-  toast: ToastItem;
-  onClose: () => void;
-}) {
+function Toast({ toast, onClose }: { toast: ToastItem; onClose: () => void }) {
   useEffect(() => {
     const timer = setTimeout(onClose, DURATION);
     return () => clearTimeout(timer);

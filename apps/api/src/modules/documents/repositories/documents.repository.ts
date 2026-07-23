@@ -78,6 +78,7 @@ export async function searchSimilar(queryEmbedding: number[], k = 5) {
       {
         $project: {
           _id: 0,
+          documentId: 1,
           source: 1,
           text: 1,
           score: { $meta: "vectorSearchScore" },
@@ -88,21 +89,24 @@ export async function searchSimilar(queryEmbedding: number[], k = 5) {
 }
 
 /**
- * Đọc nội dung bản mới nhất theo TÊN FILE (tool readDocument dùng).
+ * Đọc nội dung bản mới nhất theo documentId (tool readDocument dùng).
+ * Dùng documentId (định danh ỔN ĐỊNH, duy nhất) thay vì source (tên file) để
+ * tránh trộn nội dung của 2 tài liệu KHÁC NHAU nhưng TRÙNG tên file.
  * Cắt bớt nếu quá dài: tài liệu lớn (vd PDF mấy trăm trang) trả nguyên văn sẽ
  * tốn cả trăm nghìn token → chậm & đắt. Khi bị cắt, báo agent dùng ragSearch.
  */
-export async function getDocumentContent(source: string, maxChars = 24000) {
+export async function getDocumentContent(documentId: string, maxChars = 24000) {
   const chunks = await docs()
-    .find({ source })
+    .find({ documentId })
     .sort({ chunkIndex: 1 })
-    .project({ _id: 0, text: 1 })
+    .project({ _id: 0, text: 1, source: 1 })
     .toArray();
 
   const full = chunks.map((c) => c.text).join("\n\n");
   const truncated = full.length > maxChars;
   return {
-    source,
+    documentId,
+    source: chunks[0]?.source as string | undefined,
     found: chunks.length > 0,
     chunks: chunks.length,
     truncated,

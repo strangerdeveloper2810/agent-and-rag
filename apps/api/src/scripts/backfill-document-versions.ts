@@ -29,7 +29,9 @@ async function main() {
       { source, documentId: { $exists: false } },
       { $set: { documentId, version: 1 } },
     );
-    console.log(`• ${source} → documentId=${documentId} (${res.modifiedCount} chunk)`);
+    console.log(
+      `• ${source} → documentId=${documentId} (${res.modifiedCount} chunk)`,
+    );
   }
 
   console.log(`Xong. Đã migrate ${sources.length} tài liệu.`);

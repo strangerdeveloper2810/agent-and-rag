@@ -1,5 +1,6 @@
-import { ObjectId, type Db } from "mongodb";
+import { type Db } from "mongodb";
 import { getDb } from "../../../lib/mongo";
+import { toObjectId } from "../../../lib/object-id";
 import type { MessageRole } from "../../../schemas/message";
 
 export const buildConversationDocs = (firstMessage: string, now: Date) => {
@@ -47,18 +48,15 @@ export const addMessage = async (
   await db()
     .collection("conversations")
     .updateOne(
-      { _id: new ObjectId(conversationId) },
+      { _id: toObjectId(conversationId) },
       { $set: { updatedAt: new Date() } },
     );
   return doc;
 };
 
 export const deleteConversation = async (conversationId: string) => {
-  await db()
-    .collection("messages")
-    .deleteMany({ conversationId });
-  await db()
-    .collection("conversations")
-    .deleteOne({ _id: new ObjectId(conversationId) });
+  const _id = toObjectId(conversationId); // validate sớm, trước khi chạm DB
+  await db().collection("messages").deleteMany({ conversationId });
+  await db().collection("conversations").deleteOne({ _id });
   return { ok: true };
 };
