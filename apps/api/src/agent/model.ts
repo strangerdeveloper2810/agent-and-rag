@@ -10,12 +10,19 @@ import { lcTools } from "./lc-tools";
  * graph không cần biết đang chạy provider nào — chỉ gọi .invoke().
  */
 export function createAgentModel() {
+  const thinkingLevel = config.GOOGLE_THINKING_LEVEL;
   const base: BaseChatModel =
     config.LLM_PROVIDER === "google"
       ? new ChatGoogleGenerativeAI({
           apiKey: config.GOOGLE_API_KEY,
           model: config.GOOGLE_MODEL,
           maxOutputTokens: 4096,
+          // Giới hạn "thinking" của Gemini 3.x → giảm mạnh độ trễ (mặc định
+          // thinking cao khiến mỗi lượt tốn 30-60s dù output nhỏ). OFF = không
+          // truyền config (cho model không hỗ trợ thinking).
+          ...(thinkingLevel !== "OFF"
+            ? { thinkingConfig: { thinkingLevel } }
+            : {}),
         })
       : new ChatAnthropic({
           apiKey: config.ANTHROPIC_API_KEY,
