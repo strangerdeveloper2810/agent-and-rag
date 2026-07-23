@@ -12,4 +12,4 @@ export const messageSchema = z.object({
   createdAt: z.date(),
 });
 
-export type Message = z.infer<typeof messageRoleSchema>;
+export type Message = z.infer<typeof messageSchema>;

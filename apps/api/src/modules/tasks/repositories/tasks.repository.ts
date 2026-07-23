@@ -1,5 +1,5 @@
-import { ObjectId } from "mongodb";
 import { getDb } from "../../../lib/mongo";
+import { toObjectId } from "../../../lib/object-id";
 import type {
   CreateTaskInput,
   UpdateTaskInput,
@@ -28,13 +28,14 @@ export const listTasks = (filter: ListTasksInput) => {
 
 export const updateTask = async (input: UpdateTaskInput) => {
   const { id, ...rest } = input;
+  const _id = toObjectId(id);
   const set: Record<string, unknown> = { ...rest, updatedAt: new Date() };
   if (rest.status === "done") set.completedAt = new Date();
-  await col().updateOne({ _id: new ObjectId(id) }, { $set: set });
-  return col().findOne({ _id: new ObjectId(id) });
+  await col().updateOne({ _id }, { $set: set });
+  return col().findOne({ _id });
 };
 
 export const deleteTask = async (id: string) => {
-  await col().deleteOne({ _id: new ObjectId(id) });
+  await col().deleteOne({ _id: toObjectId(id) });
   return { ok: true };
 };
