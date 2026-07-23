@@ -29,10 +29,19 @@ const fileForm = (file: File) => {
   return form;
 };
 
+// Kết quả nạp cho MỘT file trong lô upload (best-effort).
+export type UploadResult =
+  | ({ filename: string; ok: true } & DocumentInfo)
+  | { filename: string; ok: false; error: string };
+
 export const listDocuments = () => http.get<DocumentInfo[]>("/documents");
 
-export const uploadDocument = (file: File) =>
-  http.post<DocumentInfo>("/documents/upload", fileForm(file));
+// Upload 1–7 file cùng lúc → trả kết quả từng file.
+export const uploadDocuments = (files: File[]) => {
+  const form = new FormData();
+  for (const f of files) form.append("file", f);
+  return http.post<{ results: UploadResult[] }>("/documents/upload", form);
+};
 
 // Cập nhật tài liệu đã có → tạo version mới (file mới có thể khác tên)
 export const updateDocument = (documentId: string, file: File) =>

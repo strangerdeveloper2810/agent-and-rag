@@ -12,8 +12,10 @@ export function buildApp(): FastifyInstance {
   const app = Fastify({ logger: true });
 
   app.register(cors, { origin: true });
-  // PDF lớn hơn text nhiều → nới giới hạn file lên 25MB
-  app.register(multipart, { limits: { fileSize: 25 * 1024 * 1024 } });
+  // PDF lớn hơn text nhiều → nới giới hạn file lên 25MB. Tối đa 7 file/lần upload.
+  app.register(multipart, {
+    limits: { fileSize: 25 * 1024 * 1024, files: 7 },
+  });
   // Chặn abuse/DoS-chi-phí ở mức toàn cục. Endpoint tốn tiền (chat/upload) siết
   // chặt hơn qua config.rateLimit ở từng route.
   app.register(rateLimit, { max: 120, timeWindow: "1 minute" });

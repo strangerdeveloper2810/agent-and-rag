@@ -15,7 +15,11 @@ vi.mock("../repositories", () => ({
   deleteDocument: vi.fn(),
 }));
 
-import { buildChunkDocs, updateDocument } from "./documents.service";
+import {
+  buildChunkDocs,
+  updateDocument,
+  toUploadResult,
+} from "./documents.service";
 import * as repo from "../repositories";
 import * as voyage from "../../../lib/voyage";
 import { NotFoundError } from "../../../lib/errors";
@@ -104,5 +108,38 @@ describe("updateDocument", () => {
     expect(order).toEqual(["archive", "insert"]);
     expect(res.version).toBe(3);
     expect(res.chunks).toBe(1);
+  });
+});
+
+describe("toUploadResult", () => {
+  it("fulfilled → ok:true kèm dữ liệu file", () => {
+    const r = toUploadResult("a.txt", {
+      status: "fulfilled",
+      value: { documentId: "d1", source: "a.txt", version: 1, chunks: 3 },
+    });
+    expect(r).toEqual({
+      filename: "a.txt",
+      ok: true,
+      documentId: "d1",
+      source: "a.txt",
+      version: 1,
+      chunks: 3,
+    });
+  });
+
+  it("rejected (Error) → ok:false kèm message", () => {
+    const r = toUploadResult("b.pdf", {
+      status: "rejected",
+      reason: new Error("PDF rỗng"),
+    });
+    expect(r).toEqual({ filename: "b.pdf", ok: false, error: "PDF rỗng" });
+  });
+
+  it("rejected (non-Error) → String(reason)", () => {
+    const r = toUploadResult("c.txt", {
+      status: "rejected",
+      reason: "boom",
+    });
+    expect(r).toEqual({ filename: "c.txt", ok: false, error: "boom" });
   });
 });

@@ -2,12 +2,17 @@ import type { FastifyRequest } from "fastify";
 import * as docService from "../services";
 import { BadRequestError, NotFoundError } from "../../../lib/errors";
 
-// Upload file MỚI (.txt/.md/.pdf) → version 1
-export const uploadDocument = async (req: FastifyRequest) => {
-  const file = await req.file();
-  if (!file) throw new BadRequestError("Thiếu file");
-  const buffer = await file.toBuffer();
-  return docService.ingestUpload(file.filename, buffer);
+// Upload 1–7 file MỚI (.txt/.md/.pdf) → mỗi file thành 1 document version 1.
+// Best-effort: file lỗi không làm hỏng file khác; trả kết quả từng file.
+// (Cap 7 file: xem limits.files của multipart trong app.ts.)
+export const uploadDocuments = async (req: FastifyRequest) => {
+  const files: { filename: string; buffer: Buffer }[] = [];
+  for await (const part of req.files()) {
+    files.push({ filename: part.filename, buffer: await part.toBuffer() });
+  }
+  if (files.length === 0) throw new BadRequestError("Thiếu file");
+  const results = await docService.ingestUploads(files);
+  return { results };
 };
 
 // Cập nhật tài liệu → version mới
