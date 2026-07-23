@@ -51,13 +51,17 @@ export default function ChatPage() {
     setStreaming(false);
     setActiveTool(null);
     loadedIdRef.current = id;
-    let cancelled = false;
+    // Guard bằng ref, KHÔNG dùng cờ cleanup: StrictMode (dev) chạy effect 2 lần
+    // — nếu cleanup set cancelled=true thì lần fetch DUY NHẤT (lần 2 bị guard
+    // return sớm) bị hủy → messages rỗng → nháy EmptyState. So khớp loadedIdRef
+    // vẫn chặn được việc ghi nhầm khi user đã đổi sang hội thoại khác.
     getMessages(id)
-      .then((m) => !cancelled && setMessages(m))
-      .catch(() => !cancelled && setMessages([]));
-    return () => {
-      cancelled = true;
-    };
+      .then((m) => {
+        if (loadedIdRef.current === id) setMessages(m);
+      })
+      .catch(() => {
+        if (loadedIdRef.current === id) setMessages([]);
+      });
   }, [id]);
 
   // Hủy stream đang chạy khi component unmount (rời trang chat).
