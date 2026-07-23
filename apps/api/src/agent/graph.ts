@@ -5,10 +5,9 @@ import {
   START,
 } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
-import { ChatAnthropic } from "@langchain/anthropic";
 import { SystemMessage } from "@langchain/core/messages";
-import { config } from "../config";
 import { lcTools } from "./lc-tools";
+import { createAgentModel } from "./model";
 
 const SYSTEM_PROMPT = [
   "Bạn là một trợ lý AI có thể tra cứu tài liệu (RAG) và quản lý task.",
@@ -20,19 +19,15 @@ const SYSTEM_PROMPT = [
   "",
   "Công cụ:",
   "- ragSearch: tìm thông tin trong nội dung tài liệu.",
-  "- listDocuments: đếm/liệt kê các tài liệu đã nạp.",
-  "- readDocument: đọc toàn bộ một tài liệu theo tên file.",
+  "- listDocuments: đếm/liệt kê các tài liệu đã nạp (kèm documentId).",
+  "- readDocument: đọc toàn bộ một tài liệu theo documentId (lấy từ listDocuments/ragSearch).",
   "- createTask/listTasks/updateTask/deleteTask: quản lý task.",
   "",
   "Có thể kết hợp nhiều bước: ví dụ tìm trong tài liệu rồi tạo task.",
   "Trả lời rõ ràng bằng tiếng Việt. Khi dùng ragSearch, hãy dẫn nguồn (source).",
 ].join("\n");
 
-const model = new ChatAnthropic({
-  apiKey: config.ANTHROPIC_API_KEY,
-  model: config.CLAUDE_MODEL,
-  maxTokens: 4096,
-}).bindTools(lcTools);
+const model = createAgentModel();
 
 const toolNode = new ToolNode(lcTools);
 
