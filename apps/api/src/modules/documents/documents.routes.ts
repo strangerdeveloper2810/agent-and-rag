@@ -7,7 +7,7 @@ export async function documentsRoutes(app: FastifyInstance) {
   const embedLimit = {
     config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
   };
-  app.post("/documents/upload", embedLimit, ctrl.uploadDocument);
+  app.post("/documents/upload", embedLimit, ctrl.uploadDocuments);
   app.put("/documents/:documentId", embedLimit, ctrl.updateDocument);
   app.get("/documents", ctrl.listDocuments);
   app.get("/documents/:documentId/versions", ctrl.getVersions);

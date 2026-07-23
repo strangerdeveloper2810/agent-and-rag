@@ -96,6 +96,43 @@ export async function ingestUpload(filename: string, buffer: Buffer) {
   return ingestDocument(filename, content);
 }
 
+// Kết quả nạp cho MỘT file trong lô upload nhiều file (best-effort).
+type IngestOk = Awaited<ReturnType<typeof ingestUpload>>;
+export type UploadResult =
+  | ({ filename: string; ok: true } & IngestOk)
+  | { filename: string; ok: false; error: string };
+
+/**
+ * Map kết quả Promise.allSettled của MỘT file → UploadResult (tách pure để test).
+ */
+export function toUploadResult(
+  filename: string,
+  settled: PromiseSettledResult<IngestOk>,
+): UploadResult {
+  if (settled.status === "fulfilled") {
+    return { filename, ok: true, ...settled.value };
+  }
+  const reason = settled.reason;
+  return {
+    filename,
+    ok: false,
+    error: reason instanceof Error ? reason.message : String(reason),
+  };
+}
+
+/**
+ * Nạp NHIỀU file cùng lúc (song song), best-effort: file lỗi không làm hỏng file
+ * khác. Trả về kết quả từng file theo đúng thứ tự đầu vào.
+ */
+export async function ingestUploads(
+  files: { filename: string; buffer: Buffer }[],
+): Promise<UploadResult[]> {
+  const settled = await Promise.allSettled(
+    files.map((f) => ingestUpload(f.filename, f.buffer)),
+  );
+  return files.map((f, i) => toUploadResult(f.filename, settled[i]));
+}
+
 export async function updateUpload(
   documentId: string,
   filename: string,

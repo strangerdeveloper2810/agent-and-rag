@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import {
   listDocuments,
-  uploadDocument,
+  uploadDocuments,
   updateDocument,
   deleteDocument,
   getVersions,
@@ -44,12 +44,29 @@ export default function DocumentsView() {
     refresh();
   }, []);
 
-  const onUpload = async (file: File) => {
+  const onUpload = async (files: File[]) => {
+    if (files.length === 0) return;
+    if (files.length > 7) {
+      toast.error("Tối đa 7 file mỗi lần.");
+      if (fileRef.current) fileRef.current.value = "";
+      return;
+    }
     setUploading(true);
     try {
-      const res = await uploadDocument(file);
+      const { results } = await uploadDocuments(files);
       await refresh();
-      toast.success(`Đã nạp ${res.source} (${res.chunks} chunk).`);
+      const ok = results.filter((r) => r.ok);
+      const failed = results.filter((r) => !r.ok);
+      const failNames = failed.map((f) => f.filename).join(", ");
+      if (failed.length === 0) {
+        toast.success(`Đã nạp ${ok.length} tài liệu.`);
+      } else if (ok.length === 0) {
+        toast.error(`Nạp thất bại ${failed.length} file: ${failNames}`);
+      } else {
+        toast.success(
+          `Nạp ${ok.length} thành công, ${failed.length} lỗi (${failNames}).`,
+        );
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Upload thất bại.");
     } finally {
@@ -143,20 +160,25 @@ export default function DocumentsView() {
             <input
               ref={fileRef}
               type="file"
+              multiple
               accept=".txt,.md,.pdf,text/plain,text/markdown,application/pdf"
               className="hidden"
               onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) onUpload(f);
+                const files = Array.from(e.target.files ?? []);
+                if (files.length) onUpload(files);
               }}
             />
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gemini text-white">
               <UploadIcon width={20} height={20} />
             </div>
             <span className="text-sm font-medium text-ink">
-              {uploading ? "Đang nạp & embed…" : "Bấm để chọn file tải lên"}
+              {uploading
+                ? "Đang nạp & embed…"
+                : "Bấm để chọn file tải lên (tối đa 7)"}
             </span>
-            <span className="text-xs text-ink-faint">.txt / .md / .pdf</span>
+            <span className="text-xs text-ink-faint">
+              .txt / .md / .pdf — tối đa 7 file/lần
+            </span>
           </label>
 
           {/* Danh sách tài liệu */}
