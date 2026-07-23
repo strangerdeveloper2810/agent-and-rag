@@ -7,5 +7,10 @@ export const chatRoutes = async (app: FastifyInstance) => {
   app.get("/conversations", ctrl.getConversations);
   app.get("/conversations/:id/messages", ctrl.getConversationMessages);
   app.delete("/conversations/:id", ctrl.deleteConversation);
-  app.post("/conversations/:id/chat", ctrl.postChat);
+  // Chat gọi LLM (tốn tiền) → siết chặt hơn mức toàn cục.
+  app.post(
+    "/conversations/:id/chat",
+    { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } },
+    ctrl.postChat,
+  );
 };
