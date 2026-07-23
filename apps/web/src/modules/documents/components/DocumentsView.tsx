@@ -12,7 +12,13 @@ import {
   type VersionContent,
 } from "@/modules/documents/documents.api";
 import type { OutletCtx } from "@/shared/components/AppLayout";
-import { UploadIcon, DocIcon, TrashIcon, MenuIcon, CloseIcon } from "@/shared/components/icons";
+import {
+  UploadIcon,
+  DocIcon,
+  TrashIcon,
+  MenuIcon,
+  CloseIcon,
+} from "@/shared/components/icons";
 import ConfirmDialog from "@/shared/components/ConfirmDialog";
 import { useToast } from "@/shared/components/Toast";
 
@@ -124,8 +130,8 @@ export default function DocumentsView() {
             Nạp file{" "}
             <code className="rounded bg-subtle px-1 text-ink">.txt</code>,{" "}
             <code className="rounded bg-subtle px-1 text-ink">.md</code> hoặc{" "}
-            <code className="rounded bg-subtle px-1 text-ink">.pdf</code> — Agent
-            sẽ tra cứu khi bạn hỏi.
+            <code className="rounded bg-subtle px-1 text-ink">.pdf</code> —
+            Agent sẽ tra cứu khi bạn hỏi.
           </p>
 
           {/* Vùng upload tài liệu mới */}
@@ -180,7 +186,9 @@ export default function DocumentsView() {
                             v{d.version}
                           </span>
                         </p>
-                        <p className="text-xs text-ink-faint">{d.chunks} chunk</p>
+                        <p className="text-xs text-ink-faint">
+                          {d.chunks} chunk
+                        </p>
                       </div>
 
                       {/* Cập nhật (upload file mới → version mới) */}
