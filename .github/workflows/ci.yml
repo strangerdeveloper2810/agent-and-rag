@@ -94,16 +94,29 @@ jobs:
     needs: detect
     if: ${{ needs.detect.outputs.agent_go == 'true' }}
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/agent-go
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: services/agent-go/go.mod
-      - name: Vet + Test + Build
-        working-directory: services/agent-go
-        run: go vet ./... && go test ./... && go build ./...
-      - name: Lint
-        continue-on-error: true # tạm: tránh block CI do lệch phiên bản golangci-lint/Go; siết lại sau
+          cache-dependency-path: services/agent-go/go.sum
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "Các file chưa gofmt:"; echo "$unformatted"; exit 1
+          fi
+      - name: Vet
+        run: go vet ./...
+      - name: Test (race + coverage)
+        run: go test -race -coverprofile=coverage.out ./...
+      - name: Build
+        run: go build ./...
+      - name: golangci-lint
+        continue-on-error: true # tạm non-block do lệch phiên bản golangci-lint/Go; siết lại sau
         uses: golangci/golangci-lint-action@v8
         with:
           working-directory: services/agent-go
