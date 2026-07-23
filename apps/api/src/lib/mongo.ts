@@ -1,6 +1,15 @@
 import { MongoClient, type Db } from "mongodb";
 import { config } from "../config";
 
+/** Tên collection Mongo — 1 NGUỒN SỰ THẬT (tránh magic string rải rác + typo). */
+export const COLLECTIONS = {
+  conversations: "conversations",
+  messages: "messages",
+  tasks: "tasks",
+  documents: "documents",
+  documentVersions: "document_versions",
+} as const;
+
 let client: MongoClient | null = null;
 let db: Db | null = null;
 
@@ -32,17 +41,21 @@ export async function ensureIndexes(): Promise<void> {
   const database = getDb();
   await Promise.all([
     database
-      .collection("messages")
+      .collection(COLLECTIONS.messages)
       .createIndex({ conversationId: 1, createdAt: 1 }),
-    database.collection("conversations").createIndex({ updatedAt: -1 }),
-    database.collection("tasks").createIndex({ status: 1, priority: 1 }),
-    database.collection("tasks").createIndex({ tags: 1 }),
     database
-      .collection("documents")
+      .collection(COLLECTIONS.conversations)
+      .createIndex({ updatedAt: -1 }),
+    database
+      .collection(COLLECTIONS.tasks)
+      .createIndex({ status: 1, priority: 1 }),
+    database.collection(COLLECTIONS.tasks).createIndex({ tags: 1 }),
+    database
+      .collection(COLLECTIONS.documents)
       .createIndex({ documentId: 1, chunkIndex: 1 }),
-    database.collection("documents").createIndex({ source: 1 }),
+    database.collection(COLLECTIONS.documents).createIndex({ source: 1 }),
     database
-      .collection("document_versions")
+      .collection(COLLECTIONS.documentVersions)
       .createIndex({ documentId: 1, version: 1 }),
   ]);
 }

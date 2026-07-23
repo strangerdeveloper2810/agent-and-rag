@@ -6,6 +6,8 @@ export class HttpError extends Error {
   constructor(
     public statusCode: number,
     message: string,
+    // code máy-đọc-được để client phân biệt loại lỗi (đi kèm trong response).
+    public code: string = "HTTP_ERROR",
   ) {
     super(message);
     this.name = "HttpError";
@@ -14,14 +16,14 @@ export class HttpError extends Error {
 
 export class BadRequestError extends HttpError {
   constructor(message: string) {
-    super(400, message);
+    super(400, message, "BAD_REQUEST");
     this.name = "BadRequestError";
   }
 }
 
 export class NotFoundError extends HttpError {
   constructor(message: string) {
-    super(404, message);
+    super(404, message, "NOT_FOUND");
     this.name = "NotFoundError";
   }
 }

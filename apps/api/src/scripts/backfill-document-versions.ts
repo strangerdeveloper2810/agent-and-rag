@@ -1,5 +1,5 @@
 import { ObjectId } from "mongodb";
-import { connectMongo, closeMongo } from "../lib/mongo";
+import { connectMongo, closeMongo, COLLECTIONS } from "../lib/mongo";
 
 /**
  * Migration một lần: gán documentId + version=1 cho các chunk tài liệu CŨ
@@ -12,7 +12,7 @@ import { connectMongo, closeMongo } from "../lib/mongo";
  */
 async function main() {
   const db = await connectMongo();
-  const col = db.collection("documents");
+  const col = db.collection(COLLECTIONS.documents);
 
   const sources = await col.distinct("source", {
     documentId: { $exists: false },

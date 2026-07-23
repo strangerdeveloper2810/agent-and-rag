@@ -19,6 +19,7 @@ jobs:
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
+      agent_go: ${{ steps.filter.outputs.agent_go }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -41,6 +42,9 @@ jobs:
             frontend:
               - *shared
               - 'apps/web/**'
+            agent_go:
+              - *shared
+              - 'services/agent-go/**'
 
   backend:
     needs: detect
@@ -86,19 +90,51 @@ jobs:
       - name: Format check (Web)
         run: pnpm exec prettier --check apps/web
 
+  agent-go:
+    needs: detect
+    if: ${{ needs.detect.outputs.agent_go == 'true' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/agent-go
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: services/agent-go/go.mod
+          cache-dependency-path: services/agent-go/go.sum
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "Các file chưa gofmt:"; echo "$unformatted"; exit 1
+          fi
+      - name: Vet
+        run: go vet ./...
+      - name: Test (race + coverage)
+        run: go test -race -coverprofile=coverage.out ./...
+      - name: Build
+        run: go build ./...
+      - name: golangci-lint
+        continue-on-error: true # tạm non-block do lệch phiên bản golangci-lint/Go; siết lại sau
+        uses: golangci/golangci-lint-action@v8
+        with:
+          working-directory: services/agent-go
+
   # Gate tổng: 1 status check duy nhất để đặt "required" trong branch protection.
   # Xanh khi các job con success HOẶC bị skip (chỉ đổi docs); đỏ nếu có job fail.
   ci-success:
     if: always()
-    needs: [detect, backend, frontend]
+    needs: [detect, backend, frontend, agent-go]
     runs-on: ubuntu-latest
     steps:
       - name: Kiểm tra kết quả các job
         run: |
-          echo "detect=${{ needs.detect.result }} backend=${{ needs.backend.result }} frontend=${{ needs.frontend.result }}"
+          echo "detect=${{ needs.detect.result }} backend=${{ needs.backend.result }} frontend=${{ needs.frontend.result }} agent-go=${{ needs.agent-go.result }}"
           if [ "${{ needs.detect.result }}" = "failure" ] || \
              [ "${{ needs.backend.result }}" = "failure" ] || \
-             [ "${{ needs.frontend.result }}" = "failure" ]; then
+             [ "${{ needs.frontend.result }}" = "failure" ] || \
+             [ "${{ needs.agent-go.result }}" = "failure" ]; then
             echo "Có job CI thất bại"; exit 1
           fi
           echo "CI OK (job không liên quan đã được skip)"
