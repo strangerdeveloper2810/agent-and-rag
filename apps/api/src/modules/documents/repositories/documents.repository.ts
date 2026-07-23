@@ -1,4 +1,4 @@
-import { getDb } from "../../../lib/mongo";
+import { collections } from "../../../lib/collections";
 
 /**
  * Một chunk của tài liệu (bản MỚI NHẤT) — nằm trong collection `documents`.
@@ -19,8 +19,8 @@ export type DocChunk = {
   createdAt: Date;
 };
 
-const docs = () => getDb().collection("documents");
-const versions = () => getDb().collection("document_versions");
+const docs = () => collections.documents();
+const versions = () => collections.documentVersions();
 
 export async function insertChunks(chunks: DocChunk[]) {
   if (chunks.length === 0) return;
