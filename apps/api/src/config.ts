@@ -10,7 +10,14 @@ const envSchema = z
     // Chọn nhà cung cấp model cho agent. Mặc định anthropic (giữ nguyên hành vi cũ).
     LLM_PROVIDER: z.enum(["anthropic", "google"]).default("anthropic"),
     GOOGLE_API_KEY: z.string().optional(),
-    GOOGLE_MODEL: z.string().default("gemini-2.0-flash"),
+    GOOGLE_MODEL: z.string().default("gemini-3.1-flash-lite"),
+    // Mức "thinking" của Gemini 3.x: OFF | LOW | MEDIUM | HIGH.
+    // Gemini 3.x bật thinking mặc định → mỗi lượt tốn 30-60s dù output nhỏ.
+    // LOW = nhanh nhất (đủ cho agent gọi tool). Đặt OFF nếu dùng model KHÔNG hỗ
+    // trợ thinking (vd gemini-2.0-flash) để tránh lỗi.
+    GOOGLE_THINKING_LEVEL: z
+      .enum(["OFF", "LOW", "MEDIUM", "HIGH"])
+      .default("LOW"),
   })
   // Nếu chọn Google thì bắt buộc có GOOGLE_API_KEY.
   .refine((c) => c.LLM_PROVIDER !== "google" || !!c.GOOGLE_API_KEY, {
