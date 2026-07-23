@@ -1,0 +1,5 @@
+bin/
+*.test
+*.out
+.git
+node_modules
