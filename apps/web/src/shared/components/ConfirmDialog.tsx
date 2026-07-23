@@ -48,7 +48,9 @@ export default function ConfirmDialog({
       >
         <h2 className="text-lg font-medium text-ink">{title}</h2>
         {message && (
-          <p className="mt-2 text-sm leading-relaxed text-ink-soft">{message}</p>
+          <p className="mt-2 text-sm leading-relaxed text-ink-soft">
+            {message}
+          </p>
         )}
         <div className="mt-6 flex justify-end gap-2">
           <button
@@ -62,7 +64,9 @@ export default function ConfirmDialog({
             type="button"
             onClick={onConfirm}
             className={`rounded-full px-5 py-2 text-sm font-medium text-white transition ${
-              danger ? "bg-red-600 hover:bg-red-700" : "bg-gblue hover:bg-gblue-bright"
+              danger
+                ? "bg-red-600 hover:bg-red-700"
+                : "bg-gblue hover:bg-gblue-bright"
             }`}
           >
             {confirmLabel}

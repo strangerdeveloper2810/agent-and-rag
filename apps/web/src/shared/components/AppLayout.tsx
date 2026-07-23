@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import {
@@ -48,7 +48,9 @@ export default function AppLayout() {
   const activeId = location.pathname.startsWith("/messages/")
     ? (location.pathname.split("/")[2] ?? null)
     : null;
-  const view = location.pathname.startsWith("/documents") ? "documents" : "chat";
+  const view = location.pathname.startsWith("/documents")
+    ? "documents"
+    : "chat";
 
   return (
     <div className="flex h-screen overflow-hidden bg-surface">
@@ -79,15 +81,25 @@ export default function AppLayout() {
         }}
       />
 
-      <Outlet
-        context={
-          {
-            conversations,
-            reloadConversations,
-            toggleSidebar,
-          } satisfies OutletCtx
+      {/* Suspense quanh Outlet: trang lazy đang tải thì hiện fallback ở vùng nội
+          dung, sidebar vẫn giữ nguyên. BẮT BUỘC có vì App dùng React.lazy. */}
+      <Suspense
+        fallback={
+          <main className="flex flex-1 items-center justify-center text-ink-faint">
+            Đang tải…
+          </main>
         }
-      />
+      >
+        <Outlet
+          context={
+            {
+              conversations,
+              reloadConversations,
+              toggleSidebar,
+            } satisfies OutletCtx
+          }
+        />
+      </Suspense>
     </div>
   );
 }

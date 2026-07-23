@@ -45,15 +45,16 @@ const listDocumentsTool = tool(
 );
 
 const readDocumentTool = tool(
-  async ({ source }) => JSON.stringify(await getDocumentContent(source)),
+  async ({ documentId }) =>
+    JSON.stringify(await getDocumentContent(documentId)),
   {
     name: "readDocument",
     description:
-      "Đọc TOÀN BỘ nội dung của MỘT tài liệu theo tên file. Dùng khi người dùng muốn xem nội dung đầy đủ của một tài liệu cụ thể. Nếu chưa biết tên file, gọi listDocuments trước.",
+      "Đọc TOÀN BỘ nội dung của MỘT tài liệu theo documentId. Dùng khi người dùng muốn xem nội dung đầy đủ của một tài liệu cụ thể. Lấy documentId từ listDocuments hoặc ragSearch trước (KHÔNG dùng tên file).",
     schema: z.object({
-      source: z
+      documentId: z
         .string()
-        .describe("Tên file tài liệu cần đọc, ví dụ test-rag.txt"),
+        .describe("documentId của tài liệu (lấy từ listDocuments/ragSearch)"),
     }),
   },
 );
