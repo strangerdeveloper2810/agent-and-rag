@@ -37,12 +37,4 @@ type State struct {
 	Done     bool
 }
 
-// lastAssistant trả message assistant gần nhất (nil nếu chưa có).
-func (s *State) lastAssistant() *provider.Message {
-	for i := len(s.Messages) - 1; i >= 0; i-- {
-		if s.Messages[i].Role == provider.RoleAssistant {
-			return &s.Messages[i]
-		}
-	}
-	return nil
-}
+// (Router/nodes ở P2 sẽ thêm helper đọc State, vd lastAssistant.)
