@@ -17,6 +17,6 @@ type EmitFunc func(Event)
 
 // Helper dựng nhanh vài event thường dùng.
 func TextEvent(text string) Event      { return Event{Type: "text", Text: text} }
-func StepEvent(node NodeID) Event       { return Event{Type: "step", Node: string(node)} }
-func ErrorEvent(msg string) Event       { return Event{Type: "error", Message: msg} }
-func DoneEvent(u provider.Usage) Event   { return Event{Type: "done", Usage: &u} }
+func StepEvent(node NodeID) Event      { return Event{Type: "step", Node: string(node)} }
+func ErrorEvent(msg string) Event      { return Event{Type: "error", Message: msg} }
+func DoneEvent(u provider.Usage) Event { return Event{Type: "done", Usage: &u} }

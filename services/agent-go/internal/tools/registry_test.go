@@ -110,10 +110,10 @@ type barrierTool struct {
 	wg *sync.WaitGroup
 }
 
-func (barrierTool) Name() string             { return "barrier" }
-func (barrierTool) Description() string       { return "test barrier tool" }
-func (barrierTool) Schema() json.RawMessage   { return json.RawMessage(`{"type":"object"}`) }
-func (barrierTool) Kind() Kind                { return KindRead }
+func (barrierTool) Name() string            { return "barrier" }
+func (barrierTool) Description() string     { return "test barrier tool" }
+func (barrierTool) Schema() json.RawMessage { return json.RawMessage(`{"type":"object"}`) }
+func (barrierTool) Kind() Kind              { return KindRead }
 func (b barrierTool) Execute(ctx context.Context, args json.RawMessage) (Result, error) {
 	b.wg.Done() // báo "tôi đã bắt đầu"
 	// Chờ mọi goroutine cùng tới đây; nếu chạy tuần tự sẽ deadlock → test timeout.

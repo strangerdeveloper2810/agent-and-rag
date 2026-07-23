@@ -1,0 +1,12 @@
+# golangci-lint v2 config. Default linters (errcheck, govet, ineffassign,
+# staticcheck, unused) + vài linter nhẹ. Target Go lấy theo go.mod.
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  enable:
+    - misspell
+    - unconvert
+    - bodyclose
