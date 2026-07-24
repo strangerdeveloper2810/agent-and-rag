@@ -148,9 +148,9 @@ func main() {
 		SystemPrompt:    agent.BuildSystemPrompt(nil, skillSummaries),
 	})
 	orch.Register(&orchestrator.AgentSpec{
-		Name:            "code",
-		Description:     "Code and programming specialist for development tasks",
-		Engine:          codeEngine,
+		Name:        "code",
+		Description: "Code and programming specialist for development tasks",
+		Engine:      codeEngine,
 		TriggerKeywords: []string{"code", "programming", "function", "bug", "debug",
 			"go", "python", "typescript", "javascript", "rust", "refactor", "test"},
 		SystemPrompt: agent.BuildSystemPrompt(nil, skillSummaries),

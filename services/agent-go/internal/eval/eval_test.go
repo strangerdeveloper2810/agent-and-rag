@@ -289,7 +289,9 @@ func TestRunAll_PassRate(t *testing.T) {
 
 	expectedRate := 2.0 / 3.0 * 100.0
 	diff := report.PassRate - expectedRate
-	if diff < 0 { diff = -diff }
+	if diff < 0 {
+		diff = -diff
+	}
 	if diff > 0.01 {
 		t.Errorf("PassRate = %f, want ~%f", report.PassRate, expectedRate)
 	}

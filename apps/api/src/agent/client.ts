@@ -1,8 +1,5 @@
 import { config } from "../config";
-import {
-  AgentUnavailableError,
-  AgentTimeoutError,
-} from "../lib/errors";
+import { AgentUnavailableError, AgentTimeoutError } from "../lib/errors";
 
 // Re-export AgentEvent type từ graph-runner để giữ tương thích ngược.
 // Khi AGENT_BACKEND=go, Go agent trả về JSON khớp với AgentEvent (mở rộng hơn).
@@ -16,7 +13,12 @@ export type AgentMessage = { role: string; content: string };
 /** Tuỳ chọn cho agent stream (abort signal từ HTTP request). */
 export type AgentStreamOptions = {
   signal?: AbortSignal;
-  attachments?: Array<{ type: string; name: string; data: string; mimeType: string }>;
+  attachments?: Array<{
+    type: string;
+    name: string;
+    data: string;
+    mimeType: string;
+  }>;
 };
 
 /**
@@ -80,7 +82,9 @@ function checkCircuit(): void {
   } else {
     throw new AgentUnavailableError(
       "AI agent tạm thời không khả dụng (circuit breaker mở). Vui lòng thử lại sau.",
-      Math.ceil((CIRCUIT_TIMEOUT_MS - (Date.now() - circuit.lastFailureTime)) / 1000),
+      Math.ceil(
+        (CIRCUIT_TIMEOUT_MS - (Date.now() - circuit.lastFailureTime)) / 1000,
+      ),
     );
   }
 }
@@ -287,8 +291,7 @@ const goAgentClient: AgentClient = {
               break;
             case "done":
               if (raw.usage) {
-                totalTokens =
-                  raw.usage.inputTokens + raw.usage.outputTokens;
+                totalTokens = raw.usage.inputTokens + raw.usage.outputTokens;
               }
               yield {
                 type: "done",

@@ -15,10 +15,10 @@ import (
 type MatchMode int
 
 const (
-	MatchExact   MatchMode = iota // so khớp chính xác
-	MatchContains                 // chứa substring
-	MatchRegex                    // khớp regex
-	MatchSemantic                 // LLM judge (cần Judge interface)
+	MatchExact    MatchMode = iota // so khớp chính xác
+	MatchContains                  // chứa substring
+	MatchRegex                     // khớp regex
+	MatchSemantic                  // LLM judge (cần Judge interface)
 )
 
 func (m MatchMode) String() string {
@@ -52,23 +52,23 @@ type EvalCase struct {
 
 // EvalResult là kết quả chạy một EvalCase.
 type EvalResult struct {
-	Case     EvalCase     `json:"case"`
-	Passed   bool         `json:"passed"`
-	Actual   string       `json:"actual"`
-	Reason   string       `json:"reason,omitempty"`
+	Case     EvalCase      `json:"case"`
+	Passed   bool          `json:"passed"`
+	Actual   string        `json:"actual"`
+	Reason   string        `json:"reason,omitempty"`
 	Duration time.Duration `json:"duration"`
-	Error    string       `json:"error,omitempty"`
+	Error    string        `json:"error,omitempty"`
 }
 
 // EvalReport tổng hợp kết quả chạy toàn bộ test cases.
 type EvalReport struct {
-	Total     int           `json:"total"`
-	Passed    int           `json:"passed"`
-	Failed    int           `json:"failed"`
-	Errored   int           `json:"errored"`
-	Duration  time.Duration `json:"duration"`
-	Results   []EvalResult  `json:"results"`
-	PassRate  float64       `json:"pass_rate"`
+	Total    int           `json:"total"`
+	Passed   int           `json:"passed"`
+	Failed   int           `json:"failed"`
+	Errored  int           `json:"errored"`
+	Duration time.Duration `json:"duration"`
+	Results  []EvalResult  `json:"results"`
+	PassRate float64       `json:"pass_rate"`
 }
 
 // AgentRunner là interface agent cần test.

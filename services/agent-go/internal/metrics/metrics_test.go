@@ -82,12 +82,12 @@ func TestLatencyHistogram(t *testing.T) {
 	m := New()
 
 	// Record requests with different latencies
-	m.RecordRequest(50*time.Millisecond, 10, 5)    // <100ms
-	m.RecordRequest(200*time.Millisecond, 10, 5)   // 100-500ms
-	m.RecordRequest(750*time.Millisecond, 10, 5)   // 500ms-1s
-	m.RecordRequest(2*time.Second, 10, 5)          // 1-3s
-	m.RecordRequest(5*time.Second, 10, 5)          // 3-10s
-	m.RecordRequest(15*time.Second, 10, 5)         // >10s
+	m.RecordRequest(50*time.Millisecond, 10, 5)  // <100ms
+	m.RecordRequest(200*time.Millisecond, 10, 5) // 100-500ms
+	m.RecordRequest(750*time.Millisecond, 10, 5) // 500ms-1s
+	m.RecordRequest(2*time.Second, 10, 5)        // 1-3s
+	m.RecordRequest(5*time.Second, 10, 5)        // 3-10s
+	m.RecordRequest(15*time.Second, 10, 5)       // >10s
 
 	s := m.Snapshot()
 	if s.Requests != 6 {

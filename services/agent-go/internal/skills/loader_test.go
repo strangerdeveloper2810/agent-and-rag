@@ -284,9 +284,9 @@ func TestContainsAnyKeyword(t *testing.T) {
 	}{
 		{"I have a bug in my code", "When user reports a bug or error", true},
 		{"let me review this", "When user asks for code review", true},
-		{"hi there", "When user asks for code review", false}, // "there" is >= 4 chars but not in text
-		{"let's code", "When user asks for code review", true}, // "code" >= 4 chars
-		{"do it", "some instructions here", false},             // no reference word appears in text
+		{"hi there", "When user asks for code review", false},      // "there" is >= 4 chars but not in text
+		{"let's code", "When user asks for code review", true},     // "code" >= 4 chars
+		{"do it", "some instructions here", false},                 // no reference word appears in text
 		{"I have a bug", "When user reports a bug or error", true}, // "bug" >= 3 chars (was filtered at >=4)
 	}
 

@@ -23,9 +23,7 @@ const fakeAgent = (events: AgentEvent[]): AgentClient => ({
   stream: () => fakeStream(events),
 });
 
-const drain = async (
-  result: Awaited<ReturnType<typeof streamReply>>,
-) => {
+const drain = async (result: Awaited<ReturnType<typeof streamReply>>) => {
   const out: AgentEvent[] = [];
   for await (const ev of result.events) out.push(ev);
   return { events: out, metadata: await result.metadata };

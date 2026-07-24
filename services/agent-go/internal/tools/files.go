@@ -18,8 +18,8 @@ type fileSearchTool struct {
 
 // FileSearchArgs là input schema cho file.search.
 type FileSearchArgs struct {
-	Pattern string `json:"pattern"`           // glob pattern, e.g. "*.go", "**/*.txt"
-	Path    string `json:"path,omitempty"`    // base dir (mặc định: allowedPaths[0])
+	Pattern string `json:"pattern"`        // glob pattern, e.g. "*.go", "**/*.txt"
+	Path    string `json:"path,omitempty"` // base dir (mặc định: allowedPaths[0])
 }
 
 // NewFileSearchTool tạo file search tool với danh sách thư mục được phép.

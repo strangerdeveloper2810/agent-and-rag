@@ -18,11 +18,11 @@ func TestWeatherTool(t *testing.T) {
 			resp := map[string]any{
 				"current_condition": []map[string]any{
 					{
-						"temp_C":       "22",
-						"weatherDesc":  []map[string]string{{"value": "Sunny"}},
-						"humidity":     "55",
+						"temp_C":        "22",
+						"weatherDesc":   []map[string]string{{"value": "Sunny"}},
+						"humidity":      "55",
 						"windspeedKmph": "15",
-						"FeelsLikeC":   "20",
+						"FeelsLikeC":    "20",
 					},
 				},
 			}

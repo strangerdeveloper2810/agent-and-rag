@@ -40,8 +40,8 @@ func TestWebSearchTool(t *testing.T) {
 		}
 
 		var out struct {
-			Query   string `json:"query"`
-			Count   int    `json:"count"`
+			Query   string              `json:"query"`
+			Count   int                 `json:"count"`
 			Results []map[string]string `json:"results"`
 		}
 		json.Unmarshal([]byte(res.Content), &out)

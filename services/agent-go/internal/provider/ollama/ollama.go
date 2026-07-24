@@ -119,8 +119,8 @@ type ollamaMessage struct {
 }
 
 type ollamaTool struct {
-	Type     string          `json:"type"`
-	Function ollamaFunction  `json:"function"`
+	Type     string         `json:"type"`
+	Function ollamaFunction `json:"function"`
 }
 
 type ollamaFunction struct {

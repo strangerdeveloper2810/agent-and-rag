@@ -47,11 +47,11 @@ func TestDateTimeTool_Now(t *testing.T) {
 			}
 			if err == nil {
 				var out struct {
-					Operation  string `json:"operation"`
-					Datetime   string `json:"datetime"`
-					Timezone   string `json:"timezone"`
-					Unix       int64  `json:"unix"`
-					DayOfWeek  string `json:"dayOfWeek"`
+					Operation string `json:"operation"`
+					Datetime  string `json:"datetime"`
+					Timezone  string `json:"timezone"`
+					Unix      int64  `json:"unix"`
+					DayOfWeek string `json:"dayOfWeek"`
 				}
 				json.Unmarshal([]byte(result.Content), &out)
 				if out.Operation != "now" {

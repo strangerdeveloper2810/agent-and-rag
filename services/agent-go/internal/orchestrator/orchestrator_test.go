@@ -117,12 +117,12 @@ func TestOrchestrator_ListAgents(t *testing.T) {
 	orch := New()
 
 	orch.Register(&AgentSpec{
-		Name:    "a",
-		Engine:  newFakeEngine("a", provider.StreamChunk{Kind: provider.ChunkDone}),
+		Name:   "a",
+		Engine: newFakeEngine("a", provider.StreamChunk{Kind: provider.ChunkDone}),
 	})
 	orch.Register(&AgentSpec{
-		Name:    "b",
-		Engine:  newFakeEngine("b", provider.StreamChunk{Kind: provider.ChunkDone}),
+		Name:   "b",
+		Engine: newFakeEngine("b", provider.StreamChunk{Kind: provider.ChunkDone}),
 	})
 
 	list := orch.ListAgents()

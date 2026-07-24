@@ -181,12 +181,12 @@ func parseDDGLite(html, query string) []map[string]string {
 
 // DDGResponse là cấu trúc trả về từ DuckDuckGo API (exported for tests).
 type DDGResponse struct {
-	AbstractText string `json:"AbstractText"`
-	AbstractURL  string `json:"AbstractURL"`
-	Heading      string `json:"Heading"`
-	Answer       string `json:"Answer"`
-	AnswerType   string `json:"AnswerType"`
-	Definition   string `json:"Definition"`
+	AbstractText  string `json:"AbstractText"`
+	AbstractURL   string `json:"AbstractURL"`
+	Heading       string `json:"Heading"`
+	Answer        string `json:"Answer"`
+	AnswerType    string `json:"AnswerType"`
+	Definition    string `json:"Definition"`
 	RelatedTopics []struct {
 		Text     string `json:"Text"`
 		FirstURL string `json:"FirstURL"`
@@ -297,11 +297,11 @@ func searchDDGJSON(ctx context.Context, client *http.Client, query string) []map
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 
 	var ddg struct {
-		AbstractText string `json:"AbstractText"`
-		AbstractURL  string `json:"AbstractURL"`
-		Heading      string `json:"Heading"`
-		Answer       string `json:"Answer"`
-		Definition   string `json:"Definition"`
+		AbstractText  string `json:"AbstractText"`
+		AbstractURL   string `json:"AbstractURL"`
+		Heading       string `json:"Heading"`
+		Answer        string `json:"Answer"`
+		Definition    string `json:"Definition"`
 		RelatedTopics []struct {
 			Text     string `json:"Text"`
 			FirstURL string `json:"FirstURL"`

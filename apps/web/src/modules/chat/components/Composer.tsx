@@ -101,7 +101,7 @@ export default function Composer({
     const files = Array.from(e.target.files ?? []);
     if (fileInputRef.current) fileInputRef.current.value = "";
 
-    let errors: string[] = [];
+    const errors: string[] = [];
     const newAttachments: PendingAttachment[] = [];
 
     for (const file of files) {

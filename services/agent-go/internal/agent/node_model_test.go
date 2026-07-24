@@ -15,10 +15,10 @@ type fakeEngine struct {
 	registry *tools.Registry
 }
 
-func (e *fakeEngine) getProvider() provider.Provider  { return e.prov }
-func (e *fakeEngine) getRegistry() *tools.Registry    { return e.registry }
-func (e *fakeEngine) getSystemPrompt() string         { return "" }
-func (e *fakeEngine) getMaxContextTokens() int              { return 0 }
+func (e *fakeEngine) getProvider() provider.Provider            { return e.prov }
+func (e *fakeEngine) getRegistry() *tools.Registry              { return e.registry }
+func (e *fakeEngine) getSystemPrompt() string                   { return "" }
+func (e *fakeEngine) getMaxContextTokens() int                  { return 0 }
 func (e *fakeEngine) getDynamicThinking() DynamicThinkingConfig { return DynamicThinkingConfig{} }
 
 func TestNodeModel_TextOnly(t *testing.T) {
