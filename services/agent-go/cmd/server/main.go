@@ -18,6 +18,7 @@ import (
 	"github.com/ai-agent-tut/agent-go/internal/memory"
 	"github.com/ai-agent-tut/agent-go/internal/orchestrator"
 	"github.com/ai-agent-tut/agent-go/internal/provider/factory"
+	"github.com/ai-agent-tut/agent-go/internal/skills"
 	"github.com/ai-agent-tut/agent-go/internal/tools"
 	agenthttp "github.com/ai-agent-tut/agent-go/internal/transport/http"
 )
@@ -44,6 +45,19 @@ func main() {
 	// --- Wire Memory Store ---
 	store := memory.NewStore()
 
+	// --- Wire Skills Loader ---
+	skillsDir := cfg.SkillsDir
+	if skillsDir == "" {
+		skillsDir = "skills" // default relative to working directory
+	}
+	skillLoader, err := skills.NewLoader(skillsDir)
+	if err != nil {
+		slog.Error("skills", "err", err)
+		os.Exit(1)
+	}
+	slog.Info("skills loaded", "count", skillLoader.Len())
+	skillSummaries := skillLoader.ListSkills()
+
 	// --- Wire Orchestrator (multi-agent) ---
 	generalEngine := agent.NewEngine(prov, registry)
 	generalEngine.SetMemoryNodes(
@@ -65,7 +79,7 @@ func main() {
 		Description:     "General-purpose assistant for everyday tasks and conversation",
 		Engine:          generalEngine,
 		TriggerKeywords: []string{},
-		SystemPrompt:    agent.BuildSystemPrompt(nil),
+		SystemPrompt:    agent.BuildSystemPrompt(nil, skillSummaries),
 	})
 	orch.Register(&orchestrator.AgentSpec{
 		Name:            "code",
@@ -73,7 +87,7 @@ func main() {
 		Engine:          codeEngine,
 		TriggerKeywords: []string{"code", "programming", "function", "bug", "debug",
 			"go", "python", "typescript", "javascript", "rust", "refactor", "test"},
-		SystemPrompt: agent.BuildSystemPrompt(nil),
+		SystemPrompt: agent.BuildSystemPrompt(nil, skillSummaries),
 	})
 	if err := orch.SetDefault("general"); err != nil {
 		slog.Error("orchestrator", "err", err)
