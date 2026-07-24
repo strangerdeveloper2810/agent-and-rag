@@ -5,23 +5,11 @@ type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
 
 const AGENT_CONFIG: Record<
   string,
-  { label: string; Icon: IconComponent; colorClass: string }
+  { label: string; Icon: IconComponent }
 > = {
-  general: {
-    label: "Assistant",
-    Icon: SparkIcon,
-    colorClass: "text-gblue bg-gblue-soft",
-  },
-  code: {
-    label: "Code Agent",
-    Icon: WrenchIcon,
-    colorClass: "text-emerald-600 bg-emerald-100 dark:text-emerald-400 dark:bg-emerald-900/30",
-  },
-  research: {
-    label: "Research Agent",
-    Icon: BrainIcon,
-    colorClass: "text-purple-600 bg-purple-100 dark:text-purple-400 dark:bg-purple-900/30",
-  },
+  general: { label: "Assistant", Icon: SparkIcon },
+  code: { label: "Code Agent", Icon: WrenchIcon },
+  research: { label: "Research Agent", Icon: BrainIcon },
 };
 
 interface AgentBadgeProps {
@@ -30,29 +18,30 @@ interface AgentBadgeProps {
 }
 
 export default function AgentBadge({ agent, message }: AgentBadgeProps) {
-  if (!agent) {
-    // Default: generic agent badge when no specific agent is identified
-    return null;
-  }
+  if (!agent) return null;
 
   const config = AGENT_CONFIG[agent] ?? {
     label: agent,
     Icon: AgentIcon,
-    colorClass: "text-ink-soft bg-subtle",
   };
-  const { label, Icon, colorClass } = config;
+  const { label, Icon } = config;
 
   return (
     <div
-      className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium animate-slide-up"
+      className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[10px] font-medium animate-slide-up"
+      style={{
+        backgroundColor: "var(--cyber-primary-soft)",
+        border: "1px solid rgba(0,240,255,0.3)",
+      }}
       aria-label={message ?? label}
     >
       <span
-        className={`flex h-6 w-6 items-center justify-center rounded-full ${colorClass}`}
+        className="flex h-5 w-5 items-center justify-center rounded-full"
+        style={{ color: "var(--cyber-primary)" }}
       >
-        <Icon width={14} height={14} />
+        <Icon width={12} height={12} />
       </span>
-      <span className="text-ink-soft">
+      <span className="tracking-wider uppercase" style={{ color: "var(--cyber-primary)" }}>
         {message ?? label}
       </span>
     </div>

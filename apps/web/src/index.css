@@ -6,8 +6,7 @@
    J.A.R.V.I.S. THEME — Dark (default) + Light
    ═══════════════════════════════════════════════ */
 
-/* ── DARK THEME (default) ── */
-:root, [data-theme="dark"] {
+:root {
   --cyber-bg: #0a0a0f;
   --cyber-surface: #12121a;
   --cyber-subtle: #161622;
@@ -32,32 +31,6 @@
   --selection-fg: #ffffff;
 }
 
-/* ── LIGHT THEME ── */
-[data-theme="light"] {
-  --cyber-bg: #f5f5f7;
-  --cyber-surface: #ffffff;
-  --cyber-subtle: #f0f0f3;
-  --cyber-subtle2: #e8e8ed;
-  --cyber-primary: #0066cc;
-  --cyber-primary-soft: rgba(0, 102, 204, 0.08);
-  --cyber-secondary: #cc0099;
-  --cyber-accent: #cc8800;
-  --cyber-text: #1a1a2e;
-  --cyber-muted: #6b6b80;
-  --cyber-faint: #9999aa;
-  --cyber-border: #d8d8e0;
-  --cyber-success: #008844;
-  --cyber-error: #cc2244;
-  --cyber-glow: 0 0 10px rgba(0, 102, 204, 0.15);
-  --cyber-glow-strong: 0 0 20px rgba(0, 102, 204, 0.25);
-  --cyber-glass-bg: rgba(255, 255, 255, 0.85);
-  --cyber-glass-border: rgba(0, 102, 204, 0.12);
-  --scrollbar-thumb: rgba(0, 102, 204, 0.2);
-  --scrollbar-thumb-hover: rgba(0, 102, 204, 0.35);
-  --selection-bg: rgba(0, 102, 204, 0.15);
-  --selection-fg: #1a1a2e;
-}
-
 /* ── Base ── */
 
 @layer base {
@@ -79,7 +52,6 @@
     background-color: var(--cyber-bg);
     color: var(--cyber-text);
     font-family: "JetBrains Mono", ui-monospace, SF Mono, Consolas, monospace;
-    transition: background-color 0.3s ease, color 0.3s ease;
   }
 
   ::selection {

@@ -1,15 +1,11 @@
 import { useEffect } from "react";
 
-/**
- * Modal xác nhận tái dùng (thay cho window.confirm native).
- * Render khi `open` = true. Đóng bằng nút Hủy, click nền, hoặc Esc.
- */
 export default function ConfirmDialog({
   open,
   title,
   message,
-  confirmLabel = "Xác nhận",
-  cancelLabel = "Hủy",
+  confirmLabel = "Confirm",
+  cancelLabel = "Cancel",
   danger = false,
   onConfirm,
   onCancel,
@@ -37,18 +33,25 @@ export default function ConfirmDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 animate-fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-fade-in"
       onClick={onCancel}
       role="dialog"
       aria-modal="true"
     >
       <div
-        className="w-full max-w-sm rounded-3xl bg-surface p-6 shadow-soft"
+        className="w-full max-w-sm rounded-2xl p-6 shadow-2xl"
+        style={{
+          backgroundColor: "var(--cyber-surface)",
+          border: "1px solid var(--cyber-border)",
+          boxShadow: "0 0 30px rgba(0,0,0,0.5), 0 0 10px rgba(0,240,255,0.05)",
+        }}
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-lg font-medium text-ink">{title}</h2>
+        <h2 className="text-base font-medium" style={{ color: "var(--cyber-text)" }}>
+          {title}
+        </h2>
         {message && (
-          <p className="mt-2 text-sm leading-relaxed text-ink-soft">
+          <p className="mt-2 text-xs leading-relaxed" style={{ color: "var(--cyber-muted)" }}>
             {message}
           </p>
         )}
@@ -56,18 +59,19 @@ export default function ConfirmDialog({
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-full px-5 py-2 text-sm font-medium text-ink-soft transition hover:bg-subtle"
+            className="rounded-lg px-4 py-2 text-xs font-medium transition hover:bg-[var(--cyber-subtle)]"
+            style={{ color: "var(--cyber-muted)" }}
           >
             {cancelLabel}
           </button>
           <button
             type="button"
             onClick={onConfirm}
-            className={`rounded-full px-5 py-2 text-sm font-medium text-white transition ${
-              danger
-                ? "bg-red-600 hover:bg-red-700"
-                : "bg-gblue hover:bg-gblue-bright"
-            }`}
+            className="rounded-lg px-4 py-2 text-xs font-medium transition"
+            style={{
+              backgroundColor: danger ? "var(--cyber-error)" : "var(--cyber-primary)",
+              color: "#0a0a0f",
+            }}
           >
             {confirmLabel}
           </button>

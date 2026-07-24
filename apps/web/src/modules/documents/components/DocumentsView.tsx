@@ -30,24 +30,19 @@ export default function DocumentsView() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Lịch sử version: documentId đang mở + danh sách version của nó
   const [openHistory, setOpenHistory] = useState<string | null>(null);
   const [versions, setVersions] = useState<DocumentVersion[]>([]);
-  // Modal xem nội dung 1 version
   const [viewing, setViewing] = useState<VersionContent | null>(null);
-  // Dialog xác nhận xóa
   const [confirming, setConfirming] = useState<DocumentInfo | null>(null);
   const [removing, setRemoving] = useState(false);
 
   const refresh = () => listDocuments().then(setDocs);
-  useEffect(() => {
-    refresh();
-  }, []);
+  useEffect(() => { refresh(); }, []);
 
   const onUpload = async (files: File[]) => {
     if (files.length === 0) return;
     if (files.length > 7) {
-      toast.error("Tối đa 7 file mỗi lần.");
+      toast.error("Max 7 files at a time.");
       if (fileRef.current) fileRef.current.value = "";
       return;
     }
@@ -59,32 +54,29 @@ export default function DocumentsView() {
       const failed = results.filter((r) => !r.ok);
       const failNames = failed.map((f) => f.filename).join(", ");
       if (failed.length === 0) {
-        toast.success(`Đã nạp ${ok.length} tài liệu.`);
+        toast.success(`Uploaded ${ok.length} documents.`);
       } else if (ok.length === 0) {
-        toast.error(`Nạp thất bại ${failed.length} file: ${failNames}`);
+        toast.error(`Failed to upload ${failed.length} files: ${failNames}`);
       } else {
-        toast.success(
-          `Nạp ${ok.length} thành công, ${failed.length} lỗi (${failNames}).`,
-        );
+        toast.success(`Uploaded ${ok.length}, ${failed.length} failed (${failNames}).`);
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Upload thất bại.");
+      toast.error(e instanceof Error ? e.message : "Upload failed.");
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = "";
     }
   };
 
-  // Cập nhật tài liệu đã có → tạo version mới
   const onUpdate = async (documentId: string, file: File) => {
     setUpdatingId(documentId);
     try {
       const res = await updateDocument(documentId, file);
       await refresh();
       if (openHistory === documentId) await loadHistory(documentId);
-      toast.success(`Đã cập nhật ${res.source} → v${res.version}.`);
+      toast.success(`Updated ${res.source} -> v${res.version}.`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Cập nhật thất bại.");
+      toast.error(e instanceof Error ? e.message : "Update failed.");
     } finally {
       setUpdatingId(null);
     }
@@ -99,9 +91,9 @@ export default function DocumentsView() {
       if (openHistory === documentId) setOpenHistory(null);
       await refresh();
       setConfirming(null);
-      toast.success(`Đã xóa ${source}.`);
+      toast.success(`Deleted ${source}.`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Xóa thất bại.");
+      toast.error(e instanceof Error ? e.message : "Delete failed.");
     } finally {
       setRemoving(false);
     }
@@ -126,36 +118,54 @@ export default function DocumentsView() {
 
   return (
     <main className="flex min-w-0 flex-1 flex-col" style={{ minHeight: 0 }}>
-      <header className="flex shrink-0 items-center gap-3 px-4 py-3 sm:px-6">
+      <header
+        className="flex shrink-0 items-center gap-3 px-4 py-3 sm:px-6"
+        style={{ borderBottom: "1px solid var(--cyber-border)", backgroundColor: "var(--cyber-surface)" }}
+      >
         <button
           type="button"
           onClick={toggleSidebar}
-          aria-label="Ẩn/hiện menu"
-          className="rounded-full p-2 text-ink-soft hover:bg-subtle"
+          aria-label="Toggle menu"
+          className="rounded-full p-2 transition hover:bg-[var(--cyber-subtle2)]"
+          style={{ color: "var(--cyber-muted)" }}
         >
           <MenuIcon />
         </button>
-        <h1 className="font-medium text-ink">Tài liệu</h1>
+        <h1 className="text-sm font-medium tracking-wider" style={{ color: "var(--cyber-text)" }}>
+          Documents
+        </h1>
       </header>
 
       <div className="scroll-fine overflow-y-auto" style={{ flex: 1, minHeight: 0 }}>
         <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
-          <h2 className="text-3xl font-medium tracking-tight">
-            <span className="text-gemini">Tài liệu cho RAG</span>
+          <h2 className="text-2xl font-medium tracking-tight" style={{ color: "var(--cyber-primary)" }}>
+            Knowledge Base
           </h2>
-          <p className="mt-2 text-ink-soft">
-            Nạp file{" "}
-            <code className="rounded bg-subtle px-1 text-ink">.txt</code>,{" "}
-            <code className="rounded bg-subtle px-1 text-ink">.md</code> hoặc{" "}
-            <code className="rounded bg-subtle px-1 text-ink">.pdf</code> —
-            Agent sẽ tra cứu khi bạn hỏi.
+          <p className="mt-2 text-xs leading-relaxed" style={{ color: "var(--cyber-muted)" }}>
+            Upload{" "}
+            <code className="rounded px-1 py-0.5 text-[11px]" style={{ color: "var(--cyber-primary)", backgroundColor: "var(--cyber-subtle2)" }}>
+              .txt
+            </code>
+            ,{" "}
+            <code className="rounded px-1 py-0.5 text-[11px]" style={{ color: "var(--cyber-primary)", backgroundColor: "var(--cyber-subtle2)" }}>
+              .md
+            </code>
+            , or{" "}
+            <code className="rounded px-1 py-0.5 text-[11px]" style={{ color: "var(--cyber-primary)", backgroundColor: "var(--cyber-subtle2)" }}>
+              .pdf
+            </code>
+            {" "}files for RAG retrieval.
           </p>
 
-          {/* Vùng upload tài liệu mới */}
+          {/* Upload zone */}
           <label
-            className={`mt-6 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-3xl border-2 border-dashed border-line bg-subtle/50 px-6 py-10 text-center transition hover:border-gblue/40 hover:bg-gblue-soft/30 ${
+            className={`mt-6 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-6 py-10 text-center transition-all duration-200 hover:shadow-[0_0_15px_rgba(0,240,255,0.1)] ${
               uploading ? "pointer-events-none opacity-60" : ""
             }`}
+            style={{
+              borderColor: "var(--cyber-border)",
+              backgroundColor: "var(--cyber-subtle)",
+            }}
           >
             <input
               ref={fileRef}
@@ -168,58 +178,80 @@ export default function DocumentsView() {
                 if (files.length) onUpload(files);
               }}
             />
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gemini text-white">
+            <div
+              className="flex h-12 w-12 items-center justify-center rounded-full"
+              style={{
+                backgroundColor: "var(--cyber-primary-soft)",
+                color: "var(--cyber-primary)",
+              }}
+            >
               <UploadIcon width={20} height={20} />
             </div>
-            <span className="text-sm font-medium text-ink">
-              {uploading
-                ? "Đang nạp & embed…"
-                : "Bấm để chọn file tải lên (tối đa 7)"}
+            <span className="text-xs font-medium" style={{ color: "var(--cyber-text)" }}>
+              {uploading ? "Uploading & embedding..." : "Click to upload files (max 7)"}
             </span>
-            <span className="text-xs text-ink-faint">
-              .txt / .md / .pdf — tối đa 7 file/lần
+            <span className="text-[10px]" style={{ color: "var(--cyber-faint)" }}>
+              .txt / .md / .pdf - max 7 files per batch
             </span>
           </label>
 
-          {/* Danh sách tài liệu */}
+          {/* Document list */}
           <div className="mt-8">
-            <h3 className="mb-3 text-xs font-medium uppercase tracking-wide text-ink-faint">
-              Đã nạp ({docs.length})
+            <h3
+              className="mb-3 text-[10px] font-medium uppercase tracking-widest"
+              style={{ color: "var(--cyber-faint)" }}
+            >
+              Uploaded ({docs.length})
             </h3>
             {docs.length === 0 ? (
-              <p className="rounded-2xl bg-subtle px-4 py-8 text-center text-sm text-ink-faint">
-                Chưa có tài liệu nào.
-              </p>
+              <div
+                className="rounded-xl px-4 py-8 text-center text-xs"
+                style={{
+                  backgroundColor: "var(--cyber-subtle)",
+                  color: "var(--cyber-faint)",
+                  border: "1px solid var(--cyber-border)",
+                }}
+              >
+                No documents yet.
+              </div>
             ) : (
               <ul className="space-y-2">
                 {docs.map((d) => (
                   <li
                     key={d.documentId}
-                    className="rounded-2xl bg-subtle px-4 py-3"
+                    className="rounded-xl px-4 py-3 transition-all"
+                    style={{
+                      backgroundColor: "var(--cyber-subtle)",
+                      border: "1px solid var(--cyber-border)",
+                    }}
                   >
                     <div className="group flex items-center gap-3">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gblue-soft text-gblue">
-                        <DocIcon width={18} height={18} />
+                      <div
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+                        style={{ backgroundColor: "var(--cyber-primary-soft)", color: "var(--cyber-primary)" }}
+                      >
+                        <DocIcon width={16} height={16} />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="flex items-center gap-2 truncate text-sm font-medium text-ink">
+                        <p className="flex items-center gap-2 truncate text-xs font-medium" style={{ color: "var(--cyber-text)" }}>
                           {d.source}
-                          <span className="rounded-full bg-gblue-soft px-2 py-0.5 text-xs font-medium text-gblue">
+                          <span
+                            className="rounded-full px-2 py-0.5 text-[10px] font-medium"
+                            style={{ backgroundColor: "var(--cyber-primary-soft)", color: "var(--cyber-primary)" }}
+                          >
                             v{d.version}
                           </span>
                         </p>
-                        <p className="text-xs text-ink-faint">
-                          {d.chunks} chunk
+                        <p className="text-[10px]" style={{ color: "var(--cyber-faint)" }}>
+                          {d.chunks} chunks
                         </p>
                       </div>
 
-                      {/* Cập nhật (upload file mới → version mới) */}
                       <label
-                        className={`cursor-pointer rounded-full px-3 py-1.5 text-xs font-medium text-ink-soft transition hover:bg-line/60 ${
-                          updatingId === d.documentId
-                            ? "pointer-events-none opacity-60"
-                            : ""
+                        className={`cursor-pointer rounded-lg px-3 py-1.5 text-[10px] font-medium transition hover:bg-[var(--cyber-subtle2)] ${
+                          updatingId === d.documentId ? "pointer-events-none opacity-60" : ""
                         }`}
+                        style={{ color: "var(--cyber-muted)" }}
                       >
                         <input
                           type="file"
@@ -231,55 +263,54 @@ export default function DocumentsView() {
                             e.target.value = "";
                           }}
                         />
-                        {updatingId === d.documentId ? "Đang…" : "Cập nhật"}
+                        {updatingId === d.documentId ? "..." : "Update"}
                       </label>
 
-                      {/* Lịch sử version */}
                       <button
                         type="button"
                         onClick={() => toggleHistory(d.documentId)}
-                        className="rounded-full px-3 py-1.5 text-xs font-medium text-ink-soft transition hover:bg-line/60"
+                        className="rounded-lg px-3 py-1.5 text-[10px] font-medium transition hover:bg-[var(--cyber-subtle2)]"
+                        style={{ color: "var(--cyber-muted)" }}
                       >
-                        Lịch sử
+                        History
                       </button>
 
                       <button
                         type="button"
                         onClick={() => setConfirming(d)}
-                        aria-label={`Xóa ${d.source}`}
-                        className="rounded-full p-2 text-ink-faint opacity-0 transition hover:bg-red-50 hover:text-red-600 focus:opacity-100 group-hover:opacity-100"
+                        aria-label={`Delete ${d.source}`}
+                        className="rounded-full p-2 opacity-0 transition hover:bg-[rgba(255,51,102,0.1)] hover:text-[var(--cyber-error)] focus:opacity-100 group-hover:opacity-100"
+                        style={{ color: "var(--cyber-faint)" }}
                       >
-                        <TrashIcon width={16} height={16} />
+                        <TrashIcon width={14} height={14} />
                       </button>
                     </div>
 
-                    {/* Bảng lịch sử version */}
                     {openHistory === d.documentId && (
-                      <ul className="mt-3 space-y-1 border-t border-line/60 pt-3">
+                      <ul className="mt-3 space-y-1 border-t pt-3" style={{ borderColor: "var(--cyber-border)" }}>
                         {versions.map((v) => (
-                          <li
-                            key={v.version}
-                            className="flex items-center gap-2 text-sm"
-                          >
-                            <span className="rounded bg-subtle px-1.5 py-0.5 text-xs font-medium text-ink-soft">
+                          <li key={v.version} className="flex items-center gap-2 text-xs">
+                            <span
+                              className="rounded px-1.5 py-0.5 text-[10px] font-medium"
+                              style={{ backgroundColor: "var(--cyber-subtle2)", color: "var(--cyber-muted)" }}
+                            >
                               v{v.version}
                             </span>
-                            <span className="min-w-0 flex-1 truncate text-ink-soft">
+                            <span className="min-w-0 flex-1 truncate" style={{ color: "var(--cyber-muted)" }}>
                               {v.source}
                             </span>
                             {v.isLatest && (
-                              <span className="text-xs text-gemini">
-                                mới nhất
+                              <span className="text-[10px]" style={{ color: "var(--cyber-primary)" }}>
+                                latest
                               </span>
                             )}
                             <button
                               type="button"
-                              onClick={() =>
-                                onViewVersion(d.documentId, v.version)
-                              }
-                              className="rounded-full px-2 py-1 text-xs font-medium text-gblue hover:bg-gblue-soft/50"
+                              onClick={() => onViewVersion(d.documentId, v.version)}
+                              className="rounded-lg px-2 py-1 text-[10px] font-medium transition hover:bg-[var(--cyber-primary-soft)]"
+                              style={{ color: "var(--cyber-primary)" }}
                             >
-                              Xem
+                              View
                             </button>
                           </li>
                         ))}
@@ -293,47 +324,58 @@ export default function DocumentsView() {
         </div>
       </div>
 
-      {/* Modal xem nội dung 1 version */}
+      {/* Version content modal */}
       {viewing && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
           onClick={() => setViewing(null)}
         >
           <div
-            className="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-3xl bg-white p-6 shadow-xl"
+            className="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-2xl p-6 shadow-2xl"
+            style={{
+              backgroundColor: "var(--cyber-surface)",
+              border: "1px solid var(--cyber-border)",
+            }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-center gap-3">
-              <h3 className="min-w-0 flex-1 truncate font-medium text-ink">
+              <h3 className="min-w-0 flex-1 truncate text-sm font-medium" style={{ color: "var(--cyber-text)" }}>
                 {viewing.source}{" "}
-                <span className="text-ink-faint">· v{viewing.version}</span>
+                <span style={{ color: "var(--cyber-faint)" }}>v{viewing.version}</span>
               </h3>
               <button
                 type="button"
                 onClick={() => setViewing(null)}
-                aria-label="Đóng"
-                className="rounded-full p-2 text-ink-faint hover:bg-subtle"
+                aria-label="Close"
+                className="rounded-full p-2 transition hover:bg-[var(--cyber-subtle)]"
+                style={{ color: "var(--cyber-faint)" }}
               >
-                <CloseIcon width={18} height={18} />
+                <CloseIcon width={16} height={16} />
               </button>
             </div>
-            <pre className="scroll-fine flex-1 overflow-y-auto whitespace-pre-wrap break-words rounded-2xl bg-subtle px-4 py-3 text-sm text-ink-soft">
+            <pre
+              className="scroll-fine flex-1 overflow-y-auto whitespace-pre-wrap break-words rounded-xl px-4 py-3 text-xs leading-relaxed"
+              style={{
+                backgroundColor: "var(--cyber-subtle)",
+                color: "var(--cyber-muted)",
+                border: "1px solid var(--cyber-border)",
+              }}
+            >
               {viewing.content}
             </pre>
           </div>
         </div>
       )}
 
-      {/* Dialog xác nhận xóa (tái dùng ConfirmDialog) */}
       <ConfirmDialog
         open={confirming !== null}
-        title="Xóa tài liệu?"
+        title="Delete document?"
         message={
           confirming
-            ? `Toàn bộ ${confirming.source} (bản mới nhất v${confirming.version} và tất cả version cũ) sẽ bị xóa vĩnh viễn. Hành động này không thể hoàn tác.`
+            ? `All versions of "${confirming.source}" will be permanently deleted. This action cannot be undone.`
             : undefined
         }
-        confirmLabel={removing ? "Đang xóa…" : "Xóa"}
+        confirmLabel={removing ? "Deleting..." : "Delete"}
         danger
         onConfirm={onRemove}
         onCancel={() => !removing && setConfirming(null)}
