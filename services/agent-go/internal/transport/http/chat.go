@@ -9,14 +9,16 @@ import (
 	"github.com/ai-agent-tut/agent-go/internal/provider"
 )
 
-// ChatHandler xử lý POST /chat — nhận JSON, chạy engine, stream SSE events.
+// ChatHandler xử lý POST /chat — nhận JSON, chạy engine hoặc orchestrator,
+// stream SSE events. Accepts agent.Runner interface so both Engine and
+// Orchestrator work interchangeably.
 type ChatHandler struct {
-	engine *agent.Engine
+	runner agent.Runner
 }
 
-// NewChatHandler tạo ChatHandler với engine đã được inject.
-func NewChatHandler(engine *agent.Engine) *ChatHandler {
-	return &ChatHandler{engine: engine}
+// NewChatHandler tạo ChatHandler với runner (Engine hoặc Orchestrator).
+func NewChatHandler(runner agent.Runner) *ChatHandler {
+	return &ChatHandler{runner: runner}
 }
 
 // ChatRequest là body JSON client gửi lên.
@@ -77,5 +79,5 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		flusher.Flush()
 	}
 
-	_, _ = h.engine.Run(r.Context(), input, emit)
+	_, _ = h.runner.Run(r.Context(), input, emit)
 }

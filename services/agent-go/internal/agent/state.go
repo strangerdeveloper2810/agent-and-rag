@@ -130,7 +130,15 @@ func (s *State) AppendObservation(obs Observation) {
 // EmitFunc là callback engine dùng để phát Event ra ngoài (→ SSE writer).
 type EmitFunc func(Event)
 
-// compile-time check: Node dùng EmitFunc đúng signature.
+// Runner is the interface that both Engine and Orchestrator implement.
+// This allows the HTTP transport to accept either a single engine or a
+// multi-agent orchestrator without code changes.
+type Runner interface {
+	Run(ctx context.Context, in RunInput, emit EmitFunc) (provider.Usage, error)
+}
+
+// compile-time checks
 var _ Node = func(ctx context.Context, s *State, emit EmitFunc) (NodeID, error) {
 	return NodeEnd, nil
 }
+var _ Runner = (*Engine)(nil)
