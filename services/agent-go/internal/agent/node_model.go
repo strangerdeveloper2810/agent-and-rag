@@ -3,7 +3,9 @@ package agent
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/ai-agent-tut/agent-go/internal/provider"
 	"github.com/ai-agent-tut/agent-go/internal/tools"
@@ -65,8 +67,12 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 		},
 	}
 
+	slog.Info("model: calling LLM", "provider", prov.Name(), "messages", len(s.Messages), "tools", len(req.Tools), "thinking", string(req.Options.ThinkingLevel))
+	llmStart := time.Now()
+
 	stream, err := prov.Generate(ctx, req)
 	if err != nil {
+		slog.Error("model: LLM call failed", "err", err, "provider", prov.Name())
 		emit(ErrorEvent(err.Error()))
 		return NodeEnd, fmt.Errorf("model: generate: %w", err)
 	}
@@ -117,6 +123,10 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 	})
 
 	s.Step++
+
+	slog.Info("model: LLM response", "provider", prov.Name(), "content_len", content.Len(),
+		"tool_calls", len(toolCalls), "tokens_in", s.Usage.InputTokens, "tokens_out", s.Usage.OutputTokens,
+		"elapsed_ms", time.Since(llmStart).Milliseconds())
 
 	return route(s), nil
 }

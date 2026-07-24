@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/ai-agent-tut/agent-go/internal/agent"
@@ -71,6 +72,7 @@ func RecallNode(store *Store) agent.Node {
 			return agent.NodeModel, nil
 		}
 
+		slog.Info("memory: recalled", "count", len(results))
 		items := make([]string, 0, len(results))
 		for k, v := range results {
 			items = append(items, fmt.Sprintf("%s: %s", k, v))

@@ -6,6 +6,7 @@ package orchestrator
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/ai-agent-tut/agent-go/internal/agent"
@@ -62,6 +63,7 @@ func (o *Orchestrator) SetDefault(name string) error {
 func (o *Orchestrator) Run(ctx context.Context, in agent.RunInput, emit agent.EmitFunc) (provider.Usage, error) {
 	// 1. Route: chọn agent dựa trên keyword matching
 	spec := o.route(in.UserMessage)
+	slog.Info("orchestrator: routed", "agent", spec.Name, "input_preview", truncate(in.UserMessage, 100))
 
 	// 2. Báo client biết agent nào đang xử lý
 	emit(agent.Event{
@@ -119,6 +121,13 @@ type HandoffResult struct {
 	Agent  string
 	Result string
 	Usage  provider.Usage
+}
+
+func truncate(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
 }
 
 // Delegate chuyển task từ agent A → agent B và chạy agent B.
