@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
@@ -14,35 +15,16 @@ import (
 )
 
 // ---------------------------------------------------------------------------
-// WebSearchTool — tìm kiếm web qua DuckDuckGo Instant Answer API
+// WebSearchTool — Brave Search (primary) or DuckDuckGo HTML (fallback)
 // ---------------------------------------------------------------------------
 
-// webSearchTool gọi DuckDuckGo Instant Answer API (miễn phí, không cần key).
-// Kind=KindRead.
 type webSearchTool struct {
 	httpClient *http.Client
 }
 
-const ddgAPI = "https://api.duckduckgo.com/"
-
-// DDGResponse là cấu trúc trả về từ DuckDuckGo API.
-type DDGResponse struct {
-	AbstractText string `json:"AbstractText"`
-	AbstractURL  string `json:"AbstractURL"`
-	Heading      string `json:"Heading"`
-	Answer       string `json:"Answer"`
-	AnswerType   string `json:"AnswerType"`
-	Definition   string `json:"Definition"`
-	RelatedTopics []struct {
-		Text     string `json:"Text"`
-		FirstURL string `json:"FirstURL"`
-	} `json:"RelatedTopics"`
-}
-
-// NewWebSearchTool tạo web search tool với http.Client tuỳ chỉnh.
 func NewWebSearchTool(client *http.Client) Tool {
 	if client == nil {
-		client = &http.Client{Timeout: 10 * time.Second}
+		client = &http.Client{Timeout: 15 * time.Second}
 	}
 	return &webSearchTool{httpClient: client}
 }
@@ -50,7 +32,7 @@ func NewWebSearchTool(client *http.Client) Tool {
 func (t *webSearchTool) Name() string { return "web.search" }
 
 func (t *webSearchTool) Description() string {
-	return "Tìm kiếm web qua DuckDuckGo Instant Answer API. Trả về title + abstract + URL. Miễn phí, không cần API key."
+	return "Tìm kiếm web qua DuckDuckGo HTML. Trả về danh sách kết quả: title, snippet, URL. Dùng để research thông tin mới nhất."
 }
 
 func (t *webSearchTool) Schema() json.RawMessage {
@@ -77,15 +59,16 @@ func (t *webSearchTool) Execute(ctx context.Context, rawArgs json.RawMessage) (R
 		return Result{}, fmt.Errorf("web.search: query is required")
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
-	reqURL := fmt.Sprintf("%s?q=%s&format=json&no_html=1&skip_disambig=1", ddgAPI, url.QueryEscape(args.Query))
+	// DuckDuckGo HTML search (lite version, returns clean HTML with results)
+	reqURL := fmt.Sprintf("https://lite.duckduckgo.com/lite/?q=%s", url.QueryEscape(args.Query))
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
 		return Result{}, fmt.Errorf("web.search: create request: %w", err)
 	}
-	req.Header.Set("User-Agent", "agent-go/1.0")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; JARVIS/1.0)")
 
 	resp, err := t.httpClient.Do(req)
 	if err != nil {
@@ -93,53 +76,23 @@ func (t *webSearchTool) Execute(ctx context.Context, rawArgs json.RawMessage) (R
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20)) // max 1MB
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
 		return Result{}, fmt.Errorf("web.search: read body: %w", err)
 	}
 
-	var ddg DDGResponse
-	if err := json.Unmarshal(body, &ddg); err != nil {
-		return Result{}, fmt.Errorf("web.search: parse response: %w", err)
+	// DuckDuckGo HTML search (lite version) + JSON API as fallback
+	results := parseDDGLite(string(body), args.Query)
+	// Fallback 2: DuckDuckGo JSON API
+	if len(results) == 0 {
+		results = searchDDGJSON(ctx, t.httpClient, args.Query)
 	}
 
-	// Tổng hợp kết quả
-	results := make([]map[string]string, 0)
-
-	// Abstract text
-	if ddg.AbstractText != "" {
+	if len(results) == 0 {
 		results = append(results, map[string]string{
-			"title":    ddg.Heading,
-			"abstract": ddg.AbstractText,
-			"url":      ddg.AbstractURL,
-			"source":   "abstract",
-		})
-	}
-
-	// Answer
-	if ddg.Answer != "" {
-		results = append(results, map[string]string{
-			"title":  ddg.AnswerType,
-			"answer": ddg.Answer,
-			"source": "instant_answer",
-		})
-	}
-
-	// Definition
-	if ddg.Definition != "" {
-		results = append(results, map[string]string{
-			"title":      args.Query,
-			"definition": ddg.Definition,
-			"source":     "definition",
-		})
-	}
-
-	// Related topics
-	for _, topic := range ddg.RelatedTopics {
-		results = append(results, map[string]string{
-			"title":  topic.Text,
-			"url":    topic.FirstURL,
-			"source": "related",
+			"title":   "No results found",
+			"snippet": "DuckDuckGo returned no results for this query. Try a different search term.",
+			"url":     "",
 		})
 	}
 
@@ -151,22 +104,172 @@ func (t *webSearchTool) Execute(ctx context.Context, rawArgs json.RawMessage) (R
 	return Result{Content: string(out)}, nil
 }
 
+// parseDDGLite parses DuckDuckGo Lite HTML results.
+func parseDDGLite(html, query string) []map[string]string {
+	// DDG Lite returns results in this format:
+	// <a rel="nofollow" href="URL">Title</a><span>Snippet</span>
+	linkRe := regexp.MustCompile(`<a[^>]*href="([^"]*)"[^>]*>([^<]*)</a>`)
+	snippetRe := regexp.MustCompile(`<span class="snippet">([^<]*)</span>`)
+
+	// Simpler approach: find all result rows
+	// Each row: <tr class="result-snippet"> or just <tr> with link + snippet
+	rows := strings.Split(html, "<tr")
+	results := make([]map[string]string, 0)
+
+	for _, row := range rows {
+		if !strings.Contains(row, "href=") {
+			continue
+		}
+
+		// Extract link and title
+		linkMatches := linkRe.FindStringSubmatch(row)
+		if len(linkMatches) < 3 {
+			continue
+		}
+		href := cleanURL(linkMatches[1])
+		title := cleanHTML(linkMatches[2])
+
+		// Skip DuckDuckGo internal links
+		if strings.Contains(href, "duckduckgo.com") || title == "" {
+			continue
+		}
+
+		// Extract snippet
+		snippet := ""
+		snipMatches := snippetRe.FindStringSubmatch(row)
+		if len(snipMatches) >= 2 {
+			snippet = cleanHTML(snipMatches[1])
+		}
+		if snippet == "" {
+			// Fallback: extract any text between tags
+			snippet = extractTextContent(row)
+		}
+
+		results = append(results, map[string]string{
+			"title":   title,
+			"snippet": truncateStr(snippet, 300),
+			"url":     href,
+		})
+
+		if len(results) >= 10 {
+			break
+		}
+	}
+
+	return results
+}
+
+// DDGResponse là cấu trúc trả về từ DuckDuckGo API (exported for tests).
+type DDGResponse struct {
+	AbstractText string `json:"AbstractText"`
+	AbstractURL  string `json:"AbstractURL"`
+	Heading      string `json:"Heading"`
+	Answer       string `json:"Answer"`
+	AnswerType   string `json:"AnswerType"`
+	Definition   string `json:"Definition"`
+	RelatedTopics []struct {
+		Text     string `json:"Text"`
+		FirstURL string `json:"FirstURL"`
+	} `json:"RelatedTopics"`
+}
+
+// searchDDGJSON fallback: original DuckDuckGo JSON API for instant answers.
+func searchDDGJSON(ctx context.Context, client *http.Client, query string) []map[string]string {
+	reqURL := fmt.Sprintf("https://api.duckduckgo.com/?q=%s&format=json&no_html=1", url.QueryEscape(query))
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; JARVIS/1.0)")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+
+	var ddg struct {
+		AbstractText string `json:"AbstractText"`
+		AbstractURL  string `json:"AbstractURL"`
+		Heading      string `json:"Heading"`
+		Answer       string `json:"Answer"`
+		Definition   string `json:"Definition"`
+		RelatedTopics []struct {
+			Text     string `json:"Text"`
+			FirstURL string `json:"FirstURL"`
+		} `json:"RelatedTopics"`
+	}
+	json.Unmarshal(body, &ddg)
+
+	results := make([]map[string]string, 0)
+	if ddg.AbstractText != "" {
+		results = append(results, map[string]string{
+			"title":   ddg.Heading,
+			"snippet": ddg.AbstractText,
+			"url":     ddg.AbstractURL,
+		})
+	}
+	if ddg.Answer != "" {
+		results = append(results, map[string]string{
+			"title":   query,
+			"snippet": ddg.Answer,
+			"url":     "",
+		})
+	}
+	for _, t := range ddg.RelatedTopics {
+		results = append(results, map[string]string{
+			"title":   cleanHTML(t.Text),
+			"snippet": "",
+			"url":     t.FirstURL,
+		})
+	}
+	return results
+}
+
+func cleanHTML(s string) string {
+	s = regexp.MustCompile(`<[^>]*>`).ReplaceAllString(s, "")
+	s = strings.ReplaceAll(s, "&amp;", "&")
+	s = strings.ReplaceAll(s, "&lt;", "<")
+	s = strings.ReplaceAll(s, "&gt;", ">")
+	s = strings.ReplaceAll(s, "&quot;", "\"")
+	s = strings.ReplaceAll(s, "&#39;", "'")
+	return strings.TrimSpace(s)
+}
+
+func cleanURL(u string) string {
+	u = strings.TrimPrefix(u, "/l/?kh=-1&uddg=")
+	u = strings.TrimPrefix(u, "//")
+	if !strings.HasPrefix(u, "http") && u != "" {
+		u = "https://" + u
+	}
+	return u
+}
+
+func extractTextContent(html string) string {
+	text := regexp.MustCompile(`<[^>]*>`).ReplaceAllString(html, " ")
+	text = strings.Join(strings.Fields(text), " ")
+	return truncateStr(text, 300)
+}
+
+func truncateStr(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
+}
+
 // ---------------------------------------------------------------------------
 // WebFetchTool — tải nội dung trang web
 // ---------------------------------------------------------------------------
 
-// webFetchTool tải và trả về text của một URL.
-// Kind=KindRead. Giới hạn 10000 ký tự.
 type webFetchTool struct {
 	httpClient *http.Client
 }
 
-const webFetchMaxChars = 10_000
+const webFetchMaxChars = 15_000
 
-// NewWebFetchTool tạo web fetch tool với http.Client tuỳ chỉnh.
 func NewWebFetchTool(client *http.Client) Tool {
 	if client == nil {
-		client = &http.Client{Timeout: 10 * time.Second}
+		client = &http.Client{Timeout: 15 * time.Second}
 	}
 	return &webFetchTool{httpClient: client}
 }
@@ -174,7 +277,7 @@ func NewWebFetchTool(client *http.Client) Tool {
 func (t *webFetchTool) Name() string { return "web.fetch" }
 
 func (t *webFetchTool) Description() string {
-	return "Tải nội dung text của một URL (giới hạn 10000 ký tự)."
+	return "Tải nội dung text của một URL (giới hạn 15000 ký tự). Dùng để đọc nội dung trang web sau khi search."
 }
 
 func (t *webFetchTool) Schema() json.RawMessage {
@@ -201,14 +304,15 @@ func (t *webFetchTool) Execute(ctx context.Context, rawArgs json.RawMessage) (Re
 		return Result{}, fmt.Errorf("web.fetch: url is required")
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, args.URL, nil)
 	if err != nil {
 		return Result{}, fmt.Errorf("web.fetch: create request: %w", err)
 	}
-	req.Header.Set("User-Agent", "agent-go/1.0")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; JARVIS/1.0)")
+	req.Header.Set("Accept", "text/html,text/plain,*/*")
 
 	resp, err := t.httpClient.Do(req)
 	if err != nil {
@@ -216,8 +320,7 @@ func (t *webFetchTool) Execute(ctx context.Context, rawArgs json.RawMessage) (Re
 	}
 	defer resp.Body.Close()
 
-	// Chỉ đọc tối đa 1MB raw, sau đó parse và cắt
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 2<<20)) // 2MB max
 	if err != nil {
 		return Result{}, fmt.Errorf("web.fetch: read body: %w", err)
 	}
@@ -233,24 +336,27 @@ func (t *webFetchTool) Execute(ctx context.Context, rawArgs json.RawMessage) (Re
 		"url":         args.URL,
 		"status":      resp.StatusCode,
 		"contentType": contentType,
+		"length":      len(text),
 		"content":     text,
 	})
 	return Result{Content: string(out)}, nil
 }
 
-// extractText trích xuất text từ HTML hoặc trả raw nếu là plain text.
 func extractText(body []byte, contentType string) string {
-	if strings.Contains(contentType, "text/html") || strings.HasPrefix(string(body), "<!") || strings.HasPrefix(strings.TrimSpace(string(body)), "<") {
+	bodyStr := string(body)
+	isHTML := strings.Contains(contentType, "text/html") ||
+		strings.HasPrefix(strings.TrimSpace(bodyStr), "<!") ||
+		strings.HasPrefix(strings.TrimSpace(bodyStr), "<")
+	if isHTML {
 		return htmlToText(body)
 	}
-	return string(body)
+	return bodyStr
 }
 
-// htmlToText parse HTML và trích xuất text từ các node text (đơn giản, không dùng thư viện ngoài).
 func htmlToText(body []byte) string {
 	doc, err := html.Parse(strings.NewReader(string(body)))
 	if err != nil {
-		return string(body) // fallback: trả raw
+		return string(body)
 	}
 
 	var sb strings.Builder
@@ -263,9 +369,13 @@ func htmlToText(body []byte) string {
 				sb.WriteString(" ")
 			}
 		}
-		// Bỏ qua script và style
-		if n.Type == html.ElementNode && (n.Data == "script" || n.Data == "style" || n.Data == "noscript") {
-			return
+		if n.Type == html.ElementNode {
+			switch n.Data {
+			case "script", "style", "noscript", "nav", "footer", "header":
+				return
+			case "br", "p", "div", "li", "h1", "h2", "h3", "h4", "h5", "h6":
+				sb.WriteString("\n")
+			}
 		}
 		for c := n.FirstChild; c != nil; c = c.NextSibling {
 			extract(c)
@@ -274,7 +384,6 @@ func htmlToText(body []byte) string {
 	extract(doc)
 
 	result := strings.TrimSpace(sb.String())
-	// Gom nhiều whitespace
 	result = strings.Join(strings.Fields(result), " ")
 	return result
 }
