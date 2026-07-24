@@ -83,6 +83,7 @@ func toGeminiContents(msgs []provider.Message) []*genai.Content {
 				Parts: []*genai.Part{{
 					FunctionResponse: &genai.FunctionResponse{
 						ID:       m.ToolCallID,
+						Name:     findToolName(msgs, m.ToolCallID),
 						Response: map[string]any{"output": m.Content},
 					},
 				}},
@@ -132,6 +133,21 @@ func mapThinkingLevel(l provider.ThinkingLevel) *genai.ThinkingConfig {
 	default: // ThinkingOff, "" → không set
 		return nil
 	}
+}
+
+// findToolName tìm tên tool từ các assistant message trước đó dựa trên ToolCallID.
+// Gemini yêu cầu FunctionResponse.Name phải khớp với FunctionCall.Name gốc.
+func findToolName(msgs []provider.Message, callID string) string {
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i].Role == provider.RoleAssistant {
+			for _, tc := range msgs[i].ToolCalls {
+				if tc.ID == callID {
+					return tc.Name
+				}
+			}
+		}
+	}
+	return "" // fallback — Gemini sẽ báo lỗi nếu thiếu
 }
 
 // rawToMap giải mã json.RawMessage thành map[string]any. Rỗng/lỗi → map rỗng (không panic),
