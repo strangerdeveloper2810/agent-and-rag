@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 
 	sdk "github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
@@ -135,7 +136,7 @@ func toAnthropicTools(tools []provider.ToolDef) []sdk.ToolUnionParam {
 		}
 
 		tp := sdk.ToolParam{
-			Name:        t.Name,
+			Name:        sanitizeToolName(t.Name),
 			InputSchema: schema,
 		}
 		if t.Description != "" {
@@ -147,6 +148,15 @@ func toAnthropicTools(tools []provider.ToolDef) []sdk.ToolUnionParam {
 }
 
 // buildParams gom GenerateRequest thành MessageNewParams (thuần, không gọi mạng).
+
+func sanitizeToolName(name string) string {
+	return strings.ReplaceAll(name, ".", "_")
+}
+
+func unsanitizeToolName(name string) string {
+	return strings.ReplaceAll(name, "_", ".")
+}
+
 func (c *Client) buildParams(req provider.GenerateRequest) sdk.MessageNewParams {
 	model := c.model
 	if req.Options.Model != "" {
@@ -207,7 +217,7 @@ func (c *Client) Generate(ctx context.Context, req provider.GenerateRequest) (<-
 				idx := int(event.Index)
 				if idx >= 0 && idx < len(acc.Content) {
 					if blk := acc.Content[idx]; blk.Type == "tool_use" {
-						tc := provider.ToolCall{ID: blk.ID, Name: blk.Name, Args: blk.Input}
+						tc := provider.ToolCall{ID: blk.ID, Name: unsanitizeToolName(blk.Name), Args: blk.Input}
 						if !send(ctx, out, provider.StreamChunk{Kind: provider.ChunkToolCall, ToolCall: &tc}) {
 							return
 						}
