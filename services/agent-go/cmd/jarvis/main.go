@@ -34,6 +34,7 @@ import (
 	"github.com/ai-agent-tut/agent-go/internal/orchestrator"
 	"github.com/ai-agent-tut/agent-go/internal/provider"
 	"github.com/ai-agent-tut/agent-go/internal/provider/factory"
+	"github.com/ai-agent-tut/agent-go/internal/skills"
 	"github.com/ai-agent-tut/agent-go/internal/tools"
 	agenthttp "github.com/ai-agent-tut/agent-go/internal/transport/http"
 )
@@ -224,6 +225,15 @@ func setup() (config.Config, provider.Provider, *orchestrator.Orchestrator) {
 
 	store := memory.NewStore()
 
+	// Load skills for progressive disclosure in system prompt.
+	var skillSummaries []skills.SkillSummary
+	if loader, err := skills.NewLoader(cfg.SkillsDir); err == nil {
+		skillSummaries = loader.ListSkills()
+		slog.Info("skills loaded", "count", len(skillSummaries), "dir", cfg.SkillsDir)
+	} else {
+		slog.Warn("skills not loaded", "err", err)
+	}
+
 	// General agent.
 	generalEngine := agent.NewEngine(prov, registry)
 	generalEngine.SetMemoryNodes(
@@ -246,7 +256,7 @@ func setup() (config.Config, provider.Provider, *orchestrator.Orchestrator) {
 		Description:     "General-purpose assistant for everyday tasks and conversation",
 		Engine:          generalEngine,
 		TriggerKeywords: []string{},
-		SystemPrompt:    agent.BuildSystemPrompt(nil),
+		SystemPrompt:    agent.BuildSystemPrompt(nil, skillSummaries),
 	})
 	orch.Register(&orchestrator.AgentSpec{
 		Name:            "code",
@@ -254,7 +264,7 @@ func setup() (config.Config, provider.Provider, *orchestrator.Orchestrator) {
 		Engine:          codeEngine,
 		TriggerKeywords: []string{"code", "programming", "function", "bug", "debug",
 			"go", "python", "typescript", "javascript", "rust", "refactor", "test"},
-		SystemPrompt: agent.BuildSystemPrompt(nil),
+		SystemPrompt: agent.BuildSystemPrompt(nil, skillSummaries),
 	})
 	if err := orch.SetDefault("general"); err != nil {
 		slog.Error("orchestrator", "err", err)
