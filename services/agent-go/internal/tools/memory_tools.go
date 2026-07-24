@@ -71,7 +71,7 @@ func (t *saveMemoryTool) Execute(_ context.Context, rawArgs json.RawMessage) (Re
 	t.store.mu.Unlock()
 
 	out, _ := json.Marshal(map[string]any{
-		"key":   args.Key,
+		"key":    args.Key,
 		"stored": true,
 	})
 	return Result{Content: string(out)}, nil
@@ -191,7 +191,7 @@ func (t *listMemoriesTool) Execute(_ context.Context, rawArgs json.RawMessage) (
 	}
 
 	out, _ := json.Marshal(map[string]any{
-		"count":   len(items),
+		"count":    len(items),
 		"memories": items,
 	})
 	return Result{Content: string(out)}, nil

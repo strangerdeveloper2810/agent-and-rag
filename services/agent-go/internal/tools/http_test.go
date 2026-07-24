@@ -15,11 +15,11 @@ func TestHTTPTool(t *testing.T) {
 		body, _ := io.ReadAll(r.Body)
 		w.Header().Set("X-Custom", "test")
 		resp := map[string]any{
-			"method":  r.Method,
-			"path":    r.URL.Path,
-			"query":   r.URL.RawQuery,
-			"body":    string(body),
-			"auth":    r.Header.Get("Authorization"),
+			"method": r.Method,
+			"path":   r.URL.Path,
+			"query":  r.URL.RawQuery,
+			"body":   string(body),
+			"auth":   r.Header.Get("Authorization"),
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp)

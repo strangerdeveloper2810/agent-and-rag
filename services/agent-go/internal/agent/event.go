@@ -16,9 +16,9 @@ type Event struct {
 
 // --- Helpers dựng nhanh event ---
 
-func TextEvent(text string) Event     { return Event{Type: "text", Text: text} }
-func StepEvent(node NodeID) Event     { return Event{Type: "step", Node: string(node)} }
-func ErrorEvent(msg string) Event     { return Event{Type: "error", Message: msg} }
+func TextEvent(text string) Event { return Event{Type: "text", Text: text} }
+func StepEvent(node NodeID) Event { return Event{Type: "step", Node: string(node)} }
+func ErrorEvent(msg string) Event { return Event{Type: "error", Message: msg} }
 
 // DoneEvent tạo event kết thúc với cumulative usage và total tokens.
 func DoneEvent(u provider.Usage, totalTokens int) Event {

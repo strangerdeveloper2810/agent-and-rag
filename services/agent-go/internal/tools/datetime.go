@@ -44,12 +44,12 @@ func (t *dateTimeTool) Kind() Kind { return KindRead }
 
 func (t *dateTimeTool) Execute(ctx context.Context, rawArgs json.RawMessage) (Result, error) {
 	var args struct {
-		Operation  string `json:"operation"`
-		Datetime   string `json:"datetime"`
-		Timezone   string `json:"timezone"`
-		Duration   string `json:"duration"`
-		Datetime2  string `json:"datetime2"`
-		Format     string `json:"format"`
+		Operation string `json:"operation"`
+		Datetime  string `json:"datetime"`
+		Timezone  string `json:"timezone"`
+		Duration  string `json:"duration"`
+		Datetime2 string `json:"datetime2"`
+		Format    string `json:"format"`
 	}
 	if err := json.Unmarshal(rawArgs, &args); err != nil {
 		return Result{}, fmt.Errorf("datetime: invalid args: %w", err)
@@ -206,14 +206,14 @@ func (t *dateTimeTool) diff(ctx context.Context, datetime1, datetime2 string) (R
 	}
 
 	out, _ := json.Marshal(map[string]any{
-		"operation":   "diff",
-		"datetime1":   t1.Format(time.RFC3339),
-		"datetime2":   t2.Format(time.RFC3339),
-		"difference":  diff.String(),
-		"hours":       hours,
-		"minutes":     minutes,
-		"seconds":     seconds,
-		"days":        hours / 24,
+		"operation":  "diff",
+		"datetime1":  t1.Format(time.RFC3339),
+		"datetime2":  t2.Format(time.RFC3339),
+		"difference": diff.String(),
+		"hours":      hours,
+		"minutes":    minutes,
+		"seconds":    seconds,
+		"days":       hours / 24,
 	})
 	return Result{Content: string(out)}, nil
 }

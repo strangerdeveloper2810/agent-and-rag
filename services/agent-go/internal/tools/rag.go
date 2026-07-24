@@ -32,8 +32,8 @@ func NewRAGSearchTool(mongoClient *mongo.Client, dbName string, voyageKey string
 	}
 }
 
-func (t *ragSearchTool) Name() string        { return "rag.search" }
-func (t *ragSearchTool) Kind() Kind           { return KindRead }
+func (t *ragSearchTool) Name() string { return "rag.search" }
+func (t *ragSearchTool) Kind() Kind   { return KindRead }
 func (t *ragSearchTool) Description() string {
 	return "Search local documents using RAG (Retrieval-Augmented Generation). " +
 		"Returns top 5 matching documents with scores and snippets. " +

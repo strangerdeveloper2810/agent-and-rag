@@ -12,9 +12,9 @@ import (
 type Formality int
 
 const (
-	FormalityCasual   Formality = iota // bạn bè, suồng sã
-	FormalityNeutral                   // trung tính (default)
-	FormalityFormal                    // lịch sự, chuyên nghiệp
+	FormalityCasual  Formality = iota // bạn bè, suồng sã
+	FormalityNeutral                  // trung tính (default)
+	FormalityFormal                   // lịch sự, chuyên nghiệp
 )
 
 func (f Formality) String() string {
@@ -56,9 +56,9 @@ func (h Humor) String() string {
 type Verbosity int
 
 const (
-	VerbosityConcise Verbosity = iota // ngắn gọn
-	VerbosityNormal                   // vừa phải (default)
-	VerbosityDetailed                 // chi tiết
+	VerbosityConcise  Verbosity = iota // ngắn gọn
+	VerbosityNormal                    // vừa phải (default)
+	VerbosityDetailed                  // chi tiết
 )
 
 func (v Verbosity) String() string {
@@ -199,23 +199,23 @@ func (e *PersonalityEngine) Learn(input, response string) {
 	// Trích xuất preference từ input người dùng (keyword matching đơn giản).
 	lower := strings.ToLower(input)
 	prefs := map[string]string{
-		"ngắn gọn":   "concise",
-		"ngan gon":   "concise",
-		"brief":      "concise",
-		"concise":    "concise",
-		"chi tiết":   "detailed",
-		"chi tiet":   "detailed",
-		"detailed":   "detailed",
-		"thân mật":   "casual",
-		"than mat":   "casual",
-		"casual":     "casual",
+		"ngắn gọn":    "concise",
+		"ngan gon":    "concise",
+		"brief":       "concise",
+		"concise":     "concise",
+		"chi tiết":    "detailed",
+		"chi tiet":    "detailed",
+		"detailed":    "detailed",
+		"thân mật":    "casual",
+		"than mat":    "casual",
+		"casual":      "casual",
 		"trang trọng": "formal",
 		"trang trong": "formal",
-		"formal":     "formal",
-		"nghiêm túc": "serious",
-		"nghiem tuc": "serious",
-		"vui vẻ":     "playful",
-		"vui ve":     "playful",
+		"formal":      "formal",
+		"nghiêm túc":  "serious",
+		"nghiem tuc":  "serious",
+		"vui vẻ":      "playful",
+		"vui ve":      "playful",
 	}
 
 	for keyword, pref := range prefs {

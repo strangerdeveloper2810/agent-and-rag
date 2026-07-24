@@ -340,4 +340,6 @@ func (e *translateTextRequiredError) Error() string { return "translate: text is
 
 type translateTargetRequiredError struct{}
 
-func (e *translateTargetRequiredError) Error() string { return "translate: target language is required" }
+func (e *translateTargetRequiredError) Error() string {
+	return "translate: target language is required"
+}

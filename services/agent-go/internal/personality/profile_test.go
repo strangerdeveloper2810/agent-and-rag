@@ -101,18 +101,18 @@ func TestAdaptPrompt_AllTones(t *testing.T) {
 		wantWords []string
 	}{
 		{
-			name:    "casual+dry+concise",
-			profile: Profile{Name: "Bot", Formality: FormalityCasual, Humor: HumorDry, Verbosity: VerbosityConcise},
+			name:      "casual+dry+concise",
+			profile:   Profile{Name: "Bot", Formality: FormalityCasual, Humor: HumorDry, Verbosity: VerbosityConcise},
 			wantWords: []string{"thân mật", "hài khô", "ngắn gọn"},
 		},
 		{
-			name:    "formal+none+detailed",
-			profile: Profile{Name: "Bot", Formality: FormalityFormal, Humor: HumorNone, Verbosity: VerbosityDetailed},
+			name:      "formal+none+detailed",
+			profile:   Profile{Name: "Bot", Formality: FormalityFormal, Humor: HumorNone, Verbosity: VerbosityDetailed},
 			wantWords: []string{"trang trọng", "nghiêm túc", "chi tiết"},
 		},
 		{
-			name:    "neutral+playful+normal",
-			profile: Profile{Name: "Bot", Formality: FormalityNeutral, Humor: HumorPlayful, Verbosity: VerbosityNormal},
+			name:      "neutral+playful+normal",
+			profile:   Profile{Name: "Bot", Formality: FormalityNeutral, Humor: HumorPlayful, Verbosity: VerbosityNormal},
 			wantWords: []string{"trung tính", "dí dỏm", "vừa phải"},
 		},
 	}

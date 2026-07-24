@@ -15,18 +15,18 @@ import (
 
 // AgentSpec định nghĩa một specialized agent trong orchestrator.
 type AgentSpec struct {
-	Name            string          // "general", "code", "research"
-	Description     string          // Mô tả cho intent classification
-	Engine          *agent.Engine   // Engine ReAct (GIỮ NGUYÊN từ P2)
-	TriggerKeywords []string        // Keyword để router chọn agent này (không cần LLM)
-	SystemPrompt    string          // Prompt RIÊNG cho agent này (merge với base)
+	Name            string        // "general", "code", "research"
+	Description     string        // Mô tả cho intent classification
+	Engine          *agent.Engine // Engine ReAct (GIỮ NGUYÊN từ P2)
+	TriggerKeywords []string      // Keyword để router chọn agent này (không cần LLM)
+	SystemPrompt    string        // Prompt RIÊNG cho agent này (merge với base)
 }
 
 // Orchestrator quản lý nhiều engine, route request đến đúng agent.
 type Orchestrator struct {
-	agents    map[string]*AgentSpec // name → spec
-	order     []string              // thứ tự đăng ký (ưu tiên)
-	defaultAgent string             // fallback agent name
+	agents       map[string]*AgentSpec // name → spec
+	order        []string              // thứ tự đăng ký (ưu tiên)
+	defaultAgent string                // fallback agent name
 }
 
 // New tạo Orchestrator rỗng.

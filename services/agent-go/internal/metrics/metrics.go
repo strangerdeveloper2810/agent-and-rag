@@ -11,9 +11,9 @@ import (
 // Snapshot là ảnh chụp metrics tại một thời điểm.
 type Snapshot struct {
 	// Counters
-	Requests   int64 `json:"requests"`
-	ToolCalls  int64 `json:"tool_calls"`
-	Errors     int64 `json:"errors"`
+	Requests  int64 `json:"requests"`
+	ToolCalls int64 `json:"tool_calls"`
+	Errors    int64 `json:"errors"`
 
 	// Tokens
 	InputTokens  int64 `json:"input_tokens"`
@@ -29,9 +29,9 @@ type Snapshot struct {
 // Metrics là collector thread-safe cho agent metrics.
 // Dùng atomic cho counters (hiệu năng cao, không lock) và mutex cho histogram.
 type Metrics struct {
-	requests    atomic.Int64
-	toolCalls   atomic.Int64
-	errors      atomic.Int64
+	requests     atomic.Int64
+	toolCalls    atomic.Int64
+	errors       atomic.Int64
 	inputTokens  atomic.Int64
 	outputTokens atomic.Int64
 	latencySumUs atomic.Int64

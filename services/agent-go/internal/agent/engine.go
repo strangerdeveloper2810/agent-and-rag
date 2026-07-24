@@ -71,9 +71,9 @@ func (e *Engine) SetMemoryNodes(recall, extract, summarize Node) {
 }
 
 // getProvider / getRegistry / getSystemPrompt — implements modelEngine & toolsEngine.
-func (e *Engine) getProvider() provider.Provider  { return e.prov }
-func (e *Engine) getRegistry() *tools.Registry    { return e.registry }
-func (e *Engine) getSystemPrompt() string          { return e.systemPrompt }
+func (e *Engine) getProvider() provider.Provider { return e.prov }
+func (e *Engine) getRegistry() *tools.Registry   { return e.registry }
+func (e *Engine) getSystemPrompt() string        { return e.systemPrompt }
 
 // SetSystemPrompt sets the system prompt used for every LLM call.
 func (e *Engine) SetSystemPrompt(prompt string) {
@@ -98,13 +98,14 @@ func (e *Engine) getMaxContextTokens() int { return e.maxContextTokens }
 // Run chạy agent loop cho một lượt chat.
 //
 // Flow:
-//   for {
-//       ctx.Err()? → return
-//       dispatch(node, state, emit) → nextNode
-//       nextNode == END → break
-//       node = nextNode
-//   }
-//   emit(DoneEvent)
+//
+//	for {
+//	    ctx.Err()? → return
+//	    dispatch(node, state, emit) → nextNode
+//	    nextNode == END → break
+//	    node = nextNode
+//	}
+//	emit(DoneEvent)
 //
 // Run nhận ctx từ HTTP handler → khi client disconnect, ctx bị cancel
 // → loop dừng ở lần check tiếp theo.

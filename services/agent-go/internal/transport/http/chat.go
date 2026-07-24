@@ -33,9 +33,9 @@ type ChatRequest struct {
 
 // Attachment represents a file or image attached to a user message.
 type Attachment struct {
-	Type     string `json:"type"`     // "image" or "file"
+	Type     string `json:"type"` // "image" or "file"
 	Name     string `json:"name"`
-	Data     string `json:"data"`     // base64 for images, text for files
+	Data     string `json:"data"` // base64 for images, text for files
 	MimeType string `json:"mimeType"`
 }
 

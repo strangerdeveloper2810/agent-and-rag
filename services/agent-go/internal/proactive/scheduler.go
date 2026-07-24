@@ -21,12 +21,12 @@ type Task struct {
 
 // TaskResult là kết quả mỗi lần chạy task.
 type TaskResult struct {
-	TaskName  string
-	RunAt     time.Time
-	Prompt    string
-	Response  string
-	Error     string
-	Duration  time.Duration
+	TaskName string
+	RunAt    time.Time
+	Prompt   string
+	Response string
+	Error    string
+	Duration time.Duration
 }
 
 // PromptRunner là interface gửi prompt và nhận response.

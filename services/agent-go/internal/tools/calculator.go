@@ -95,10 +95,10 @@ const (
 	tokStar
 	tokSlash
 	tokPercent
-	tokCaret   // ** (power)
+	tokCaret // ** (power)
 	tokLParen
 	tokRParen
-	tokFunc    // function name
+	tokFunc // function name
 	tokComma
 )
 

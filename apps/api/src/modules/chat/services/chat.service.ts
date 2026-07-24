@@ -65,7 +65,12 @@ export async function streamReply(
   conversationId: string,
   signal?: AbortSignal,
   agent: AgentClient = defaultAgent,
-  attachments?: Array<{ type: string; name: string; data: string; mimeType: string }>,
+  attachments?: Array<{
+    type: string;
+    name: string;
+    data: string;
+    mimeType: string;
+  }>,
 ): Promise<StreamResult> {
   const raw = (await getMessagesRepo(
     conversationId,

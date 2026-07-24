@@ -260,10 +260,10 @@ type mcpAdapter struct {
 	client      *MCPClient
 }
 
-func (a *mcpAdapter) Name() string             { return a.name }
-func (a *mcpAdapter) Description() string      { return a.description }
-func (a *mcpAdapter) Schema() json.RawMessage  { return a.schema }
-func (a *mcpAdapter) Kind() tools.Kind         { return tools.KindRead }
+func (a *mcpAdapter) Name() string            { return a.name }
+func (a *mcpAdapter) Description() string     { return a.description }
+func (a *mcpAdapter) Schema() json.RawMessage { return a.schema }
+func (a *mcpAdapter) Kind() tools.Kind        { return tools.KindRead }
 func (a *mcpAdapter) Execute(_ context.Context, args json.RawMessage) (tools.Result, error) {
 	text, err := a.client.CallTool(a.name, args)
 	if err != nil {

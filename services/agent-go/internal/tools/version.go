@@ -21,8 +21,8 @@ func NewVersionTool() *VersionTool {
 	}
 }
 
-func (t *VersionTool) Name() string        { return "version" }
-func (t *VersionTool) Kind() Kind           { return KindRead }
+func (t *VersionTool) Name() string { return "version" }
+func (t *VersionTool) Kind() Kind   { return KindRead }
 func (t *VersionTool) Description() string {
 	return "Check latest version of npm packages or GitHub releases. Args: {source: 'npm'|'github', package: 'react', owner: 'facebook', repo: 'react'}"
 }
