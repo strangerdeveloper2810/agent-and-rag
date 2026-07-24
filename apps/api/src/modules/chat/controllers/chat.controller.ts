@@ -35,7 +35,7 @@ export const deleteConversation = async (req: FastifyRequest) => {
  */
 export const postChat = async (req: FastifyRequest, reply: FastifyReply) => {
   const { id } = req.params as { id: string };
-  const { content } = parseOrBadRequest(chatBodySchema, req.body);
+  const { content, attachments } = parseOrBadRequest(chatBodySchema, req.body);
 
   // Lưu user msg TRƯỚC khi mở SSE -> lỗi sớm (validate/DB) vẫn trả HTTP JSON
   // qua error handler (chưa "chiếm" reply nên còn gửi JSON được).
@@ -64,6 +64,8 @@ export const postChat = async (req: FastifyRequest, reply: FastifyReply) => {
     const { events, metadata } = await chatService.streamReply(
       id,
       ac.signal,
+      undefined, // use default agent
+      attachments,
     );
 
     for await (const ev of events) {

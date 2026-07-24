@@ -14,14 +14,13 @@ export type { AgentEvent } from "./graph-runner";
 export type AgentMessage = { role: string; content: string };
 
 /** Tuỳ chọn cho agent stream (abort signal từ HTTP request). */
-export type AgentStreamOptions = { signal?: AbortSignal };
+export type AgentStreamOptions = {
+  signal?: AbortSignal;
+  attachments?: Array<{ type: string; name: string; data: string; mimeType: string }>;
+};
 
 /**
  * AgentClient — BIÊN GIỚI giữa gateway (Fastify) và agent runtime.
- *
- * Chỉ có 1 phương thức `stream()`: nhận lịch sử hội thoại (bao gồm user message
- * mới nhất), yield từng event. Chat service không cần biết agent chạy in-process
- * (LangGraph) hay ngoài tiến trình (Go).
  */
 export interface AgentClient {
   stream(
@@ -214,6 +213,7 @@ const goAgentClient: AgentClient = {
     const body = JSON.stringify({
       history: chatHistory,
       userMessage,
+      attachments: opts?.attachments ?? [],
     });
 
     // 4. Gọi POST /chat với retry
