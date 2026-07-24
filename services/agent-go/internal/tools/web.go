@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -13,6 +14,17 @@ import (
 
 	"golang.org/x/net/html"
 )
+
+var userAgents = []string{
+	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+	"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:133.0) Gecko/20100101 Firefox/133.0",
+}
+
+func randomUA() string {
+	return userAgents[rand.Intn(len(userAgents))]
+}
 
 // ---------------------------------------------------------------------------
 // WebSearchTool — Brave Search (primary) or DuckDuckGo HTML (fallback)
@@ -68,7 +80,7 @@ func (t *webSearchTool) Execute(ctx context.Context, rawArgs json.RawMessage) (R
 	if err != nil {
 		return Result{}, fmt.Errorf("web.search: create request: %w", err)
 	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; JARVIS/1.0)")
+	req.Header.Set("User-Agent", randomUA())
 
 	resp, err := t.httpClient.Do(req)
 	if err != nil {
@@ -177,7 +189,7 @@ type DDGResponse struct {
 func searchDDGJSON(ctx context.Context, client *http.Client, query string) []map[string]string {
 	reqURL := fmt.Sprintf("https://api.duckduckgo.com/?q=%s&format=json&no_html=1", url.QueryEscape(query))
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
-	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; JARVIS/1.0)")
+	req.Header.Set("User-Agent", randomUA())
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -311,7 +323,7 @@ func (t *webFetchTool) Execute(ctx context.Context, rawArgs json.RawMessage) (Re
 	if err != nil {
 		return Result{}, fmt.Errorf("web.fetch: create request: %w", err)
 	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; JARVIS/1.0)")
+	req.Header.Set("User-Agent", randomUA())
 	req.Header.Set("Accept", "text/html,text/plain,*/*")
 
 	resp, err := t.httpClient.Do(req)
