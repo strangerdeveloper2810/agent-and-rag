@@ -115,9 +115,16 @@ jobs:
         run: go test -race -coverprofile=coverage.out ./...
       - name: Build
         run: go build ./...
+      - name: go mod tidy check
+        run: |
+          go mod tidy -diff
+          if [ $? -ne 0 ]; then
+            echo "go.mod or go.sum is out of date. Run 'go mod tidy' locally."
+            exit 1
+          fi
       - name: golangci-lint
-        continue-on-error: true # tạm non-block do lệch phiên bản golangci-lint/Go; siết lại sau
-        uses: golangci/golangci-lint-action@v8
+        continue-on-error: true
+        uses: golangci/golangci-lint-action@v6
         with:
           working-directory: services/agent-go
 
