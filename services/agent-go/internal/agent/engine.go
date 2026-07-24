@@ -132,7 +132,7 @@ func (e *Engine) Run(ctx context.Context, in RunInput, emit EmitFunc) (provider.
 		node = next
 	}
 
-	emit(DoneEvent(s.Usage))
+	emit(DoneEvent(s.Usage, s.TotalTokens))
 	return s.Usage, nil
 }
 

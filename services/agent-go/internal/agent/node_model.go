@@ -39,15 +39,20 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 		emit(MemoryEvent(fmt.Sprintf("trimmed %d tokens from context", trimmed)))
 	}
 
-	// Dynamic thinking: choose OFF/LOW/MEDIUM based on task complexity
+	// Dynamic thinking: choose OFF/LOW/MEDIUM based on task complexity.
+	// Only applied when no explicit ThinkingLevel is configured.
 	thinkingLevel := provider.ThinkingOff
 	if dt := eng.getDynamicThinking(); dt.Enabled {
-		lastMsg := ""
-		if len(s.Messages) > 0 {
-			lastMsg = s.Messages[len(s.Messages)-1].Content
+		// Classify based on the original user message (first user message).
+		var userInput string
+		for _, m := range s.Messages {
+			if m.Role == provider.RoleUser {
+				userInput = m.Content
+				break
+			}
 		}
-		hasTools := len(s.Messages) > 2 // previous turns had tool calls
-		thinkingLevel = ResolveThinking(dt, provider.ThinkingOff, lastMsg, hasTools, s.Step)
+		hasToolCalls := s.LastAssistant() != nil && len(s.LastAssistant().ToolCalls) > 0
+		thinkingLevel = ResolveThinking(dt, provider.ThinkingOff, userInput, hasToolCalls, s.Step)
 	}
 
 	req := provider.GenerateRequest{
@@ -68,6 +73,7 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 
 	var content strings.Builder
 	var toolCalls []provider.ToolCall
+	var stepInput, stepOutput int
 
 	for chunk := range stream {
 		switch chunk.Kind {
@@ -84,6 +90,8 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 			if chunk.Usage != nil {
 				s.Usage.InputTokens += chunk.Usage.InputTokens
 				s.Usage.OutputTokens += chunk.Usage.OutputTokens
+				stepInput += chunk.Usage.InputTokens
+				stepOutput += chunk.Usage.OutputTokens
 			}
 
 		case provider.ChunkError:
@@ -93,6 +101,12 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 		case provider.ChunkDone:
 			// done — channel sẽ đóng sau chunk này
 		}
+	}
+
+	// Sync cumulative total and emit per-step usage event.
+	s.TotalTokens = s.Usage.InputTokens + s.Usage.OutputTokens
+	if stepInput > 0 || stepOutput > 0 {
+		emit(UsageEvent(stepInput, stepOutput, s.Usage.InputTokens, s.Usage.OutputTokens))
 	}
 
 	// Append assistant message.

@@ -74,6 +74,9 @@ func TestNodeModel_TextOnly(t *testing.T) {
 	if s.Usage.InputTokens != 10 || s.Usage.OutputTokens != 5 {
 		t.Errorf("Usage = %+v, want {10 5}", s.Usage)
 	}
+	if s.TotalTokens != 15 {
+		t.Errorf("TotalTokens = %d, want 15", s.TotalTokens)
+	}
 }
 
 func TestNodeModel_WithToolCall(t *testing.T) {

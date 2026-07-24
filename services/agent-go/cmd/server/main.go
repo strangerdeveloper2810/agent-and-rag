@@ -15,7 +15,9 @@ import (
 
 	"github.com/ai-agent-tut/agent-go/internal/agent"
 	"github.com/ai-agent-tut/agent-go/internal/config"
+	"github.com/ai-agent-tut/agent-go/internal/guardrails"
 	"github.com/ai-agent-tut/agent-go/internal/memory"
+	"github.com/ai-agent-tut/agent-go/internal/mongo"
 	"github.com/ai-agent-tut/agent-go/internal/orchestrator"
 	"github.com/ai-agent-tut/agent-go/internal/provider/factory"
 	"github.com/ai-agent-tut/agent-go/internal/skills"
@@ -68,6 +70,26 @@ func main() {
 	registry.Register(tools.NewRecallMemoryTool())
 	registry.Register(tools.NewListMemoriesTool())
 
+	// --- Wire MongoDB (optional — for RAG document search) ---
+	var mongoClient *mongo.Client
+	if cfg.MongoURI != "" {
+		mc, err := mongo.Connect(context.Background(), cfg.MongoURI, cfg.MongoDB)
+		if err != nil {
+			slog.Warn("mongo: connection failed, RAG disabled", "err", err)
+		} else {
+			mongoClient = mc
+			slog.Info("mongo: connected", "db", cfg.MongoDB)
+			defer func() {
+				_ = mongoClient.Close(context.Background())
+			}()
+		}
+	}
+	// RAG search tool (graceful if mongo not configured)
+	registry.Register(tools.NewRAGSearchTool(mongoClient, cfg.MongoDB, cfg.VoyageKey))
+
+	// --- Wire Circuit Breaker ---
+	cb := guardrails.NewCircuitBreaker(3)
+
 	// --- Wire Memory Store ---
 	store := memory.NewStore()
 
@@ -85,9 +107,12 @@ func main() {
 	skillSummaries := skillLoader.ListSkills()
 
 	// --- Wire Orchestrator (multi-agent) ---
+	dynThinking := agent.DynamicThinkingConfig{Enabled: cfg.EnableDynamicThinking, DefaultOff: true}
+
 	generalEngine := agent.NewEngine(prov, registry)
 	generalEngine.SetSystemPrompt(agent.BuildSystemPrompt(nil, skillSummaries))
-	generalEngine.SetDynamicThinking(agent.DynamicThinkingConfig{Enabled: true, DefaultOff: true})
+	generalEngine.SetDynamicThinking(dynThinking)
+	generalEngine.SetCircuitBreaker(cb)
 	generalEngine.SetMemoryNodes(
 		memory.RecallNode(store),
 		memory.ExtractNode(store),
@@ -96,7 +121,8 @@ func main() {
 
 	codeEngine := agent.NewEngine(prov, registry)
 	codeEngine.SetSystemPrompt(agent.BuildSystemPrompt(nil, skillSummaries))
-	codeEngine.SetDynamicThinking(agent.DynamicThinkingConfig{Enabled: true, DefaultOff: true})
+	codeEngine.SetDynamicThinking(dynThinking)
+	codeEngine.SetCircuitBreaker(cb)
 	codeEngine.SetMemoryNodes(
 		memory.RecallNode(store),
 		memory.ExtractNode(store),
@@ -105,7 +131,8 @@ func main() {
 
 	researchEngine := agent.NewEngine(prov, registry)
 	researchEngine.SetSystemPrompt(agent.BuildSystemPrompt(nil, skillSummaries))
-	researchEngine.SetDynamicThinking(agent.DynamicThinkingConfig{Enabled: true, DefaultOff: true})
+	researchEngine.SetDynamicThinking(dynThinking)
+	researchEngine.SetCircuitBreaker(cb)
 	researchEngine.SetMemoryNodes(
 		memory.RecallNode(store),
 		memory.ExtractNode(store),
