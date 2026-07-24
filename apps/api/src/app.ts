@@ -20,7 +20,10 @@ import { checkGoAgentHealth } from "./agent/client";
  */
 export function buildApp(): FastifyInstance {
   // Tắt logger khi chạy test cho đỡ nhiễu output.
-  const app = Fastify({ logger: config.NODE_ENV !== "test" });
+  const app = Fastify({
+    logger: config.NODE_ENV !== "test",
+    bodyLimit: 10 * 1024 * 1024, // 10MB — long conversation history with tool calls
+  });
 
   // CORS: whitelist theo CORS_ORIGIN (prod) hoặc mọi origin (dev khi rỗng).
   app.register(cors, {
