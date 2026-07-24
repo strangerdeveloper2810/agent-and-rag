@@ -42,6 +42,9 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 		System:   eng.getSystemPrompt(),
 		Messages: s.Messages,
 		Tools:    reg.ToolDefs(),
+		Options: provider.ProviderOptions{
+			Cache: true, // prompt caching: system + tools cacheable (90% cost reduction)
+		},
 	}
 
 	stream, err := prov.Generate(ctx, req)

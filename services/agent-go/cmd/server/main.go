@@ -39,9 +39,34 @@ func main() {
 
 	// --- Wire Tool Registry ---
 	registry := tools.NewRegistry()
+	// System tools
 	registry.Register(tools.NewEchoTool())
+	registry.Register(tools.NewFileSearchTool(cfg.AllowedPaths))
+	registry.Register(tools.NewFileReadTool(cfg.AllowedPaths))
+	registry.Register(tools.NewFileWriteTool(cfg.AllowedPaths))
+	registry.Register(tools.NewShellTool(nil)) // allow all commands
+	// Web tools
+	registry.Register(tools.NewWebSearchTool(nil))
+	registry.Register(tools.NewWebFetchTool(nil))
+	// Dev tools
+	registry.Register(tools.NewGitTool("."))
 	registry.Register(tools.NewVersionTool())
-	// Thêm tool thật ở các phase sau.
+	// Personal tools
+	registry.Register(tools.NewNotesSearchTool("."))
+	registry.Register(tools.NewNotesCreateTool("."))
+	registry.Register(tools.NewCalendarTool(""))
+	registry.Register(tools.NewWeatherTool(nil))
+	registry.Register(tools.NewTranslateTool(nil))
+	registry.Register(tools.NewTimerTool())
+	registry.Register(tools.NewHTTPTool(nil))
+	// Utility tools
+	registry.Register(tools.NewCalculatorTool())
+	registry.Register(tools.NewDateTimeTool())
+	registry.Register(tools.NewJSONTool())
+	// Memory tools
+	registry.Register(tools.NewSaveMemoryTool())
+	registry.Register(tools.NewRecallMemoryTool())
+	registry.Register(tools.NewListMemoriesTool())
 
 	// --- Wire Memory Store ---
 	store := memory.NewStore()
