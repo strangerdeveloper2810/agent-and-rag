@@ -1,58 +1,5 @@
-import { useMemo } from "react";
+import { useEffect, useState } from "react";
 import SuggestionChips from "@/shared/components/SuggestionChips";
-
-const SUGGESTION_POOL = {
-  morning: [
-    "Tổng hợp lịch hôm nay",
-    "Briefing buổi sáng",
-    "Có email quan trọng nào không?",
-    "Thời tiết hôm nay thế nào?",
-    "Việc cần làm hôm nay",
-  ],
-  afternoon: [
-    "Tạo task cho buổi họp chiều",
-    "Tìm tài liệu về dự án X",
-    "Review code gần đây",
-    "So sánh Go và Rust performance",
-    "Tóm tắt ghi chú hôm nay",
-  ],
-  evening: [
-    "Tổng kết công việc hôm nay",
-    "Chuẩn bị standup sáng mai",
-    "Có tin tức gì mới không?",
-    "Nghiên cứu về AI agent architecture",
-    "Lên kế hoạch ngày mai",
-  ],
-  technical: [
-    "Explain how RAG works",
-    "So sánh Gemini vs Claude cho code review",
-    "Giải thích goroutine và channel trong Go",
-    "Thiết kế REST API cho task management",
-    "Làm sao để optimize token usage?",
-    "MCP protocol hoạt động thế nào?",
-  ],
-  general: [
-    "Dịch đoạn văn này sang tiếng Việt",
-    "Viết email phản hồi khách hàng",
-    "Tóm tắt bài báo này",
-    "Lên ý tưởng cho feature mới",
-    "Tạo ghi chú từ cuộc họp",
-  ],
-  creative: [
-    "Brainstorm tên cho dự án mới",
-    "Viết tweet về AI agents",
-    "Thiết kế architecture cho chatbot",
-    "Tạo proposal cho tính năng X",
-    "Viết blog post về Go concurrency",
-  ],
-};
-
-function getTimeOfDay(): "morning" | "afternoon" | "evening" {
-  const hour = new Date().getHours();
-  if (hour < 12) return "morning";
-  if (hour < 17) return "afternoon";
-  return "evening";
-}
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -61,29 +8,39 @@ function getGreeting(): string {
   return "Good evening";
 }
 
-function shuffleAndPick<T>(arr: T[], count: number): T[] {
-  const shuffled = [...arr];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+async function fetchSuggestions(): Promise<string[]> {
+  try {
+    // Go agent direct (dev) or via API gateway (prod)
+    const baseUrl = import.meta.env.VITE_AGENT_URL ?? "";
+    const res = await fetch(`${baseUrl}/suggestions`);
+    if (!res.ok) throw new Error("failed");
+    const data = await res.json();
+    if (data.suggestions?.length) return data.suggestions;
+    throw new Error("empty");
+  } catch {
+    // Fallback tối giản — LLM sẽ generate khi gọi lại
+    return [
+      "Hôm nay có việc gì cần giúp không?",
+      "Tìm kiếm tài liệu gần đây",
+      "Giải thích một khái niệm kỹ thuật",
+      "Tạo task mới cho dự án",
+      "Nghiên cứu một chủ đề bất kỳ",
+      "Dịch văn bản sang ngôn ngữ khác",
+    ];
   }
-  return shuffled.slice(0, count);
 }
 
-function generateSuggestions(): string[] {
-  const timeOfDay = getTimeOfDay();
-
-  // Pick from each category, then shuffle for variety
-  const timeSuggestions = SUGGESTION_POOL[timeOfDay];
-  const fromTime = shuffleAndPick(timeSuggestions, 2);
-  const fromTech = shuffleAndPick(SUGGESTION_POOL.technical, 2);
-  const fromGeneral = shuffleAndPick(SUGGESTION_POOL.general, 1);
-  const fromCreative = shuffleAndPick(SUGGESTION_POOL.creative, 1);
-
-  // Combine and shuffle for mixed display
-  return shuffleAndPick(
-    [...fromTime, ...fromTech, ...fromGeneral, ...fromCreative],
-    6
+function Skeleton() {
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div
+          key={i}
+          className="rounded-2xl bg-subtle px-4 py-4 animate-pulse"
+          style={{ height: 56, animationDelay: `${i * 100}ms` }}
+        />
+      ))}
+    </div>
   );
 }
 
@@ -92,8 +49,12 @@ export default function EmptyState({
 }: {
   onPick: (prompt: string) => void;
 }) {
-  const suggestions = useMemo(() => generateSuggestions(), []);
+  const [suggestions, setSuggestions] = useState<string[] | null>(null);
   const greeting = getGreeting();
+
+  useEffect(() => {
+    fetchSuggestions().then(setSuggestions);
+  }, []);
 
   return (
     <div className="mx-auto flex h-full max-w-3xl flex-col justify-center px-4 sm:px-6 animate-fade-in">
@@ -122,7 +83,11 @@ export default function EmptyState({
       </p>
 
       <div className="mt-10">
-        <SuggestionChips suggestions={suggestions} onPick={onPick} />
+        {suggestions === null ? (
+          <Skeleton />
+        ) : (
+          <SuggestionChips suggestions={suggestions} onPick={onPick} />
+        )}
       </div>
     </div>
   );
