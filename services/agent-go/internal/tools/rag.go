@@ -107,7 +107,7 @@ func (t *ragSearchTool) Execute(ctx context.Context, args json.RawMessage) (Resu
 		},
 		{
 			{Key: "$project", Value: bson.D{
-				{Key: "documentId", Value: "$_id"},
+				{Key: "documentId", Value: bson.D{{Key: "$toString", Value: "$_id"}}},
 				{Key: "source", Value: 1},
 				{Key: "snippet", Value: bson.D{
 					{Key: "$substrCP", Value: bson.A{"$content", 0, 300}},
