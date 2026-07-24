@@ -35,6 +35,13 @@ func (c *Client) Collection(name string) *mongo.Collection {
 	return c.db.Collection(name)
 }
 
+// Ping kiểm tra kết nối MongoDB còn sống không.
+func (c *Client) Ping() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	return c.client.Ping(ctx, nil)
+}
+
 // Close ngắt kết nối.
 func (c *Client) Close(ctx context.Context) error {
 	return c.client.Disconnect(ctx)

@@ -1,10 +1,23 @@
 import { HumanMessage, AIMessage } from "@langchain/core/messages";
 import { agentGraph } from "./graph";
 
+/**
+ * AgentEvent — kiểu sự kiện thống nhất cho cả LangGraph (in-process) và Go agent (SSE).
+ *
+ * LangGraph chỉ phát: text, tool_start, tool_end.
+ * Go agent phát thêm: step (node hiện tại), error (lỗi agent), done (kết thúc + token usage),
+ * citation (RAG sources), memory (thao tác memory), interrupt (HITL).
+ */
 export type AgentEvent =
   | { type: "text"; text: string }
   | { type: "tool_start"; name: string }
-  | { type: "tool_end"; name: string };
+  | { type: "tool_end"; name: string }
+  | { type: "step"; node?: string }
+  | { type: "error"; message?: string }
+  | { type: "done"; agent?: string; tokens?: number }
+  | { type: "citation"; text?: string }
+  | { type: "memory"; message?: string }
+  | { type: "interrupt"; name?: string; message?: string };
 
 // Map một event của LangGraph streamEvents → AgentEvent (hoặc null nếu bỏ qua)
 export function mapGraphEvent(ev: any): AgentEvent | null {

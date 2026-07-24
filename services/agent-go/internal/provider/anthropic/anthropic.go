@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 
 	sdk "github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
@@ -29,7 +30,10 @@ func New(apiKey, model string) (*Client, error) {
 	if model == "" {
 		return nil, errors.New("anthropic: model rỗng")
 	}
-	c := sdk.NewClient(option.WithAPIKey(apiKey))
+	c := sdk.NewClient(
+		option.WithAPIKey(apiKey),
+		option.WithBaseURL("https://api.anthropic.com"),
+	)
 	return &Client{sdk: c, model: model}, nil
 }
 
@@ -55,7 +59,19 @@ func toAnthropicMessages(msgs []provider.Message) []sdk.MessageParam {
 	for _, m := range msgs {
 		switch m.Role {
 		case provider.RoleUser:
-			out = append(out, sdk.NewUserMessage(sdk.NewTextBlock(m.Content)))
+			blocks := make([]sdk.ContentBlockParamUnion, 0, 1+len(m.Attachments))
+			if m.Content != "" {
+				blocks = append(blocks, sdk.NewTextBlock(m.Content))
+			}
+			for _, att := range m.Attachments {
+				if att.Type == "image" {
+					blocks = append(blocks, sdk.NewImageBlockBase64(att.MimeType, att.Data))
+				}
+			}
+			if len(blocks) == 0 {
+				blocks = append(blocks, sdk.NewTextBlock(""))
+			}
+			out = append(out, sdk.NewUserMessage(blocks...))
 
 		case provider.RoleAssistant:
 			blocks := make([]sdk.ContentBlockParamUnion, 0, 1+len(m.ToolCalls))
@@ -118,9 +134,12 @@ func toAnthropicTools(tools []provider.ToolDef) []sdk.ToolUnionParam {
 			}
 			schema.Required = parsed.Required
 		}
+		if schema.Properties == nil {
+			schema.Properties = json.RawMessage("{}")
+		}
 
 		tp := sdk.ToolParam{
-			Name:        t.Name,
+			Name:        sanitizeToolName(t.Name),
 			InputSchema: schema,
 		}
 		if t.Description != "" {
@@ -132,6 +151,15 @@ func toAnthropicTools(tools []provider.ToolDef) []sdk.ToolUnionParam {
 }
 
 // buildParams gom GenerateRequest thành MessageNewParams (thuần, không gọi mạng).
+
+func sanitizeToolName(name string) string {
+	return strings.ReplaceAll(name, ".", "_")
+}
+
+func unsanitizeToolName(name string) string {
+	return strings.ReplaceAll(name, "_", ".")
+}
+
 func (c *Client) buildParams(req provider.GenerateRequest) sdk.MessageNewParams {
 	model := c.model
 	if req.Options.Model != "" {
@@ -192,7 +220,11 @@ func (c *Client) Generate(ctx context.Context, req provider.GenerateRequest) (<-
 				idx := int(event.Index)
 				if idx >= 0 && idx < len(acc.Content) {
 					if blk := acc.Content[idx]; blk.Type == "tool_use" {
-						tc := provider.ToolCall{ID: blk.ID, Name: blk.Name, Args: blk.Input}
+						args := blk.Input
+						if len(args) == 0 {
+							args = json.RawMessage("{}")
+						}
+						tc := provider.ToolCall{ID: blk.ID, Name: unsanitizeToolName(blk.Name), Args: args}
 						if !send(ctx, out, provider.StreamChunk{Kind: provider.ChunkToolCall, ToolCall: &tc}) {
 							return
 						}

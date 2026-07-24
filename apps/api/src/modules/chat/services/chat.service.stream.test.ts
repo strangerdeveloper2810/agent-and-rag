@@ -23,10 +23,10 @@ const fakeAgent = (events: AgentEvent[]): AgentClient => ({
   stream: () => fakeStream(events),
 });
 
-const drain = async (gen: AsyncGenerator<AgentEvent>) => {
+const drain = async (result: Awaited<ReturnType<typeof streamReply>>) => {
   const out: AgentEvent[] = [];
-  for await (const ev of gen) out.push(ev);
-  return out;
+  for await (const ev of result.events) out.push(ev);
+  return { events: out, metadata: await result.metadata };
 };
 
 describe("streamReply", () => {
@@ -37,35 +37,38 @@ describe("streamReply", () => {
       { role: "user", content: "hi" },
     ] as never);
 
-    const out = await drain(
-      streamReply(
-        "c1",
-        undefined,
-        fakeAgent([
-          { type: "tool_start", name: "ragSearch" },
-          { type: "tool_end", name: "ragSearch" },
-          { type: "text", text: "Xin " },
-          { type: "text", text: "chào" },
-        ]),
-      ) as AsyncGenerator<AgentEvent>,
+    const result = await streamReply(
+      "c1",
+      undefined,
+      fakeAgent([
+        { type: "tool_start", name: "ragSearch" },
+        { type: "tool_end", name: "ragSearch" },
+        { type: "text", text: "Xin " },
+        { type: "text", text: "chào" },
+      ]),
     );
 
-    expect(out.map((e) => e.type)).toEqual([
+    const { events, metadata } = await drain(result);
+
+    expect(events.map((e) => e.type)).toEqual([
       "tool_start",
       "tool_end",
       "text",
       "text",
     ]);
+
     // Text các mảnh được gộp lại rồi lưu 1 lần.
     expect(repo.addMessage).toHaveBeenCalledWith("c1", "assistant", "Xin chào");
+
+    // Metadata phải có backend mặc định.
+    expect(metadata.backend).toBeDefined();
   });
 
   it("không lưu khi output rỗng (tránh làm nhiễu lượt sau)", async () => {
     vi.mocked(repo.getMessages).mockResolvedValue([] as never);
 
-    await drain(
-      streamReply("c1", undefined, fakeAgent([])) as AsyncGenerator<AgentEvent>,
-    );
+    const result = await streamReply("c1", undefined, fakeAgent([]));
+    await drain(result);
 
     expect(repo.addMessage).not.toHaveBeenCalled();
   });
@@ -79,11 +82,31 @@ describe("streamReply", () => {
       },
     };
 
-    const run = drain(
-      streamReply("c1", undefined, boomAgent) as AsyncGenerator<AgentEvent>,
-    );
+    const result = await streamReply("c1", undefined, boomAgent);
+
+    const run = drain(result);
     await expect(run).rejects.toThrow();
     // Nhờ khối finally: phần đã sinh không bị mất.
     expect(repo.addMessage).toHaveBeenCalledWith("c1", "assistant", "một phần");
+  });
+
+  it("metadata ghi nhận agent name và tokens từ event done", async () => {
+    vi.mocked(repo.getMessages).mockResolvedValue([
+      { role: "user", content: "hi" },
+    ] as never);
+
+    const result = await streamReply(
+      "c1",
+      undefined,
+      fakeAgent([
+        { type: "text", text: "Hello" },
+        { type: "done", agent: "general", tokens: 42 },
+      ]),
+    );
+
+    const { metadata } = await drain(result);
+
+    expect(metadata.backend).toBe("general");
+    expect(metadata.tokensUsed).toBe(42);
   });
 });

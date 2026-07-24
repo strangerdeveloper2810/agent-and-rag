@@ -4,9 +4,16 @@
   "private": true,
   "scripts": {
     "dev": "go run ./cmd/server",
-    "build": "go build -o bin/server ./cmd/server",
-    "test": "go test ./...",
-    "lint": "golangci-lint run || true",
-    "typecheck": "go vet ./..."
+    "dev:watch": "air",
+    "build": "go build -ldflags='-s -w' -o bin/server ./cmd/server",
+    "start": "./bin/server",
+    "test": "go test ./... -count=1",
+    "test:race": "go test ./... -race -count=1",
+    "test:cover": "go test ./... -coverprofile=coverage.out && go tool cover -html=coverage.out -o coverage.html",
+    "test:watch": "gotestsum --watch ./...",
+    "lint": "golangci-lint run ./...",
+    "vet": "go vet ./...",
+    "fmt": "gofmt -w .",
+    "clean": "rm -rf bin/ coverage.out coverage.html"
   }
 }
