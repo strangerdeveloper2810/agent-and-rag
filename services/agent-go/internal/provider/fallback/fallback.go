@@ -75,20 +75,53 @@ func (p *Provider) Generate(ctx context.Context, req provider.GenerateRequest) (
 		}
 
 		stream, err := np.prov.Generate(ctx, req)
-		if err == nil {
-			np.failures.Store(0) // success resets failure count
-			return stream, nil
+		if err != nil {
+			if !isRetryable(err) {
+				return nil, err
+			}
+			lastErr = err
+			fails := np.failures.Add(1)
+			cd := p.cooldown * (1 << min(int(fails)-1, 4))
+			np.coolUntil.Store(time.Now().Add(cd).UnixNano())
+			continue
 		}
 
-		if !isRetryable(err) {
-			return nil, err // don't retry on context cancel or invalid args
+		// Check first chunk from stream — rate limit errors may arrive on stream, not via Generate()
+		wrapped := make(chan provider.StreamChunk, 1)
+		go func() {
+			defer close(wrapped)
+			first := true
+			for chunk := range stream {
+				if first && chunk.Kind == provider.ChunkError && isRetryable(chunk.Err) {
+					// Rate limit on stream → don't forward, try next provider below
+					wrapped <- chunk
+					return
+				}
+				first = false
+				wrapped <- chunk
+			}
+		}()
+
+		// Peek at first chunk
+		firstChunk, ok := <-wrapped
+		if !ok {
+			np.failures.Store(0)
+			return emptyStream(), nil
+		}
+		if firstChunk.Kind == provider.ChunkError && isRetryable(firstChunk.Err) {
+			lastErr = firstChunk.Err
+			fails := np.failures.Add(1)
+			cd := p.cooldown * (1 << min(int(fails)-1, 4))
+			np.coolUntil.Store(time.Now().Add(cd).UnixNano())
+			// Drain the wrapper goroutine
+			for range wrapped {
+			}
+			continue // try next provider
 		}
 
-		// Track failure + apply exponential cooldown
-		lastErr = err
-		fails := np.failures.Add(1)
-		cd := p.cooldown * (1 << min(int(fails)-1, 4)) // max 5min cooldown
-		np.coolUntil.Store(time.Now().Add(cd).UnixNano())
+		// Success — return a stream that replays first chunk then continues
+		np.failures.Store(0)
+		return replayStream(firstChunk, wrapped), nil
 	}
 
 	return nil, fmt.Errorf("fallback: all %d providers failed: %w", len(p.chain), lastErr)
@@ -105,6 +138,28 @@ func (p *Provider) Status() []ProviderStatus {
 			CoolingDown: cu > 0 && time.Now().UnixNano() < cu,
 		}
 	}
+	return out
+}
+
+func emptyStream() <-chan provider.StreamChunk {
+	ch := make(chan provider.StreamChunk)
+	close(ch)
+	return ch
+}
+
+func replayStream(first provider.StreamChunk, rest <-chan provider.StreamChunk) <-chan provider.StreamChunk {
+	out := make(chan provider.StreamChunk, 16)
+	go func() {
+		defer close(out)
+		select {
+		case out <- first:
+		case <-time.After(5 * time.Second):
+			return
+		}
+		for chunk := range rest {
+			out <- chunk
+		}
+	}()
 	return out
 }
 
