@@ -46,15 +46,22 @@ export default function ChatPage() {
   const userScrolledUpRef = useRef(false);
 
   // --- Smart auto-scroll ---
-  const scrollToBottom = useCallback((force = false) => {
+  const streamingRef = useRef(false);
+  streamingRef.current = streaming;
+
+  const scrollToBottom = useCallback((force = false, instant = false) => {
     if (!force && userScrolledUpRef.current) return;
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
+    endRef.current?.scrollIntoView({
+      behavior: instant ? "instant" : "smooth",
+      block: "end",
+    });
   }, []);
 
   const handleScroll = useCallback(() => {
     const el = scrollContainerRef.current;
     if (!el) return;
-    const threshold = 120; // px from bottom
+    // During streaming, auto-scroll unless user explicitly scrolled up >200px
+    const threshold = streamingRef.current ? 200 : 120;
     userScrolledUpRef.current =
       el.scrollHeight - el.scrollTop - el.clientHeight > threshold;
   }, []);
@@ -62,6 +69,8 @@ export default function ChatPage() {
   // Reset scroll flag when conversation changes
   useEffect(() => {
     userScrolledUpRef.current = false;
+    // Force instant scroll to bottom on conversation load
+    setTimeout(() => endRef.current?.scrollIntoView({ behavior: "instant", block: "end" }), 50);
   }, [id]);
 
   // --- Append text to assistant bubble ---
@@ -122,10 +131,10 @@ export default function ChatPage() {
   // Cleanup: abort stream on unmount
   useEffect(() => () => streamCtrlRef.current?.abort(), []);
 
-  // Auto-scroll when messages change
+  // Auto-scroll when messages change — instant during streaming, smooth after
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, scrollToBottom]);
+    scrollToBottom(false, streaming);
+  }, [messages, scrollToBottom, streaming]);
 
   // --- Send message ---
   const send = async (text?: string) => {

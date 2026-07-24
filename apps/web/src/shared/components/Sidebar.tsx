@@ -106,11 +106,11 @@ export default function Sidebar({
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-30 flex w-[84vw] max-w-[320px] flex-col overflow-hidden bg-subtle transition-all duration-300 md:static md:max-w-none ${
+        className={`fixed inset-y-0 left-0 z-30 flex h-full w-[84vw] max-w-[320px] flex-col bg-subtle transition-all duration-300 md:static md:max-w-none ${
           open ? "translate-x-0" : "-translate-x-full"
         } ${
           collapsed
-            ? "md:w-0 md:-translate-x-full"
+            ? "md:w-0 md:-translate-x-full md:overflow-hidden"
             : "md:w-[300px] md:translate-x-0"
         }`}
       >
@@ -166,140 +166,142 @@ export default function Sidebar({
           </button>
         </nav>
 
-        {/* Conversation list (only in Chat view) */}
-        {view === "chat" && (
-          <>
-            <p className="px-6 pb-1 pt-5 text-xs font-medium text-ink-faint">
-              Recent
-            </p>
+        {/* Conversation list (only in Chat view) — fills remaining sidebar height */}
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          {view === "chat" && (
+            <>
+              <p className="px-6 pb-1 pt-5 text-xs font-medium text-ink-faint">
+                Recent
+              </p>
 
-            {/* Search */}
-            <div className="px-3 pb-2">
-              <div className="flex items-center gap-2 rounded-full bg-subtle2 px-3 py-1.5 ring-1 ring-line/50 transition focus-within:ring-gblue/30">
-                <SearchIcon
-                  width={15}
-                  height={15}
-                  className="shrink-0 text-ink-faint"
-                />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search conversations..."
-                  aria-label="Search conversations"
-                  className="flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-ink-faint"
-                />
-                {searchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery("")}
-                    aria-label="Clear search"
-                    className="rounded-full p-0.5 text-ink-faint hover:text-ink"
-                  >
-                    <CloseIcon width={13} height={13} />
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* List */}
-            <nav className="scroll-fine flex-1 space-y-0.5 overflow-y-auto px-3 pb-4">
-              {loading ? (
-                <div className="space-y-1">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <ConversationSkeleton key={i} />
-                  ))}
+              {/* Search */}
+              <div className="px-3 pb-2 shrink-0">
+                <div className="flex items-center gap-2 rounded-full bg-subtle2 px-3 py-1.5 ring-1 ring-line/50 transition focus-within:ring-gblue/30">
+                  <SearchIcon
+                    width={15}
+                    height={15}
+                    className="shrink-0 text-ink-faint"
+                  />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search conversations..."
+                    aria-label="Search conversations"
+                    className="flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-ink-faint"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery("")}
+                      aria-label="Clear search"
+                      className="rounded-full p-0.5 text-ink-faint hover:text-ink"
+                    >
+                      <CloseIcon width={13} height={13} />
+                    </button>
+                  )}
                 </div>
-              ) : filtered.length === 0 ? (
-                <p className="px-3 py-4 text-center text-xs text-ink-faint">
-                  {searchQuery
-                    ? "No conversations match your search."
-                    : "No conversations yet."}
-                </p>
-              ) : (
-                filtered.map((c) => {
-                  const active = c._id === activeId;
-                  const isRenaming = renamingId === c._id;
+              </div>
 
-                  if (isRenaming) {
+              {/* List — takes remaining space */}
+              <nav className="scroll-fine min-h-0 flex-1 space-y-0.5 overflow-y-auto px-3 pb-4">
+                {loading ? (
+                  <div className="space-y-1">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <ConversationSkeleton key={i} />
+                    ))}
+                  </div>
+                ) : filtered.length === 0 ? (
+                  <p className="px-3 py-4 text-center text-xs text-ink-faint">
+                    {searchQuery
+                      ? "No conversations match your search."
+                      : "No conversations yet."}
+                  </p>
+                ) : (
+                  filtered.map((c) => {
+                    const active = c._id === activeId;
+                    const isRenaming = renamingId === c._id;
+
+                    if (isRenaming) {
+                      return (
+                        <div
+                          key={c._id}
+                          className="flex items-center gap-2 rounded-full bg-gblue-soft px-3 py-1"
+                        >
+                          <ChatIcon
+                            width={16}
+                            height={16}
+                            className="shrink-0 text-gblue"
+                          />
+                          <input
+                            type="text"
+                            value={renameValue}
+                            onChange={(e) => setRenameValue(e.target.value)}
+                            onKeyDown={handleRenameKeyDown}
+                            onBlur={commitRename}
+                            autoFocus
+                            className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={commitRename}
+                            aria-label="Confirm rename"
+                            className="shrink-0 rounded-full p-1 text-gblue hover:bg-gblue-soft/50"
+                          >
+                            <CheckIcon width={14} height={14} />
+                          </button>
+                        </div>
+                      );
+                    }
+
                     return (
                       <div
                         key={c._id}
-                        className="flex items-center gap-2 rounded-full bg-gblue-soft px-3 py-1"
+                        className={`group/item flex w-full items-center gap-2 rounded-full pr-2 transition ${
+                          active
+                            ? "bg-gblue-soft text-gblue"
+                            : "text-ink-soft hover:bg-subtle2"
+                        }`}
                       >
-                        <ChatIcon
-                          width={16}
-                          height={16}
-                          className="shrink-0 text-gblue"
-                        />
-                        <input
-                          type="text"
-                          value={renameValue}
-                          onChange={(e) => setRenameValue(e.target.value)}
-                          onKeyDown={handleRenameKeyDown}
-                          onBlur={commitRename}
-                          autoFocus
-                          className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none"
-                        />
+                        <button
+                          onClick={() => onSelect(c._id)}
+                          className="flex min-w-0 flex-1 items-center gap-3 py-2 pl-4 text-left text-sm"
+                        >
+                          <ChatIcon
+                            width={16}
+                            height={16}
+                            className="shrink-0 opacity-70"
+                          />
+                          <span className="truncate">{c.title}</span>
+                        </button>
+
+                        {/* Rename button */}
                         <button
                           type="button"
-                          onClick={commitRename}
-                          aria-label="Confirm rename"
-                          className="shrink-0 rounded-full p-1 text-gblue hover:bg-gblue-soft/50"
+                          onClick={() => startRename(c)}
+                          aria-label={`Rename "${c.title}"`}
+                          className="shrink-0 rounded-full p-1.5 text-ink-faint opacity-0 transition hover:bg-subtle2 focus:opacity-100 group-hover/item:opacity-100"
                         >
-                          <CheckIcon width={14} height={14} />
+                          <EditIcon width={13} height={13} />
+                        </button>
+
+                        {/* Delete button */}
+                        <button
+                          type="button"
+                          onClick={() => setPendingDelete(c)}
+                          aria-label={`Delete "${c.title}"`}
+                          className="shrink-0 rounded-full p-1.5 text-ink-faint opacity-0 transition hover:bg-red-100 hover:text-red-600 focus:opacity-100 group-hover/item:opacity-100"
+                        >
+                          <TrashIcon width={15} height={15} />
                         </button>
                       </div>
                     );
-                  }
-
-                  return (
-                    <div
-                      key={c._id}
-                      className={`group/item flex w-full items-center gap-2 rounded-full pr-2 transition ${
-                        active
-                          ? "bg-gblue-soft text-gblue"
-                          : "text-ink-soft hover:bg-subtle2"
-                      }`}
-                    >
-                      <button
-                        onClick={() => onSelect(c._id)}
-                        className="flex min-w-0 flex-1 items-center gap-3 py-2 pl-4 text-left text-sm"
-                      >
-                        <ChatIcon
-                          width={16}
-                          height={16}
-                          className="shrink-0 opacity-70"
-                        />
-                        <span className="truncate">{c.title}</span>
-                      </button>
-
-                      {/* Rename button */}
-                      <button
-                        type="button"
-                        onClick={() => startRename(c)}
-                        aria-label={`Rename "${c.title}"`}
-                        className="shrink-0 rounded-full p-1.5 text-ink-faint opacity-0 transition hover:bg-subtle2 focus:opacity-100 group-hover/item:opacity-100"
-                      >
-                        <EditIcon width={13} height={13} />
-                      </button>
-
-                      {/* Delete button */}
-                      <button
-                        type="button"
-                        onClick={() => setPendingDelete(c)}
-                        aria-label={`Delete "${c.title}"`}
-                        className="shrink-0 rounded-full p-1.5 text-ink-faint opacity-0 transition hover:bg-red-100 hover:text-red-600 focus:opacity-100 group-hover/item:opacity-100"
-                      >
-                        <TrashIcon width={15} height={15} />
-                      </button>
-                    </div>
-                  );
-                })
-              )}
-            </nav>
-          </>
-        )}
+                  })
+                )}
+              </nav>
+            </>
+          )}
+        </div>
       </aside>
 
       <ConfirmDialog
