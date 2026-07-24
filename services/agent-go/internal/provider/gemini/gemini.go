@@ -16,9 +16,10 @@ import (
 
 // Client bọc *genai.Client, giữ model + mức thinking mặc định cho provider này.
 type Client struct {
-	client   *genai.Client
-	model    string
-	thinking provider.ThinkingLevel
+	client    *genai.Client
+	model     string
+	thinking  provider.ThinkingLevel
+	cacheName string // cached content resource name (empty = no cache)
 }
 
 var _ provider.Provider = (*Client)(nil)
@@ -200,6 +201,11 @@ func (c *Client) Generate(ctx context.Context, req provider.GenerateRequest) (<-
 	}
 	if tools := toGeminiTools(req.Tools); tools != nil {
 		config.Tools = tools
+	}
+
+	// Context cache: if a cached content name was set, use it for reduced costs.
+	if c.cacheName != "" {
+		config.CachedContent = c.cacheName
 	}
 
 	level := c.thinking

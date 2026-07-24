@@ -39,11 +39,12 @@ type Config struct {
 	EmbedModel string // embedding model. default: nomic-embed-text
 
 	// Limits
-	MaxSteps         int // default: 12
-	MaxTokens        int // default: 0 (unlimited output tokens)
-	MaxContextTokens int // max context tokens before trimming. default: 100000
-	MaxToolOutput    int // max chars from tool output. default: 24000
-	ShellTimeout     int // seconds. default: 30
+	MaxSteps              int  // default: 12
+	MaxTokens             int  // default: 0 (unlimited output tokens)
+	MaxContextTokens      int  // max context tokens before trimming. default: 100000
+	MaxToolOutput         int  // max chars from tool output. default: 24000
+	ShellTimeout          int  // seconds. default: 30
+	EnableDynamicThinking bool // auto-adjust thinking level based on task complexity
 }
 
 // Load đọc .env (nếu có) rồi env → Config với defaults hợp lý.
@@ -69,11 +70,12 @@ func Load() (Config, error) {
 		MongoDB:        envOr("MONGODB_DB", "ai_agent_tut"),
 		VoyageKey:      os.Getenv("VOYAGE_API_KEY"),
 		EmbedModel:     envOr("EMBED_MODEL", "nomic-embed-text"),
-		MaxSteps:        12,
-		MaxTokens:       0,
-		MaxContextTokens: 100000,
-		MaxToolOutput:   24000,
-		ShellTimeout:    30,
+		MaxSteps:              12,
+		MaxTokens:             0,
+		MaxContextTokens:      100000,
+		MaxToolOutput:         24000,
+		ShellTimeout:          30,
+		EnableDynamicThinking: envOr("ENABLE_DYNAMIC_THINKING", "false") == "true",
 	}
 
 	// Validate: ít nhất 1 LLM provider phải được cấu hình

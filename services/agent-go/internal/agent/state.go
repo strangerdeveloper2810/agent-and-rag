@@ -72,8 +72,12 @@ type State struct {
 
 	Step     int
 	MaxSteps int
-	Usage    provider.Usage
+	Usage    provider.Usage // cumulative input/output tokens across all model calls
 	Done     bool
+
+	// TotalTokens là tổng số token (input+output) tích lũy qua tất cả các bước.
+	// Bằng Usage.InputTokens + Usage.OutputTokens, được đồng bộ sau mỗi model call.
+	TotalTokens int
 
 	// TrimmedTokens counts how many tokens were trimmed from context
 	// during this run (for observability).
