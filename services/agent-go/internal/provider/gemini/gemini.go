@@ -86,6 +86,7 @@ func toGeminiContents(msgs []provider.Message) []*genai.Content {
 						Name:     findToolName(msgs, m.ToolCallID),
 						Response: map[string]any{"output": m.Content},
 					},
+					ThoughtSignature: findThoughtSignature(msgs, m.ToolCallID),
 				}},
 			})
 
@@ -136,7 +137,6 @@ func mapThinkingLevel(l provider.ThinkingLevel) *genai.ThinkingConfig {
 }
 
 // findToolName tìm tên tool từ các assistant message trước đó dựa trên ToolCallID.
-// Gemini yêu cầu FunctionResponse.Name phải khớp với FunctionCall.Name gốc.
 func findToolName(msgs []provider.Message, callID string) string {
 	for i := len(msgs) - 1; i >= 0; i-- {
 		if msgs[i].Role == provider.RoleAssistant {
@@ -148,6 +148,21 @@ func findToolName(msgs []provider.Message, callID string) string {
 		}
 	}
 	return "" // fallback — Gemini sẽ báo lỗi nếu thiếu
+}
+
+// findThoughtSignature tìm thought_signature từ tool call gốc.
+// Gemini yêu cầu FunctionResponse phải mang thought_signature của FunctionCall.
+func findThoughtSignature(msgs []provider.Message, callID string) []byte {
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i].Role == provider.RoleAssistant {
+			for _, tc := range msgs[i].ToolCalls {
+				if tc.ID == callID && len(tc.ThoughtSignature) > 0 {
+					return tc.ThoughtSignature
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // rawToMap giải mã json.RawMessage thành map[string]any. Rỗng/lỗi → map rỗng (không panic),
@@ -233,9 +248,10 @@ func (c *Client) Generate(ctx context.Context, req provider.GenerateRequest) (<-
 						if !emit(provider.StreamChunk{
 							Kind: provider.ChunkToolCall,
 							ToolCall: &provider.ToolCall{
-								ID:   part.FunctionCall.ID,
-								Name: part.FunctionCall.Name,
-								Args: args,
+								ID:               part.FunctionCall.ID,
+								Name:             part.FunctionCall.Name,
+								Args:             args,
+								ThoughtSignature: part.ThoughtSignature,
 							},
 						}) {
 							return
