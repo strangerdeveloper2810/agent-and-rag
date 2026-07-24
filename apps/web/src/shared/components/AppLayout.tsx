@@ -100,7 +100,7 @@ export default function AppLayout() {
       />
 
       {/* Main content area with its own header */}
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col" style={{ minHeight: 0 }}>
         {/* Top bar: menu toggle + title + theme toggle */}
         <header className="flex items-center gap-3 border-b border-line px-4 py-2.5 sm:px-6">
           <button
@@ -133,7 +133,7 @@ export default function AppLayout() {
         {/* Page content */}
         <Suspense
           fallback={
-            <main className="flex flex-1 items-center justify-center text-ink-faint">
+            <main className="flex flex-1 items-center justify-center text-ink-faint" style={{ minHeight: 0 }}>
               Loading...
             </main>
           }
