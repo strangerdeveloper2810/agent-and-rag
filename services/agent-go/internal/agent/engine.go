@@ -3,6 +3,8 @@ package agent
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"time"
 
 	"github.com/ai-agent-tut/agent-go/internal/guardrails"
 	"github.com/ai-agent-tut/agent-go/internal/provider"
@@ -107,24 +109,32 @@ func (e *Engine) getMaxContextTokens() int { return e.maxContextTokens }
 // Run nhận ctx từ HTTP handler → khi client disconnect, ctx bị cancel
 // → loop dừng ở lần check tiếp theo.
 func (e *Engine) Run(ctx context.Context, in RunInput, emit EmitFunc) (provider.Usage, error) {
+	start := time.Now()
 	s := newState(in)
 	node := NodeRecall
 
+	slog.Info("engine: run started", "provider", e.prov.Name(), "maxSteps", s.MaxSteps)
+
 	for {
-		// Kiểm tra cancellation MỖI vòng lặp
 		select {
 		case <-ctx.Done():
+			slog.Warn("engine: cancelled", "step", s.Step)
 			return s.Usage, ctx.Err()
 		default:
 		}
 
 		emit(StepEvent(node))
+		stepStart := time.Now()
 
 		next, err := e.dispatch(ctx, node, s, emit)
+		elapsed := time.Since(stepStart)
 		if err != nil {
+			slog.Error("engine: dispatch failed", "node", node, "step", s.Step, "err", err)
 			emit(ErrorEvent(err.Error()))
 			return s.Usage, fmt.Errorf("engine: dispatch %s: %w", node, err)
 		}
+
+		slog.Info("engine: step done", "node", node, "next", next, "step", s.Step, "elapsed", elapsed.Round(time.Millisecond))
 
 		if next == NodeEnd {
 			break
@@ -132,6 +142,8 @@ func (e *Engine) Run(ctx context.Context, in RunInput, emit EmitFunc) (provider.
 		node = next
 	}
 
+	slog.Info("engine: run done", "steps", s.Step, "total_ms", time.Since(start).Milliseconds(),
+		"tokens_in", s.Usage.InputTokens, "tokens_out", s.Usage.OutputTokens, "total_tokens", s.TotalTokens)
 	emit(DoneEvent(s.Usage, s.TotalTokens))
 	return s.Usage, nil
 }

@@ -212,6 +212,7 @@ Bạn là chuyên gia nghiên cứu internet của JARVIS. Nhiệm vụ của b�
 	// --- HTTP Routes ---
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", agenthttp.Healthz)
+	mux.HandleFunc("GET /readyz", agenthttp.NewReadyzHandler(prov, mongoClient))
 	mux.HandleFunc("POST /chat", agenthttp.NewChatHandler(orch).ServeHTTP)
 	mux.HandleFunc("GET /suggestions", agenthttp.NewSuggestionsHandler(orch).ServeHTTP)
 
