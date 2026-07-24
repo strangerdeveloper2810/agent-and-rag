@@ -40,6 +40,7 @@ func main() {
 	// --- Wire Tool Registry ---
 	registry := tools.NewRegistry()
 	registry.Register(tools.NewEchoTool())
+	registry.Register(tools.NewVersionTool())
 	// Thêm tool thật ở các phase sau.
 
 	// --- Wire Memory Store ---
