@@ -24,18 +24,18 @@
 }
 
 [data-theme="light"] {
-  --bg: #fafaf9;
-  --bg-raised: #f3f3f1;
-  --bg-hover: #ededeb;
-  --surface: #ffffff;
-  --border: #e7e5e2;
-  --border-hover: #d9d7d3;
-  --text: #18181b;
-  --text-secondary: #6f6e77;
-  --text-tertiary: #a1a1aa;
-  --accent: #b8860b;
-  --accent-hover: #9a6f09;
-  --accent-bg: rgba(184, 134, 11, 0.08);
+  --bg: #f5f3f0;
+  --bg-raised: #eeebe7;
+  --bg-hover: #e6e3df;
+  --surface: #faf8f5;
+  --border: #dbd6d0;
+  --border-hover: #c9c4bd;
+  --text: #1c1917;
+  --text-secondary: #78716c;
+  --text-tertiary: #a8a29e;
+  --accent: #a67c00;
+  --accent-hover: #8a6600;
+  --accent-bg: rgba(166, 124, 0, 0.08);
 }
 
 @layer base {
