@@ -30,18 +30,18 @@ export default function AgentBadge({ agent, message }: AgentBadgeProps) {
     <div
       className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[10px] font-medium animate-slide-up"
       style={{
-        backgroundColor: "var(--primary-soft)",
+        backgroundColor: "var(--accent-bg)",
         border: "1px solid rgba(0,240,255,0.3)",
       }}
       aria-label={message ?? label}
     >
       <span
         className="flex h-5 w-5 items-center justify-center rounded-full"
-        style={{ color: "var(--primary)" }}
+        style={{ color: "var(--accent)" }}
       >
         <Icon width={12} height={12} />
       </span>
-      <span className="tracking-wider uppercase" style={{ color: "var(--primary)" }}>
+      <span className="tracking-wider uppercase" style={{ color: "var(--accent)" }}>
         {message ?? label}
       </span>
     </div>

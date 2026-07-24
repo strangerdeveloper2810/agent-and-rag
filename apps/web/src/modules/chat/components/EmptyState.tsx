@@ -30,7 +30,7 @@ function Skeleton() {
           style={{
             height: 52,
             animationDelay: `${i * 100}ms`,
-            backgroundColor: "var(--raised)",
+            backgroundColor: "var(--bg-raised)",
           }}
         />
       ))}
@@ -67,7 +67,7 @@ export default function EmptyState({
             height={32}
             viewBox="0 0 24 24"
             fill="none"
-            stroke="var(--primary)"
+            stroke="var(--accent)"
             strokeWidth={1.4}
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -82,7 +82,7 @@ export default function EmptyState({
 
         <h1
           className="text-2xl font-medium tracking-[0.3em] uppercase animate-neon-pulse sm:text-3xl"
-          style={{ color: "var(--primary)" }}
+          style={{ color: "var(--accent)" }}
         >
           J.A.R.V.I.S.
         </h1>
@@ -97,7 +97,7 @@ export default function EmptyState({
           </span>
           <span
             className="text-[11px] tracking-[0.2em] uppercase"
-            style={{ color: "var(--text-muted)" }}
+            style={{ color: "var(--text-tertiary)" }}
           >
             ONLINE
           </span>
@@ -105,7 +105,7 @@ export default function EmptyState({
 
         <p
           className="mt-4 text-sm text-center"
-          style={{ color: "var(--text-soft)" }}
+          style={{ color: "var(--text-secondary)" }}
         >
           How can I help you today?
         </p>

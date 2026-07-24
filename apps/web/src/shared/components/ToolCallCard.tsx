@@ -60,10 +60,10 @@ export default function ToolCallCard({ tool }: ToolCallCardProps) {
               width={14}
               height={14}
               className="animate-spin-slow"
-              style={{ color: "var(--primary)" }}
+              style={{ color: "var(--accent)" }}
             />
           ) : isError ? (
-            <span className="text-sm font-bold" style={{ color: "var(--error)" }}>
+            <span className="text-sm font-bold" style={{ color: "var(--danger)" }}>
               !
             </span>
           ) : (
@@ -75,7 +75,7 @@ export default function ToolCallCard({ tool }: ToolCallCardProps) {
           <p className="truncate text-xs font-medium" style={{ color: "var(--text)" }}>
             {toolLabel(tool.name)}
           </p>
-          <p className="text-[10px]" style={{ color: isError ? "var(--error)" : "var(--text-soft)" }}>
+          <p className="text-[10px]" style={{ color: isError ? "var(--danger)" : "var(--text-secondary)" }}>
             {isRunning ? "Running..." : isError ? "Failed" : "Completed"}
           </p>
         </div>
@@ -84,7 +84,7 @@ export default function ToolCallCard({ tool }: ToolCallCardProps) {
           <ChevronDownIcon
             width={14}
             height={14}
-            style={{ color: "var(--text-muted)" }}
+            style={{ color: "var(--text-tertiary)" }}
             className={`shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`}
           />
         )}
@@ -94,13 +94,13 @@ export default function ToolCallCard({ tool }: ToolCallCardProps) {
         <div className="mt-3 border-t pt-3" style={{ borderColor: "var(--border)" }}>
           {tool.result && (
             <div>
-              <p className="mb-1 text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+              <p className="mb-1 text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--text-tertiary)" }}>
                 Result
               </p>
               <pre
                 className="scroll-fine max-h-48 overflow-auto whitespace-pre-wrap rounded-lg px-3 py-2 text-[11px] leading-relaxed"
                 style={{
-                  color: "var(--text-soft)",
+                  color: "var(--text-secondary)",
                   backgroundColor: "var(--bg)",
                   border: "1px solid var(--border)",
                 }}
@@ -111,10 +111,10 @@ export default function ToolCallCard({ tool }: ToolCallCardProps) {
           )}
           {tool.error && (
             <div>
-              <p className="mb-1 text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--error)" }}>
+              <p className="mb-1 text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--danger)" }}>
                 Error
               </p>
-              <p className="text-xs" style={{ color: "var(--error)" }}>
+              <p className="text-xs" style={{ color: "var(--danger)" }}>
                 {tool.error}
               </p>
             </div>
