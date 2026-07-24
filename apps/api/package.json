@@ -8,8 +8,12 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "test": "vitest run",
-    "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "clean": "rm -rf dist/",
     "migrate:docs": "tsx --env-file=.env src/scripts/backfill-document-versions.ts",
     "graph:print": "tsx --env-file=.env src/agent/print-graph.ts"
   },
