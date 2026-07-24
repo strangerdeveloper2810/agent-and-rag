@@ -16,6 +16,7 @@ type modelEngine interface {
 	getRegistry() *tools.Registry
 	getSystemPrompt() string
 	getMaxContextTokens() int
+	getDynamicThinking() DynamicThinkingConfig
 }
 
 // nodeModel gọi LLM (qua Provider) với toàn bộ Messages + Tools,
@@ -38,12 +39,24 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 		emit(MemoryEvent(fmt.Sprintf("trimmed %d tokens from context", trimmed)))
 	}
 
+	// Dynamic thinking: choose OFF/LOW/MEDIUM based on task complexity
+	thinkingLevel := provider.ThinkingOff
+	if dt := eng.getDynamicThinking(); dt.Enabled {
+		lastMsg := ""
+		if len(s.Messages) > 0 {
+			lastMsg = s.Messages[len(s.Messages)-1].Content
+		}
+		hasTools := len(s.Messages) > 2 // previous turns had tool calls
+		thinkingLevel = ResolveThinking(dt, provider.ThinkingOff, lastMsg, hasTools, s.Step)
+	}
+
 	req := provider.GenerateRequest{
 		System:   eng.getSystemPrompt(),
 		Messages: s.Messages,
 		Tools:    reg.ToolDefs(),
 		Options: provider.ProviderOptions{
-			Cache: true, // prompt caching: system + tools cacheable (90% cost reduction)
+			Cache:         true,
+			ThinkingLevel: thinkingLevel,
 		},
 	}
 

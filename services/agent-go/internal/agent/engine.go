@@ -33,9 +33,21 @@ type Engine struct {
 	// nil = disabled.
 	circuitBreaker *guardrails.CircuitBreaker
 
+	// Dynamic thinking: auto-adjust thinking level based on task complexity.
+	dynamicThinking DynamicThinkingConfig
+
 	// MaxContextTokens is the token budget before context trimming kicks in.
 	// 0 = unlimited (no trimming). Default: 100000.
 	maxContextTokens int
+}
+
+// SetDynamicThinking enables auto-adjusting thinking mode.
+func (e *Engine) SetDynamicThinking(cfg DynamicThinkingConfig) {
+	e.dynamicThinking = cfg
+}
+
+func (e *Engine) getDynamicThinking() DynamicThinkingConfig {
+	return e.dynamicThinking
 }
 
 // NewEngine tạo Engine với provider và tool registry cho trước.
