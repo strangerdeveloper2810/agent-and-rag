@@ -51,7 +51,7 @@ export default function ConfirmDialog({
           {title}
         </h2>
         {message && (
-          <p className="mt-2 text-xs leading-relaxed" style={{ color: "var(--text-soft)" }}>
+          <p className="mt-2 text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
             {message}
           </p>
         )}
@@ -59,8 +59,8 @@ export default function ConfirmDialog({
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-lg px-4 py-2 text-xs font-medium transition hover:bg-[var(--raised)]"
-            style={{ color: "var(--text-soft)" }}
+            className="rounded-lg px-4 py-2 text-xs font-medium transition hover:bg-[var(--bg-raised)]"
+            style={{ color: "var(--text-secondary)" }}
           >
             {cancelLabel}
           </button>
@@ -69,7 +69,7 @@ export default function ConfirmDialog({
             onClick={onConfirm}
             className="rounded-lg px-4 py-2 text-xs font-medium transition"
             style={{
-              backgroundColor: danger ? "var(--error)" : "var(--primary)",
+              backgroundColor: danger ? "var(--danger)" : "var(--accent)",
               color: "#0a0a0f",
             }}
           >

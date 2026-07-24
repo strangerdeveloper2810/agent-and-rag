@@ -10,7 +10,7 @@ export default function CitationList({ citations }: CitationListProps) {
 
   return (
     <div className="mt-3 border-t pt-3" style={{ borderColor: "var(--border)" }} aria-label="Sources">
-      <p className="mb-2 text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+      <p className="mb-2 text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--text-tertiary)" }}>
         {citations.length === 1 ? "Source" : "Sources"}
       </p>
       <ul className="flex flex-wrap gap-1.5">
@@ -32,8 +32,8 @@ export default function CitationList({ citations }: CitationListProps) {
                 className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px]"
                 style={{
                   borderColor: "var(--border)",
-                  color: "var(--text-soft)",
-                  backgroundColor: "var(--raised)",
+                  color: "var(--text-secondary)",
+                  backgroundColor: "var(--bg-raised)",
                 }}
               >
                 {c.title}

@@ -407,10 +407,10 @@ export default function ChatPage() {
             background: "linear-gradient(90deg, rgba(0,240,255,0.05) 0%, transparent 50%, rgba(0,240,255,0.05) 100%)",
           }}
         >
-          <span className="flex items-center gap-2 text-[11px]" style={{ color: "var(--primary)" }}>
+          <span className="flex items-center gap-2 text-[11px]" style={{ color: "var(--accent)" }}>
             <span
               className="h-1.5 w-1.5 animate-pulse rounded-full"
-              style={{ backgroundColor: "var(--primary)" }}
+              style={{ backgroundColor: "var(--accent)" }}
             />
             Processing...
           </span>
@@ -418,8 +418,8 @@ export default function ChatPage() {
             type="button"
             onClick={stopGeneration}
             aria-label="Stop generating"
-            className="flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-medium transition hover:bg-[var(--raised)]"
-            style={{ color: "var(--text-soft)" }}
+            className="flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-medium transition hover:bg-[var(--bg-raised)]"
+            style={{ color: "var(--text-secondary)" }}
           >
             <StopIcon width={12} height={12} />
             Stop

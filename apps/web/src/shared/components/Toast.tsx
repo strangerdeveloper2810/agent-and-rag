@@ -66,7 +66,7 @@ function Toast({ toast, onClose }: { toast: ToastItem; onClose: () => void }) {
   }, [onClose]);
 
   const isError = toast.type === "error";
-  const accentColor = isError ? "var(--error)" : "var(--success)";
+  const accentColor = isError ? "var(--danger)" : "var(--success)";
 
   return (
     <div
@@ -98,8 +98,8 @@ function Toast({ toast, onClose }: { toast: ToastItem; onClose: () => void }) {
         type="button"
         onClick={onClose}
         aria-label="Dismiss"
-        className="rounded-full p-1.5 transition hover:bg-[var(--raised)]"
-        style={{ color: "var(--text-muted)" }}
+        className="rounded-full p-1.5 transition hover:bg-[var(--bg-raised)]"
+        style={{ color: "var(--text-tertiary)" }}
       >
         <CloseIcon width={13} height={13} />
       </button>

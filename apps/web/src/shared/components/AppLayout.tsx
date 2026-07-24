@@ -112,7 +112,7 @@ export default function AppLayout() {
             onClick={toggleSidebar}
             aria-label="Toggle sidebar"
             className="rounded-full p-2 transition hover:bg-[var(--border)]"
-            style={{ color: "var(--text-soft)" }}
+            style={{ color: "var(--text-secondary)" }}
           >
             <svg
               width={20}
@@ -142,7 +142,7 @@ export default function AppLayout() {
           fallback={
             <main
               className="flex flex-1 items-center justify-center"
-              style={{ minHeight: 0, color: "var(--text-muted)" }}
+              style={{ minHeight: 0, color: "var(--text-tertiary)" }}
             >
               Loading...
             </main>
