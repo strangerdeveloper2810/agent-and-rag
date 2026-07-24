@@ -30,7 +30,7 @@ function Skeleton() {
           style={{
             height: 52,
             animationDelay: `${i * 100}ms`,
-            backgroundColor: "var(--cyber-subtle)",
+            backgroundColor: "var(--raised)",
           }}
         />
       ))}
@@ -67,7 +67,7 @@ export default function EmptyState({
             height={32}
             viewBox="0 0 24 24"
             fill="none"
-            stroke="var(--cyber-primary)"
+            stroke="var(--primary)"
             strokeWidth={1.4}
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -82,7 +82,7 @@ export default function EmptyState({
 
         <h1
           className="text-2xl font-medium tracking-[0.3em] uppercase animate-neon-pulse sm:text-3xl"
-          style={{ color: "var(--cyber-primary)" }}
+          style={{ color: "var(--primary)" }}
         >
           J.A.R.V.I.S.
         </h1>
@@ -92,12 +92,12 @@ export default function EmptyState({
             className="relative flex h-1.5 w-1.5"
             aria-hidden="true"
           >
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--cyber-success)] opacity-75" />
-            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[var(--cyber-success)]" />
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--success)] opacity-75" />
+            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[var(--success)]" />
           </span>
           <span
             className="text-[11px] tracking-[0.2em] uppercase"
-            style={{ color: "var(--cyber-faint)" }}
+            style={{ color: "var(--text-muted)" }}
           >
             ONLINE
           </span>
@@ -105,7 +105,7 @@ export default function EmptyState({
 
         <p
           className="mt-4 text-sm text-center"
-          style={{ color: "var(--cyber-muted)" }}
+          style={{ color: "var(--text-soft)" }}
         >
           How can I help you today?
         </p>

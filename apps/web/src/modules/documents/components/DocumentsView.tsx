@@ -120,38 +120,38 @@ export default function DocumentsView() {
     <main className="flex min-w-0 flex-1 flex-col" style={{ minHeight: 0 }}>
       <header
         className="flex shrink-0 items-center gap-3 px-4 py-3 sm:px-6"
-        style={{ borderBottom: "1px solid var(--cyber-border)", backgroundColor: "var(--cyber-surface)" }}
+        style={{ borderBottom: "1px solid var(--border)", backgroundColor: "var(--surface)" }}
       >
         <button
           type="button"
           onClick={toggleSidebar}
           aria-label="Toggle menu"
-          className="rounded-full p-2 transition hover:bg-[var(--cyber-subtle2)]"
-          style={{ color: "var(--cyber-muted)" }}
+          className="rounded-full p-2 transition hover:bg-[var(--border)]"
+          style={{ color: "var(--text-soft)" }}
         >
           <MenuIcon />
         </button>
-        <h1 className="text-sm font-medium tracking-wider" style={{ color: "var(--cyber-text)" }}>
+        <h1 className="text-sm font-medium tracking-wider" style={{ color: "var(--text)" }}>
           Documents
         </h1>
       </header>
 
       <div className="scroll-fine overflow-y-auto" style={{ flex: 1, minHeight: 0 }}>
         <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
-          <h2 className="text-2xl font-medium tracking-tight" style={{ color: "var(--cyber-primary)" }}>
+          <h2 className="text-2xl font-medium tracking-tight" style={{ color: "var(--primary)" }}>
             Knowledge Base
           </h2>
-          <p className="mt-2 text-xs leading-relaxed" style={{ color: "var(--cyber-muted)" }}>
+          <p className="mt-2 text-xs leading-relaxed" style={{ color: "var(--text-soft)" }}>
             Upload{" "}
-            <code className="rounded px-1 py-0.5 text-[11px]" style={{ color: "var(--cyber-primary)", backgroundColor: "var(--cyber-subtle2)" }}>
+            <code className="rounded px-1 py-0.5 text-[11px]" style={{ color: "var(--primary)", backgroundColor: "var(--border)" }}>
               .txt
             </code>
             ,{" "}
-            <code className="rounded px-1 py-0.5 text-[11px]" style={{ color: "var(--cyber-primary)", backgroundColor: "var(--cyber-subtle2)" }}>
+            <code className="rounded px-1 py-0.5 text-[11px]" style={{ color: "var(--primary)", backgroundColor: "var(--border)" }}>
               .md
             </code>
             , or{" "}
-            <code className="rounded px-1 py-0.5 text-[11px]" style={{ color: "var(--cyber-primary)", backgroundColor: "var(--cyber-subtle2)" }}>
+            <code className="rounded px-1 py-0.5 text-[11px]" style={{ color: "var(--primary)", backgroundColor: "var(--border)" }}>
               .pdf
             </code>
             {" "}files for RAG retrieval.
@@ -163,8 +163,8 @@ export default function DocumentsView() {
               uploading ? "pointer-events-none opacity-60" : ""
             }`}
             style={{
-              borderColor: "var(--cyber-border)",
-              backgroundColor: "var(--cyber-subtle)",
+              borderColor: "var(--border)",
+              backgroundColor: "var(--raised)",
             }}
           >
             <input
@@ -181,16 +181,16 @@ export default function DocumentsView() {
             <div
               className="flex h-12 w-12 items-center justify-center rounded-full"
               style={{
-                backgroundColor: "var(--cyber-primary-soft)",
-                color: "var(--cyber-primary)",
+                backgroundColor: "var(--primary-soft)",
+                color: "var(--primary)",
               }}
             >
               <UploadIcon width={20} height={20} />
             </div>
-            <span className="text-xs font-medium" style={{ color: "var(--cyber-text)" }}>
+            <span className="text-xs font-medium" style={{ color: "var(--text)" }}>
               {uploading ? "Uploading & embedding..." : "Click to upload files (max 7)"}
             </span>
-            <span className="text-[10px]" style={{ color: "var(--cyber-faint)" }}>
+            <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
               .txt / .md / .pdf - max 7 files per batch
             </span>
           </label>
@@ -199,7 +199,7 @@ export default function DocumentsView() {
           <div className="mt-8">
             <h3
               className="mb-3 text-[10px] font-medium uppercase tracking-widest"
-              style={{ color: "var(--cyber-faint)" }}
+              style={{ color: "var(--text-muted)" }}
             >
               Uploaded ({docs.length})
             </h3>
@@ -207,9 +207,9 @@ export default function DocumentsView() {
               <div
                 className="rounded-xl px-4 py-8 text-center text-xs"
                 style={{
-                  backgroundColor: "var(--cyber-subtle)",
-                  color: "var(--cyber-faint)",
-                  border: "1px solid var(--cyber-border)",
+                  backgroundColor: "var(--raised)",
+                  color: "var(--text-muted)",
+                  border: "1px solid var(--border)",
                 }}
               >
                 No documents yet.
@@ -221,37 +221,37 @@ export default function DocumentsView() {
                     key={d.documentId}
                     className="rounded-xl px-4 py-3 transition-all"
                     style={{
-                      backgroundColor: "var(--cyber-subtle)",
-                      border: "1px solid var(--cyber-border)",
+                      backgroundColor: "var(--raised)",
+                      border: "1px solid var(--border)",
                     }}
                   >
                     <div className="group flex items-center gap-3">
                       <div
                         className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
-                        style={{ backgroundColor: "var(--cyber-primary-soft)", color: "var(--cyber-primary)" }}
+                        style={{ backgroundColor: "var(--primary-soft)", color: "var(--primary)" }}
                       >
                         <DocIcon width={16} height={16} />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="flex items-center gap-2 truncate text-xs font-medium" style={{ color: "var(--cyber-text)" }}>
+                        <p className="flex items-center gap-2 truncate text-xs font-medium" style={{ color: "var(--text)" }}>
                           {d.source}
                           <span
                             className="rounded-full px-2 py-0.5 text-[10px] font-medium"
-                            style={{ backgroundColor: "var(--cyber-primary-soft)", color: "var(--cyber-primary)" }}
+                            style={{ backgroundColor: "var(--primary-soft)", color: "var(--primary)" }}
                           >
                             v{d.version}
                           </span>
                         </p>
-                        <p className="text-[10px]" style={{ color: "var(--cyber-faint)" }}>
+                        <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
                           {d.chunks} chunks
                         </p>
                       </div>
 
                       <label
-                        className={`cursor-pointer rounded-lg px-3 py-1.5 text-[10px] font-medium transition hover:bg-[var(--cyber-subtle2)] ${
+                        className={`cursor-pointer rounded-lg px-3 py-1.5 text-[10px] font-medium transition hover:bg-[var(--border)] ${
                           updatingId === d.documentId ? "pointer-events-none opacity-60" : ""
                         }`}
-                        style={{ color: "var(--cyber-muted)" }}
+                        style={{ color: "var(--text-soft)" }}
                       >
                         <input
                           type="file"
@@ -269,8 +269,8 @@ export default function DocumentsView() {
                       <button
                         type="button"
                         onClick={() => toggleHistory(d.documentId)}
-                        className="rounded-lg px-3 py-1.5 text-[10px] font-medium transition hover:bg-[var(--cyber-subtle2)]"
-                        style={{ color: "var(--cyber-muted)" }}
+                        className="rounded-lg px-3 py-1.5 text-[10px] font-medium transition hover:bg-[var(--border)]"
+                        style={{ color: "var(--text-soft)" }}
                       >
                         History
                       </button>
@@ -279,36 +279,36 @@ export default function DocumentsView() {
                         type="button"
                         onClick={() => setConfirming(d)}
                         aria-label={`Delete ${d.source}`}
-                        className="rounded-full p-2 opacity-0 transition hover:bg-[rgba(255,51,102,0.1)] hover:text-[var(--cyber-error)] focus:opacity-100 group-hover:opacity-100"
-                        style={{ color: "var(--cyber-faint)" }}
+                        className="rounded-full p-2 opacity-0 transition hover:bg-[rgba(255,51,102,0.1)] hover:text-[var(--error)] focus:opacity-100 group-hover:opacity-100"
+                        style={{ color: "var(--text-muted)" }}
                       >
                         <TrashIcon width={14} height={14} />
                       </button>
                     </div>
 
                     {openHistory === d.documentId && (
-                      <ul className="mt-3 space-y-1 border-t pt-3" style={{ borderColor: "var(--cyber-border)" }}>
+                      <ul className="mt-3 space-y-1 border-t pt-3" style={{ borderColor: "var(--border)" }}>
                         {versions.map((v) => (
                           <li key={v.version} className="flex items-center gap-2 text-xs">
                             <span
                               className="rounded px-1.5 py-0.5 text-[10px] font-medium"
-                              style={{ backgroundColor: "var(--cyber-subtle2)", color: "var(--cyber-muted)" }}
+                              style={{ backgroundColor: "var(--border)", color: "var(--text-soft)" }}
                             >
                               v{v.version}
                             </span>
-                            <span className="min-w-0 flex-1 truncate" style={{ color: "var(--cyber-muted)" }}>
+                            <span className="min-w-0 flex-1 truncate" style={{ color: "var(--text-soft)" }}>
                               {v.source}
                             </span>
                             {v.isLatest && (
-                              <span className="text-[10px]" style={{ color: "var(--cyber-primary)" }}>
+                              <span className="text-[10px]" style={{ color: "var(--primary)" }}>
                                 latest
                               </span>
                             )}
                             <button
                               type="button"
                               onClick={() => onViewVersion(d.documentId, v.version)}
-                              className="rounded-lg px-2 py-1 text-[10px] font-medium transition hover:bg-[var(--cyber-primary-soft)]"
-                              style={{ color: "var(--cyber-primary)" }}
+                              className="rounded-lg px-2 py-1 text-[10px] font-medium transition hover:bg-[var(--primary-soft)]"
+                              style={{ color: "var(--primary)" }}
                             >
                               View
                             </button>
@@ -333,22 +333,22 @@ export default function DocumentsView() {
           <div
             className="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-2xl p-6 shadow-2xl"
             style={{
-              backgroundColor: "var(--cyber-surface)",
-              border: "1px solid var(--cyber-border)",
+              backgroundColor: "var(--surface)",
+              border: "1px solid var(--border)",
             }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-center gap-3">
-              <h3 className="min-w-0 flex-1 truncate text-sm font-medium" style={{ color: "var(--cyber-text)" }}>
+              <h3 className="min-w-0 flex-1 truncate text-sm font-medium" style={{ color: "var(--text)" }}>
                 {viewing.source}{" "}
-                <span style={{ color: "var(--cyber-faint)" }}>v{viewing.version}</span>
+                <span style={{ color: "var(--text-muted)" }}>v{viewing.version}</span>
               </h3>
               <button
                 type="button"
                 onClick={() => setViewing(null)}
                 aria-label="Close"
-                className="rounded-full p-2 transition hover:bg-[var(--cyber-subtle)]"
-                style={{ color: "var(--cyber-faint)" }}
+                className="rounded-full p-2 transition hover:bg-[var(--raised)]"
+                style={{ color: "var(--text-muted)" }}
               >
                 <CloseIcon width={16} height={16} />
               </button>
@@ -356,9 +356,9 @@ export default function DocumentsView() {
             <pre
               className="scroll-fine flex-1 overflow-y-auto whitespace-pre-wrap break-words rounded-xl px-4 py-3 text-xs leading-relaxed"
               style={{
-                backgroundColor: "var(--cyber-subtle)",
-                color: "var(--cyber-muted)",
-                border: "1px solid var(--cyber-border)",
+                backgroundColor: "var(--raised)",
+                color: "var(--text-soft)",
+                border: "1px solid var(--border)",
               }}
             >
               {viewing.content}

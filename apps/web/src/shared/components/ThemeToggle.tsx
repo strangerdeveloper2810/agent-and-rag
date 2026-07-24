@@ -23,8 +23,8 @@ export default function ThemeToggle() {
     <button
       onClick={toggle}
       aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-      className="flex items-center gap-2 rounded-full px-3 py-1.5 text-xs transition hover:bg-[var(--cyber-subtle2)]"
-      style={{ color: "var(--cyber-muted)" }}
+      className="flex items-center gap-2 rounded-full px-3 py-1.5 text-xs transition hover:bg-[var(--border)]"
+      style={{ color: "var(--text-soft)" }}
     >
       {theme === "dark" ? <SunIcon /> : <MoonIcon />}
       <span className="hidden sm:inline tracking-wider uppercase text-[10px]">

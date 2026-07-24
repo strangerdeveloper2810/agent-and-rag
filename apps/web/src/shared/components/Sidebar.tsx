@@ -45,7 +45,7 @@ function JARVIS_Spark() {
       height={22}
       viewBox="0 0 24 24"
       fill="none"
-      stroke="var(--cyber-primary)"
+      stroke="var(--primary)"
       strokeWidth={1.5}
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -87,7 +87,7 @@ export default function Sidebar({
     if (active) {
       return `${base} font-medium border-l-2 shadow-[0_0_10px_rgba(0,240,255,0.15)]`;
     }
-    return `${base} border-l-2 border-transparent hover:bg-[var(--cyber-subtle2)] hover:border-[var(--cyber-primary-soft)]`;
+    return `${base} border-l-2 border-transparent hover:bg-[var(--border)] hover:border-[var(--primary-soft)]`;
   };
 
   const startRename = (c: Conversation) => {
@@ -132,18 +132,18 @@ export default function Sidebar({
         }`}
         style={{
           height: "100%",
-          backgroundColor: "var(--cyber-surface)",
-          borderRight: "1px solid var(--cyber-border)",
+          backgroundColor: "var(--surface)",
+          borderRight: "1px solid var(--border)",
         }}
       >
         {/* Brand */}
         <div
           className="flex items-center justify-between px-5 py-4"
-          style={{ borderBottom: "1px solid var(--cyber-border)" }}
+          style={{ borderBottom: "1px solid var(--border)" }}
         >
           <div className="flex items-center gap-2.5">
             <JARVIS_Spark />
-            <p className="text-base font-medium tracking-wider animate-neon-pulse" style={{ color: "var(--cyber-primary)" }}>
+            <p className="text-base font-medium tracking-wider animate-neon-pulse" style={{ color: "var(--primary)" }}>
               J.A.R.V.I.S.
             </p>
           </div>
@@ -151,8 +151,8 @@ export default function Sidebar({
             type="button"
             onClick={onClose}
             aria-label="Close menu"
-            className="rounded-full p-1.5 transition hover:bg-[var(--cyber-subtle2)] md:hidden"
-            style={{ color: "var(--cyber-muted)" }}
+            className="rounded-full p-1.5 transition hover:bg-[var(--border)] md:hidden"
+            style={{ color: "var(--text-soft)" }}
           >
             <CloseIcon />
           </button>
@@ -165,8 +165,8 @@ export default function Sidebar({
             onClick={onNew}
             className="flex w-full items-center gap-2 rounded-lg border px-4 py-2.5 text-xs font-medium transition-all duration-200 hover:shadow-[0_0_10px_rgba(0,240,255,0.2)]"
             style={{
-              borderColor: "var(--cyber-primary)",
-              color: "var(--cyber-primary)",
+              borderColor: "var(--primary)",
+              color: "var(--primary)",
               backgroundColor: "transparent",
             }}
           >
@@ -184,10 +184,10 @@ export default function Sidebar({
             style={
               view === "chat"
                 ? {
-                    color: "var(--cyber-primary)",
-                    borderLeftColor: "var(--cyber-primary)",
+                    color: "var(--primary)",
+                    borderLeftColor: "var(--primary)",
                   }
-                : { color: "var(--cyber-muted)" }
+                : { color: "var(--text-soft)" }
             }
           >
             <ChatIcon width={16} height={16} />
@@ -200,10 +200,10 @@ export default function Sidebar({
             style={
               view === "documents"
                 ? {
-                    color: "var(--cyber-primary)",
-                    borderLeftColor: "var(--cyber-primary)",
+                    color: "var(--primary)",
+                    borderLeftColor: "var(--primary)",
                   }
-                : { color: "var(--cyber-muted)" }
+                : { color: "var(--text-soft)" }
             }
           >
             <DocIcon width={16} height={16} />
@@ -217,7 +217,7 @@ export default function Sidebar({
             <>
               <p
                 className="px-6 pb-1 pt-5 text-[10px] font-medium uppercase tracking-widest"
-                style={{ color: "var(--cyber-faint)" }}
+                style={{ color: "var(--text-muted)" }}
               >
                 Recent
               </p>
@@ -227,14 +227,14 @@ export default function Sidebar({
                 <div
                   className="flex items-center gap-2 rounded-lg px-3 py-1.5 transition"
                   style={{
-                    backgroundColor: "var(--cyber-subtle2)",
-                    border: "1px solid var(--cyber-border)",
+                    backgroundColor: "var(--border)",
+                    border: "1px solid var(--border)",
                   }}
                 >
                   <SearchIcon
                     width={14}
                     height={14}
-                    style={{ color: "var(--cyber-faint)" }}
+                    style={{ color: "var(--text-muted)" }}
                     className="shrink-0"
                   />
                   <input
@@ -244,15 +244,15 @@ export default function Sidebar({
                     placeholder="Search..."
                     aria-label="Search conversations"
                     className="flex-1 bg-transparent text-xs outline-none"
-                    style={{ color: "var(--cyber-text)" }}
+                    style={{ color: "var(--text)" }}
                   />
                   {searchQuery && (
                     <button
                       type="button"
                       onClick={() => setSearchQuery("")}
                       aria-label="Clear search"
-                      className="rounded-full p-0.5 transition hover:text-[var(--cyber-text)]"
-                      style={{ color: "var(--cyber-faint)" }}
+                      className="rounded-full p-0.5 transition hover:text-[var(--text)]"
+                      style={{ color: "var(--text-muted)" }}
                     >
                       <CloseIcon width={12} height={12} />
                     </button>
@@ -271,7 +271,7 @@ export default function Sidebar({
                 ) : filtered.length === 0 ? (
                   <p
                     className="px-3 py-4 text-center text-[11px]"
-                    style={{ color: "var(--cyber-faint)" }}
+                    style={{ color: "var(--text-muted)" }}
                   >
                     {searchQuery
                       ? "No conversations found."
@@ -288,15 +288,15 @@ export default function Sidebar({
                           key={c._id}
                           className="flex items-center gap-2 rounded-lg px-3 py-1"
                           style={{
-                            backgroundColor: "var(--cyber-primary-soft)",
-                            borderLeft: "2px solid var(--cyber-primary)",
+                            backgroundColor: "var(--primary-soft)",
+                            borderLeft: "2px solid var(--primary)",
                           }}
                         >
                           <ChatIcon
                             width={14}
                             height={14}
                             className="shrink-0"
-                            style={{ color: "var(--cyber-primary)" }}
+                            style={{ color: "var(--primary)" }}
                           />
                           <input
                             type="text"
@@ -306,14 +306,14 @@ export default function Sidebar({
                             onBlur={commitRename}
                             autoFocus
                             className="min-w-0 flex-1 bg-transparent text-xs outline-none"
-                            style={{ color: "var(--cyber-text)" }}
+                            style={{ color: "var(--text)" }}
                           />
                           <button
                             type="button"
                             onClick={commitRename}
                             aria-label="Confirm rename"
                             className="shrink-0 rounded-full p-1 transition"
-                            style={{ color: "var(--cyber-primary)" }}
+                            style={{ color: "var(--primary)" }}
                           >
                             <CheckIcon width={13} height={13} />
                           </button>
@@ -327,13 +327,13 @@ export default function Sidebar({
                         className={`group/item flex w-full items-center gap-2 rounded-lg pr-2 transition-all duration-150 ${
                           active
                             ? "shadow-[0_0_10px_rgba(0,240,255,0.1)]"
-                            : "hover:bg-[var(--cyber-subtle2)]"
+                            : "hover:bg-[var(--border)]"
                         }`}
                         style={
                           active
                             ? {
-                                backgroundColor: "var(--cyber-primary-soft)",
-                                borderLeft: "2px solid var(--cyber-primary)",
+                                backgroundColor: "var(--primary-soft)",
+                                borderLeft: "2px solid var(--primary)",
                               }
                             : { borderLeft: "2px solid transparent" }
                         }
@@ -341,7 +341,7 @@ export default function Sidebar({
                         <button
                           onClick={() => onSelect(c._id)}
                           className="flex min-w-0 flex-1 items-center gap-3 py-2 pl-4 text-left text-xs"
-                          style={{ color: active ? "var(--cyber-primary)" : "var(--cyber-muted)" }}
+                          style={{ color: active ? "var(--primary)" : "var(--text-soft)" }}
                         >
                           <ChatIcon
                             width={14}
@@ -355,8 +355,8 @@ export default function Sidebar({
                           type="button"
                           onClick={() => startRename(c)}
                           aria-label={`Rename "${c.title}"`}
-                          className="shrink-0 rounded-full p-1.5 opacity-0 transition hover:bg-[var(--cyber-subtle2)] focus:opacity-100 group-hover/item:opacity-100"
-                          style={{ color: "var(--cyber-faint)" }}
+                          className="shrink-0 rounded-full p-1.5 opacity-0 transition hover:bg-[var(--border)] focus:opacity-100 group-hover/item:opacity-100"
+                          style={{ color: "var(--text-muted)" }}
                         >
                           <EditIcon width={12} height={12} />
                         </button>
@@ -366,7 +366,7 @@ export default function Sidebar({
                           onClick={() => setPendingDelete(c)}
                           aria-label={`Delete "${c.title}"`}
                           className="shrink-0 rounded-full p-1.5 opacity-0 transition hover:bg-[rgba(255,51,102,0.15)] focus:opacity-100 group-hover/item:opacity-100"
-                          style={{ color: "var(--cyber-faint)" }}
+                          style={{ color: "var(--text-muted)" }}
                         >
                           <TrashIcon width={14} height={14} />
                         </button>

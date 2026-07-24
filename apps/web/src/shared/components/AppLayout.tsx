@@ -72,7 +72,7 @@ export default function AppLayout() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ backgroundColor: "var(--cyber-bg)" }}>
+    <div className="flex h-screen overflow-hidden" style={{ backgroundColor: "var(--bg)" }}>
       <Sidebar
         conversations={conversations}
         loading={loadingConversations}
@@ -103,16 +103,16 @@ export default function AppLayout() {
         <header
           className="flex shrink-0 items-center gap-3 border-b px-4 py-2.5 sm:px-6"
           style={{
-            borderColor: "var(--cyber-border)",
-            backgroundColor: "var(--cyber-surface)",
+            borderColor: "var(--border)",
+            backgroundColor: "var(--surface)",
           }}
         >
           <button
             type="button"
             onClick={toggleSidebar}
             aria-label="Toggle sidebar"
-            className="rounded-full p-2 transition hover:bg-[var(--cyber-subtle2)]"
-            style={{ color: "var(--cyber-muted)" }}
+            className="rounded-full p-2 transition hover:bg-[var(--border)]"
+            style={{ color: "var(--text-soft)" }}
           >
             <svg
               width={20}
@@ -128,7 +128,7 @@ export default function AppLayout() {
             </svg>
           </button>
 
-          <h1 className="text-sm font-medium tracking-wider" style={{ color: "var(--cyber-text)" }}>
+          <h1 className="text-sm font-medium tracking-wider" style={{ color: "var(--text)" }}>
             J.A.R.V.I.S.
           </h1>
 
@@ -142,7 +142,7 @@ export default function AppLayout() {
           fallback={
             <main
               className="flex flex-1 items-center justify-center"
-              style={{ minHeight: 0, color: "var(--cyber-faint)" }}
+              style={{ minHeight: 0, color: "var(--text-muted)" }}
             >
               Loading...
             </main>
