@@ -4,12 +4,11 @@ import { useToast } from "@/shared/components/Toast";
 
 // ── Types ──
 
-/** An attachment pending in the Composer before being sent. */
 export interface PendingAttachment {
   id: string;
   file: File;
   type: "image" | "file";
-  preview: string; // data URL for images; empty for non-image files
+  preview: string;
   name: string;
   size: number;
 }
@@ -18,16 +17,14 @@ export interface PendingAttachment {
 
 const MAX_IMAGES = 7;
 const MAX_FILES = 7;
-const MAX_SIZE = 10 * 1024 * 1024; // 10 MB
+const MAX_SIZE = 10 * 1024 * 1024;
 
 const ACCEPT = [
-  // Images
   "image/png",
   "image/jpeg",
   "image/gif",
   "image/webp",
   "image/svg+xml",
-  // Documents
   "application/pdf",
   "text/plain",
   "text/csv",
@@ -50,7 +47,6 @@ function isImageType(file: File): boolean {
   return file.type.startsWith("image/");
 }
 
-/** Read a File as a data URL. */
 function readAsDataURL(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -87,7 +83,6 @@ export default function Composer({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
 
-  // Auto-resize textarea
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
@@ -102,27 +97,22 @@ export default function Composer({
     }
   };
 
-  // ── File picking ──
-
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
-    // Reset input so the same file can be picked again
     if (fileInputRef.current) fileInputRef.current.value = "";
 
     let errors: string[] = [];
     const newAttachments: PendingAttachment[] = [];
 
     for (const file of files) {
-      // Size check
       if (file.size > MAX_SIZE) {
-        errors.push(`${file.name} vượt quá 10MB`);
+        errors.push(`${file.name} exceeds 10MB`);
         continue;
       }
 
       const isImage = isImageType(file);
       const type = isImage ? "image" : "file";
 
-      // Count check
       const currentImageCount =
         attachments.filter((a) => a.type === "image").length +
         newAttachments.filter((a) => a.type === "image").length;
@@ -131,11 +121,11 @@ export default function Composer({
         newAttachments.filter((a) => a.type === "file").length;
 
       if (type === "image" && currentImageCount >= MAX_IMAGES) {
-        errors.push(`Tối đa ${MAX_IMAGES} ảnh`);
+        errors.push(`Max ${MAX_IMAGES} images`);
         break;
       }
       if (type === "file" && currentFileCount >= MAX_FILES) {
-        errors.push(`Tối đa ${MAX_FILES} files`);
+        errors.push(`Max ${MAX_FILES} files`);
         break;
       }
 
@@ -150,7 +140,7 @@ export default function Composer({
           size: file.size,
         });
       } catch {
-        errors.push(`Không đọc được ${file.name}`);
+        errors.push(`Could not read ${file.name}`);
       }
     }
 
@@ -167,8 +157,6 @@ export default function Composer({
     onAttachmentsChange(attachments.filter((a) => a.id !== id));
   };
 
-  // ── Derived counts ──
-
   const imageCount = attachments.filter((a) => a.type === "image").length;
   const fileCount = attachments.filter((a) => a.type === "file").length;
   const totalCount = attachments.length;
@@ -180,7 +168,6 @@ export default function Composer({
 
   return (
     <div className="px-4 pb-4 pt-2 sm:px-6">
-      {/* Hidden file input */}
       <input
         ref={fileInputRef}
         type="file"
@@ -188,7 +175,7 @@ export default function Composer({
         accept={ACCEPT}
         onChange={handleFileChange}
         className="hidden"
-        aria-label="Chọn tệp đính kèm"
+        aria-label="Attach files"
       />
 
       <div className="mx-auto max-w-3xl">
@@ -198,12 +185,12 @@ export default function Composer({
             <ul
               className="flex flex-wrap gap-2"
               role="list"
-              aria-label="Tệp đính kèm đã chọn"
+              aria-label="Attached files"
             >
               {attachments.map((att) => (
                 <li key={att.id} className="relative group">
                   {att.type === "image" ? (
-                    <div className="relative h-16 w-16 overflow-hidden rounded-xl border border-line bg-subtle">
+                    <div className="relative h-16 w-16 overflow-hidden rounded-xl border bg-[var(--cyber-subtle)]" style={{ borderColor: "var(--cyber-border)" }}>
                       <img
                         src={att.preview}
                         alt={att.name}
@@ -212,32 +199,33 @@ export default function Composer({
                       <button
                         type="button"
                         onClick={() => removeAttachment(att.id)}
-                        aria-label={`Xóa ${att.name}`}
-                        className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition hover:bg-red-600 group-hover:opacity-100 focus:opacity-100"
+                        aria-label={`Remove ${att.name}`}
+                        className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition hover:bg-[var(--cyber-error)] group-hover:opacity-100 focus:opacity-100"
                       >
                         <CloseIcon width={11} height={11} />
                       </button>
                     </div>
                   ) : (
-                    <div className="relative flex items-center gap-2 rounded-xl border border-line bg-subtle px-3 py-2 pr-8 transition">
+                    <div className="relative flex items-center gap-2 rounded-xl border px-3 py-2 pr-8 transition" style={{ borderColor: "var(--cyber-border)", backgroundColor: "var(--cyber-subtle)" }}>
                       <DocIcon
-                        width={16}
-                        height={16}
-                        className="shrink-0 text-ink-faint"
+                        width={14}
+                        height={14}
+                        style={{ color: "var(--cyber-faint)" }}
                       />
                       <div className="min-w-0">
-                        <p className="truncate text-xs font-medium text-ink">
+                        <p className="truncate text-[11px] font-medium" style={{ color: "var(--cyber-text)" }}>
                           {att.name}
                         </p>
-                        <p className="text-[11px] text-ink-faint">
+                        <p className="text-[10px]" style={{ color: "var(--cyber-faint)" }}>
                           {formatSize(att.size)}
                         </p>
                       </div>
                       <button
                         type="button"
                         onClick={() => removeAttachment(att.id)}
-                        aria-label={`Xóa ${att.name}`}
-                        className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full text-ink-faint transition hover:bg-line hover:text-ink"
+                        aria-label={`Remove ${att.name}`}
+                        className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full transition hover:bg-[var(--cyber-border)]"
+                        style={{ color: "var(--cyber-faint)" }}
                       >
                         <CloseIcon width={11} height={11} />
                       </button>
@@ -246,28 +234,44 @@ export default function Composer({
                 </li>
               ))}
             </ul>
-            <p className="text-[11px] text-ink-faint">
-              {imageCount}/{MAX_IMAGES} ảnh, {fileCount}/{MAX_FILES} files
+            <p className="text-[10px]" style={{ color: "var(--cyber-faint)" }}>
+              {imageCount}/{MAX_IMAGES} images, {fileCount}/{MAX_FILES} files
             </p>
           </div>
         )}
 
         {/* Input row */}
-        <div className="flex items-end gap-2 rounded-[28px] bg-subtle px-2 py-1.5 transition focus-within:bg-subtle2">
+        <div
+          className="flex items-end gap-2 rounded-xl px-3 py-2 transition-all duration-200 focus-within:shadow-[0_0_12px_rgba(0,240,255,0.15)]"
+          style={{
+            backgroundColor: "var(--cyber-subtle)",
+            border: "1px solid var(--cyber-border)",
+          }}
+        >
           {/* Attachment button */}
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={disabled || (atImageLimit && atFileLimit)}
-            aria-label="Đính kèm tệp"
-            className={`mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition ${
+            aria-label="Attach files"
+            className={`mb-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition ${
               disabled || (atImageLimit && atFileLimit)
-                ? "cursor-not-allowed text-ink-faint opacity-30"
-                : "text-ink-faint hover:bg-line hover:text-ink"
+                ? "cursor-not-allowed opacity-20"
+                : ""
             }`}
+            style={{ color: "var(--cyber-muted)" }}
           >
-            <UploadIcon width={19} height={19} />
+            <UploadIcon width={18} height={18} />
           </button>
+
+          {/* Prompt prefix */}
+          <span
+            className="mb-2.5 select-none text-sm opacity-50"
+            style={{ color: "var(--cyber-primary)" }}
+            aria-hidden="true"
+          >
+            &gt;
+          </span>
 
           <textarea
             ref={textareaRef}
@@ -276,26 +280,37 @@ export default function Composer({
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={handleKeyDown}
             disabled={disabled}
-            placeholder="Nhập câu lệnh tại đây"
-            className="scroll-fine max-h-52 flex-1 resize-none bg-transparent px-1 py-2.5 text-[0.95rem] leading-relaxed text-ink outline-none placeholder:text-ink-faint disabled:opacity-60"
+            placeholder="Enter command..."
+            className="scroll-fine max-h-52 flex-1 resize-none bg-transparent px-1 py-2 text-sm leading-relaxed outline-none placeholder:text-[var(--cyber-faint)] disabled:opacity-50"
+            style={{
+              color: "var(--cyber-text)",
+              fontFamily: "'JetBrains Mono', ui-monospace, SF Mono, Consolas, monospace",
+            }}
           />
 
           <button
             type="button"
             onClick={onSend}
             disabled={!canSend}
-            aria-label="Gửi tin nhắn"
-            className={`mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition ${
+            aria-label="Send message"
+            className={`mb-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-all duration-200 ${
               canSend
-                ? "bg-gblue text-white hover:bg-gblue-bright"
-                : "cursor-not-allowed bg-line text-ink-faint"
+                ? "text-[#0a0a0f]"
+                : "cursor-not-allowed text-[var(--cyber-faint)]"
             }`}
+            style={{
+              backgroundColor: canSend ? "var(--cyber-primary)" : "transparent",
+              boxShadow: canSend ? "0 0 12px rgba(0,240,255,0.3)" : "none",
+            }}
           >
-            <SendIcon width={19} height={19} />
+            <SendIcon width={17} height={17} />
           </button>
         </div>
-        <p className="mt-2 text-center text-xs text-ink-faint">
-          Agent Tut có thể mắc lỗi. Hãy kiểm chứng thông tin quan trọng.
+        <p
+          className="mt-2 text-center text-[10px]"
+          style={{ color: "var(--cyber-faint)" }}
+        >
+          Press Enter to send · Shift+Enter for new line
         </p>
       </div>
     </div>

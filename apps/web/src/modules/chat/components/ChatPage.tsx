@@ -19,27 +19,20 @@ import Composer from "./Composer";
 import EmptyState from "./EmptyState";
 import { StopIcon } from "@/shared/components/icons";
 
-/** Extended message that carries UI-specific metadata from SSE events. */
 export type MessageMeta = {
-  /** Tool calls that happened during this assistant turn. */
   toolCalls: ToolCallState[];
-  /** Citations (RAG sources) shown at the bottom of the message. */
   citations: CitationData[];
-  /** Which agent responded (general/code/research). */
   agent: string | null;
-  /** Token usage shown after completion. */
   usage: UsageData | null;
 };
 
 // ── Helpers ──
 
-/** Read a File as raw base64 (no data URL prefix). */
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
       const result = reader.result as string;
-      // Strip "data:mime/type;base64," prefix
       const comma = result.indexOf(",");
       resolve(comma >= 0 ? result.slice(comma + 1) : result);
     };
@@ -48,7 +41,6 @@ function fileToBase64(file: File): Promise<string> {
   });
 }
 
-/** Convert a pending attachment to the payload the API expects. */
 async function pendingToPayload(
   pa: PendingAttachment,
 ): Promise<AttachmentPayload> {
@@ -62,7 +54,6 @@ async function pendingToPayload(
   };
 }
 
-/** Convert a pending attachment to display metadata for the message bubble. */
 function pendingToMeta(pa: PendingAttachment): AttachmentMeta {
   return {
     type: pa.type,
@@ -89,7 +80,6 @@ export default function ChatPage() {
   const streamCtrlRef = useRef<AbortController | null>(null);
   const userScrolledUpRef = useRef(false);
 
-  // --- Smart auto-scroll ---
   const streamingRef = useRef(false);
   streamingRef.current = streaming;
 
@@ -109,13 +99,11 @@ export default function ChatPage() {
       el.scrollHeight - el.scrollTop - el.clientHeight > threshold;
   }, []);
 
-  // Reset scroll flag when conversation changes
   useEffect(() => {
     userScrolledUpRef.current = false;
     setTimeout(() => endRef.current?.scrollIntoView({ behavior: "auto", block: "end" }), 50);
   }, [id]);
 
-  // --- Append text to assistant bubble ---
   const appendToAssistant = useCallback(
     (list: Message[], text: string): Message[] => {
       if (list.length === 0) return list;
@@ -128,7 +116,6 @@ export default function ChatPage() {
     [],
   );
 
-  // --- Update metadata for the last assistant message ---
   const updateMeta = useCallback(
     (index: number, updater: (prev: MessageMeta) => MessageMeta) => {
       setMeta((prev) => {
@@ -146,7 +133,6 @@ export default function ChatPage() {
     [],
   );
 
-  // --- Load messages for current conversation ---
   useEffect(() => {
     if (!id) {
       setMessages([]);
@@ -169,32 +155,26 @@ export default function ChatPage() {
       });
   }, [id]);
 
-  // Cleanup: abort stream on unmount
   useEffect(() => () => streamCtrlRef.current?.abort(), []);
 
-  // Auto-scroll when messages change
   useEffect(() => {
     scrollToBottom(false, streaming);
   }, [messages, scrollToBottom, streaming]);
 
-  // --- Send message ---
   const send = async (text?: string) => {
     const content = (text ?? input).trim();
     if ((!content && attachments.length === 0) || streaming) return;
 
-    // Snapshot and clear immediately
     setInput("");
     const snapAttachments = [...attachments];
     setAttachments([]);
 
-    // Build display metadata for the user message bubble
     const attachmentMeta: AttachmentMeta[] = snapAttachments.map(pendingToMeta);
 
     let convId = id;
     try {
       if (!convId) {
-        // Use first attachment name or text for the conversation title
-        const title = content || snapAttachments[0]?.name || "Tệp đính kèm";
+        const title = content || snapAttachments[0]?.name || "Attachment";
         const conv = await createConversation(title);
         convId = conv._id;
         loadedIdRef.current = convId;
@@ -202,7 +182,6 @@ export default function ChatPage() {
         reloadConversations();
       }
 
-      // Convert attachments to API payload (async reads files to base64)
       const attachmentPayloads: AttachmentPayload[] = await Promise.all(
         snapAttachments.map(pendingToPayload),
       );
@@ -231,11 +210,9 @@ export default function ChatPage() {
           switch (e.type) {
             case "step":
               break;
-
             case "text":
               setMessages((m) => appendToAssistant(m, e.text ?? ""));
               break;
-
             case "tool_start":
               updateMeta(assistantIndex, (prev) => ({
                 ...prev,
@@ -245,7 +222,6 @@ export default function ChatPage() {
                 ],
               }));
               break;
-
             case "tool_end":
               updateMeta(assistantIndex, (prev) => {
                 const tools = [...prev.toolCalls];
@@ -270,7 +246,6 @@ export default function ChatPage() {
                 return { ...prev, toolCalls: tools };
               });
               break;
-
             case "citation":
               try {
                 const citations: CitationData[] = e.text
@@ -281,24 +256,19 @@ export default function ChatPage() {
                   citations,
                 }));
               } catch {
-                // Invalid citation JSON
+                // ignore
               }
               break;
-
             case "memory":
               break;
-
             case "agent":
               updateMeta(assistantIndex, (prev) => ({
                 ...prev,
                 agent: e.name ?? null,
               }));
               break;
-
             case "interrupt":
-              // Human-in-the-loop interrupt — toast handled by Composer/Toast
               break;
-
             case "error":
               setMessages((m) => {
                 if (m.length > 0 && m[m.length - 1].role === "assistant") {
@@ -306,18 +276,17 @@ export default function ChatPage() {
                   copy[copy.length - 1] = {
                     ...copy[copy.length - 1],
                     content: copy[copy.length - 1].content +
-                      `\n\n⚠️ ${e.message ?? "An error occurred."}`,
+                      `\n\n⚠ ${e.message ?? "An error occurred."}`,
                   };
                   return copy;
                 }
                 return [...m, {
                   role: "assistant",
-                  content: `⚠️ ${e.message ?? "An error occurred."}`,
+                  content: `⚠ ${e.message ?? "An error occurred."}`,
                 }];
               });
               userScrolledUpRef.current = false;
               break;
-
             case "done":
               if (e.usage) {
                 updateMeta(assistantIndex, (prev) => ({
@@ -339,16 +308,15 @@ export default function ChatPage() {
             copy[copy.length - 1] = {
               ...copy[copy.length - 1],
               content: copy[copy.length - 1].content +
-                "\n\n⚠️ Could not send message. Please try again.",
+                "\n\n⚠ Could not send message. Please try again.",
             };
             return copy;
           }
           return [...m, {
             role: "assistant",
-            content: "⚠️ Could not send message. Please try again.",
+            content: "⚠ Could not send message. Please try again.",
           }];
         });
-        // Restore on error
         setInput((prev) => prev || content);
         if (snapAttachments.length > 0) {
           setAttachments(snapAttachments);
@@ -361,7 +329,6 @@ export default function ChatPage() {
     }
   };
 
-  // --- Stop generation ---
   const stopGeneration = () => {
     streamCtrlRef.current?.abort();
   };
@@ -370,20 +337,30 @@ export default function ChatPage() {
 
   return (
     <main className="flex min-w-0 flex-1 flex-col" style={{ minHeight: 0 }}>
-      {/* Streaming indicator bar */}
+      {/* Streaming indicator */}
       {streaming && (
-        <div className="flex shrink-0 items-center justify-between border-b border-line bg-gblue-soft/30 px-4 py-1.5 sm:px-6 dark:bg-gblue-soft/20">
-          <span className="flex items-center gap-2 text-xs text-gblue">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-gblue" />
-            Generating response...
+        <div
+          className="flex shrink-0 items-center justify-between px-4 py-1.5 sm:px-6"
+          style={{
+            borderBottom: "1px solid var(--cyber-border)",
+            background: "linear-gradient(90deg, rgba(0,240,255,0.05) 0%, transparent 50%, rgba(0,240,255,0.05) 100%)",
+          }}
+        >
+          <span className="flex items-center gap-2 text-[11px]" style={{ color: "var(--cyber-primary)" }}>
+            <span
+              className="h-1.5 w-1.5 animate-pulse rounded-full"
+              style={{ backgroundColor: "var(--cyber-primary)" }}
+            />
+            Processing...
           </span>
           <button
             type="button"
             onClick={stopGeneration}
             aria-label="Stop generating"
-            className="flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium text-ink-soft hover:bg-subtle transition"
+            className="flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-medium transition hover:bg-[var(--cyber-subtle)]"
+            style={{ color: "var(--cyber-muted)" }}
           >
-            <StopIcon width={14} height={14} />
+            <StopIcon width={12} height={12} />
             Stop
           </button>
         </div>
@@ -393,10 +370,10 @@ export default function ChatPage() {
         ref={scrollContainerRef}
         onScroll={handleScroll}
         className="scroll-fine overflow-y-auto"
-        style={{ flex: 1, minHeight: 0 }}
+        style={{ flex: 1, minHeight: 0, backgroundColor: "var(--cyber-bg)" }}
       >
         {hasMessages ? (
-          <div className="mx-auto max-w-3xl space-y-7 px-4 py-6 sm:px-6">
+          <div className="mx-auto max-w-3xl space-y-6 px-4 py-6 sm:px-6">
             {messages.map((m, i) => {
               const msgMeta = meta.get(i);
               const isLastAssistant =

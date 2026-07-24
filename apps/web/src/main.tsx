@@ -3,16 +3,14 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App.tsx";
 import { ToastProvider } from "@/shared/components/Toast";
-import { initTheme } from "@/shared/components/ThemeToggle";
+import ScanlineOverlay from "@/shared/components/ScanlineOverlay";
 import "./index.css";
-
-// Apply theme before React hydrates -- prevents dark mode flash on reload
-initTheme();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <BrowserRouter>
       <ToastProvider>
+        <ScanlineOverlay />
         <App />
       </ToastProvider>
     </BrowserRouter>

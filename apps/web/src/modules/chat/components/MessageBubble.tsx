@@ -1,7 +1,6 @@
 import { useCallback, useState } from "react";
 import Markdown from "./Markdown";
 import {
-  SparkIcon,
   CopyIcon,
   CheckIcon,
   CloseIcon,
@@ -23,26 +22,27 @@ function formatSize(bytes: number): string {
 
 // ── Sub-components ──
 
-/** Animated typing dots shown when the assistant is streaming but hasn't produced text yet. */
 function TypingDots() {
   return (
     <span className="inline-flex items-center gap-1 py-1">
       {[0, 1, 2].map((i) => (
         <span
           key={i}
-          className="h-2 w-2 rounded-full bg-gblue animate-dot-bounce"
-          style={{ animationDelay: `${i * 0.16}s` }}
+          className="h-2 w-2 rounded-full animate-dot-bounce"
+          style={{
+            backgroundColor: "var(--cyber-primary)",
+            animationDelay: `${i * 0.16}s`,
+          }}
         />
       ))}
     </span>
   );
 }
 
-/** Token usage display */
 function UsageFooter({ usage }: { usage: UsageData }) {
   return (
-    <div className="mt-3 border-t border-line pt-2">
-      <p className="text-xs text-ink-faint">
+    <div className="mt-3 border-t pt-2" style={{ borderColor: "var(--cyber-border)" }}>
+      <p className="text-[10px]" style={{ color: "var(--cyber-faint)" }}>
         <span title="Input tokens">{usage.inputTokens.toLocaleString()} in</span>
         {" · "}
         <span title="Output tokens">{usage.outputTokens.toLocaleString()} out</span>
@@ -55,7 +55,6 @@ function UsageFooter({ usage }: { usage: UsageData }) {
   );
 }
 
-/** Attachment thumbnails shown in user message bubbles. */
 function AttachmentList({ attachments }: { attachments: AttachmentMeta[] }) {
   const [expandedUrl, setExpandedUrl] = useState<string | null>(null);
 
@@ -65,7 +64,6 @@ function AttachmentList({ attachments }: { attachments: AttachmentMeta[] }) {
   return (
     <>
       <div className="mt-2 space-y-2">
-        {/* Image grid */}
         {images.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {images.map((img, i) => (
@@ -73,8 +71,9 @@ function AttachmentList({ attachments }: { attachments: AttachmentMeta[] }) {
                 key={`img-${i}`}
                 type="button"
                 onClick={() => setExpandedUrl(img.thumbnail)}
-                aria-label={`Xem ảnh ${img.name}`}
-                className="h-16 w-16 overflow-hidden rounded-xl border border-line bg-subtle transition hover:opacity-80"
+                aria-label={`View ${img.name}`}
+                className="h-16 w-16 overflow-hidden rounded-xl border transition hover:opacity-80"
+                style={{ borderColor: "var(--cyber-border)", backgroundColor: "var(--cyber-subtle)" }}
               >
                 <img
                   src={img.thumbnail}
@@ -86,20 +85,20 @@ function AttachmentList({ attachments }: { attachments: AttachmentMeta[] }) {
           </div>
         )}
 
-        {/* File chips */}
         {files.length > 0 && (
           <div className="space-y-1">
             {files.map((f, i) => (
               <div
                 key={`file-${i}`}
-                className="flex items-center gap-2 rounded-lg border border-line bg-subtle px-3 py-1.5"
+                className="flex items-center gap-2 rounded-lg border px-3 py-1.5"
+                style={{ borderColor: "var(--cyber-border)", backgroundColor: "var(--cyber-subtle)" }}
               >
-                <DocIcon width={15} height={15} className="shrink-0 text-ink-faint" />
+                <DocIcon width={14} height={14} style={{ color: "var(--cyber-faint)" }} />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[0.82rem] font-medium text-ink">
+                  <p className="truncate text-[11px] font-medium" style={{ color: "var(--cyber-text)" }}>
                     {f.name}
                   </p>
-                  <p className="text-[11px] text-ink-faint">
+                  <p className="text-[10px]" style={{ color: "var(--cyber-faint)" }}>
                     {formatSize(f.size)}
                   </p>
                 </div>
@@ -109,26 +108,25 @@ function AttachmentList({ attachments }: { attachments: AttachmentMeta[] }) {
         )}
       </div>
 
-      {/* Lightbox overlay */}
       {expandedUrl && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 animate-fade-in"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 animate-fade-in"
           onClick={() => setExpandedUrl(null)}
           role="dialog"
-          aria-label="Xem ảnh phóng to"
+          aria-label="View enlarged image"
         >
           <button
             type="button"
             onClick={() => setExpandedUrl(null)}
-            aria-label="Đóng ảnh"
-            className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30"
+            aria-label="Close image"
+            className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
           >
             <CloseIcon width={18} height={18} />
           </button>
           <img
             src={expandedUrl}
-            alt="Phóng to"
-            className="max-h-[85vh] max-w-[90vw] rounded-2xl object-contain shadow-2xl"
+            alt="Enlarged"
+            className="max-h-[85vh] max-w-[90vw] rounded-xl object-contain shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           />
         </div>
@@ -173,7 +171,15 @@ export default function MessageBubble({
 
     return (
       <div className="flex justify-end animate-msg-in">
-        <div className="max-w-[80%] rounded-3xl rounded-br-lg bg-subtle px-4 py-2.5 text-[0.95rem] leading-relaxed text-ink">
+        <div
+          className="max-w-[80%] rounded-2xl rounded-br-md px-4 py-2.5 text-[0.85rem] leading-relaxed"
+          style={{
+            backgroundColor: "var(--cyber-subtle)",
+            color: "var(--cyber-text)",
+            border: "1px solid var(--cyber-border)",
+            boxShadow: "0 0 8px rgba(255,0,255,0.08)",
+          }}
+        >
           {hasText && (
             <p className="whitespace-pre-wrap">{message.content}</p>
           )}
@@ -193,8 +199,25 @@ export default function MessageBubble({
   return (
     <div className="group flex gap-4 animate-msg-in">
       {/* Avatar */}
-      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gemini text-white">
-        <SparkIcon width={17} height={17} />
+      <div
+        className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+        style={{
+          background: "radial-gradient(circle, rgba(0,240,255,0.3) 0%, rgba(0,240,255,0.05) 100%)",
+          border: "1px solid rgba(0,240,255,0.3)",
+        }}
+      >
+        <svg
+          width={16}
+          height={16}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="var(--cyber-primary)"
+          strokeWidth={1.5}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M12 4c.6 3.7 1.8 4.9 5.5 5.5-3.7.6-4.9 1.8-5.5 5.5-.6-3.7-1.8-4.9-5.5-5.5 3.7-.6 4.9-1.8 5.5-5.5Z" />
+        </svg>
       </div>
 
       <div className="min-w-0 flex-1">
@@ -223,7 +246,10 @@ export default function MessageBubble({
 
         {/* Streaming caret */}
         {showCaret && (
-          <span className="ml-0.5 inline-block h-4 w-[2px] translate-y-0.5 animate-caret-blink bg-gblue align-middle" />
+          <span
+            className="ml-0.5 inline-block h-[1em] w-[2px] translate-y-0.5 align-middle animate-terminal-blink"
+            style={{ backgroundColor: "var(--cyber-primary)" }}
+          />
         )}
 
         {/* Citations */}
@@ -234,22 +260,23 @@ export default function MessageBubble({
         {/* Token usage */}
         {usage && !streaming && <UsageFooter usage={usage} />}
 
-        {/* Copy button (visible on hover for completed messages) */}
+        {/* Copy button */}
         {!streaming && hasContent && (
           <button
             type="button"
             onClick={copyMessage}
             aria-label="Copy response"
-            className="mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs text-ink-faint opacity-0 transition hover:bg-subtle focus:opacity-100 group-hover:opacity-100"
+            className="mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] opacity-0 transition hover:bg-[var(--cyber-subtle)] focus:opacity-100 group-hover:opacity-100"
+            style={{ color: "var(--cyber-faint)" }}
           >
             {copied ? (
               <>
-                <CheckIcon width={13} height={13} className="text-gblue" />
+                <CheckIcon width={12} height={12} style={{ color: "var(--cyber-success)" }} />
                 Copied
               </>
             ) : (
               <>
-                <CopyIcon width={13} height={13} />
+                <CopyIcon width={12} height={12} />
                 Copy
               </>
             )}
