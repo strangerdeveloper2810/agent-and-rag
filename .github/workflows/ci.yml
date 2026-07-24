@@ -5,6 +5,13 @@ on:
     branches: [master]
   pull_request:
 
+# Cần pull-requests: read để dorny/paths-filter gọi GitHub API lấy danh sách
+# file changed trong PR. Mặc định GITHUB_TOKEN không có quyền này với một số
+# repo configuration.
+permissions:
+  contents: read
+  pull-requests: read
+
 # Hủy run cũ khi có push mới lên cùng branch/PR (tiết kiệm CI).
 concurrency:
   group: ci-${{ github.ref }}
