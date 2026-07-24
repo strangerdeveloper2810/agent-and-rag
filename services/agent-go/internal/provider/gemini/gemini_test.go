@@ -1,6 +1,7 @@
 package gemini
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"testing"
 
@@ -199,5 +200,118 @@ func TestRawToMap(t *testing.T) {
 	m := rawToMap(json.RawMessage(`{"a":1}`))
 	if v, ok := m["a"].(float64); !ok || v != 1 {
 		t.Errorf("valid input: want a=1, got %#v", m)
+	}
+}
+
+func TestToGeminiContents_UserWithImageAttachment(t *testing.T) {
+	imgData := base64.StdEncoding.EncodeToString([]byte("fake-png-bytes"))
+	msgs := []provider.Message{
+		{
+			Role:    provider.RoleUser,
+			Content: "what is this image?",
+			Attachments: []provider.Attachment{
+				{Type: "image", Name: "photo.png", Data: imgData, MimeType: "image/png"},
+			},
+		},
+	}
+
+	got := toGeminiContents(msgs)
+	if len(got) != 1 {
+		t.Fatalf("want 1 content, got %d", len(got))
+	}
+	c := got[0]
+	if c.Role != genai.RoleUser {
+		t.Fatalf("want role %q, got %q", genai.RoleUser, c.Role)
+	}
+	// Should have 2 parts: text + inline_data
+	if len(c.Parts) != 2 {
+		t.Fatalf("want 2 parts (text + inline_data), got %d: %+v", len(c.Parts), c.Parts)
+	}
+	// First part is text
+	if c.Parts[0].Text != "what is this image?" {
+		t.Errorf("part[0].Text = %q, want %q", c.Parts[0].Text, "what is this image?")
+	}
+	// Second part is inline data
+	blob := c.Parts[1].InlineData
+	if blob == nil {
+		t.Fatal("part[1].InlineData is nil")
+	}
+	if blob.MIMEType != "image/png" {
+		t.Errorf("InlineData.MIMEType = %q, want image/png", blob.MIMEType)
+	}
+	if string(blob.Data) != "fake-png-bytes" {
+		t.Errorf("InlineData.Data = %q, want fake-png-bytes", string(blob.Data))
+	}
+}
+
+func TestToGeminiContents_UserWithFileAttachment(t *testing.T) {
+	// File attachments are pre-processed into Content by newState(),
+	// so by the time we reach toGeminiContents they are already text.
+	msgs := []provider.Message{
+		{
+			Role:    provider.RoleUser,
+			Content: "check this\n\n[File: log.txt]\nerror line",
+		},
+	}
+
+	got := toGeminiContents(msgs)
+	if len(got) != 1 {
+		t.Fatalf("want 1 content, got %d", len(got))
+	}
+	if got[0].Role != genai.RoleUser {
+		t.Fatalf("want role %q, got %q", genai.RoleUser, got[0].Role)
+	}
+	if len(got[0].Parts) != 1 {
+		t.Fatalf("want 1 part (text only), got %d", len(got[0].Parts))
+	}
+}
+
+func TestToGeminiContents_UserWithMultipleImages(t *testing.T) {
+	img1 := base64.StdEncoding.EncodeToString([]byte("bytes1"))
+	img2 := base64.StdEncoding.EncodeToString([]byte("bytes2"))
+	msgs := []provider.Message{
+		{
+			Role:    provider.RoleUser,
+			Content: "compare these",
+			Attachments: []provider.Attachment{
+				{Type: "image", Name: "a.png", Data: img1, MimeType: "image/png"},
+				{Type: "image", Name: "b.jpg", Data: img2, MimeType: "image/jpeg"},
+			},
+		},
+	}
+
+	got := toGeminiContents(msgs)
+	c := got[0]
+	if len(c.Parts) != 3 {
+		t.Fatalf("want 3 parts (text + 2 images), got %d", len(c.Parts))
+	}
+	if c.Parts[1].InlineData.MIMEType != "image/png" {
+		t.Errorf("image1 MIMEType: %q", c.Parts[1].InlineData.MIMEType)
+	}
+	if c.Parts[2].InlineData.MIMEType != "image/jpeg" {
+		t.Errorf("image2 MIMEType: %q", c.Parts[2].InlineData.MIMEType)
+	}
+}
+
+func TestToGeminiContents_UserWithInvalidBase64(t *testing.T) {
+	// Invalid base64 in attachment — should skip that image gracefully.
+	msgs := []provider.Message{
+		{
+			Role:    provider.RoleUser,
+			Content: "is this valid?",
+			Attachments: []provider.Attachment{
+				{Type: "image", Name: "broken.png", Data: "!!!bad!!!", MimeType: "image/png"},
+			},
+		},
+	}
+
+	got := toGeminiContents(msgs)
+	c := got[0]
+	// Should only have the text part; the malformed image should be skipped.
+	if len(c.Parts) != 1 {
+		t.Fatalf("want 1 part (text only, bad image skipped), got %d", len(c.Parts))
+	}
+	if c.Parts[0].Text != "is this valid?" {
+		t.Errorf("text mismatch: %q", c.Parts[0].Text)
 	}
 }

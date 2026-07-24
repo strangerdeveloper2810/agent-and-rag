@@ -55,7 +55,19 @@ func toAnthropicMessages(msgs []provider.Message) []sdk.MessageParam {
 	for _, m := range msgs {
 		switch m.Role {
 		case provider.RoleUser:
-			out = append(out, sdk.NewUserMessage(sdk.NewTextBlock(m.Content)))
+			blocks := make([]sdk.ContentBlockParamUnion, 0, 1+len(m.Attachments))
+			if m.Content != "" {
+				blocks = append(blocks, sdk.NewTextBlock(m.Content))
+			}
+			for _, att := range m.Attachments {
+				if att.Type == "image" {
+					blocks = append(blocks, sdk.NewImageBlockBase64(att.MimeType, att.Data))
+				}
+			}
+			if len(blocks) == 0 {
+				blocks = append(blocks, sdk.NewTextBlock(""))
+			}
+			out = append(out, sdk.NewUserMessage(blocks...))
 
 		case provider.RoleAssistant:
 			blocks := make([]sdk.ContentBlockParamUnion, 0, 1+len(m.ToolCalls))

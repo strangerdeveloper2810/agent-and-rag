@@ -5,6 +5,7 @@ package gemini
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -83,10 +84,26 @@ func toGeminiContents(msgs []provider.Message) []*genai.Content {
 			})
 
 		default:
-			out = append(out, &genai.Content{
-				Role:  genai.RoleUser,
-				Parts: []*genai.Part{{Text: m.Content}},
-			})
+			parts := make([]*genai.Part, 0, 1+len(m.Attachments))
+			if m.Content != "" {
+				parts = append(parts, &genai.Part{Text: m.Content})
+			}
+			for _, att := range m.Attachments {
+				if att.Type == "image" {
+					raw, err := base64.StdEncoding.DecodeString(att.Data)
+					if err != nil {
+						// Skip malformed images; text fallback is already in Content.
+						continue
+					}
+					parts = append(parts, &genai.Part{
+						InlineData: &genai.Blob{
+							MIMEType: att.MimeType,
+							Data:     raw,
+						},
+					})
+				}
+			}
+			out = append(out, &genai.Content{Role: genai.RoleUser, Parts: parts})
 		}
 	}
 	return out
