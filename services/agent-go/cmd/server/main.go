@@ -60,6 +60,7 @@ func main() {
 
 	// --- Wire Orchestrator (multi-agent) ---
 	generalEngine := agent.NewEngine(prov, registry)
+	generalEngine.SetSystemPrompt(agent.BuildSystemPrompt(nil, skillSummaries))
 	generalEngine.SetMemoryNodes(
 		memory.RecallNode(store),
 		memory.ExtractNode(store),
@@ -67,6 +68,7 @@ func main() {
 	)
 
 	codeEngine := agent.NewEngine(prov, registry)
+	codeEngine.SetSystemPrompt(agent.BuildSystemPrompt(nil, skillSummaries))
 	codeEngine.SetMemoryNodes(
 		memory.RecallNode(store),
 		memory.ExtractNode(store),
@@ -74,6 +76,7 @@ func main() {
 	)
 
 	researchEngine := agent.NewEngine(prov, registry)
+	researchEngine.SetSystemPrompt(agent.BuildSystemPrompt(nil, skillSummaries))
 	researchEngine.SetMemoryNodes(
 		memory.RecallNode(store),
 		memory.ExtractNode(store),

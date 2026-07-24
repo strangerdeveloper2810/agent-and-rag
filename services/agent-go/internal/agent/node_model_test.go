@@ -17,6 +17,7 @@ type fakeEngine struct {
 
 func (e *fakeEngine) getProvider() provider.Provider { return e.prov }
 func (e *fakeEngine) getRegistry() *tools.Registry   { return e.registry }
+func (e *fakeEngine) getSystemPrompt() string        { return "" }
 
 func TestNodeModel_TextOnly(t *testing.T) {
 	// Kịch bản đơn giản nhất: LLM trả về text, không tool call.
