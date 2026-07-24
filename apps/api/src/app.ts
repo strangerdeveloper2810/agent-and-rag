@@ -22,7 +22,7 @@ export function buildApp(): FastifyInstance {
   // Tắt logger khi chạy test cho đỡ nhiễu output.
   const app = Fastify({
     logger: config.NODE_ENV !== "test",
-    bodyLimit: 10 * 1024 * 1024, // 10MB — long conversation history with tool calls
+    bodyLimit: 50 * 1024 * 1024, // 50MB — attachments + long conversation history
   });
 
   // CORS: whitelist theo CORS_ORIGIN (prod) hoặc mọi origin (dev khi rỗng).
