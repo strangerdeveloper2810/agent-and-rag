@@ -12,31 +12,35 @@ type Config struct {
 	Port string // default: 3002
 
 	// Provider (LLM)
-	Provider      string // "gemini" | "anthropic" | "ollama"
-	GeminiKey     string
-	GeminiModel   string
-	ThinkingLevel string // OFF|LOW|MEDIUM|HIGH (Gemini 3.x)
-	AnthropicKey  string
+	Provider       string // "gemini" | "anthropic" | "ollama"
+	GeminiKey      string
+	GeminiModel    string
+	ThinkingLevel  string // OFF|LOW|MEDIUM|HIGH (Gemini 3.x)
+	AnthropicKey   string
 	AnthropicModel string
 
 	// Ollama (local LLM)
 	OllamaURL   string // default: http://localhost:11434
 	OllamaModel string // default: llama3.1:8b
 
-	// Storage
-	DBPath       string // SQLite database path. default: ~/.jarvis/jarvis.db
-	SkillsDir    string // Skills directory. default: ./skills
+	// SQLite Storage
+	DBPath       string   // SQLite database path. default: jarvis.db
+	SkillsDir    string   // Skills directory. default: ./skills
 	AllowedPaths []string // File tool allowed paths. default: [".", "$HOME"]
 
+	// MongoDB (optional — dùng chung với apps/api, cho RAG documents + tasks)
+	MongoURI string // MONGODB_URI. Để trống = không dùng Mongo
+	MongoDB  string // default: ai_agent_tut
+
 	// Embedding
-	VoyageKey string
+	VoyageKey  string
 	EmbedModel string // embedding model. default: nomic-embed-text
 
 	// Limits
-	MaxSteps       int // default: 12
-	MaxTokens      int // default: 0 (unlimited)
-	MaxToolOutput  int // max chars from tool output. default: 24000
-	ShellTimeout   int // seconds. default: 30
+	MaxSteps      int // default: 12
+	MaxTokens     int // default: 0 (unlimited)
+	MaxToolOutput int // max chars from tool output. default: 24000
+	ShellTimeout  int // seconds. default: 30
 }
 
 // Load đọc env → Config với defaults hợp lý.
@@ -54,6 +58,8 @@ func Load() (Config, error) {
 		DBPath:         envOr("JARVIS_DB_PATH", "jarvis.db"),
 		SkillsDir:      envOr("JARVIS_SKILLS_DIR", "./skills"),
 		AllowedPaths:   []string{".", os.Getenv("HOME")},
+		MongoURI:       os.Getenv("MONGODB_URI"),
+		MongoDB:        envOr("MONGODB_DB", "ai_agent_tut"),
 		VoyageKey:      os.Getenv("VOYAGE_API_KEY"),
 		EmbedModel:     envOr("EMBED_MODEL", "nomic-embed-text"),
 		MaxSteps:       12,
