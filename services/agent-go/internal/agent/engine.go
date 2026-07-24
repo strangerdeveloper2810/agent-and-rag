@@ -19,6 +19,9 @@ type Engine struct {
 	prov     provider.Provider
 	registry *tools.Registry
 
+	// System prompt — injected before each LLM call
+	systemPrompt string
+
 	// Memory node implementations — set via SetMemoryNodes.
 	// nil = skip node (fallback: jump to next logical node).
 	recallFn    Node
@@ -40,9 +43,15 @@ func (e *Engine) SetMemoryNodes(recall, extract, summarize Node) {
 	e.summarizeFn = summarize
 }
 
-// getProvider / getRegistry — implements modelEngine & toolsEngine interfaces.
-func (e *Engine) getProvider() provider.Provider { return e.prov }
-func (e *Engine) getRegistry() *tools.Registry   { return e.registry }
+// getProvider / getRegistry / getSystemPrompt — implements modelEngine & toolsEngine.
+func (e *Engine) getProvider() provider.Provider  { return e.prov }
+func (e *Engine) getRegistry() *tools.Registry    { return e.registry }
+func (e *Engine) getSystemPrompt() string          { return e.systemPrompt }
+
+// SetSystemPrompt sets the system prompt used for every LLM call.
+func (e *Engine) SetSystemPrompt(prompt string) {
+	e.systemPrompt = prompt
+}
 
 // Run chạy agent loop cho một lượt chat.
 //

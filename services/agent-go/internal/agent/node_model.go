@@ -14,6 +14,7 @@ import (
 type modelEngine interface {
 	getProvider() provider.Provider
 	getRegistry() *tools.Registry
+	getSystemPrompt() string
 }
 
 // nodeModel gọi LLM (qua Provider) với toàn bộ Messages + Tools,
@@ -31,6 +32,7 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 	reg := eng.getRegistry()
 
 	req := provider.GenerateRequest{
+		System:   eng.getSystemPrompt(),
 		Messages: s.Messages,
 		Tools:    reg.ToolDefs(),
 	}
