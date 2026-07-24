@@ -125,8 +125,8 @@ export default function DocumentsView() {
   };
 
   return (
-    <main className="flex min-w-0 flex-1 flex-col">
-      <header className="flex items-center gap-3 px-4 py-3 sm:px-6">
+    <main className="flex min-w-0 flex-1 flex-col" style={{ minHeight: 0 }}>
+      <header className="flex shrink-0 items-center gap-3 px-4 py-3 sm:px-6">
         <button
           type="button"
           onClick={toggleSidebar}
@@ -138,7 +138,7 @@ export default function DocumentsView() {
         <h1 className="font-medium text-ink">Tài liệu</h1>
       </header>
 
-      <div className="scroll-fine flex-1 overflow-y-auto">
+      <div className="scroll-fine overflow-y-auto" style={{ flex: 1, minHeight: 0 }}>
         <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
           <h2 className="text-3xl font-medium tracking-tight">
             <span className="text-gemini">Tài liệu cho RAG</span>
