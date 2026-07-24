@@ -52,7 +52,7 @@ export default function ChatPage() {
   const scrollToBottom = useCallback((force = false, instant = false) => {
     if (!force && userScrolledUpRef.current) return;
     endRef.current?.scrollIntoView({
-      behavior: instant ? "instant" : "smooth",
+      behavior: instant ? "auto" : "smooth",
       block: "end",
     });
   }, []);
@@ -70,7 +70,7 @@ export default function ChatPage() {
   useEffect(() => {
     userScrolledUpRef.current = false;
     // Force instant scroll to bottom on conversation load
-    setTimeout(() => endRef.current?.scrollIntoView({ behavior: "instant", block: "end" }), 50);
+    setTimeout(() => endRef.current?.scrollIntoView({ behavior: "auto", block: "end" }), 50);
   }, [id]);
 
   // --- Append text to assistant bubble ---
@@ -309,11 +309,11 @@ export default function ChatPage() {
         </div>
       )}
 
-      {/* Messages area */}
+      {/* Messages area — min-h-0 required for flex shrink + overflow */}
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="scroll-fine flex-1 overflow-y-auto"
+        className="scroll-fine min-h-0 flex-1 overflow-y-auto"
       >
         {hasMessages ? (
           <div className="mx-auto max-w-3xl space-y-7 px-4 py-6 sm:px-6">
@@ -340,12 +340,14 @@ export default function ChatPage() {
         )}
       </div>
 
-      <Composer
-        value={input}
-        onChange={setInput}
-        onSend={() => send()}
-        disabled={streaming}
-      />
+      <div className="shrink-0">
+        <Composer
+          value={input}
+          onChange={setInput}
+          onSend={() => send()}
+          disabled={streaming}
+        />
+      </div>
     </main>
   );
 }
