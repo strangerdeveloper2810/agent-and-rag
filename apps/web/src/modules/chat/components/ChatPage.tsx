@@ -403,14 +403,14 @@ export default function ChatPage() {
         <div
           className="flex shrink-0 items-center justify-between px-4 py-1.5 sm:px-6"
           style={{
-            borderBottom: "1px solid var(--cyber-border)",
+            borderBottom: "1px solid var(--border)",
             background: "linear-gradient(90deg, rgba(0,240,255,0.05) 0%, transparent 50%, rgba(0,240,255,0.05) 100%)",
           }}
         >
-          <span className="flex items-center gap-2 text-[11px]" style={{ color: "var(--cyber-primary)" }}>
+          <span className="flex items-center gap-2 text-[11px]" style={{ color: "var(--primary)" }}>
             <span
               className="h-1.5 w-1.5 animate-pulse rounded-full"
-              style={{ backgroundColor: "var(--cyber-primary)" }}
+              style={{ backgroundColor: "var(--primary)" }}
             />
             Processing...
           </span>
@@ -418,8 +418,8 @@ export default function ChatPage() {
             type="button"
             onClick={stopGeneration}
             aria-label="Stop generating"
-            className="flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-medium transition hover:bg-[var(--cyber-subtle)]"
-            style={{ color: "var(--cyber-muted)" }}
+            className="flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-medium transition hover:bg-[var(--raised)]"
+            style={{ color: "var(--text-soft)" }}
           >
             <StopIcon width={12} height={12} />
             Stop
@@ -431,7 +431,7 @@ export default function ChatPage() {
         ref={scrollContainerRef}
         onScroll={handleScroll}
         className="scroll-fine overflow-y-auto"
-        style={{ flex: 1, minHeight: 0, backgroundColor: "var(--cyber-bg)" }}
+        style={{ flex: 1, minHeight: 0, backgroundColor: "var(--bg)" }}
       >
         {hasMessages ? (
           <div className="mx-auto max-w-3xl space-y-6 px-4 py-6 sm:px-6">

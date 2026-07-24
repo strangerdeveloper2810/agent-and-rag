@@ -30,7 +30,7 @@ function TypingDots() {
           key={i}
           className="h-2 w-2 rounded-full animate-dot-bounce"
           style={{
-            backgroundColor: "var(--cyber-primary)",
+            backgroundColor: "var(--primary)",
             animationDelay: `${i * 0.16}s`,
           }}
         />
@@ -41,8 +41,8 @@ function TypingDots() {
 
 function UsageFooter({ usage }: { usage: UsageData }) {
   return (
-    <div className="mt-3 border-t pt-2" style={{ borderColor: "var(--cyber-border)" }}>
-      <p className="text-[10px]" style={{ color: "var(--cyber-faint)" }}>
+    <div className="mt-3 border-t pt-2" style={{ borderColor: "var(--border)" }}>
+      <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
         <span title="Input tokens">{usage.inputTokens.toLocaleString()} in</span>
         {" · "}
         <span title="Output tokens">{usage.outputTokens.toLocaleString()} out</span>
@@ -73,7 +73,7 @@ function AttachmentList({ attachments }: { attachments: AttachmentMeta[] }) {
                 onClick={() => setExpandedUrl(img.thumbnail)}
                 aria-label={`View ${img.name}`}
                 className="h-16 w-16 overflow-hidden rounded-xl border transition hover:opacity-80"
-                style={{ borderColor: "var(--cyber-border)", backgroundColor: "var(--cyber-subtle)" }}
+                style={{ borderColor: "var(--border)", backgroundColor: "var(--raised)" }}
               >
                 <img
                   src={img.thumbnail}
@@ -91,14 +91,14 @@ function AttachmentList({ attachments }: { attachments: AttachmentMeta[] }) {
               <div
                 key={`file-${i}`}
                 className="flex items-center gap-2 rounded-lg border px-3 py-1.5"
-                style={{ borderColor: "var(--cyber-border)", backgroundColor: "var(--cyber-subtle)" }}
+                style={{ borderColor: "var(--border)", backgroundColor: "var(--raised)" }}
               >
-                <DocIcon width={14} height={14} style={{ color: "var(--cyber-faint)" }} />
+                <DocIcon width={14} height={14} style={{ color: "var(--text-muted)" }} />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[11px] font-medium" style={{ color: "var(--cyber-text)" }}>
+                  <p className="truncate text-[11px] font-medium" style={{ color: "var(--text)" }}>
                     {f.name}
                   </p>
-                  <p className="text-[10px]" style={{ color: "var(--cyber-faint)" }}>
+                  <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
                     {formatSize(f.size)}
                   </p>
                 </div>
@@ -174,9 +174,9 @@ export default function MessageBubble({
         <div
           className="max-w-[80%] rounded-2xl rounded-br-md px-4 py-2.5 text-[0.85rem] leading-relaxed"
           style={{
-            backgroundColor: "var(--cyber-subtle)",
-            color: "var(--cyber-text)",
-            border: "1px solid var(--cyber-border)",
+            backgroundColor: "var(--raised)",
+            color: "var(--text)",
+            border: "1px solid var(--border)",
             boxShadow: "0 0 8px rgba(255,0,255,0.08)",
           }}
         >
@@ -211,7 +211,7 @@ export default function MessageBubble({
           height={16}
           viewBox="0 0 24 24"
           fill="none"
-          stroke="var(--cyber-primary)"
+          stroke="var(--primary)"
           strokeWidth={1.5}
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -248,7 +248,7 @@ export default function MessageBubble({
         {showCaret && (
           <span
             className="ml-0.5 inline-block h-[1em] w-[2px] translate-y-0.5 align-middle animate-terminal-blink"
-            style={{ backgroundColor: "var(--cyber-primary)" }}
+            style={{ backgroundColor: "var(--primary)" }}
           />
         )}
 
@@ -266,12 +266,12 @@ export default function MessageBubble({
             type="button"
             onClick={copyMessage}
             aria-label="Copy response"
-            className="mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] opacity-0 transition hover:bg-[var(--cyber-subtle)] focus:opacity-100 group-hover:opacity-100"
-            style={{ color: "var(--cyber-faint)" }}
+            className="mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] opacity-0 transition hover:bg-[var(--raised)] focus:opacity-100 group-hover:opacity-100"
+            style={{ color: "var(--text-muted)" }}
           >
             {copied ? (
               <>
-                <CheckIcon width={12} height={12} style={{ color: "var(--cyber-success)" }} />
+                <CheckIcon width={12} height={12} style={{ color: "var(--success)" }} />
                 Copied
               </>
             ) : (

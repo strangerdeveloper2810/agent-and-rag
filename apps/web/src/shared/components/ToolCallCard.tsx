@@ -40,7 +40,7 @@ export default function ToolCallCard({ tool }: ToolCallCardProps) {
     ? "rgba(0,240,255,0.3)"
     : isError
       ? "rgba(255,51,102,0.3)"
-      : "var(--cyber-border)";
+      : "var(--border)";
 
   return (
     <div
@@ -60,22 +60,22 @@ export default function ToolCallCard({ tool }: ToolCallCardProps) {
               width={14}
               height={14}
               className="animate-spin-slow"
-              style={{ color: "var(--cyber-primary)" }}
+              style={{ color: "var(--primary)" }}
             />
           ) : isError ? (
-            <span className="text-sm font-bold" style={{ color: "var(--cyber-error)" }}>
+            <span className="text-sm font-bold" style={{ color: "var(--error)" }}>
               !
             </span>
           ) : (
-            <CheckIcon width={14} height={14} style={{ color: "var(--cyber-success)" }} />
+            <CheckIcon width={14} height={14} style={{ color: "var(--success)" }} />
           )}
         </span>
 
         <div className="min-w-0 flex-1">
-          <p className="truncate text-xs font-medium" style={{ color: "var(--cyber-text)" }}>
+          <p className="truncate text-xs font-medium" style={{ color: "var(--text)" }}>
             {toolLabel(tool.name)}
           </p>
-          <p className="text-[10px]" style={{ color: isError ? "var(--cyber-error)" : "var(--cyber-muted)" }}>
+          <p className="text-[10px]" style={{ color: isError ? "var(--error)" : "var(--text-soft)" }}>
             {isRunning ? "Running..." : isError ? "Failed" : "Completed"}
           </p>
         </div>
@@ -84,25 +84,25 @@ export default function ToolCallCard({ tool }: ToolCallCardProps) {
           <ChevronDownIcon
             width={14}
             height={14}
-            style={{ color: "var(--cyber-faint)" }}
+            style={{ color: "var(--text-muted)" }}
             className={`shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`}
           />
         )}
       </button>
 
       {expanded && hasDetail && (
-        <div className="mt-3 border-t pt-3" style={{ borderColor: "var(--cyber-border)" }}>
+        <div className="mt-3 border-t pt-3" style={{ borderColor: "var(--border)" }}>
           {tool.result && (
             <div>
-              <p className="mb-1 text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--cyber-faint)" }}>
+              <p className="mb-1 text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
                 Result
               </p>
               <pre
                 className="scroll-fine max-h-48 overflow-auto whitespace-pre-wrap rounded-lg px-3 py-2 text-[11px] leading-relaxed"
                 style={{
-                  color: "var(--cyber-muted)",
-                  backgroundColor: "var(--cyber-bg)",
-                  border: "1px solid var(--cyber-border)",
+                  color: "var(--text-soft)",
+                  backgroundColor: "var(--bg)",
+                  border: "1px solid var(--border)",
                 }}
               >
                 {tool.result}
@@ -111,10 +111,10 @@ export default function ToolCallCard({ tool }: ToolCallCardProps) {
           )}
           {tool.error && (
             <div>
-              <p className="mb-1 text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--cyber-error)" }}>
+              <p className="mb-1 text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--error)" }}>
                 Error
               </p>
-              <p className="text-xs" style={{ color: "var(--cyber-error)" }}>
+              <p className="text-xs" style={{ color: "var(--error)" }}>
                 {tool.error}
               </p>
             </div>

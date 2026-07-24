@@ -190,7 +190,7 @@ export default function Composer({
               {attachments.map((att) => (
                 <li key={att.id} className="relative group">
                   {att.type === "image" ? (
-                    <div className="relative h-16 w-16 overflow-hidden rounded-xl border bg-[var(--cyber-subtle)]" style={{ borderColor: "var(--cyber-border)" }}>
+                    <div className="relative h-16 w-16 overflow-hidden rounded-xl border bg-[var(--raised)]" style={{ borderColor: "var(--border)" }}>
                       <img
                         src={att.preview}
                         alt={att.name}
@@ -200,23 +200,23 @@ export default function Composer({
                         type="button"
                         onClick={() => removeAttachment(att.id)}
                         aria-label={`Remove ${att.name}`}
-                        className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition hover:bg-[var(--cyber-error)] group-hover:opacity-100 focus:opacity-100"
+                        className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition hover:bg-[var(--error)] group-hover:opacity-100 focus:opacity-100"
                       >
                         <CloseIcon width={11} height={11} />
                       </button>
                     </div>
                   ) : (
-                    <div className="relative flex items-center gap-2 rounded-xl border px-3 py-2 pr-8 transition" style={{ borderColor: "var(--cyber-border)", backgroundColor: "var(--cyber-subtle)" }}>
+                    <div className="relative flex items-center gap-2 rounded-xl border px-3 py-2 pr-8 transition" style={{ borderColor: "var(--border)", backgroundColor: "var(--raised)" }}>
                       <DocIcon
                         width={14}
                         height={14}
-                        style={{ color: "var(--cyber-faint)" }}
+                        style={{ color: "var(--text-muted)" }}
                       />
                       <div className="min-w-0">
-                        <p className="truncate text-[11px] font-medium" style={{ color: "var(--cyber-text)" }}>
+                        <p className="truncate text-[11px] font-medium" style={{ color: "var(--text)" }}>
                           {att.name}
                         </p>
-                        <p className="text-[10px]" style={{ color: "var(--cyber-faint)" }}>
+                        <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
                           {formatSize(att.size)}
                         </p>
                       </div>
@@ -224,8 +224,8 @@ export default function Composer({
                         type="button"
                         onClick={() => removeAttachment(att.id)}
                         aria-label={`Remove ${att.name}`}
-                        className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full transition hover:bg-[var(--cyber-border)]"
-                        style={{ color: "var(--cyber-faint)" }}
+                        className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full transition hover:bg-[var(--border)]"
+                        style={{ color: "var(--text-muted)" }}
                       >
                         <CloseIcon width={11} height={11} />
                       </button>
@@ -234,7 +234,7 @@ export default function Composer({
                 </li>
               ))}
             </ul>
-            <p className="text-[10px]" style={{ color: "var(--cyber-faint)" }}>
+            <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
               {imageCount}/{MAX_IMAGES} images, {fileCount}/{MAX_FILES} files
             </p>
           </div>
@@ -244,8 +244,8 @@ export default function Composer({
         <div
           className="flex items-end gap-2 rounded-xl px-3 py-2 transition-all duration-200 focus-within:shadow-[0_0_12px_rgba(0,240,255,0.15)]"
           style={{
-            backgroundColor: "var(--cyber-subtle)",
-            border: "1px solid var(--cyber-border)",
+            backgroundColor: "var(--raised)",
+            border: "1px solid var(--border)",
           }}
         >
           {/* Attachment button */}
@@ -259,7 +259,7 @@ export default function Composer({
                 ? "cursor-not-allowed opacity-20"
                 : ""
             }`}
-            style={{ color: "var(--cyber-muted)" }}
+            style={{ color: "var(--text-soft)" }}
           >
             <UploadIcon width={18} height={18} />
           </button>
@@ -267,7 +267,7 @@ export default function Composer({
           {/* Prompt prefix */}
           <span
             className="mb-2.5 select-none text-sm opacity-50"
-            style={{ color: "var(--cyber-primary)" }}
+            style={{ color: "var(--primary)" }}
             aria-hidden="true"
           >
             &gt;
@@ -281,9 +281,9 @@ export default function Composer({
             onKeyDown={handleKeyDown}
             disabled={disabled}
             placeholder="Enter command..."
-            className="scroll-fine max-h-52 flex-1 resize-none bg-transparent px-1 py-2 text-sm leading-relaxed outline-none placeholder:text-[var(--cyber-faint)] disabled:opacity-50"
+            className="scroll-fine max-h-52 flex-1 resize-none bg-transparent px-1 py-2 text-sm leading-relaxed outline-none placeholder:text-[var(--text-muted)] disabled:opacity-50"
             style={{
-              color: "var(--cyber-text)",
+              color: "var(--text)",
               fontFamily: "'JetBrains Mono', ui-monospace, SF Mono, Consolas, monospace",
             }}
           />
@@ -296,10 +296,10 @@ export default function Composer({
             className={`mb-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-all duration-200 ${
               canSend
                 ? "text-[#0a0a0f]"
-                : "cursor-not-allowed text-[var(--cyber-faint)]"
+                : "cursor-not-allowed text-[var(--text-muted)]"
             }`}
             style={{
-              backgroundColor: canSend ? "var(--cyber-primary)" : "transparent",
+              backgroundColor: canSend ? "var(--primary)" : "transparent",
               boxShadow: canSend ? "0 0 12px rgba(0,240,255,0.3)" : "none",
             }}
           >
@@ -308,7 +308,7 @@ export default function Composer({
         </div>
         <p
           className="mt-2 text-center text-[10px]"
-          style={{ color: "var(--cyber-faint)" }}
+          style={{ color: "var(--text-muted)" }}
         >
           Press Enter to send · Shift+Enter for new line
         </p>

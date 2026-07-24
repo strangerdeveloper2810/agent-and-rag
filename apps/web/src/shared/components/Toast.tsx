@@ -66,15 +66,15 @@ function Toast({ toast, onClose }: { toast: ToastItem; onClose: () => void }) {
   }, [onClose]);
 
   const isError = toast.type === "error";
-  const accentColor = isError ? "var(--cyber-error)" : "var(--cyber-success)";
+  const accentColor = isError ? "var(--error)" : "var(--success)";
 
   return (
     <div
       role="status"
       className="pointer-events-auto flex items-start gap-3 rounded-xl p-3 pr-2 animate-msg-in"
       style={{
-        backgroundColor: "var(--cyber-surface)",
-        border: "1px solid var(--cyber-border)",
+        backgroundColor: "var(--surface)",
+        border: "1px solid var(--border)",
         boxShadow: `0 0 10px rgba(0,0,0,0.5), 0 0 4px ${accentColor}20`,
       }}
     >
@@ -91,15 +91,15 @@ function Toast({ toast, onClose }: { toast: ToastItem; onClose: () => void }) {
           <CheckIcon width={13} height={13} />
         )}
       </span>
-      <p className="min-w-0 flex-1 py-0.5 text-xs" style={{ color: "var(--cyber-text)" }}>
+      <p className="min-w-0 flex-1 py-0.5 text-xs" style={{ color: "var(--text)" }}>
         {toast.message}
       </p>
       <button
         type="button"
         onClick={onClose}
         aria-label="Dismiss"
-        className="rounded-full p-1.5 transition hover:bg-[var(--cyber-subtle)]"
-        style={{ color: "var(--cyber-faint)" }}
+        className="rounded-full p-1.5 transition hover:bg-[var(--raised)]"
+        style={{ color: "var(--text-muted)" }}
       >
         <CloseIcon width={13} height={13} />
       </button>

@@ -41,17 +41,17 @@ export default function ConfirmDialog({
       <div
         className="w-full max-w-sm rounded-2xl p-6 shadow-2xl"
         style={{
-          backgroundColor: "var(--cyber-surface)",
-          border: "1px solid var(--cyber-border)",
+          backgroundColor: "var(--surface)",
+          border: "1px solid var(--border)",
           boxShadow: "0 0 30px rgba(0,0,0,0.5), 0 0 10px rgba(0,240,255,0.05)",
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-base font-medium" style={{ color: "var(--cyber-text)" }}>
+        <h2 className="text-base font-medium" style={{ color: "var(--text)" }}>
           {title}
         </h2>
         {message && (
-          <p className="mt-2 text-xs leading-relaxed" style={{ color: "var(--cyber-muted)" }}>
+          <p className="mt-2 text-xs leading-relaxed" style={{ color: "var(--text-soft)" }}>
             {message}
           </p>
         )}
@@ -59,8 +59,8 @@ export default function ConfirmDialog({
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-lg px-4 py-2 text-xs font-medium transition hover:bg-[var(--cyber-subtle)]"
-            style={{ color: "var(--cyber-muted)" }}
+            className="rounded-lg px-4 py-2 text-xs font-medium transition hover:bg-[var(--raised)]"
+            style={{ color: "var(--text-soft)" }}
           >
             {cancelLabel}
           </button>
@@ -69,7 +69,7 @@ export default function ConfirmDialog({
             onClick={onConfirm}
             className="rounded-lg px-4 py-2 text-xs font-medium transition"
             style={{
-              backgroundColor: danger ? "var(--cyber-error)" : "var(--cyber-primary)",
+              backgroundColor: danger ? "var(--error)" : "var(--primary)",
               color: "#0a0a0f",
             }}
           >

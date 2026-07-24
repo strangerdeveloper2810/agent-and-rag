@@ -17,11 +17,11 @@ export default function SuggestionChips({
           type="button"
           onClick={() => onPick(s)}
           role="listitem"
-          className="rounded-xl px-4 py-3.5 text-left text-xs leading-relaxed transition-all duration-200 hover:border-[var(--cyber-primary)] hover:shadow-[0_0_12px_rgba(0,240,255,0.15)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cyber-primary)]"
+          className="rounded-xl px-4 py-3.5 text-left text-xs leading-relaxed transition-all duration-200 hover:border-[var(--primary)] hover:shadow-[0_0_12px_rgba(0,240,255,0.15)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
           style={{
-            backgroundColor: "var(--cyber-subtle)",
-            border: "1px solid var(--cyber-border)",
-            color: "var(--cyber-muted)",
+            backgroundColor: "var(--raised)",
+            border: "1px solid var(--border)",
+            color: "var(--text-soft)",
           }}
         >
           <span className="mr-1.5 opacity-50">&gt;</span>
