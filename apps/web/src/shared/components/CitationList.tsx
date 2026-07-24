@@ -9,11 +9,11 @@ export default function CitationList({ citations }: CitationListProps) {
   if (citations.length === 0) return null;
 
   return (
-    <div className="mt-3 border-t border-line pt-3" aria-label="Sources">
-      <p className="mb-2 text-xs font-medium text-ink-faint">
+    <div className="mt-3 border-t pt-3" style={{ borderColor: "var(--cyber-border)" }} aria-label="Sources">
+      <p className="mb-2 text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--cyber-faint)" }}>
         {citations.length === 1 ? "Source" : "Sources"}
       </p>
-      <ul className="space-y-1.5">
+      <ul className="flex flex-wrap gap-1.5">
         {citations.map((c, i) => (
           <li key={i}>
             {c.url ? (
@@ -21,20 +21,23 @@ export default function CitationList({ citations }: CitationListProps) {
                 href={c.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm text-gblue transition hover:bg-gblue-soft/50 hover:underline"
+                className="neon-tag"
+                title={c.snippet}
               >
-                <LinkIcon width={14} height={14} className="shrink-0" />
-                <span className="truncate">{c.title}</span>
+                <LinkIcon width={12} height={12} />
+                <span className="truncate max-w-[160px]">{c.title}</span>
               </a>
             ) : (
-              <span className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm text-ink-soft">
-                <span className="truncate">{c.title}</span>
+              <span
+                className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px]"
+                style={{
+                  borderColor: "var(--cyber-border)",
+                  color: "var(--cyber-muted)",
+                  backgroundColor: "var(--cyber-subtle)",
+                }}
+              >
+                {c.title}
               </span>
-            )}
-            {c.snippet && (
-              <p className="mt-0.5 pl-9 text-xs leading-relaxed text-ink-faint">
-                {c.snippet}
-              </p>
             )}
           </li>
         ))}

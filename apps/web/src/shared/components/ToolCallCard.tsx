@@ -31,15 +31,21 @@ export default function ToolCallCard({ tool }: ToolCallCardProps) {
   const isError = tool.status === "error";
   const hasDetail = tool.result || tool.error;
 
+  const bgColor = isRunning
+    ? "rgba(0,240,255,0.06)"
+    : isError
+      ? "rgba(255,51,102,0.08)"
+      : "transparent";
+  const borderColor = isRunning
+    ? "rgba(0,240,255,0.3)"
+    : isError
+      ? "rgba(255,51,102,0.3)"
+      : "var(--cyber-border)";
+
   return (
     <div
-      className={`my-2 rounded-xl border px-4 py-3 transition-colors ${
-        isRunning
-          ? "border-gblue-soft bg-gblue-soft/30 animate-pulse"
-          : isError
-            ? "border-red-200 bg-red-50 dark:border-red-900/50 dark:bg-red-900/20"
-            : "border-line bg-subtle dark:bg-[var(--color-tool-card-bg)] dark:border-[var(--color-tool-card-border)]"
-      }`}
+      className="my-2 rounded-xl border px-4 py-3 transition-all duration-200"
+      style={{ backgroundColor: bgColor, borderColor }}
     >
       <button
         type="button"
@@ -48,64 +54,67 @@ export default function ToolCallCard({ tool }: ToolCallCardProps) {
         aria-expanded={expanded}
         aria-label={`Tool: ${toolLabel(tool.name)} - ${tool.status}`}
       >
-        {/* Status icon */}
         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full">
           {isRunning ? (
             <WrenchIcon
-              width={15}
-              height={15}
-              className="animate-spin-slow text-gblue"
+              width={14}
+              height={14}
+              className="animate-spin-slow"
+              style={{ color: "var(--cyber-primary)" }}
             />
           ) : isError ? (
-            <span className="text-sm font-bold text-red-500">!</span>
+            <span className="text-sm font-bold" style={{ color: "var(--cyber-error)" }}>
+              !
+            </span>
           ) : (
-            <CheckIcon width={15} height={15} className="text-green-600 dark:text-green-400" />
+            <CheckIcon width={14} height={14} style={{ color: "var(--cyber-success)" }} />
           )}
         </span>
 
-        {/* Tool name + status */}
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-ink">
+          <p className="truncate text-xs font-medium" style={{ color: "var(--cyber-text)" }}>
             {toolLabel(tool.name)}
           </p>
-          <p className="text-xs text-ink-faint">
-            {isRunning
-              ? "Running..."
-              : isError
-                ? "Failed"
-                : "Completed"}
+          <p className="text-[10px]" style={{ color: isError ? "var(--cyber-error)" : "var(--cyber-muted)" }}>
+            {isRunning ? "Running..." : isError ? "Failed" : "Completed"}
           </p>
         </div>
 
-        {/* Expand chevron */}
         {hasDetail && (
           <ChevronDownIcon
-            width={16}
-            height={16}
-            className={`shrink-0 text-ink-faint transition-transform ${
-              expanded ? "rotate-180" : ""
-            }`}
+            width={14}
+            height={14}
+            style={{ color: "var(--cyber-faint)" }}
+            className={`shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`}
           />
         )}
       </button>
 
-      {/* Expandable detail */}
       {expanded && hasDetail && (
-        <div className="mt-3 border-t border-line pt-3">
+        <div className="mt-3 border-t pt-3" style={{ borderColor: "var(--cyber-border)" }}>
           {tool.result && (
             <div>
-              <p className="mb-1 text-xs font-medium text-ink-faint">Result</p>
-              <pre className="scroll-fine max-h-48 overflow-auto whitespace-pre-wrap rounded-lg bg-surface px-3 py-2 text-xs leading-relaxed text-ink-soft ring-1 ring-line">
+              <p className="mb-1 text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--cyber-faint)" }}>
+                Result
+              </p>
+              <pre
+                className="scroll-fine max-h-48 overflow-auto whitespace-pre-wrap rounded-lg px-3 py-2 text-[11px] leading-relaxed"
+                style={{
+                  color: "var(--cyber-muted)",
+                  backgroundColor: "var(--cyber-bg)",
+                  border: "1px solid var(--cyber-border)",
+                }}
+              >
                 {tool.result}
               </pre>
             </div>
           )}
           {tool.error && (
             <div>
-              <p className="mb-1 text-xs font-medium text-red-600 dark:text-red-400">
+              <p className="mb-1 text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--cyber-error)" }}>
                 Error
               </p>
-              <p className="text-xs text-red-700 dark:text-red-300">
+              <p className="text-xs" style={{ color: "var(--cyber-error)" }}>
                 {tool.error}
               </p>
             </div>
