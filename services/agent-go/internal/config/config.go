@@ -4,6 +4,8 @@ package config
 import (
 	"fmt"
 	"os"
+
+	"github.com/joho/godotenv"
 )
 
 // Config chứa toàn bộ cấu hình JARVIS — từ LLM provider đến storage paths.
@@ -43,8 +45,12 @@ type Config struct {
 	ShellTimeout  int // seconds. default: 30
 }
 
-// Load đọc env → Config với defaults hợp lý.
+// Load đọc .env (nếu có) rồi env → Config với defaults hợp lý.
+// Không fail nếu không có .env — chỉ dùng biến môi trường có sẵn.
 func Load() (Config, error) {
+	// Tự động load .env từ current directory (không lỗi nếu không tồn tại)
+	_ = godotenv.Load()
+
 	c := Config{
 		Port:           envOr("PORT", "3002"),
 		Provider:       envOr("LLM_PROVIDER", "gemini"),
