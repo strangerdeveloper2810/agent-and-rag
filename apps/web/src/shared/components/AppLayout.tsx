@@ -1,30 +1,40 @@
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
+import ThemeToggle from "./ThemeToggle";
 import {
   listConversations,
   deleteConversation,
+  renameConversation,
   type Conversation,
 } from "@/modules/chat/chat.api";
 
-// Dữ liệu chia sẻ xuống các page con qua Outlet context
+// Data shared with child pages via Outlet context
 export type OutletCtx = {
   conversations: Conversation[];
+  loadingConversations: boolean;
   reloadConversations: () => Promise<void>;
   toggleSidebar: () => void;
 };
 
 export default function AppLayout() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [sidebarOpen, setSidebarOpen] = useState(false); // drawer trên mobile
+  const [loadingConversations, setLoadingConversations] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false); // mobile drawer
   const [collapsed, setCollapsed] = useState(
     () => localStorage.getItem("sb-collapsed") === "1",
-  ); // thu gọn trên desktop (nhớ qua reload)
+  ); // desktop collapse (persisted)
   const navigate = useNavigate();
   const location = useLocation();
 
   const reloadConversations = useCallback(async () => {
-    setConversations(await listConversations());
+    try {
+      setConversations(await listConversations());
+    } catch {
+      // Silently fail -- conversations are not critical
+    } finally {
+      setLoadingConversations(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -35,7 +45,7 @@ export default function AppLayout() {
     localStorage.setItem("sb-collapsed", collapsed ? "1" : "0");
   }, [collapsed]);
 
-  // Cùng 1 nút: desktop → thu gọn/mở; mobile → bật/tắt drawer
+  // Same button: desktop -> collapse/expand; mobile -> open/close drawer
   const toggleSidebar = () => {
     if (window.matchMedia("(min-width: 768px)").matches) {
       setCollapsed((c) => !c);
@@ -44,7 +54,7 @@ export default function AppLayout() {
     }
   };
 
-  // Trạng thái active suy ra TỪ URL → reload trang vẫn đúng phiên
+  // Active conversation derived FROM URL -- reload-safe
   const activeId = location.pathname.startsWith("/messages/")
     ? (location.pathname.split("/")[2] ?? null)
     : null;
@@ -52,10 +62,22 @@ export default function AppLayout() {
     ? "documents"
     : "chat";
 
+  const handleDelete = async (id: string) => {
+    await deleteConversation(id);
+    await reloadConversations();
+    if (activeId === id) navigate("/");
+  };
+
+  const handleRename = async (id: string, title: string) => {
+    await renameConversation(id, title);
+    await reloadConversations();
+  };
+
   return (
     <div className="flex h-screen overflow-hidden bg-surface">
       <Sidebar
         conversations={conversations}
+        loading={loadingConversations}
         activeId={activeId}
         open={sidebarOpen}
         collapsed={collapsed}
@@ -73,33 +95,61 @@ export default function AppLayout() {
           navigate(v === "documents" ? "/documents" : "/");
           setSidebarOpen(false);
         }}
-        onDelete={async (id) => {
-          await deleteConversation(id);
-          await reloadConversations();
-          // nếu đang mở hội thoại vừa xóa → về home
-          if (activeId === id) navigate("/");
-        }}
+        onDelete={handleDelete}
+        onRename={handleRename}
       />
 
-      {/* Suspense quanh Outlet: trang lazy đang tải thì hiện fallback ở vùng nội
-          dung, sidebar vẫn giữ nguyên. BẮT BUỘC có vì App dùng React.lazy. */}
-      <Suspense
-        fallback={
-          <main className="flex flex-1 items-center justify-center text-ink-faint">
-            Đang tải…
-          </main>
-        }
-      >
-        <Outlet
-          context={
-            {
-              conversations,
-              reloadConversations,
-              toggleSidebar,
-            } satisfies OutletCtx
+      {/* Main content area with its own header */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* Top bar: menu toggle + title + theme toggle */}
+        <header className="flex items-center gap-3 border-b border-line px-4 py-2.5 sm:px-6">
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            aria-label="Toggle sidebar"
+            className="rounded-full p-2 text-ink-soft hover:bg-subtle"
+          >
+            <svg
+              width={20}
+              height={20}
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.6}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+          <h1 className="font-medium text-ink">
+            Agent <span className="text-gemini font-semibold">Tut</span>
+          </h1>
+          <div className="ml-auto">
+            <ThemeToggle />
+          </div>
+        </header>
+
+        {/* Page content */}
+        <Suspense
+          fallback={
+            <main className="flex flex-1 items-center justify-center text-ink-faint">
+              Loading...
+            </main>
           }
-        />
-      </Suspense>
+        >
+          <Outlet
+            context={
+              {
+                conversations,
+                loadingConversations,
+                reloadConversations,
+                toggleSidebar,
+              } satisfies OutletCtx
+            }
+          />
+        </Suspense>
+      </div>
     </div>
   );
 }

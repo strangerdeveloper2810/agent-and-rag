@@ -3,28 +3,41 @@ import typography from "@tailwindcss/typography";
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
+  darkMode: "class",
   theme: {
     extend: {
       fontFamily: {
-        sans: ['"Roboto"', "ui-sans-serif", "system-ui", "Arial", "sans-serif"],
+        sans: [
+          '"Roboto"',
+          "ui-sans-serif",
+          "system-ui",
+          "Arial",
+          "sans-serif",
+        ],
       },
       colors: {
-        // Bảng màu kiểu Google / Gemini
-        surface: "#ffffff",
-        // nền phụ xanh-xám nhạt (sidebar, input, bubble user) — đặc trưng Gemini
-        subtle: "#f0f4f9",
-        subtle2: "#e9eef6",
-        ink: { DEFAULT: "#1f1f1f", soft: "#444746", faint: "#5e5e5e" },
-        line: "#dde3ea",
-        // Google Blue
-        gblue: { DEFAULT: "#0b57d0", bright: "#1a73e8", soft: "#d3e3fd" },
+        // Colors driven by CSS variables (set in index.css :root and .dark)
+        surface: "var(--color-surface)",
+        subtle: "var(--color-subtle)",
+        subtle2: "var(--color-subtle2)",
+        ink: {
+          DEFAULT: "var(--color-ink)",
+          soft: "var(--color-ink-soft)",
+          faint: "var(--color-ink-faint)",
+        },
+        line: "var(--color-line)",
+        gblue: {
+          DEFAULT: "var(--color-gblue)",
+          bright: "var(--color-gblue-bright)",
+          soft: "var(--color-gblue-soft)",
+        },
       },
       backgroundImage: {
-        // Dải gradient sao Gemini (xanh → tím → hồng)
-        gemini: "linear-gradient(74deg, #4285f4 0%, #9b72cb 47%, #d96570 100%)",
+        gemini:
+          "linear-gradient(74deg, #4285f4 0%, #9b72cb 47%, #d96570 100%)",
       },
       boxShadow: {
-        soft: "0 1px 3px rgba(0,0,0,0.08), 0 4px 12px -6px rgba(0,0,0,0.12)",
+        soft: "0 1px 3px var(--color-shadow), 0 4px 12px -6px var(--color-shadow)",
         ring: "0 0 0 1px rgba(0,0,0,0.06)",
       },
       keyframes: {
@@ -41,10 +54,12 @@ export default {
           "0%, 100%": { opacity: "1" },
           "50%": { opacity: "0" },
         },
-        // Quét sáng chạy ngang chữ — hiệu ứng "đang xử lý" mềm mại
         shimmer: {
           "0%": { backgroundPosition: "200% 0" },
           "100%": { backgroundPosition: "-200% 0" },
+        },
+        "spin-slow": {
+          to: { transform: "rotate(360deg)" },
         },
       },
       animation: {
@@ -53,6 +68,7 @@ export default {
         "dot-bounce": "dot-bounce 1.2s ease-in-out infinite",
         "caret-blink": "caret-blink 1s step-end infinite",
         shimmer: "shimmer 1.8s linear infinite",
+        "spin-slow": "spin-slow 2s linear infinite",
       },
     },
   },
