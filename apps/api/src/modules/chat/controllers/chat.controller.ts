@@ -1,6 +1,5 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import * as chatService from "../services";
-import type { AgentEvent } from "../../../agent/graph-runner";
 import { parseOrBadRequest } from "../../../lib/validate";
 import {
   chatBodySchema,
@@ -24,19 +23,28 @@ export const deleteConversation = async (req: FastifyRequest) => {
   return chatService.deleteConversation(id);
 };
 
-// Chat qua SSE: agent (LangGraph) có thể gọi tool giữa chừng.
+/**
+ * Chat qua SSE: stream agent events về client.
+ *
+ * Flow:
+ * 1. Validate + lưu user message vào DB (lỗi sớm, vẫn trả HTTP JSON).
+ * 2. Hijack reply, mở SSE stream.
+ * 3. Chạy agent, forward từng event -> SSE `data: {...}\n\n`.
+ * 4. Khi stream xong -> gửi event `done` kèm metadata (agent name, tokens).
+ * 5. Nếu lỗi -> gửi event `error`.
+ */
 export const postChat = async (req: FastifyRequest, reply: FastifyReply) => {
   const { id } = req.params as { id: string };
   const { content } = parseOrBadRequest(chatBodySchema, req.body);
 
-  // Lưu user msg TRƯỚC khi mở SSE → lỗi sớm (validate/DB) vẫn trả HTTP bình
-  // thường qua error handler (chưa "chiếm" reply nên còn gửi JSON được).
+  // Lưu user msg TRƯỚC khi mở SSE -> lỗi sớm (validate/DB) vẫn trả HTTP JSON
+  // qua error handler (chưa "chiếm" reply nên còn gửi JSON được).
   await chatService.appendUserMessage(id, content);
 
   // hijack(): ta tự ghi thẳng vào socket (SSE); Fastify không serialize/gửi nữa.
   reply.hijack();
 
-  // Client đóng kết nối (đóng tab, đổi trang) → abort agent để không đốt token.
+  // Client đóng kết nối (đóng tab, đổi trang) -> abort agent để không đốt token.
   const ac = new AbortController();
   req.raw.on("close", () => ac.abort());
 
@@ -53,13 +61,30 @@ export const postChat = async (req: FastifyRequest, reply: FastifyReply) => {
   };
 
   try {
-    for await (const ev of chatService.streamReply(
+    const { events, metadata } = await chatService.streamReply(
       id,
       ac.signal,
-    ) as AsyncGenerator<AgentEvent>) {
-      if (ev.type === "text") write({ token: ev.text });
-      else write(ev);
+    );
+
+    for await (const ev of events) {
+      if (ev.type === "text") {
+        write({ token: ev.text });
+      } else if (ev.type === "done") {
+        // Go agent gửi event done kèm usage, nhưng ta chỉ dùng để cập nhật
+        // metadata bên trong streamReply. Controller tự gửi event done cuối
+        // cùng với agent+token info — không forward event done của agent ra SSE.
+      } else {
+        write(ev);
+      }
     }
+
+    // Sau khi stream hoàn tất -> gửi metadata (agent name, tokens used).
+    const meta = await metadata;
+    write({
+      done: true,
+      agent: meta.backend,
+      tokens: meta.tokensUsed,
+    });
   } catch (err) {
     // Client chủ động ngắt (AbortError) là bình thường — không phải lỗi.
     if (!ac.signal.aborted) {
@@ -68,6 +93,5 @@ export const postChat = async (req: FastifyRequest, reply: FastifyReply) => {
     }
   }
 
-  write({ done: true });
   if (!reply.raw.writableEnded) reply.raw.end();
 };
