@@ -91,7 +91,10 @@ function Toast({ toast, onClose }: { toast: ToastItem; onClose: () => void }) {
           <CheckIcon width={13} height={13} />
         )}
       </span>
-      <p className="min-w-0 flex-1 py-0.5 text-xs" style={{ color: "var(--text)" }}>
+      <p
+        className="min-w-0 flex-1 py-0.5 text-xs"
+        style={{ color: "var(--text)" }}
+      >
         {toast.message}
       </p>
       <button

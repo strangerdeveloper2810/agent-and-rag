@@ -51,7 +51,10 @@ export default function ConfirmDialog({
           {title}
         </h2>
         {message && (
-          <p className="mt-2 text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+          <p
+            className="mt-2 text-xs leading-relaxed"
+            style={{ color: "var(--text-secondary)" }}
+          >
             {message}
           </p>
         )}

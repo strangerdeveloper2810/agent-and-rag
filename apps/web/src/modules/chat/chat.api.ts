@@ -209,9 +209,7 @@ function normalizeEvent(raw: Record<string, unknown>): ChatEvent | null {
       return {
         type: "error",
         message:
-          typeof raw.message === "string"
-            ? raw.message
-            : "An error occurred",
+          typeof raw.message === "string" ? raw.message : "An error occurred",
       };
     }
     if (raw.type === "text" && typeof raw.text === "string") {
@@ -229,5 +227,7 @@ function normalizeEvent(raw: Record<string, unknown>): ChatEvent | null {
 function isUsageData(v: unknown): v is UsageData {
   if (!v || typeof v !== "object") return false;
   const u = v as Record<string, unknown>;
-  return typeof u.inputTokens === "number" && typeof u.outputTokens === "number";
+  return (
+    typeof u.inputTokens === "number" && typeof u.outputTokens === "number"
+  );
 }

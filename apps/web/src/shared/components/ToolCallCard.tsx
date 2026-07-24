@@ -63,19 +63,34 @@ export default function ToolCallCard({ tool }: ToolCallCardProps) {
               style={{ color: "var(--accent)" }}
             />
           ) : isError ? (
-            <span className="text-sm font-bold" style={{ color: "var(--danger)" }}>
+            <span
+              className="text-sm font-bold"
+              style={{ color: "var(--danger)" }}
+            >
               !
             </span>
           ) : (
-            <CheckIcon width={14} height={14} style={{ color: "var(--success)" }} />
+            <CheckIcon
+              width={14}
+              height={14}
+              style={{ color: "var(--success)" }}
+            />
           )}
         </span>
 
         <div className="min-w-0 flex-1">
-          <p className="truncate text-xs font-medium" style={{ color: "var(--text)" }}>
+          <p
+            className="truncate text-xs font-medium"
+            style={{ color: "var(--text)" }}
+          >
             {toolLabel(tool.name)}
           </p>
-          <p className="text-[10px]" style={{ color: isError ? "var(--danger)" : "var(--text-secondary)" }}>
+          <p
+            className="text-[10px]"
+            style={{
+              color: isError ? "var(--danger)" : "var(--text-secondary)",
+            }}
+          >
             {isRunning ? "Running..." : isError ? "Failed" : "Completed"}
           </p>
         </div>
@@ -91,10 +106,16 @@ export default function ToolCallCard({ tool }: ToolCallCardProps) {
       </button>
 
       {expanded && hasDetail && (
-        <div className="mt-3 border-t pt-3" style={{ borderColor: "var(--border)" }}>
+        <div
+          className="mt-3 border-t pt-3"
+          style={{ borderColor: "var(--border)" }}
+        >
           {tool.result && (
             <div>
-              <p className="mb-1 text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--text-tertiary)" }}>
+              <p
+                className="mb-1 text-[10px] font-medium uppercase tracking-wider"
+                style={{ color: "var(--text-tertiary)" }}
+              >
                 Result
               </p>
               <pre
@@ -111,7 +132,10 @@ export default function ToolCallCard({ tool }: ToolCallCardProps) {
           )}
           {tool.error && (
             <div>
-              <p className="mb-1 text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--danger)" }}>
+              <p
+                className="mb-1 text-[10px] font-medium uppercase tracking-wider"
+                style={{ color: "var(--danger)" }}
+              >
                 Error
               </p>
               <p className="text-xs" style={{ color: "var(--danger)" }}>
