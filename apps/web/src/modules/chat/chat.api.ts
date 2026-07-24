@@ -1,10 +1,32 @@
 import { http } from "@/shared/api/http";
 
 export type Conversation = { _id: string; title: string };
+
+/** Attachment payload sent to the API. */
+export type AttachmentPayload = {
+  type: "image" | "file";
+  name: string;
+  data: string; // base64-encoded content
+  mimeType: string;
+  size: number;
+};
+
+/** Attachment metadata stored on messages for display. */
+export type AttachmentMeta = {
+  type: "image" | "file";
+  name: string;
+  size: number;
+  mimeType: string;
+  /** Data URL for image thumbnails; empty for non-image files. */
+  thumbnail: string;
+};
+
 export type Message = {
   _id?: string;
   role: "user" | "assistant";
   content: string;
+  /** Attachments sent with user messages (display-only). */
+  attachments?: AttachmentMeta[];
 };
 
 export const createConversation = (firstMessage: string) =>
@@ -82,16 +104,22 @@ export type ChatEvent = {
  * @param content - User message text
  * @param onEvent - Callback for each parsed SSE event
  * @param signal - AbortSignal to cancel the stream
+ * @param attachments - Optional file/image attachments
  */
 export const streamChat = async (
   conversationId: string,
   content: string,
   onEvent: (e: ChatEvent) => void,
   signal?: AbortSignal,
+  attachments?: AttachmentPayload[],
 ): Promise<void> => {
+  const body: Record<string, unknown> = { content };
+  if (attachments && attachments.length > 0) {
+    body.attachments = attachments;
+  }
   const response = await http.stream(
     `/conversations/${conversationId}/chat`,
-    { content },
+    body,
     { signal },
   );
   if (!response.body) throw new Error("No stream body received from server");

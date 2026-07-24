@@ -4,12 +4,24 @@ import {
   SparkIcon,
   CopyIcon,
   CheckIcon,
+  CloseIcon,
+  DocIcon,
 } from "@/shared/components/icons";
 import AgentBadge from "@/shared/components/AgentBadge";
 import ToolCallCard from "@/shared/components/ToolCallCard";
 import CitationList from "@/shared/components/CitationList";
-import type { Message } from "@/modules/chat/chat.api";
+import type { Message, AttachmentMeta } from "@/modules/chat/chat.api";
 import type { ToolCallState, CitationData, UsageData } from "@/modules/chat/chat.api";
+
+// ── Helpers ──
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// ── Sub-components ──
 
 /** Animated typing dots shown when the assistant is streaming but hasn't produced text yet. */
 function TypingDots() {
@@ -43,6 +55,90 @@ function UsageFooter({ usage }: { usage: UsageData }) {
   );
 }
 
+/** Attachment thumbnails shown in user message bubbles. */
+function AttachmentList({ attachments }: { attachments: AttachmentMeta[] }) {
+  const [expandedUrl, setExpandedUrl] = useState<string | null>(null);
+
+  const images = attachments.filter((a) => a.type === "image");
+  const files = attachments.filter((a) => a.type === "file");
+
+  return (
+    <>
+      <div className="mt-2 space-y-2">
+        {/* Image grid */}
+        {images.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {images.map((img, i) => (
+              <button
+                key={`img-${i}`}
+                type="button"
+                onClick={() => setExpandedUrl(img.thumbnail)}
+                aria-label={`Xem ảnh ${img.name}`}
+                className="h-16 w-16 overflow-hidden rounded-xl border border-line bg-subtle transition hover:opacity-80"
+              >
+                <img
+                  src={img.thumbnail}
+                  alt={img.name}
+                  className="h-full w-full object-cover"
+                />
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* File chips */}
+        {files.length > 0 && (
+          <div className="space-y-1">
+            {files.map((f, i) => (
+              <div
+                key={`file-${i}`}
+                className="flex items-center gap-2 rounded-lg border border-line bg-subtle px-3 py-1.5"
+              >
+                <DocIcon width={15} height={15} className="shrink-0 text-ink-faint" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[0.82rem] font-medium text-ink">
+                    {f.name}
+                  </p>
+                  <p className="text-[11px] text-ink-faint">
+                    {formatSize(f.size)}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Lightbox overlay */}
+      {expandedUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 animate-fade-in"
+          onClick={() => setExpandedUrl(null)}
+          role="dialog"
+          aria-label="Xem ảnh phóng to"
+        >
+          <button
+            type="button"
+            onClick={() => setExpandedUrl(null)}
+            aria-label="Đóng ảnh"
+            className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30"
+          >
+            <CloseIcon width={18} height={18} />
+          </button>
+          <img
+            src={expandedUrl}
+            alt="Phóng to"
+            className="max-h-[85vh] max-w-[90vw] rounded-2xl object-contain shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
+    </>
+  );
+}
+
+// ── Main Component ──
+
 interface MessageBubbleProps {
   message: Message;
   streaming?: boolean;
@@ -71,10 +167,19 @@ export default function MessageBubble({
 
   // --- User bubble ---
   if (isUser) {
+    const hasAttachments =
+      message.attachments && message.attachments.length > 0;
+    const hasText = message.content.length > 0;
+
     return (
       <div className="flex justify-end animate-msg-in">
-        <div className="max-w-[80%] whitespace-pre-wrap rounded-3xl rounded-br-lg bg-subtle px-4 py-2.5 text-[0.95rem] leading-relaxed text-ink">
-          {message.content}
+        <div className="max-w-[80%] rounded-3xl rounded-br-lg bg-subtle px-4 py-2.5 text-[0.95rem] leading-relaxed text-ink">
+          {hasText && (
+            <p className="whitespace-pre-wrap">{message.content}</p>
+          )}
+          {hasAttachments && (
+            <AttachmentList attachments={message.attachments!} />
+          )}
         </div>
       </div>
     );

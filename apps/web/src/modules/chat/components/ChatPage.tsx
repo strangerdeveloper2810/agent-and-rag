@@ -9,13 +9,15 @@ import {
   type ToolCallState,
   type CitationData,
   type UsageData,
+  type AttachmentPayload,
+  type AttachmentMeta,
 } from "@/modules/chat/chat.api";
 import type { OutletCtx } from "@/shared/components/AppLayout";
+import type { PendingAttachment } from "./Composer";
 import MessageBubble from "./MessageBubble";
 import Composer from "./Composer";
 import EmptyState from "./EmptyState";
 import { StopIcon } from "@/shared/components/icons";
-import { useToast } from "@/shared/components/Toast";
 
 /** Extended message that carries UI-specific metadata from SSE events. */
 export type MessageMeta = {
@@ -29,15 +31,57 @@ export type MessageMeta = {
   usage: UsageData | null;
 };
 
+// ── Helpers ──
+
+/** Read a File as raw base64 (no data URL prefix). */
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      // Strip "data:mime/type;base64," prefix
+      const comma = result.indexOf(",");
+      resolve(comma >= 0 ? result.slice(comma + 1) : result);
+    };
+    reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
+    reader.readAsDataURL(file);
+  });
+}
+
+/** Convert a pending attachment to the payload the API expects. */
+async function pendingToPayload(
+  pa: PendingAttachment,
+): Promise<AttachmentPayload> {
+  const data = await fileToBase64(pa.file);
+  return {
+    type: pa.type,
+    name: pa.name,
+    data,
+    mimeType: pa.file.type || (pa.type === "image" ? "image/png" : "application/octet-stream"),
+    size: pa.size,
+  };
+}
+
+/** Convert a pending attachment to display metadata for the message bubble. */
+function pendingToMeta(pa: PendingAttachment): AttachmentMeta {
+  return {
+    type: pa.type,
+    name: pa.name,
+    size: pa.size,
+    mimeType: pa.file.type || (pa.type === "image" ? "image/png" : "application/octet-stream"),
+    thumbnail: pa.type === "image" ? pa.preview : "",
+  };
+}
+
 export default function ChatPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { reloadConversations } = useOutletContext<OutletCtx>();
-  const toast = useToast();
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [meta, setMeta] = useState<Map<number, MessageMeta>>(new Map());
   const [input, setInput] = useState("");
+  const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [streaming, setStreaming] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -60,7 +104,6 @@ export default function ChatPage() {
   const handleScroll = useCallback(() => {
     const el = scrollContainerRef.current;
     if (!el) return;
-    // During streaming, auto-scroll unless user explicitly scrolled up >200px
     const threshold = streamingRef.current ? 200 : 120;
     userScrolledUpRef.current =
       el.scrollHeight - el.scrollTop - el.clientHeight > threshold;
@@ -69,7 +112,6 @@ export default function ChatPage() {
   // Reset scroll flag when conversation changes
   useEffect(() => {
     userScrolledUpRef.current = false;
-    // Force instant scroll to bottom on conversation load
     setTimeout(() => endRef.current?.scrollIntoView({ behavior: "auto", block: "end" }), 50);
   }, [id]);
 
@@ -114,7 +156,6 @@ export default function ChatPage() {
     }
     if (id === loadedIdRef.current) return;
 
-    // Abort any active stream when switching conversations
     streamCtrlRef.current?.abort();
     setStreaming(false);
     loadedIdRef.current = id;
@@ -131,7 +172,7 @@ export default function ChatPage() {
   // Cleanup: abort stream on unmount
   useEffect(() => () => streamCtrlRef.current?.abort(), []);
 
-  // Auto-scroll when messages change — instant during streaming, smooth after
+  // Auto-scroll when messages change
   useEffect(() => {
     scrollToBottom(false, streaming);
   }, [messages, scrollToBottom, streaming]);
@@ -139,23 +180,41 @@ export default function ChatPage() {
   // --- Send message ---
   const send = async (text?: string) => {
     const content = (text ?? input).trim();
-    if (!content || streaming) return;
+    if ((!content && attachments.length === 0) || streaming) return;
+
+    // Snapshot and clear immediately
     setInput("");
+    const snapAttachments = [...attachments];
+    setAttachments([]);
+
+    // Build display metadata for the user message bubble
+    const attachmentMeta: AttachmentMeta[] = snapAttachments.map(pendingToMeta);
 
     let convId = id;
     try {
       if (!convId) {
-        const conv = await createConversation(content);
+        // Use first attachment name or text for the conversation title
+        const title = content || snapAttachments[0]?.name || "Tệp đính kèm";
+        const conv = await createConversation(title);
         convId = conv._id;
         loadedIdRef.current = convId;
         navigate(`/messages/${convId}`);
         reloadConversations();
       }
 
-      const assistantIndex = messages.length + 1; // 0 = user, 1 = assistant
+      // Convert attachments to API payload (async reads files to base64)
+      const attachmentPayloads: AttachmentPayload[] = await Promise.all(
+        snapAttachments.map(pendingToPayload),
+      );
+
+      const assistantIndex = messages.length + 1;
       setMessages((m) => [
         ...m,
-        { role: "user", content },
+        {
+          role: "user",
+          content,
+          attachments: attachmentMeta,
+        },
         { role: "assistant", content: "" },
       ]);
       setStreaming(true);
@@ -171,7 +230,6 @@ export default function ChatPage() {
 
           switch (e.type) {
             case "step":
-              // Engine step -- could show in debug UI
               break;
 
             case "text":
@@ -191,7 +249,6 @@ export default function ChatPage() {
             case "tool_end":
               updateMeta(assistantIndex, (prev) => {
                 const tools = [...prev.toolCalls];
-                // Find the last running tool call with matching name
                 let idx = -1;
                 for (let i = tools.length - 1; i >= 0; i--) {
                   if (
@@ -229,7 +286,6 @@ export default function ChatPage() {
               break;
 
             case "memory":
-              // Memory operations -- could show a small indicator
               break;
 
             case "agent":
@@ -240,13 +296,11 @@ export default function ChatPage() {
               break;
 
             case "interrupt":
-              // Human-in-the-loop interrupt
-              toast.error(e.message ?? "Action requires approval");
+              // Human-in-the-loop interrupt — toast handled by Composer/Toast
               break;
 
             case "error":
               setMessages((m) => {
-                // If last message is assistant, append error. Otherwise create error message.
                 if (m.length > 0 && m[m.length - 1].role === "assistant") {
                   const copy = [...m];
                   copy[copy.length - 1] = {
@@ -261,7 +315,6 @@ export default function ChatPage() {
                   content: `⚠️ ${e.message ?? "An error occurred."}`,
                 }];
               });
-              // Force scroll on error so user sees the message
               userScrolledUpRef.current = false;
               break;
 
@@ -276,6 +329,7 @@ export default function ChatPage() {
           }
         },
         ctrl.signal,
+        attachmentPayloads.length > 0 ? attachmentPayloads : undefined,
       );
     } catch (err) {
       if ((err as Error)?.name !== "AbortError") {
@@ -294,7 +348,11 @@ export default function ChatPage() {
             content: "⚠️ Could not send message. Please try again.",
           }];
         });
+        // Restore on error
         setInput((prev) => prev || content);
+        if (snapAttachments.length > 0) {
+          setAttachments(snapAttachments);
+        }
         userScrolledUpRef.current = false;
       }
     } finally {
@@ -331,7 +389,6 @@ export default function ChatPage() {
         </div>
       )}
 
-      {/* Messages area — grid approach: 1fr row fills remaining space, scrolls when overflow */}
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
@@ -369,6 +426,8 @@ export default function ChatPage() {
           onChange={setInput}
           onSend={() => send()}
           disabled={streaming}
+          attachments={attachments}
+          onAttachmentsChange={setAttachments}
         />
       </div>
     </main>
