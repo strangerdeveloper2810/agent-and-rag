@@ -40,8 +40,8 @@ func TestNodeModel_TextOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("nodeModel error: %v", err)
 	}
-	if next != NodeEnd {
-		t.Fatalf("next = %q, want %q", next, NodeEnd)
+	if next != NodeExtract {
+		t.Fatalf("next = %q, want %q (no tool calls → extract memory)", next, NodeExtract)
 	}
 
 	// Kiểm tra events: phải có text, done.

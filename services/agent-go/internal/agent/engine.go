@@ -9,18 +9,35 @@ import (
 )
 
 // Engine là trái tim của agent runtime — chạy vòng lặp ReAct:
-// model → route → tools → model → route → ... → end.
+// recall → summarize → model → route → tools → model → route → ... → extract → end.
 //
 // Engine được inject Provider + Tool Registry qua constructor (DI).
+// Memory nodes (recall, extract, summarize) được inject qua SetMemoryNodes
+// để tránh import cycle giữa agent và memory package.
 // Mọi I/O đều qua interface → test được với FakeProvider + Echo tool.
 type Engine struct {
 	prov     provider.Provider
 	registry *tools.Registry
+
+	// Memory node implementations — set via SetMemoryNodes.
+	// nil = skip node (fallback: jump to next logical node).
+	recallFn    Node
+	extractFn   Node
+	summarizeFn Node
 }
 
 // NewEngine tạo Engine với provider và tool registry cho trước.
 func NewEngine(prov provider.Provider, registry *tools.Registry) *Engine {
 	return &Engine{prov: prov, registry: registry}
+}
+
+// SetMemoryNodes gán các node memory (recall, extract, summarize).
+// Dùng factory từ memory package: engine.SetMemoryNodes(memory.RecallNode(store), ...)
+// nil node → node bị skip khi dispatch (fallback an toàn).
+func (e *Engine) SetMemoryNodes(recall, extract, summarize Node) {
+	e.recallFn = recall
+	e.extractFn = extract
+	e.summarizeFn = summarize
 }
 
 // getProvider / getRegistry — implements modelEngine & toolsEngine interfaces.
@@ -42,7 +59,7 @@ func (e *Engine) getRegistry() *tools.Registry   { return e.registry }
 // → loop dừng ở lần check tiếp theo.
 func (e *Engine) Run(ctx context.Context, in RunInput, emit EmitFunc) (provider.Usage, error) {
 	s := newState(in)
-	node := NodeModel
+	node := NodeRecall
 
 	for {
 		// Kiểm tra cancellation MỖI vòng lặp
@@ -74,10 +91,26 @@ func (e *Engine) Run(ctx context.Context, in RunInput, emit EmitFunc) (provider.
 // Thêm node mới (recall, plan, reflect...) chỉ cần thêm case.
 func (e *Engine) dispatch(ctx context.Context, node NodeID, s *State, emit EmitFunc) (NodeID, error) {
 	switch node {
+	case NodeRecall:
+		if e.recallFn != nil {
+			return e.recallFn(ctx, s, emit)
+		}
+		// Fallback: không có recall → vào summarize rồi model
+		return NodeSummarize, nil
+	case NodeSummarize:
+		if e.summarizeFn != nil {
+			return e.summarizeFn(ctx, s, emit)
+		}
+		return NodeModel, nil
 	case NodeModel:
 		return nodeModel(ctx, e, s, emit)
 	case NodeTools:
 		return nodeTools(ctx, e, s, emit)
+	case NodeExtract:
+		if e.extractFn != nil {
+			return e.extractFn(ctx, s, emit)
+		}
+		return NodeEnd, nil
 	default:
 		return NodeEnd, fmt.Errorf("engine: unknown node %q", node)
 	}

@@ -38,15 +38,15 @@ func TestRoute_MultipleToolCalls(t *testing.T) {
 }
 
 func TestRoute_FinalAnswer(t *testing.T) {
-	// Assistant cuối trả lời text (không tool_call) → END.
+	// Assistant cuối trả lời text (không tool_call) → extract.
 	s := &State{
 		Messages: []provider.Message{
 			{Role: provider.RoleUser, Content: "cảm ơn"},
 			{Role: provider.RoleAssistant, Content: "Không có gì! Cần gì nữa không?"},
 		},
 	}
-	if got := route(s); got != NodeEnd {
-		t.Fatalf("route() = %q, want %q", got, NodeEnd)
+	if got := route(s); got != NodeExtract {
+		t.Fatalf("route() = %q, want %q", got, NodeExtract)
 	}
 }
 
@@ -84,14 +84,14 @@ func TestRoute_Interrupt(t *testing.T) {
 }
 
 func TestRoute_NoMessages(t *testing.T) {
-	// Chưa có assistant message nào → END (chưa có gì để route).
+	// Chưa có assistant message nào → extract (chưa có gì để route).
 	s := &State{
 		Messages: []provider.Message{
 			{Role: provider.RoleUser, Content: "hello"},
 		},
 	}
-	if got := route(s); got != NodeEnd {
-		t.Fatalf("route() = %q, want %q", got, NodeEnd)
+	if got := route(s); got != NodeExtract {
+		t.Fatalf("route() = %q, want %q", got, NodeExtract)
 	}
 }
 
@@ -113,7 +113,7 @@ func TestRoute_AllToolResultsProcessed(t *testing.T) {
 
 func TestRoute_ToolCallsAlreadyAnswered(t *testing.T) {
 	// Assistant gọi tool → tools đã chạy → có tool result message.
-	// Lúc này không nên vào NodeTools nữa.
+	// Sau khi tools done → luôn quay lại model để LLM phản hồi.
 	s := &State{
 		Messages: []provider.Message{
 			{Role: provider.RoleUser, Content: "tạo task mua sữa"},
@@ -124,8 +124,8 @@ func TestRoute_ToolCallsAlreadyAnswered(t *testing.T) {
 			{Role: provider.RoleTool, ToolCallID: "c1", Content: `{"ok":true}`},
 		},
 	}
-	if got := route(s); got != NodeEnd {
-		t.Fatalf("route() = %q, want %q (all tool calls already answered)", got, NodeEnd)
+	if got := route(s); got != NodeModel {
+		t.Fatalf("route() = %q, want %q (all tool calls answered → back to model)", got, NodeModel)
 	}
 }
 
