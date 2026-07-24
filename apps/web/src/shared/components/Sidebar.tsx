@@ -106,13 +106,14 @@ export default function Sidebar({
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-30 flex h-full w-[84vw] max-w-[320px] flex-col bg-subtle transition-all duration-300 md:static md:max-w-none ${
+        className={`fixed inset-y-0 left-0 z-30 flex w-[84vw] max-w-[320px] flex-col bg-subtle transition-all duration-300 md:static md:max-w-none ${
           open ? "translate-x-0" : "-translate-x-full"
         } ${
           collapsed
             ? "md:w-0 md:-translate-x-full md:overflow-hidden"
             : "md:w-[300px] md:translate-x-0"
         }`}
+        style={{ height: "100%" }}
       >
         {/* Brand */}
         <div className="flex items-center justify-between px-5 py-4">

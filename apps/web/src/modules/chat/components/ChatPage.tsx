@@ -311,10 +311,10 @@ export default function ChatPage() {
   const hasMessages = messages.length > 0;
 
   return (
-    <main className="flex min-w-0 flex-1 flex-col">
+    <main className="flex min-w-0 flex-1 flex-col" style={{ minHeight: 0 }}>
       {/* Streaming indicator bar */}
       {streaming && (
-        <div className="flex items-center justify-between border-b border-line bg-gblue-soft/30 px-4 py-1.5 sm:px-6 dark:bg-gblue-soft/20">
+        <div className="flex shrink-0 items-center justify-between border-b border-line bg-gblue-soft/30 px-4 py-1.5 sm:px-6 dark:bg-gblue-soft/20">
           <span className="flex items-center gap-2 text-xs text-gblue">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-gblue" />
             Generating response...
@@ -331,11 +331,12 @@ export default function ChatPage() {
         </div>
       )}
 
-      {/* Messages area — min-h-0 required for flex shrink + overflow */}
+      {/* Messages area — grid approach: 1fr row fills remaining space, scrolls when overflow */}
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="scroll-fine min-h-0 flex-1 overflow-y-auto"
+        className="scroll-fine overflow-y-auto"
+        style={{ flex: 1, minHeight: 0 }}
       >
         {hasMessages ? (
           <div className="mx-auto max-w-3xl space-y-7 px-4 py-6 sm:px-6">
