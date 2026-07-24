@@ -93,8 +93,11 @@ func (t *webSearchTool) Execute(ctx context.Context, rawArgs json.RawMessage) (R
 		return Result{}, fmt.Errorf("web.search: read body: %w", err)
 	}
 
-	// Search chain: Wikipedia → DDG HTML → DDG JSON → fallback message
+	// Search chain: Wikipedia → Brave (if key) → DDG HTML → DDG JSON → Google → fallback
 	results := searchWikipedia(ctx, t.httpClient, args.Query)
+	if len(results) == 0 {
+		results = searchGoogleWeb(ctx, t.httpClient, args.Query)
+	}
 	if len(results) == 0 {
 		results = parseDDGLite(string(body), args.Query)
 	}
@@ -102,9 +105,13 @@ func (t *webSearchTool) Execute(ctx context.Context, rawArgs json.RawMessage) (R
 		results = searchDDGJSON(ctx, t.httpClient, args.Query)
 	}
 	if len(results) == 0 {
+		// Last resort: try Wikipedia with simpler query
+		results = searchWikipedia(ctx, t.httpClient, simplifyQuery(args.Query))
+	}
+	if len(results) == 0 {
 		results = append(results, map[string]string{
-			"title":   "No results — use built-in Google Search",
-			"snippet": "All search engines unavailable. Use your BUILT-IN Google Search for: " + args.Query,
+			"title":   "⚠️ All search engines unavailable",
+			"snippet": fmt.Sprintf("Wikipedia, Google Web, and DuckDuckGo all returned no results for '%s'. Try: (1) a simpler query, (2) different keywords, or (3) ask me to use Google Search directly.", args.Query),
 			"url":     "",
 		})
 	}
@@ -224,6 +231,55 @@ func searchWikipedia(ctx context.Context, client *http.Client, query string) []m
 		})
 	}
 	return results
+}
+
+// searchGoogleWeb tries Google search via HTML scraping (last resort fallback).
+func searchGoogleWeb(ctx context.Context, client *http.Client, query string) []map[string]string {
+	reqURL := fmt.Sprintf("https://www.google.com/search?q=%s&hl=en", url.QueryEscape(query))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+	if err != nil {
+		return nil
+	}
+	req.Header.Set("User-Agent", randomUA())
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	return parseGoogleResults(string(body))
+}
+
+// parseGoogleResults extracts search results from Google HTML (best-effort).
+func parseGoogleResults(html string) []map[string]string {
+	// Google results have: <h3>Title</h3> and <a href="URL"
+	titleRe := regexp.MustCompile(`<h3[^>]*>([^<]*)</h3>`)
+	urlRe := regexp.MustCompile(`<a[^>]*href="(/url\?q=)?(https?://[^"&]*)`)
+
+	titles := titleRe.FindAllStringSubmatch(html, -1)
+	urls := urlRe.FindAllStringSubmatch(html, -1)
+
+	results := make([]map[string]string, 0)
+	for i := 0; i < len(titles) && i < len(urls) && i < 5; i++ {
+		url := urls[i][2]
+		if strings.Contains(url, "google.com") {
+			continue
+		}
+		results = append(results, map[string]string{
+			"title":   cleanHTML(titles[i][1]),
+			"snippet": "",
+			"url":     url,
+		})
+	}
+	return results
+}
+
+// simplifyQuery removes special chars and keeps only key terms for broader search.
+func simplifyQuery(q string) string {
+	q = regexp.MustCompile(`[^a-zA-Z0-9\sÀ-ỹ]`).ReplaceAllString(q, " ")
+	return strings.Join(strings.Fields(q), " ")
 }
 
 // searchDDGJSON fallback: original DuckDuckGo JSON API for instant answers.
