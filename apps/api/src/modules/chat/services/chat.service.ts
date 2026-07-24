@@ -65,6 +65,7 @@ export async function streamReply(
   conversationId: string,
   signal?: AbortSignal,
   agent: AgentClient = defaultAgent,
+  attachments?: Array<{ type: string; name: string; data: string; mimeType: string }>,
 ): Promise<StreamResult> {
   const raw = (await getMessagesRepo(
     conversationId,
@@ -82,7 +83,7 @@ export async function streamReply(
 
   async function* generator(): AsyncGenerator<AgentEvent> {
     try {
-      for await (const ev of agent.stream(history, { signal })) {
+      for await (const ev of agent.stream(history, { signal, attachments })) {
         if (ev.type === "text") full += ev.text;
 
         // Ghi nhận metadata từ event done của Go agent.
