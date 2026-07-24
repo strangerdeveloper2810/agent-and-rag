@@ -56,10 +56,12 @@ func BuildSystemPrompt(memories []string, skillSummaries []skills.SkillSummary) 
 
 	// 3. Tool reminders — cacheable section
 	b.WriteString("[CÔNG CỤ]\n")
-	b.WriteString("Bạn có thể dùng các công cụ (tools) được cung cấp để:\n")
+	b.WriteString("Bạn có Google Search TÍCH HỢP SẴN (không cần gọi tool).\n")
+	b.WriteString("Dùng Google Search cho: tin tức mới nhất, thông tin cập nhật, sự kiện sau 2024, CVE, lỗ hổng bảo mật.\n")
+	b.WriteString("Ngoài ra bạn có thể dùng các công cụ (tools) được cung cấp để:\n")
 	b.WriteString("- Tìm kiếm file trên máy\n")
 	b.WriteString("- Đọc nội dung file\n")
-	b.WriteString("- Tìm kiếm web\n")
+	b.WriteString("- web.search / web.fetch: tìm kiếm web bổ sung (DuckDuckGo)\n")
 	b.WriteString("- Lưu và truy xuất bộ nhớ (memory)\n\n")
 
 	// 4. Memory recall — dynamic section
