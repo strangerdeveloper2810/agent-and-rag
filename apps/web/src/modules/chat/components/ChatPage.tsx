@@ -28,23 +28,28 @@ export type MessageMeta = {
 
 // ── Helpers ──
 
+// Image optimization constants — LLMs don't need full-resolution images.
+// Gemini vision works well with 800px images at JPEG quality 75%.
+const MAX_IMAGE_WIDTH = 800;
+const MAX_IMAGE_HEIGHT = 800;
+const JPEG_QUALITY = 0.75;
+
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
-    // For large images, resize before base64 to avoid huge payloads
-    if (file.type.startsWith("image/") && file.size > 1024 * 1024) {
-      resizeImage(file, 1200).then(resolve).catch(() => {
-        // Fallback: read original if resize fails
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = reader.result as string;
-          const comma = result.indexOf(",");
-          resolve(comma >= 0 ? result.slice(comma + 1) : result);
-        };
-        reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
-        reader.readAsDataURL(file);
-      });
+    // Always optimize images before sending to LLM
+    if (file.type.startsWith("image/") && file.type !== "image/svg+xml") {
+      optimizeImage(file)
+        .then(resolve)
+        .catch(() => fallbackRead(file).then(resolve).catch(reject));
       return;
     }
+    // SVG and non-image files: read as-is
+    fallbackRead(file).then(resolve).catch(reject);
+  });
+}
+
+function fallbackRead(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
       const result = reader.result as string;
@@ -56,33 +61,37 @@ function fileToBase64(file: File): Promise<string> {
   });
 }
 
-function resizeImage(file: File, maxWidth: number): Promise<string> {
+function optimizeImage(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
       URL.revokeObjectURL(url);
-      const scale = Math.min(1, maxWidth / img.width);
-      if (scale >= 1) {
-        // Image is already small enough, read as-is
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = reader.result as string;
-          const comma = result.indexOf(",");
-          resolve(comma >= 0 ? result.slice(comma + 1) : result);
-        };
-        reader.onerror = () => reject(new Error("Failed to read"));
-        reader.readAsDataURL(file);
-        return;
+
+      // Calculate dimensions: fit within MAX_WIDTH x MAX_HEIGHT, maintain aspect ratio
+      let w = img.width;
+      let h = img.height;
+      if (w > MAX_IMAGE_WIDTH || h > MAX_IMAGE_HEIGHT) {
+        const scale = Math.min(MAX_IMAGE_WIDTH / w, MAX_IMAGE_HEIGHT / h);
+        w = Math.round(w * scale);
+        h = Math.round(h * scale);
       }
+
       const canvas = document.createElement("canvas");
-      canvas.width = Math.round(img.width * scale);
-      canvas.height = Math.round(img.height * scale);
+      canvas.width = w;
+      canvas.height = h;
       const ctx = canvas.getContext("2d")!;
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+      // White background for transparent PNGs
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+
+      // Convert to JPEG for maximum compression (strips alpha, smaller)
+      const dataUrl = canvas.toDataURL("image/jpeg", JPEG_QUALITY);
       const comma = dataUrl.indexOf(",");
-      resolve(comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl);
+      const base64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
+
+      resolve(base64);
     };
     img.onerror = () => {
       URL.revokeObjectURL(url);
@@ -100,7 +109,8 @@ async function pendingToPayload(
     type: pa.type,
     name: pa.name,
     data,
-    mimeType: pa.file.type || (pa.type === "image" ? "image/png" : "application/octet-stream"),
+    // All images are converted to JPEG during optimization
+    mimeType: pa.type === "image" ? "image/jpeg" : (pa.file.type || "application/octet-stream"),
     size: pa.size,
   };
 }
