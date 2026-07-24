@@ -30,7 +30,10 @@ func New(apiKey, model string) (*Client, error) {
 	if model == "" {
 		return nil, errors.New("anthropic: model rỗng")
 	}
-	c := sdk.NewClient(option.WithAPIKey(apiKey))
+	c := sdk.NewClient(
+		option.WithAPIKey(apiKey),
+		option.WithBaseURL("https://api.anthropic.com"),
+	)
 	return &Client{sdk: c, model: model}, nil
 }
 
