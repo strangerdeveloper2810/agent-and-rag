@@ -20,10 +20,8 @@ type Client struct {
 	thinking provider.ThinkingLevel
 }
 
-// đảm bảo Client thoả interface provider.Provider tại compile-time.
 var _ provider.Provider = (*Client)(nil)
 
-// New tạo Client Gemini dùng Backend Gemini API (không phải Vertex). apiKey bắt buộc.
 func New(apiKey, model string, thinking provider.ThinkingLevel) (*Client, error) {
 	if apiKey == "" {
 		return nil, errors.New("gemini: apiKey is required")
@@ -41,19 +39,12 @@ func New(apiKey, model string, thinking provider.ThinkingLevel) (*Client, error)
 	return &Client{client: gc, model: model, thinking: thinking}, nil
 }
 
-// Name trả về tên provider.
 func (c *Client) Name() string { return "gemini" }
 
 // ---------------------------------------------------------------------------
 // Hàm dịch THUẦN (không I/O, test được)
 // ---------------------------------------------------------------------------
 
-// toGeminiContents dịch danh sách Message chuẩn hoá sang []*genai.Content.
-//
-// Ánh xạ role: user→"user", assistant→"model", tool→"user" (Gemini gửi kết quả tool
-// bằng FunctionResponse trong content role "user"), system→"user" (genai contents chỉ
-// nhận user/model; system nên đi qua SystemInstruction, nhưng nếu lọt vào messages thì
-// coi như text của user để không mất dữ liệu).
 func toGeminiContents(msgs []provider.Message) []*genai.Content {
 	if len(msgs) == 0 {
 		return nil
@@ -73,6 +64,7 @@ func toGeminiContents(msgs []provider.Message) []*genai.Content {
 						Name: tc.Name,
 						Args: rawToMap(tc.Args),
 					},
+					ThoughtSignature: tc.ThoughtSignature,
 				})
 			}
 			out = append(out, &genai.Content{Role: genai.RoleModel, Parts: parts})
@@ -90,7 +82,7 @@ func toGeminiContents(msgs []provider.Message) []*genai.Content {
 				}},
 			})
 
-		default: // RoleUser, RoleSystem, và bất kỳ role lạ nào
+		default:
 			out = append(out, &genai.Content{
 				Role:  genai.RoleUser,
 				Parts: []*genai.Part{{Text: m.Content}},
@@ -100,9 +92,6 @@ func toGeminiContents(msgs []provider.Message) []*genai.Content {
 	return out
 }
 
-// toGeminiTools dịch []ToolDef sang []*genai.Tool. Gom mọi FunctionDeclaration vào 1 Tool
-// theo quy ước Gemini. JSON Schema đưa thẳng vào ParametersJsonSchema (đã map[string]any).
-// Trả nil nếu không có tool nào.
 func toGeminiTools(tools []provider.ToolDef) []*genai.Tool {
 	if len(tools) == 0 {
 		return nil
@@ -121,8 +110,6 @@ func toGeminiTools(tools []provider.ToolDef) []*genai.Tool {
 	return []*genai.Tool{{FunctionDeclarations: decls}}
 }
 
-// mapThinkingLevel dịch mức thinking chuẩn hoá sang *genai.ThinkingConfig.
-// OFF (hoặc rỗng) → nil (không set); LOW/MEDIUM/HIGH → ThinkingConfig tương ứng.
 func mapThinkingLevel(l provider.ThinkingLevel) *genai.ThinkingConfig {
 	switch l {
 	case provider.ThinkingLow:
@@ -131,12 +118,11 @@ func mapThinkingLevel(l provider.ThinkingLevel) *genai.ThinkingConfig {
 		return &genai.ThinkingConfig{ThinkingLevel: genai.ThinkingLevelMedium}
 	case provider.ThinkingHigh:
 		return &genai.ThinkingConfig{ThinkingLevel: genai.ThinkingLevelHigh}
-	default: // ThinkingOff, "" → không set
+	default:
 		return nil
 	}
 }
 
-// findToolName tìm tên tool từ các assistant message trước đó dựa trên ToolCallID.
 func findToolName(msgs []provider.Message, callID string) string {
 	for i := len(msgs) - 1; i >= 0; i-- {
 		if msgs[i].Role == provider.RoleAssistant {
@@ -147,11 +133,9 @@ func findToolName(msgs []provider.Message, callID string) string {
 			}
 		}
 	}
-	return "" // fallback — Gemini sẽ báo lỗi nếu thiếu
+	return ""
 }
 
-// findThoughtSignature tìm thought_signature từ tool call gốc.
-// Gemini yêu cầu FunctionResponse phải mang thought_signature của FunctionCall.
 func findThoughtSignature(msgs []provider.Message, callID string) []byte {
 	for i := len(msgs) - 1; i >= 0; i-- {
 		if msgs[i].Role == provider.RoleAssistant {
@@ -165,8 +149,6 @@ func findThoughtSignature(msgs []provider.Message, callID string) []byte {
 	return nil
 }
 
-// rawToMap giải mã json.RawMessage thành map[string]any. Rỗng/lỗi → map rỗng (không panic),
-// giữ hành vi dịch ổn định cho args/schema.
 func rawToMap(raw json.RawMessage) map[string]any {
 	if len(raw) == 0 {
 		return map[string]any{}
@@ -179,11 +161,9 @@ func rawToMap(raw json.RawMessage) map[string]any {
 }
 
 // ---------------------------------------------------------------------------
-// Generate — wire streaming của genai
+// Generate
 // ---------------------------------------------------------------------------
 
-// Generate gọi genai GenerateContentStream và gom kết quả về channel StreamChunk chuẩn hoá.
-// Tôn trọng ctx: mọi thao tác gửi channel đều huỷ được, và channel luôn được đóng khi xong.
 func (c *Client) Generate(ctx context.Context, req provider.GenerateRequest) (<-chan provider.StreamChunk, error) {
 	if c.client == nil {
 		return nil, errors.New("gemini: client not initialized")
@@ -237,7 +217,6 @@ func (c *Client) Generate(ctx context.Context, req provider.GenerateRequest) (<-
 				continue
 			}
 
-			// Duyệt trực tiếp các part của candidate đầu tiên: text + function call.
 			if len(resp.Candidates) > 0 && resp.Candidates[0].Content != nil {
 				for _, part := range resp.Candidates[0].Content.Parts {
 					switch {
