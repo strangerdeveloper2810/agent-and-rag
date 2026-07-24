@@ -7,12 +7,7 @@ import (
 )
 
 // ClassifyTask analyzes user input to determine if thinking mode should be enabled.
-// Returns the recommended thinking level: OFF for simple, LOW for medium, MEDIUM for complex.
-//
-// Rules:
-//   - Simple (OFF): greetings, chat, translate, basic questions, short messages
-//   - Medium (LOW): tool calls expected, multi-step, coding, analysis
-//   - Complex (MEDIUM): research, debugging, architecture, long context, many tools
+// Returns OFF for simple, LOW for medium, MEDIUM for complex.
 func ClassifyTask(input string, hasToolCalls bool, stepCount int) provider.ThinkingLevel {
 	lower := strings.ToLower(input)
 
@@ -21,6 +16,10 @@ func ClassifyTask(input string, hasToolCalls bool, stepCount int) provider.Think
 		"research", "nghiên cứu", "analyze", "phân tích",
 		"architecture", "kiến trúc", "design", "thiết kế",
 		"debug", "sửa lỗi", "refactor", "optimize", "tối ưu",
+		"tranh chấp", "pháp lý", "luật", "sở hữu",
+		"hợp đồng", "khiếu nại", "kiện", "tòa án",
+		"thủ tục", "quy định", "nghị định", "thông tư",
+		"bảo mật", "security", "vulnerability", "cve",
 	}
 	for _, kw := range complexKeywords {
 		if strings.Contains(lower, kw) {
@@ -28,13 +27,15 @@ func ClassifyTask(input string, hasToolCalls bool, stepCount int) provider.Think
 		}
 	}
 
-	// Medium tasks → LOW thinking (tool calls expected)
+	// Medium tasks → LOW thinking
 	mediumKeywords := []string{
 		"code", "review", "explain", "giải thích",
 		"compare", "so sánh", "implement", "build", "tạo",
 		"search", "tìm", "file", "document", "tài liệu",
 		"task", "công việc", "how to", "làm sao", "cách",
 		"write", "viết", "create", "update", "delete",
+		"xuất", "export", "lưu", "save",
+		"dịch", "translate", "tóm tắt", "summarize",
 	}
 	for _, kw := range mediumKeywords {
 		if strings.Contains(lower, kw) {
@@ -42,8 +43,13 @@ func ClassifyTask(input string, hasToolCalls bool, stepCount int) provider.Think
 		}
 	}
 
-	// If already used tools → keep thinking on
+	// If already used tools in previous turns → keep thinking on
 	if hasToolCalls || stepCount > 2 {
+		return provider.ThinkingLow
+	}
+
+	// Long messages (>200 chars) likely need deeper analysis
+	if len(input) > 200 {
 		return provider.ThinkingLow
 	}
 
@@ -58,12 +64,10 @@ func ClassifyTask(input string, hasToolCalls bool, stepCount int) provider.Think
 
 // DynamicThinkingConfig controls the dynamic thinking behavior.
 type DynamicThinkingConfig struct {
-	Enabled    bool // false = use static thinking level from config
+	Enabled    bool
 	DefaultOff bool // true = default OFF, only enable for complex tasks
 }
 
-// ResolveThinking determines the thinking level based on config and task analysis.
-// If dynamic thinking is disabled, returns the static level from config.
 func ResolveThinking(cfg DynamicThinkingConfig, staticLevel provider.ThinkingLevel, input string, hasToolCalls bool, stepCount int) provider.ThinkingLevel {
 	if !cfg.Enabled {
 		return staticLevel
@@ -71,19 +75,12 @@ func ResolveThinking(cfg DynamicThinkingConfig, staticLevel provider.ThinkingLev
 
 	classified := ClassifyTask(input, hasToolCalls, stepCount)
 
-	// If DefaultOff: only enable thinking for non-OFF classifications
-	if cfg.DefaultOff && classified == provider.ThinkingOff {
-		return provider.ThinkingOff
+	if cfg.DefaultOff {
+		return classified // DefaultOff: use classified level directly
 	}
 
-	// If already classified as higher → use it
 	if classified != provider.ThinkingOff {
 		return classified
-	}
-
-	// Default with dynamic: OFF unless task needs it
-	if cfg.DefaultOff {
-		return provider.ThinkingOff
 	}
 
 	return provider.ThinkingLow
