@@ -194,7 +194,7 @@ func TestWebFetchTool(t *testing.T) {
 	})
 
 	t.Run("truncation", func(t *testing.T) {
-		bigContent := strings.Repeat("X", 15_000)
+		bigContent := strings.Repeat("X", 16_000)
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "text/plain")
 			w.Write([]byte(bigContent))
