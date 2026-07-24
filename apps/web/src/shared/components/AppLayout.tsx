@@ -20,10 +20,10 @@ export type OutletCtx = {
 export default function AppLayout() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loadingConversations, setLoadingConversations] = useState(true);
-  const [sidebarOpen, setSidebarOpen] = useState(false); // mobile drawer
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(
     () => localStorage.getItem("sb-collapsed") === "1",
-  ); // desktop collapse (persisted)
+  );
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -31,7 +31,7 @@ export default function AppLayout() {
     try {
       setConversations(await listConversations());
     } catch {
-      // Silently fail -- conversations are not critical
+      // Silently fail
     } finally {
       setLoadingConversations(false);
     }
@@ -45,7 +45,6 @@ export default function AppLayout() {
     localStorage.setItem("sb-collapsed", collapsed ? "1" : "0");
   }, [collapsed]);
 
-  // Same button: desktop -> collapse/expand; mobile -> open/close drawer
   const toggleSidebar = () => {
     if (window.matchMedia("(min-width: 768px)").matches) {
       setCollapsed((c) => !c);
@@ -54,7 +53,6 @@ export default function AppLayout() {
     }
   };
 
-  // Active conversation derived FROM URL -- reload-safe
   const activeId = location.pathname.startsWith("/messages/")
     ? (location.pathname.split("/")[2] ?? null)
     : null;
@@ -74,7 +72,7 @@ export default function AppLayout() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-surface">
+    <div className="flex h-screen overflow-hidden" style={{ backgroundColor: "var(--cyber-bg)" }}>
       <Sidebar
         conversations={conversations}
         loading={loadingConversations}
@@ -99,15 +97,22 @@ export default function AppLayout() {
         onRename={handleRename}
       />
 
-      {/* Main content area with its own header */}
+      {/* Main content */}
       <div className="flex min-w-0 flex-1 flex-col" style={{ minHeight: 0 }}>
-        {/* Top bar: menu toggle + title + theme toggle */}
-        <header className="flex items-center gap-3 border-b border-line px-4 py-2.5 sm:px-6">
+        {/* Top bar */}
+        <header
+          className="flex shrink-0 items-center gap-3 border-b px-4 py-2.5 sm:px-6"
+          style={{
+            borderColor: "var(--cyber-border)",
+            backgroundColor: "var(--cyber-surface)",
+          }}
+        >
           <button
             type="button"
             onClick={toggleSidebar}
             aria-label="Toggle sidebar"
-            className="rounded-full p-2 text-ink-soft hover:bg-subtle"
+            className="rounded-full p-2 transition hover:bg-[var(--cyber-subtle2)]"
+            style={{ color: "var(--cyber-muted)" }}
           >
             <svg
               width={20}
@@ -115,16 +120,18 @@ export default function AppLayout() {
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
-              strokeWidth={1.6}
+              strokeWidth={1.5}
               strokeLinecap="round"
               strokeLinejoin="round"
             >
               <path d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <h1 className="font-medium text-ink">
-            Agent <span className="text-gemini font-semibold">Tut</span>
+
+          <h1 className="text-sm font-medium tracking-wider" style={{ color: "var(--cyber-text)" }}>
+            J.A.R.V.I.S.
           </h1>
+
           <div className="ml-auto">
             <ThemeToggle />
           </div>
@@ -133,7 +140,10 @@ export default function AppLayout() {
         {/* Page content */}
         <Suspense
           fallback={
-            <main className="flex flex-1 items-center justify-center text-ink-faint" style={{ minHeight: 0 }}>
+            <main
+              className="flex flex-1 items-center justify-center"
+              style={{ minHeight: 0, color: "var(--cyber-faint)" }}
+            >
               Loading...
             </main>
           }
