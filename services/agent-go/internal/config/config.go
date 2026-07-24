@@ -48,7 +48,7 @@ func Load() (Config, error) {
 	c := Config{
 		Port:           envOr("PORT", "3002"),
 		Provider:       envOr("LLM_PROVIDER", "gemini"),
-		GeminiKey:      os.Getenv("GEMINI_API_KEY"),
+		GeminiKey:      envOr("GEMINI_API_KEY", os.Getenv("GOOGLE_API_KEY")),
 		GeminiModel:    envOr("GEMINI_MODEL", "gemini-2.5-flash"),
 		ThinkingLevel:  envOr("GOOGLE_THINKING_LEVEL", "OFF"),
 		AnthropicKey:   os.Getenv("ANTHROPIC_API_KEY"),
@@ -77,11 +77,13 @@ func Load() (Config, error) {
 		hasProvider = c.AnthropicKey != ""
 	case "ollama":
 		hasProvider = true // local, no key needed
+	case "auto":
+		hasProvider = c.GeminiKey != "" || c.AnthropicKey != "" // cần ít nhất 1 key
 	default:
-		return Config{}, fmt.Errorf("unknown LLM_PROVIDER: %q (use gemini, anthropic, or ollama)", c.Provider)
+		return Config{}, fmt.Errorf("unknown LLM_PROVIDER: %q (use gemini, anthropic, ollama, or auto)", c.Provider)
 	}
 	if !hasProvider {
-		return Config{}, fmt.Errorf("%s requires API key (set %s_API_KEY)", c.Provider, c.Provider)
+		return Config{}, fmt.Errorf("%s requires API key (set GEMINI_API_KEY or ANTHROPIC_API_KEY)", c.Provider)
 	}
 
 	return c, nil
