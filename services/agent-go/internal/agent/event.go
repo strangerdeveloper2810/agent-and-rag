@@ -43,3 +43,8 @@ func CitationEvent(sources string) Event {
 func InterruptEvent(reason, tool string) Event {
 	return Event{Type: "interrupt", Name: tool, Message: reason}
 }
+
+// MemoryEvent phát khi node memory (recall/extract/summarize) thực hiện thao tác.
+func MemoryEvent(detail string) Event {
+	return Event{Type: "memory", Message: detail}
+}

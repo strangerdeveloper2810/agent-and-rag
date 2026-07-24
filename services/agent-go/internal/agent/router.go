@@ -27,7 +27,7 @@ func route(s *State) NodeID {
 	// 3. Kiểm tra assistant cuối: có tool calls chưa được trả lời không?
 	last := s.LastAssistant()
 	if last == nil || len(last.ToolCalls) == 0 {
-		return NodeEnd // không có tool call nào → final
+		return NodeExtract // không có tool call nào → extract memory rồi end
 	}
 
 	// Đếm xem mỗi tool call đã có tool result tương ứng chưa.
@@ -37,8 +37,8 @@ func route(s *State) NodeID {
 		return NodeTools
 	}
 
-	// Tất cả tool calls đã có kết quả → không vào tools nữa.
-	return NodeEnd
+	// Tất cả tool calls đã có kết quả → quay lại model để LLM phản hồi.
+	return NodeModel
 }
 
 // countUnanswered đếm số tool calls trong lastAssistant chưa có tool result
