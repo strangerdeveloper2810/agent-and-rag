@@ -202,3 +202,101 @@ func TestToAnthropicTools_Empty(t *testing.T) {
 		t.Fatalf("nil tools → muốn nil, có %#v", got)
 	}
 }
+
+func TestToAnthropicMessages_UserWithImageAttachment(t *testing.T) {
+	// An image attachment should produce an image block in the user message.
+	imgB64 := "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+	msgs := []provider.Message{
+		{
+			Role:    provider.RoleUser,
+			Content: "what is this?",
+			Attachments: []provider.Attachment{
+				{Type: "image", Name: "pixel.png", Data: imgB64, MimeType: "image/png"},
+			},
+		},
+	}
+
+	got := toAnthropicMessages(msgs)
+	if len(got) != 1 {
+		t.Fatalf("len = %d, want 1", len(got))
+	}
+	m := marshalToMap(t, got[0])
+	if m["role"] != "user" {
+		t.Fatalf("role = %v, want user", m["role"])
+	}
+	content := m["content"].([]any)
+	if len(content) != 2 {
+		t.Fatalf("want 2 blocks (text + image), got %d: %#v", len(content), content)
+	}
+	// First block: text
+	txt := content[0].(map[string]any)
+	if txt["type"] != "text" || txt["text"] != "what is this?" {
+		t.Fatalf("text block mismatch: %#v", txt)
+	}
+	// Second block: image
+	img := content[1].(map[string]any)
+	if img["type"] != "image" {
+		t.Fatalf("block[1].type = %v, want image", img["type"])
+	}
+	source, ok := img["source"].(map[string]any)
+	if !ok {
+		t.Fatalf("image source is not a map: %#v", img["source"])
+	}
+	if source["type"] != "base64" {
+		t.Fatalf("source.type = %v, want base64", source["type"])
+	}
+	if source["media_type"] != "image/png" {
+		t.Fatalf("source.media_type = %v, want image/png", source["media_type"])
+	}
+	if source["data"] != imgB64 {
+		t.Fatalf("source.data mismatch: %q", source["data"])
+	}
+}
+
+func TestToAnthropicMessages_UserWithMultipleImages(t *testing.T) {
+	imgB64 := "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+	msgs := []provider.Message{
+		{
+			Role:    provider.RoleUser,
+			Content: "compare",
+			Attachments: []provider.Attachment{
+				{Type: "image", Name: "a.png", Data: imgB64, MimeType: "image/png"},
+				{Type: "image", Name: "b.png", Data: imgB64, MimeType: "image/png"},
+			},
+		},
+	}
+
+	got := toAnthropicMessages(msgs)
+	content := marshalToMap(t, got[0])["content"].([]any)
+	if len(content) != 3 {
+		t.Fatalf("want 3 blocks (text + 2 images), got %d", len(content))
+	}
+}
+
+func TestToAnthropicMessages_UserNoContentOnlyImage(t *testing.T) {
+	// User message with empty content but has image attachment.
+	imgB64 := "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+	msgs := []provider.Message{
+		{
+			Role:    provider.RoleUser,
+			Content: "",
+			Attachments: []provider.Attachment{
+				{Type: "image", Name: "pixel.png", Data: imgB64, MimeType: "image/png"},
+			},
+		},
+	}
+
+	got := toAnthropicMessages(msgs)
+	if len(got) != 1 {
+		t.Fatalf("len = %d, want 1", len(got))
+	}
+	m := marshalToMap(t, got[0])
+	content := m["content"].([]any)
+	// Just the image block — text block omitted since Content is empty.
+	if len(content) != 1 {
+		t.Fatalf("want 1 block (image only), got %d: %#v", len(content), content)
+	}
+	if content[0].(map[string]any)["type"] != "image" {
+		t.Fatalf("block should be image: %#v", content[0])
+	}
+}

@@ -14,13 +14,23 @@ const (
 	RoleTool      Role = "tool"
 )
 
+// Attachment represents a file or image attached to a user message.
+// Type is "image" (Data is base64-encoded bytes) or "file" (Data is plain text).
+type Attachment struct {
+	Type     string `json:"type"`     // "image" or "file"
+	Name     string `json:"name"`     // filename
+	Data     string `json:"data"`     // base64 for images, text content for files
+	MimeType string `json:"mimeType"` // e.g. "image/png", "text/plain"
+}
+
 // Message là 1 message CHUẨN HOÁ, không phụ thuộc provider. Adapter dịch qua/lại
 // định dạng riêng của từng provider.
 type Message struct {
-	Role       Role
-	Content    string
-	ToolCalls  []ToolCall // khi assistant yêu cầu gọi tool
-	ToolCallID string     // khi Role=tool: id của tool_call tương ứng
+	Role        Role
+	Content     string
+	ToolCalls   []ToolCall   // khi assistant yêu cầu gọi tool
+	ToolCallID  string       // khi Role=tool: id của tool_call tương ứng
+	Attachments []Attachment // image/file attachments on user messages (multimodal)
 }
 
 // ToolDef mô tả 1 tool cho LLM (tên + mô tả + JSON Schema cho args).
@@ -32,9 +42,10 @@ type ToolDef struct {
 
 // ToolCall là yêu cầu gọi tool do LLM sinh ra.
 type ToolCall struct {
-	ID   string
-	Name string
-	Args json.RawMessage
+	ID               string
+	Name             string
+	Args             json.RawMessage
+	ThoughtSignature []byte // Gemini thought_signature (required for multi-turn tool use)
 }
 
 // ChunkKind phân loại một mẩu trong luồng stream trả về.

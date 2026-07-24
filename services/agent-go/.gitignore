@@ -2,3 +2,7 @@
 *.test
 *.out
 coverage.txt
+.env
+jarvis.db
+/jarvis
+/server

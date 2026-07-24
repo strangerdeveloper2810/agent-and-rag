@@ -2,66 +2,188 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --bg: #0d0d10;
+  --bg-raised: #161618;
+  --bg-hover: #1e1e21;
+  --surface: #121214;
+  --border: #252528;
+  --border-hover: #333338;
+  --text: #ececee;
+  --text-secondary: #9d9da4;
+  --text-tertiary: #63636b;
+  --accent: #d4a853;
+  --accent-hover: #e0b964;
+  --accent-bg: rgba(212, 168, 83, 0.1);
+  --danger: #e5484d;
+  --danger-bg: rgba(229, 72, 77, 0.1);
+  --success: #30a46c;
+  --success-bg: rgba(48, 164, 108, 0.1);
+  --info: #5198d6;
+  --info-bg: rgba(81, 152, 214, 0.1);
+}
+
+[data-theme="light"] {
+  --bg: #f5f3f0;
+  --bg-raised: #eeebe7;
+  --bg-hover: #e6e3df;
+  --surface: #faf8f5;
+  --border: #dbd6d0;
+  --border-hover: #c9c4bd;
+  --text: #1c1917;
+  --text-secondary: #78716c;
+  --text-tertiary: #a8a29e;
+  --accent: #a67c00;
+  --accent-hover: #8a6600;
+  --accent-bg: rgba(166, 124, 0, 0.08);
+}
+
 @layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+  }
   html {
     -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    text-rendering: optimizeLegibility;
   }
-
   body {
-    margin: 0;
-    min-height: 100vh;
-    background-color: #ffffff;
-    color: #1f1f1f;
-    font-family: "Roboto", ui-sans-serif, system-ui, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    transition: background-color 0.15s ease;
+  }
+  ::selection {
+    background: var(--accent-bg);
+    color: var(--accent);
+  }
+  *:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 4px;
   }
 }
 
 @layer components {
-  /* Chữ gradient kiểu Gemini */
-  .text-gemini {
-    background-image: linear-gradient(
-      74deg,
-      #4285f4 0%,
-      #9b72cb 47%,
-      #d96570 100%
-    );
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-  }
-
-  /* Thanh cuộn mảnh kiểu Google */
   .scroll-fine {
     scrollbar-width: thin;
-    scrollbar-color: rgba(31, 31, 31, 0.18) transparent;
+    scrollbar-color: var(--border) transparent;
   }
   .scroll-fine::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 5px;
   }
   .scroll-fine::-webkit-scrollbar-track {
     background: transparent;
   }
   .scroll-fine::-webkit-scrollbar-thumb {
-    background: rgba(31, 31, 31, 0.16);
+    background: var(--border);
     border-radius: 999px;
-    border: 3px solid transparent;
-    background-clip: padding-box;
   }
   .scroll-fine::-webkit-scrollbar-thumb:hover {
-    background: rgba(31, 31, 31, 0.3);
-    background-clip: padding-box;
+    background: var(--border-hover);
+  }
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      var(--bg-hover) 25%,
+      var(--border) 50%,
+      var(--bg-hover) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+    border-radius: 6px;
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.001ms !important;
+@layer utilities {
+  .bg-surface {
+    background-color: var(--surface);
   }
+  .bg-subtle {
+    background-color: var(--bg-raised);
+  }
+  .bg-subtle2 {
+    background-color: var(--bg-hover);
+  }
+  .text-ink {
+    color: var(--text);
+  }
+  .text-ink-soft {
+    color: var(--text-secondary);
+  }
+  .text-ink-faint {
+    color: var(--text-tertiary);
+  }
+  .border-line {
+    border-color: var(--border);
+  }
+  .bg-line {
+    background-color: var(--border);
+  }
+  .text-gblue {
+    color: var(--accent);
+  }
+  .bg-gblue {
+    background-color: var(--accent);
+  }
+  .bg-gblue-soft {
+    background-color: var(--accent-bg);
+  }
+  .hover\:bg-subtle:hover {
+    background-color: var(--bg-raised);
+  }
+  .hover\:bg-subtle2:hover {
+    background-color: var(--bg-hover);
+  }
+  .hover\:bg-line:hover {
+    background-color: var(--border);
+  }
+  .hover\:text-gblue-bright:hover {
+    color: var(--accent-hover);
+  }
+  .bg-gblue-bright {
+    background-color: var(--accent-hover);
+  }
+  .shadow-soft {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fade-in {
+  animation: fade-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-slide-up {
+  animation: slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
