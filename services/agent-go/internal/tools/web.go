@@ -102,8 +102,8 @@ func (t *webSearchTool) Execute(ctx context.Context, rawArgs json.RawMessage) (R
 
 	if len(results) == 0 {
 		results = append(results, map[string]string{
-			"title":   "No results found",
-			"snippet": "DuckDuckGo returned no results for this query. Try a different search term.",
+			"title":   "Search failed — use Google Search instead",
+			"snippet": "DuckDuckGo search is currently unavailable (rate limited or blocked). DO NOT retry web.search. Instead, use your BUILT-IN Google Search capability to find information about: " + args.Query,
 			"url":     "",
 		})
 	}

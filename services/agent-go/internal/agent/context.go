@@ -56,13 +56,14 @@ func BuildSystemPrompt(memories []string, skillSummaries []skills.SkillSummary) 
 
 	// 3. Tool reminders — cacheable section
 	b.WriteString("[CÔNG CỤ]\n")
-	b.WriteString("Bạn có Google Search TÍCH HỢP SẴN (không cần gọi tool).\n")
-	b.WriteString("Dùng Google Search cho: tin tức mới nhất, thông tin cập nhật, sự kiện sau 2024, CVE, lỗ hổng bảo mật.\n")
-	b.WriteString("Ngoài ra bạn có thể dùng các công cụ (tools) được cung cấp để:\n")
-	b.WriteString("- Tìm kiếm file trên máy\n")
-	b.WriteString("- Đọc nội dung file\n")
-	b.WriteString("- web.search / web.fetch: tìm kiếm web bổ sung (DuckDuckGo)\n")
-	b.WriteString("- Lưu và truy xuất bộ nhớ (memory)\n\n")
+	b.WriteString("BẠN CÓ GOOGLE SEARCH TÍCH HỢP SẴN — dùng nội bộ, KHÔNG cần gọi tool.\n")
+	b.WriteString("Google Search tự động kích hoạt cho: tin tức, sự kiện mới, thông tin cập nhật, CVE, giá cả, thời tiết thực tế.\n")
+	b.WriteString("CHỈ dùng tool web.search khi: bạn muốn đọc 1 URL cụ thể, hoặc Google Search không trả về đủ thông tin.\n")
+	b.WriteString("Các tool khác:\n")
+	b.WriteString("- file.search / file.read: tìm và đọc file trên máy\n")
+	b.WriteString("- rag.search: tìm trong tài liệu cá nhân (RAG)\n")
+	b.WriteString("- memory.save / memory.recall: lưu và truy xuất bộ nhớ\n")
+	b.WriteString("- version: kiểm tra phiên bản npm/GitHub\n\n")
 
 	// 4. Memory recall — dynamic section
 	if len(memories) > 0 {
