@@ -32,9 +32,10 @@ type ToolDef struct {
 
 // ToolCall là yêu cầu gọi tool do LLM sinh ra.
 type ToolCall struct {
-	ID   string
-	Name string
-	Args json.RawMessage
+	ID               string
+	Name             string
+	Args             json.RawMessage
+	ThoughtSignature []byte // Gemini thought_signature (required for multi-turn tool use)
 }
 
 // ChunkKind phân loại một mẩu trong luồng stream trả về.

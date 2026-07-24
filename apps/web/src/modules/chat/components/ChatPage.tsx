@@ -245,12 +245,24 @@ export default function ChatPage() {
               break;
 
             case "error":
-              setMessages((m) =>
-                appendToAssistant(
-                  m,
-                  `\n\n⚠️ ${e.message ?? "An error occurred."}`,
-                ),
-              );
+              setMessages((m) => {
+                // If last message is assistant, append error. Otherwise create error message.
+                if (m.length > 0 && m[m.length - 1].role === "assistant") {
+                  const copy = [...m];
+                  copy[copy.length - 1] = {
+                    ...copy[copy.length - 1],
+                    content: copy[copy.length - 1].content +
+                      `\n\n⚠️ ${e.message ?? "An error occurred."}`,
+                  };
+                  return copy;
+                }
+                return [...m, {
+                  role: "assistant",
+                  content: `⚠️ ${e.message ?? "An error occurred."}`,
+                }];
+              });
+              // Force scroll on error so user sees the message
+              userScrolledUpRef.current = false;
               break;
 
             case "done":
@@ -267,13 +279,23 @@ export default function ChatPage() {
       );
     } catch (err) {
       if ((err as Error)?.name !== "AbortError") {
-        setMessages((m) =>
-          appendToAssistant(
-            m,
-            "\n\n⚠️ Could not send message. Please try again.",
-          ),
-        );
+        setMessages((m) => {
+          if (m.length > 0 && m[m.length - 1].role === "assistant") {
+            const copy = [...m];
+            copy[copy.length - 1] = {
+              ...copy[copy.length - 1],
+              content: copy[copy.length - 1].content +
+                "\n\n⚠️ Could not send message. Please try again.",
+            };
+            return copy;
+          }
+          return [...m, {
+            role: "assistant",
+            content: "⚠️ Could not send message. Please try again.",
+          }];
+        });
         setInput((prev) => prev || content);
+        userScrolledUpRef.current = false;
       }
     } finally {
       streamCtrlRef.current = null;
