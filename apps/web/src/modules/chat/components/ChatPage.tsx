@@ -110,7 +110,10 @@ async function pendingToPayload(
     name: pa.name,
     data,
     // All images are converted to JPEG during optimization
-    mimeType: pa.type === "image" ? "image/jpeg" : (pa.file.type || "application/octet-stream"),
+    mimeType:
+      pa.type === "image"
+        ? "image/jpeg"
+        : pa.file.type || "application/octet-stream",
     size: pa.size,
   };
 }
@@ -120,7 +123,9 @@ function pendingToMeta(pa: PendingAttachment): AttachmentMeta {
     type: pa.type,
     name: pa.name,
     size: pa.size,
-    mimeType: pa.file.type || (pa.type === "image" ? "image/png" : "application/octet-stream"),
+    mimeType:
+      pa.file.type ||
+      (pa.type === "image" ? "image/png" : "application/octet-stream"),
     thumbnail: pa.type === "image" ? pa.preview : "",
   };
 }
@@ -162,7 +167,10 @@ export default function ChatPage() {
 
   useEffect(() => {
     userScrolledUpRef.current = false;
-    setTimeout(() => endRef.current?.scrollIntoView({ behavior: "auto", block: "end" }), 50);
+    setTimeout(
+      () => endRef.current?.scrollIntoView({ behavior: "auto", block: "end" }),
+      50,
+    );
   }, [id]);
 
   const appendToAssistant = useCallback(
@@ -336,15 +344,19 @@ export default function ChatPage() {
                   const copy = [...m];
                   copy[copy.length - 1] = {
                     ...copy[copy.length - 1],
-                    content: copy[copy.length - 1].content +
+                    content:
+                      copy[copy.length - 1].content +
                       `\n\n⚠ ${e.message ?? "An error occurred."}`,
                   };
                   return copy;
                 }
-                return [...m, {
-                  role: "assistant",
-                  content: `⚠ ${e.message ?? "An error occurred."}`,
-                }];
+                return [
+                  ...m,
+                  {
+                    role: "assistant",
+                    content: `⚠ ${e.message ?? "An error occurred."}`,
+                  },
+                ];
               });
               userScrolledUpRef.current = false;
               break;
@@ -368,15 +380,19 @@ export default function ChatPage() {
             const copy = [...m];
             copy[copy.length - 1] = {
               ...copy[copy.length - 1],
-              content: copy[copy.length - 1].content +
+              content:
+                copy[copy.length - 1].content +
                 "\n\n⚠ Could not send message. Please try again.",
             };
             return copy;
           }
-          return [...m, {
-            role: "assistant",
-            content: "⚠ Could not send message. Please try again.",
-          }];
+          return [
+            ...m,
+            {
+              role: "assistant",
+              content: "⚠ Could not send message. Please try again.",
+            },
+          ];
         });
         setInput((prev) => prev || content);
         if (snapAttachments.length > 0) {
@@ -404,10 +420,14 @@ export default function ChatPage() {
           className="flex shrink-0 items-center justify-between px-4 py-1.5 sm:px-6"
           style={{
             borderBottom: "1px solid var(--border)",
-            background: "linear-gradient(90deg, rgba(0,240,255,0.05) 0%, transparent 50%, rgba(0,240,255,0.05) 100%)",
+            background:
+              "linear-gradient(90deg, rgba(0,240,255,0.05) 0%, transparent 50%, rgba(0,240,255,0.05) 100%)",
           }}
         >
-          <span className="flex items-center gap-2 text-[11px]" style={{ color: "var(--accent)" }}>
+          <span
+            className="flex items-center gap-2 text-[11px]"
+            style={{ color: "var(--accent)" }}
+          >
             <span
               className="h-1.5 w-1.5 animate-pulse rounded-full"
               style={{ backgroundColor: "var(--accent)" }}
@@ -438,7 +458,9 @@ export default function ChatPage() {
             {messages.map((m, i) => {
               const msgMeta = meta.get(i);
               const isLastAssistant =
-                streaming && i === messages.length - 1 && m.role === "assistant";
+                streaming &&
+                i === messages.length - 1 &&
+                m.role === "assistant";
               return (
                 <MessageBubble
                   key={m._id ?? i}

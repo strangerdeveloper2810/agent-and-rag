@@ -3,10 +3,7 @@ import type { ComponentType, SVGProps } from "react";
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
 
-const AGENT_CONFIG: Record<
-  string,
-  { label: string; Icon: IconComponent }
-> = {
+const AGENT_CONFIG: Record<string, { label: string; Icon: IconComponent }> = {
   general: { label: "Assistant", Icon: SparkIcon },
   code: { label: "Code Agent", Icon: WrenchIcon },
   research: { label: "Research Agent", Icon: BrainIcon },
@@ -41,7 +38,10 @@ export default function AgentBadge({ agent, message }: AgentBadgeProps) {
       >
         <Icon width={12} height={12} />
       </span>
-      <span className="tracking-wider uppercase" style={{ color: "var(--accent)" }}>
+      <span
+        className="tracking-wider uppercase"
+        style={{ color: "var(--accent)" }}
+      >
         {message ?? label}
       </span>
     </div>

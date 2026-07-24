@@ -1,5 +1,10 @@
 import { useEffect, useRef } from "react";
-import { SendIcon, UploadIcon, CloseIcon, DocIcon } from "@/shared/components/icons";
+import {
+  SendIcon,
+  UploadIcon,
+  CloseIcon,
+  DocIcon,
+} from "@/shared/components/icons";
 import { useToast } from "@/shared/components/Toast";
 
 // ── Types ──
@@ -163,8 +168,7 @@ export default function Composer({
   const atImageLimit = imageCount >= MAX_IMAGES;
   const atFileLimit = fileCount >= MAX_FILES;
 
-  const canSend =
-    (value.trim().length > 0 || totalCount > 0) && !disabled;
+  const canSend = (value.trim().length > 0 || totalCount > 0) && !disabled;
 
   return (
     <div className="px-4 pb-4 pt-2 sm:px-6">
@@ -190,7 +194,10 @@ export default function Composer({
               {attachments.map((att) => (
                 <li key={att.id} className="relative group">
                   {att.type === "image" ? (
-                    <div className="relative h-16 w-16 overflow-hidden rounded-xl border bg-[var(--bg-raised)]" style={{ borderColor: "var(--border)" }}>
+                    <div
+                      className="relative h-16 w-16 overflow-hidden rounded-xl border bg-[var(--bg-raised)]"
+                      style={{ borderColor: "var(--border)" }}
+                    >
                       <img
                         src={att.preview}
                         alt={att.name}
@@ -206,17 +213,29 @@ export default function Composer({
                       </button>
                     </div>
                   ) : (
-                    <div className="relative flex items-center gap-2 rounded-xl border px-3 py-2 pr-8 transition" style={{ borderColor: "var(--border)", backgroundColor: "var(--bg-raised)" }}>
+                    <div
+                      className="relative flex items-center gap-2 rounded-xl border px-3 py-2 pr-8 transition"
+                      style={{
+                        borderColor: "var(--border)",
+                        backgroundColor: "var(--bg-raised)",
+                      }}
+                    >
                       <DocIcon
                         width={14}
                         height={14}
                         style={{ color: "var(--text-tertiary)" }}
                       />
                       <div className="min-w-0">
-                        <p className="truncate text-[11px] font-medium" style={{ color: "var(--text)" }}>
+                        <p
+                          className="truncate text-[11px] font-medium"
+                          style={{ color: "var(--text)" }}
+                        >
                           {att.name}
                         </p>
-                        <p className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>
+                        <p
+                          className="text-[10px]"
+                          style={{ color: "var(--text-tertiary)" }}
+                        >
                           {formatSize(att.size)}
                         </p>
                       </div>
@@ -234,7 +253,10 @@ export default function Composer({
                 </li>
               ))}
             </ul>
-            <p className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>
+            <p
+              className="text-[10px]"
+              style={{ color: "var(--text-tertiary)" }}
+            >
               {imageCount}/{MAX_IMAGES} images, {fileCount}/{MAX_FILES} files
             </p>
           </div>
@@ -284,7 +306,8 @@ export default function Composer({
             className="scroll-fine max-h-52 flex-1 resize-none bg-transparent px-1 py-2 text-sm leading-relaxed outline-none placeholder:text-[var(--text-tertiary)] disabled:opacity-50"
             style={{
               color: "var(--text)",
-              fontFamily: "'JetBrains Mono', ui-monospace, SF Mono, Consolas, monospace",
+              fontFamily:
+                "'JetBrains Mono', ui-monospace, SF Mono, Consolas, monospace",
             }}
           />
 

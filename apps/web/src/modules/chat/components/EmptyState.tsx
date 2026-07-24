@@ -59,7 +59,8 @@ export default function EmptyState({
           style={{
             background:
               "radial-gradient(circle, rgba(0,240,255,0.3) 0%, rgba(0,240,255,0.05) 60%, transparent 100%)",
-            boxShadow: "0 0 40px rgba(0,240,255,0.2), 0 0 80px rgba(0,240,255,0.1)",
+            boxShadow:
+              "0 0 40px rgba(0,240,255,0.2), 0 0 80px rgba(0,240,255,0.1)",
           }}
         >
           <svg
@@ -88,10 +89,7 @@ export default function EmptyState({
         </h1>
 
         <div className="mt-1 flex items-center gap-2">
-          <span
-            className="relative flex h-1.5 w-1.5"
-            aria-hidden="true"
-          >
+          <span className="relative flex h-1.5 w-1.5" aria-hidden="true">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--success)] opacity-75" />
             <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[var(--success)]" />
           </span>

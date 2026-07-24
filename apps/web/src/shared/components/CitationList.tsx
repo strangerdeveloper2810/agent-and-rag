@@ -9,8 +9,15 @@ export default function CitationList({ citations }: CitationListProps) {
   if (citations.length === 0) return null;
 
   return (
-    <div className="mt-3 border-t pt-3" style={{ borderColor: "var(--border)" }} aria-label="Sources">
-      <p className="mb-2 text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--text-tertiary)" }}>
+    <div
+      className="mt-3 border-t pt-3"
+      style={{ borderColor: "var(--border)" }}
+      aria-label="Sources"
+    >
+      <p
+        className="mb-2 text-[10px] font-medium uppercase tracking-wider"
+        style={{ color: "var(--text-tertiary)" }}
+      >
         {citations.length === 1 ? "Source" : "Sources"}
       </p>
       <ul className="flex flex-wrap gap-1.5">

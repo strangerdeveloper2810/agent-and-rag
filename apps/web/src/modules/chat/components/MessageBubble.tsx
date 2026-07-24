@@ -10,7 +10,11 @@ import AgentBadge from "@/shared/components/AgentBadge";
 import ToolCallCard from "@/shared/components/ToolCallCard";
 import CitationList from "@/shared/components/CitationList";
 import type { Message, AttachmentMeta } from "@/modules/chat/chat.api";
-import type { ToolCallState, CitationData, UsageData } from "@/modules/chat/chat.api";
+import type {
+  ToolCallState,
+  CitationData,
+  UsageData,
+} from "@/modules/chat/chat.api";
 
 // ── Helpers ──
 
@@ -41,11 +45,18 @@ function TypingDots() {
 
 function UsageFooter({ usage }: { usage: UsageData }) {
   return (
-    <div className="mt-3 border-t pt-2" style={{ borderColor: "var(--border)" }}>
+    <div
+      className="mt-3 border-t pt-2"
+      style={{ borderColor: "var(--border)" }}
+    >
       <p className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>
-        <span title="Input tokens">{usage.inputTokens.toLocaleString()} in</span>
+        <span title="Input tokens">
+          {usage.inputTokens.toLocaleString()} in
+        </span>
         {" · "}
-        <span title="Output tokens">{usage.outputTokens.toLocaleString()} out</span>
+        <span title="Output tokens">
+          {usage.outputTokens.toLocaleString()} out
+        </span>
         {" · "}
         <span title="Total tokens">
           {(usage.inputTokens + usage.outputTokens).toLocaleString()} total
@@ -73,7 +84,10 @@ function AttachmentList({ attachments }: { attachments: AttachmentMeta[] }) {
                 onClick={() => setExpandedUrl(img.thumbnail)}
                 aria-label={`View ${img.name}`}
                 className="h-16 w-16 overflow-hidden rounded-xl border transition hover:opacity-80"
-                style={{ borderColor: "var(--border)", backgroundColor: "var(--bg-raised)" }}
+                style={{
+                  borderColor: "var(--border)",
+                  backgroundColor: "var(--bg-raised)",
+                }}
               >
                 <img
                   src={img.thumbnail}
@@ -91,14 +105,27 @@ function AttachmentList({ attachments }: { attachments: AttachmentMeta[] }) {
               <div
                 key={`file-${i}`}
                 className="flex items-center gap-2 rounded-lg border px-3 py-1.5"
-                style={{ borderColor: "var(--border)", backgroundColor: "var(--bg-raised)" }}
+                style={{
+                  borderColor: "var(--border)",
+                  backgroundColor: "var(--bg-raised)",
+                }}
               >
-                <DocIcon width={14} height={14} style={{ color: "var(--text-tertiary)" }} />
+                <DocIcon
+                  width={14}
+                  height={14}
+                  style={{ color: "var(--text-tertiary)" }}
+                />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[11px] font-medium" style={{ color: "var(--text)" }}>
+                  <p
+                    className="truncate text-[11px] font-medium"
+                    style={{ color: "var(--text)" }}
+                  >
                     {f.name}
                   </p>
-                  <p className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>
+                  <p
+                    className="text-[10px]"
+                    style={{ color: "var(--text-tertiary)" }}
+                  >
                     {formatSize(f.size)}
                   </p>
                 </div>
@@ -180,9 +207,7 @@ export default function MessageBubble({
             boxShadow: "0 0 8px rgba(255,0,255,0.08)",
           }}
         >
-          {hasText && (
-            <p className="whitespace-pre-wrap">{message.content}</p>
-          )}
+          {hasText && <p className="whitespace-pre-wrap">{message.content}</p>}
           {hasAttachments && (
             <AttachmentList attachments={message.attachments!} />
           )}
@@ -202,7 +227,8 @@ export default function MessageBubble({
       <div
         className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
         style={{
-          background: "radial-gradient(circle, rgba(0,240,255,0.3) 0%, rgba(0,240,255,0.05) 100%)",
+          background:
+            "radial-gradient(circle, rgba(0,240,255,0.3) 0%, rgba(0,240,255,0.05) 100%)",
           border: "1px solid rgba(0,240,255,0.3)",
         }}
       >
@@ -271,7 +297,11 @@ export default function MessageBubble({
           >
             {copied ? (
               <>
-                <CheckIcon width={12} height={12} style={{ color: "var(--success)" }} />
+                <CheckIcon
+                  width={12}
+                  height={12}
+                  style={{ color: "var(--success)" }}
+                />
                 Copied
               </>
             ) : (

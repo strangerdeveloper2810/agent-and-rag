@@ -72,7 +72,10 @@ export default function AppLayout() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ backgroundColor: "var(--bg)" }}>
+    <div
+      className="flex h-screen overflow-hidden"
+      style={{ backgroundColor: "var(--bg)" }}
+    >
       <Sidebar
         conversations={conversations}
         loading={loadingConversations}
@@ -128,7 +131,10 @@ export default function AppLayout() {
             </svg>
           </button>
 
-          <h1 className="text-sm font-medium tracking-wider" style={{ color: "var(--text)" }}>
+          <h1
+            className="text-sm font-medium tracking-wider"
+            style={{ color: "var(--text)" }}
+          >
             J.A.R.V.I.S.
           </h1>
 
