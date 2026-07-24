@@ -130,6 +130,9 @@ func toAnthropicTools(tools []provider.ToolDef) []sdk.ToolUnionParam {
 			}
 			schema.Required = parsed.Required
 		}
+		if schema.Properties == nil {
+			schema.Properties = json.RawMessage("{}")
+		}
 
 		tp := sdk.ToolParam{
 			Name:        t.Name,
