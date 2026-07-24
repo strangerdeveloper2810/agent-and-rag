@@ -1,12 +1,25 @@
-// HTTP client dùng chung (singleton). Nhận url + payload (JSON/FormData) + header tùy chọn.
-// - body là object → tự JSON.stringify + content-type application/json
-// - body là FormData → để nguyên (browser tự set boundary)
-// - lỗi (!res.ok) → ném HttpError mang theo status + message (lấy field `error` từ server)
+// HTTP client singleton with request/response interceptors, timeout, and retry logic.
+// - body is object -> auto JSON.stringify + content-type application/json
+// - body is FormData -> left as-is (browser sets boundary)
+// - !res.ok -> throws HttpError with status + server error message
+// - network errors -> retry with exponential backoff (up to 3 attempts)
 
 export type RequestOptions = {
   headers?: Record<string, string>;
   signal?: AbortSignal;
+  /** Timeout in milliseconds. Default 30_000 (30s). */
+  timeout?: number;
+  /** Number of retries on network error. Default 1 (total 2 attempts). */
+  retries?: number;
 };
+
+export type RequestInterceptor = (
+  url: string,
+  init: RequestInit,
+) => RequestInit | Promise<RequestInit>;
+export type ResponseInterceptor = (
+  response: Response,
+) => Response | Promise<Response>;
 
 export class HttpError extends Error {
   status: number;
@@ -20,7 +33,33 @@ export class HttpError extends Error {
 type Body = unknown;
 
 class HttpClient {
-  constructor(private readonly baseURL = "") {}
+  private readonly baseURL: string;
+  private requestInterceptors: RequestInterceptor[] = [];
+  private responseInterceptors: ResponseInterceptor[] = [];
+
+  constructor(baseURL = "") {
+    this.baseURL = baseURL;
+  }
+
+  /** Add a request interceptor. Called before every fetch. */
+  useRequest(fn: RequestInterceptor): () => void {
+    this.requestInterceptors.push(fn);
+    return () => {
+      this.requestInterceptors = this.requestInterceptors.filter(
+        (i) => i !== fn,
+      );
+    };
+  }
+
+  /** Add a response interceptor. Called after fetch, before JSON parsing. */
+  useResponse(fn: ResponseInterceptor): () => void {
+    this.responseInterceptors.push(fn);
+    return () => {
+      this.responseInterceptors = this.responseInterceptors.filter(
+        (i) => i !== fn,
+      );
+    };
+  }
 
   private buildInit(
     method: string,
@@ -40,22 +79,92 @@ class HttpClient {
     return { method, headers, body: payload, signal: opts?.signal };
   }
 
-  // Trả Response thô — dùng cho stream (SSE) hoặc khi cần tự xử lý body
+  /** Core fetch with timeout and retry. */
+  private async request(
+    method: string,
+    url: string,
+    body?: Body,
+    opts?: RequestOptions,
+  ): Promise<Response> {
+    const timeout = opts?.timeout ?? 30_000;
+    const maxRetries = opts?.retries ?? 1;
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        let init = this.buildInit(method, body, opts);
+
+        // Run request interceptors
+        for (const interceptor of this.requestInterceptors) {
+          init = await interceptor(url, init);
+        }
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+        // Merge external signal with timeout signal
+        const combinedSignal = opts?.signal
+          ? anySignal([opts.signal, controller.signal])
+          : controller.signal;
+
+        try {
+          let res = await fetch(this.baseURL + url, {
+            ...init,
+            signal: combinedSignal,
+          });
+
+          // Run response interceptors
+          for (const interceptor of this.responseInterceptors) {
+            res = await interceptor(res);
+          }
+
+          if (!res.ok) {
+            const data = await res
+              .json()
+              .catch(() => ({}) as { error?: string });
+            throw new HttpError(
+              res.status,
+              data?.error ?? `Request failed with status ${res.status}`,
+            );
+          }
+
+          return res;
+        } finally {
+          clearTimeout(timeoutId);
+        }
+      } catch (err) {
+        lastError = err as Error;
+
+        // Don't retry if aborted (timeout or user cancel)
+        if (lastError.name === "AbortError") throw lastError;
+        // Don't retry client errors (4xx except 429)
+        if (
+          lastError instanceof HttpError &&
+          lastError.status >= 400 &&
+          lastError.status < 500 &&
+          lastError.status !== 429
+        ) {
+          throw lastError;
+        }
+        // Last attempt -> throw
+        if (attempt === maxRetries) throw lastError;
+
+        // Exponential backoff: 200ms, 400ms, 800ms...
+        await sleep(Math.min(200 * Math.pow(2, attempt), 3000));
+      }
+    }
+
+    throw lastError ?? new Error("Request failed");
+  }
+
+  /** Return raw Response -- for streaming (SSE) or manual body handling. */
   async raw(
     method: string,
     url: string,
     body?: Body,
     opts?: RequestOptions,
   ): Promise<Response> {
-    const res = await fetch(
-      this.baseURL + url,
-      this.buildInit(method, body, opts),
-    );
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}) as { error?: string });
-      throw new HttpError(res.status, data?.error ?? res.statusText);
-    }
-    return res;
+    return this.request(method, url, body, opts);
   }
 
   private async json<T>(
@@ -64,7 +173,7 @@ class HttpClient {
     body?: Body,
     opts?: RequestOptions,
   ): Promise<T> {
-    const res = await this.raw(method, url, body, opts);
+    const res = await this.request(method, url, body, opts);
     if (res.status === 204) return undefined as T;
     return res.json() as Promise<T>;
   }
@@ -81,11 +190,35 @@ class HttpClient {
   delete<T>(url: string, opts?: RequestOptions) {
     return this.json<T>("DELETE", url, undefined, opts);
   }
-  // POST trả Response thô để đọc stream (SSE)
+  /** POST returning raw Response for SSE streaming. */
   stream(url: string, body?: Body, opts?: RequestOptions) {
     return this.raw("POST", url, body, opts);
   }
 }
 
-// Singleton: mọi request đi qua đây, baseURL = "/api" (Vite proxy → :3001)
+// --- Helpers ---
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Combine multiple AbortSignals into one.
+ * If any signal aborts, the combined signal aborts.
+ */
+function anySignal(signals: AbortSignal[]): AbortSignal {
+  const controller = new AbortController();
+  for (const signal of signals) {
+    if (signal.aborted) {
+      controller.abort(signal.reason);
+      return controller.signal;
+    }
+    signal.addEventListener("abort", () => controller.abort(signal.reason), {
+      once: true,
+    });
+  }
+  return controller.signal;
+}
+
+// Singleton: all requests go through this instance, baseURL = "/api" (Vite proxy -> :3001)
 export const http = new HttpClient("/api");

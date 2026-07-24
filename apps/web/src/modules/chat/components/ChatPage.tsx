@@ -1,60 +1,115 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useOutletContext, useParams } from "react-router-dom";
 import {
   createConversation,
   getMessages,
   streamChat,
   type Message,
+  type ChatEvent,
+  type ToolCallState,
+  type CitationData,
+  type UsageData,
 } from "@/modules/chat/chat.api";
 import type { OutletCtx } from "@/shared/components/AppLayout";
 import MessageBubble from "./MessageBubble";
 import Composer from "./Composer";
 import EmptyState from "./EmptyState";
-import { MenuIcon } from "@/shared/components/icons";
+import { StopIcon } from "@/shared/components/icons";
+import { useToast } from "@/shared/components/Toast";
+
+/** Extended message that carries UI-specific metadata from SSE events. */
+export type MessageMeta = {
+  /** Tool calls that happened during this assistant turn. */
+  toolCalls: ToolCallState[];
+  /** Citations (RAG sources) shown at the bottom of the message. */
+  citations: CitationData[];
+  /** Which agent responded (general/code/research). */
+  agent: string | null;
+  /** Token usage shown after completion. */
+  usage: UsageData | null;
+};
 
 export default function ChatPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { reloadConversations, toggleSidebar } = useOutletContext<OutletCtx>();
+  const { reloadConversations } = useOutletContext<OutletCtx>();
+  const toast = useToast();
 
   const [messages, setMessages] = useState<Message[]>([]);
+  const [meta, setMeta] = useState<Map<number, MessageMeta>>(new Map());
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
-  const [activeTool, setActiveTool] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const loadedIdRef = useRef<string | null>(null);
   const streamCtrlRef = useRef<AbortController | null>(null);
+  const userScrolledUpRef = useRef(false);
 
-  // Nối text vào bong bóng assistant cuối. Guard: list rỗng hoặc bong bóng cuối
-  // không phải assistant → trả nguyên trạng (tránh crash `undefined.content` khi
-  // đổi/tạo hội thoại giữa lúc đang stream).
-  const appendToAssistant = (list: Message[], text: string): Message[] => {
-    if (list.length === 0) return list;
-    const last = list[list.length - 1];
-    if (last.role !== "assistant") return list;
-    const copy = [...list];
-    copy[copy.length - 1] = { ...last, content: last.content + text };
-    return copy;
-  };
+  // --- Smart auto-scroll ---
+  const scrollToBottom = useCallback((force = false) => {
+    if (!force && userScrolledUpRef.current) return;
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, []);
 
-  // Load tin nhắn theo id trên URL. Bỏ qua conv vừa tự tạo (đang stream dở).
+  const handleScroll = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const threshold = 120; // px from bottom
+    userScrolledUpRef.current =
+      el.scrollHeight - el.scrollTop - el.clientHeight > threshold;
+  }, []);
+
+  // Reset scroll flag when conversation changes
+  useEffect(() => {
+    userScrolledUpRef.current = false;
+  }, [id]);
+
+  // --- Append text to assistant bubble ---
+  const appendToAssistant = useCallback(
+    (list: Message[], text: string): Message[] => {
+      if (list.length === 0) return list;
+      const last = list[list.length - 1];
+      if (last.role !== "assistant") return list;
+      const copy = [...list];
+      copy[copy.length - 1] = { ...last, content: last.content + text };
+      return copy;
+    },
+    [],
+  );
+
+  // --- Update metadata for the last assistant message ---
+  const updateMeta = useCallback(
+    (index: number, updater: (prev: MessageMeta) => MessageMeta) => {
+      setMeta((prev) => {
+        const next = new Map(prev);
+        const current = next.get(index) ?? {
+          toolCalls: [],
+          citations: [],
+          agent: null,
+          usage: null,
+        };
+        next.set(index, updater(current));
+        return next;
+      });
+    },
+    [],
+  );
+
+  // --- Load messages for current conversation ---
   useEffect(() => {
     if (!id) {
       setMessages([]);
+      setMeta(new Map());
       loadedIdRef.current = null;
       return;
     }
     if (id === loadedIdRef.current) return;
-    // Đổi sang hội thoại khác giữa lúc đang stream → hủy stream cũ (đỡ đốt token
-    // + tránh token cũ ghi nhầm vào hội thoại mới).
+
+    // Abort any active stream when switching conversations
     streamCtrlRef.current?.abort();
     setStreaming(false);
-    setActiveTool(null);
     loadedIdRef.current = id;
-    // Guard bằng ref, KHÔNG dùng cờ cleanup: StrictMode (dev) chạy effect 2 lần
-    // — nếu cleanup set cancelled=true thì lần fetch DUY NHẤT (lần 2 bị guard
-    // return sớm) bị hủy → messages rỗng → nháy EmptyState. So khớp loadedIdRef
-    // vẫn chặn được việc ghi nhầm khi user đã đổi sang hội thoại khác.
+
     getMessages(id)
       .then((m) => {
         if (loadedIdRef.current === id) setMessages(m);
@@ -64,13 +119,15 @@ export default function ChatPage() {
       });
   }, [id]);
 
-  // Hủy stream đang chạy khi component unmount (rời trang chat).
+  // Cleanup: abort stream on unmount
   useEffect(() => () => streamCtrlRef.current?.abort(), []);
 
+  // Auto-scroll when messages change
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    scrollToBottom();
+  }, [messages, scrollToBottom]);
 
+  // --- Send message ---
   const send = async (text?: string) => {
     const content = (text ?? input).trim();
     if (!content || streaming) return;
@@ -81,12 +138,12 @@ export default function ChatPage() {
       if (!convId) {
         const conv = await createConversation(content);
         convId = conv._id;
-        loadedIdRef.current = convId; // tránh effect fetch lại khi URL đổi
+        loadedIdRef.current = convId;
         navigate(`/messages/${convId}`);
-        // Chỉ reload sidebar khi tạo hội thoại MỚI (để hiện ngay trong "Gần đây")
         reloadConversations();
       }
 
+      const assistantIndex = messages.length + 1; // 0 = user, 1 = assistant
       setMessages((m) => [
         ...m,
         { role: "user", content },
@@ -100,87 +157,173 @@ export default function ChatPage() {
       await streamChat(
         convId,
         content,
-        (e) => {
-          // Đã đổi hội thoại → bỏ qua token còn sót của stream cũ.
+        (e: ChatEvent) => {
           if (loadedIdRef.current !== convId) return;
-          if (e.type === "tool_start") {
-            setActiveTool(e.name ?? null);
-          } else if (e.type === "tool_end") {
-            setActiveTool(null);
-          } else if (e.type === "error") {
-            setMessages((m) =>
-              appendToAssistant(m, `\n\n⚠️ ${e.message ?? "Đã xảy ra lỗi."}`),
-            );
-          } else if (e.token) {
-            setActiveTool(null);
-            setMessages((m) => appendToAssistant(m, e.token!));
+
+          switch (e.type) {
+            case "step":
+              // Engine step -- could show in debug UI
+              break;
+
+            case "text":
+              setMessages((m) => appendToAssistant(m, e.text ?? ""));
+              break;
+
+            case "tool_start":
+              updateMeta(assistantIndex, (prev) => ({
+                ...prev,
+                toolCalls: [
+                  ...prev.toolCalls,
+                  { name: e.name ?? "unknown", status: "running" },
+                ],
+              }));
+              break;
+
+            case "tool_end":
+              updateMeta(assistantIndex, (prev) => {
+                const tools = [...prev.toolCalls];
+                // Find the last running tool call with matching name
+                let idx = -1;
+                for (let i = tools.length - 1; i >= 0; i--) {
+                  if (
+                    tools[i].name === e.name &&
+                    tools[i].status === "running"
+                  ) {
+                    idx = i;
+                    break;
+                  }
+                }
+                if (idx >= 0) {
+                  tools[idx] = {
+                    ...tools[idx],
+                    status: e.message ? "error" : "done",
+                    result: e.message ? undefined : "Completed",
+                    error: e.message,
+                  };
+                }
+                return { ...prev, toolCalls: tools };
+              });
+              break;
+
+            case "citation":
+              try {
+                const citations: CitationData[] = e.text
+                  ? JSON.parse(e.text)
+                  : [];
+                updateMeta(assistantIndex, (prev) => ({
+                  ...prev,
+                  citations,
+                }));
+              } catch {
+                // Invalid citation JSON
+              }
+              break;
+
+            case "memory":
+              // Memory operations -- could show a small indicator
+              break;
+
+            case "agent":
+              updateMeta(assistantIndex, (prev) => ({
+                ...prev,
+                agent: e.name ?? null,
+              }));
+              break;
+
+            case "interrupt":
+              // Human-in-the-loop interrupt
+              toast.error(e.message ?? "Action requires approval");
+              break;
+
+            case "error":
+              setMessages((m) =>
+                appendToAssistant(
+                  m,
+                  `\n\n⚠️ ${e.message ?? "An error occurred."}`,
+                ),
+              );
+              break;
+
+            case "done":
+              if (e.usage) {
+                updateMeta(assistantIndex, (prev) => ({
+                  ...prev,
+                  usage: e.usage ?? null,
+                }));
+              }
+              break;
           }
         },
         ctrl.signal,
       );
     } catch (err) {
-      // Abort khi đổi hội thoại/unmount là bình thường → không báo lỗi.
       if ((err as Error)?.name !== "AbortError") {
         setMessages((m) =>
           appendToAssistant(
             m,
-            "\n\n⚠️ Không gửi được tin nhắn. Vui lòng thử lại.",
+            "\n\n⚠️ Could not send message. Please try again.",
           ),
         );
-        setInput((prev) => prev || content); // khôi phục nội dung để gửi lại
+        setInput((prev) => prev || content);
       }
     } finally {
       streamCtrlRef.current = null;
       setStreaming(false);
-      setActiveTool(null);
     }
+  };
+
+  // --- Stop generation ---
+  const stopGeneration = () => {
+    streamCtrlRef.current?.abort();
   };
 
   const hasMessages = messages.length > 0;
 
   return (
     <main className="flex min-w-0 flex-1 flex-col">
-      {/* Header tối giản */}
-      <header className="flex items-center gap-3 px-4 py-3 sm:px-6">
-        <button
-          type="button"
-          onClick={toggleSidebar}
-          aria-label="Ẩn/hiện menu"
-          className="rounded-full p-2 text-ink-soft hover:bg-subtle"
-        >
-          <MenuIcon />
-        </button>
-        <h1 className="font-medium text-ink">
-          Agent <span className="text-gemini font-semibold">Tut</span>
-        </h1>
-        {streaming && (
-          <span className="ml-auto flex items-center gap-1.5 text-xs text-gblue">
+      {/* Streaming indicator bar */}
+      {streaming && (
+        <div className="flex items-center justify-between border-b border-line bg-gblue-soft/30 px-4 py-1.5 sm:px-6 dark:bg-gblue-soft/20">
+          <span className="flex items-center gap-2 text-xs text-gblue">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-gblue" />
-            đang trả lời…
+            Generating response...
           </span>
-        )}
-      </header>
+          <button
+            type="button"
+            onClick={stopGeneration}
+            aria-label="Stop generating"
+            className="flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium text-ink-soft hover:bg-subtle transition"
+          >
+            <StopIcon width={14} height={14} />
+            Stop
+          </button>
+        </div>
+      )}
 
-      {/* Vùng tin nhắn */}
-      <div className="scroll-fine flex-1 overflow-y-auto">
+      {/* Messages area */}
+      <div
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className="scroll-fine flex-1 overflow-y-auto"
+      >
         {hasMessages ? (
           <div className="mx-auto max-w-3xl space-y-7 px-4 py-6 sm:px-6">
-            {messages.map((m, i) => (
-              <MessageBubble
-                key={m._id ?? i}
-                message={m}
-                streaming={
-                  streaming &&
-                  i === messages.length - 1 &&
-                  m.role === "assistant"
-                }
-                activeTool={
-                  i === messages.length - 1 && m.role === "assistant"
-                    ? activeTool
-                    : null
-                }
-              />
-            ))}
+            {messages.map((m, i) => {
+              const msgMeta = meta.get(i);
+              const isLastAssistant =
+                streaming && i === messages.length - 1 && m.role === "assistant";
+              return (
+                <MessageBubble
+                  key={m._id ?? i}
+                  message={m}
+                  streaming={isLastAssistant}
+                  toolCalls={msgMeta?.toolCalls ?? []}
+                  citations={msgMeta?.citations ?? []}
+                  agent={msgMeta?.agent ?? null}
+                  usage={msgMeta?.usage ?? null}
+                />
+              );
+            })}
             <div ref={endRef} />
           </div>
         ) : (

@@ -19,17 +19,70 @@ export const getMessages = (id: string) =>
 export const deleteConversation = (id: string) =>
   http.delete<void>(`/conversations/${id}`);
 
-// Một event SSE từ agent: token (text), tool_start/tool_end, error, hoặc done
-export type ChatEvent = {
-  token?: string;
-  type?: "text" | "tool_start" | "tool_end" | "error";
-  name?: string;
-  message?: string;
-  done?: boolean;
+export const renameConversation = (id: string, title: string) =>
+  http.put<Conversation>(`/conversations/${id}`, { title });
+
+// --- SSE Event Types (Go agent → frontend) ---
+
+/** Token usage reported on "done" event. */
+export type UsageData = {
+  inputTokens: number;
+  outputTokens: number;
 };
 
-// Gửi tin nhắn và stream event (token + tool) về qua callback.
-// - signal: hủy stream khi đổi hội thoại / unmount / bấm "Dừng".
+/** Citation from RAG search. */
+export type CitationData = {
+  title: string;
+  url?: string;
+  snippet?: string;
+};
+
+/** Tool execution state tracked across tool_start → tool_end. */
+export type ToolCallState = {
+  name: string;
+  status: "running" | "done" | "error";
+  result?: string;
+  error?: string;
+};
+
+/** One SSE event from the Go agent engine.
+ *  Type list: step | text | tool_start | tool_end | citation | memory | agent | interrupt | error | done
+ *  The engine emits these in order; the UI assembles them into a coherent response. */
+export type ChatEvent = {
+  type:
+    | "step"
+    | "text"
+    | "tool_start"
+    | "tool_end"
+    | "citation"
+    | "memory"
+    | "agent"
+    | "interrupt"
+    | "error"
+    | "done";
+  /** step: current node id (recall, summarize, model, tools, extract) */
+  node?: string;
+  /** text: streaming token; citation: JSON array of CitationData */
+  text?: string;
+  /** tool_start / tool_end / interrupt: tool name */
+  name?: string;
+  /** error / memory / interrupt: detail message */
+  message?: string;
+  /** done: accumulated token usage */
+  usage?: UsageData;
+};
+
+// --- Streaming ---
+
+/**
+ * Send a message and stream SSE events from the Go agent.
+ * Each event is parsed and passed to `onEvent` as it arrives.
+ *
+ * @param conversationId - The conversation to send to
+ * @param content - User message text
+ * @param onEvent - Callback for each parsed SSE event
+ * @param signal - AbortSignal to cancel the stream
+ */
 export const streamChat = async (
   conversationId: string,
   content: string,
@@ -41,11 +94,12 @@ export const streamChat = async (
     { content },
     { signal },
   );
-  if (!response.body) throw new Error("Không nhận được stream từ server");
+  if (!response.body) throw new Error("No stream body received from server");
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+
   try {
     while (true) {
       const { done, value } = await reader.read();
@@ -55,17 +109,97 @@ export const streamChat = async (
       buffer = lines.pop() ?? "";
       for (const line of lines) {
         if (!line.startsWith("data: ")) continue;
-        // Bỏ qua dòng hỏng (vd keep-alive comment) thay vì để cả stream chết.
         try {
-          onEvent(JSON.parse(line.slice(6)) as ChatEvent);
+          const parsed = JSON.parse(line.slice(6)) as ChatEvent;
+          // Normalize: if server sends flat {token, type, name, message, done}
+          // map them into the structured ChatEvent shape.
+          const event = normalizeEvent(parsed);
+          if (event) onEvent(event);
         } catch {
-          // ignore malformed SSE line
+          // Ignore malformed / keep-alive SSE lines
         }
       }
     }
-    // Flush ký tự multibyte còn sót ở cuối stream.
+    // Flush any remaining multi-byte characters
     buffer += decoder.decode();
   } finally {
     reader.releaseLock();
   }
 };
+
+/**
+ * Normalize incoming SSE data into a well-formed ChatEvent.
+ * Handles both the old flat format and the new structured format.
+ */
+function normalizeEvent(raw: Record<string, unknown>): ChatEvent | null {
+  // Already has a valid 'type' field in the new structure
+  const validTypes = [
+    "step",
+    "text",
+    "tool_start",
+    "tool_end",
+    "citation",
+    "memory",
+    "agent",
+    "interrupt",
+    "error",
+    "done",
+  ];
+  if (typeof raw.type === "string" && validTypes.includes(raw.type)) {
+    return {
+      type: raw.type as ChatEvent["type"],
+      node: typeof raw.node === "string" ? raw.node : undefined,
+      text: typeof raw.text === "string" ? raw.text : undefined,
+      name: typeof raw.name === "string" ? raw.name : undefined,
+      message: typeof raw.message === "string" ? raw.message : undefined,
+      usage: isUsageData(raw.usage) ? raw.usage : undefined,
+    };
+  }
+
+  // Legacy flat format: { token?, type?, name?, message?, done? }
+  if (raw.done === true) {
+    return {
+      type: "done",
+      usage: isUsageData(raw.usage) ? raw.usage : undefined,
+    };
+  }
+  if (typeof raw.type === "string") {
+    if (raw.type === "tool_start") {
+      return {
+        type: "tool_start",
+        name: typeof raw.name === "string" ? raw.name : "unknown",
+      };
+    }
+    if (raw.type === "tool_end") {
+      return {
+        type: "tool_end",
+        name: typeof raw.name === "string" ? raw.name : "unknown",
+        message: typeof raw.message === "string" ? raw.message : undefined,
+      };
+    }
+    if (raw.type === "error") {
+      return {
+        type: "error",
+        message:
+          typeof raw.message === "string"
+            ? raw.message
+            : "An error occurred",
+      };
+    }
+    if (raw.type === "text" && typeof raw.text === "string") {
+      return { type: "text", text: raw.text };
+    }
+  }
+  // Oldest format: { token? } → treat as text
+  if (typeof raw.token === "string") {
+    return { type: "text", text: raw.token };
+  }
+
+  return null;
+}
+
+function isUsageData(v: unknown): v is UsageData {
+  if (!v || typeof v !== "object") return false;
+  const u = v as Record<string, unknown>;
+  return typeof u.inputTokens === "number" && typeof u.outputTokens === "number";
+}
