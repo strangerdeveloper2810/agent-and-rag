@@ -1,0 +1,84 @@
+# ── J.A.R.V.I.S. — Production Stack ──
+# Start: docker compose up -d
+# Stop:  docker compose down
+# Logs:  docker compose logs -f
+
+services:
+  # ── Go Agent Runtime (trái tim) ──
+  agent-go:
+    build:
+      context: services/agent-go
+      dockerfile: Dockerfile
+    image: jarvis-agent-go:latest
+    container_name: jarvis-agent-go
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    env_file:
+      - services/agent-go/.env
+    environment:
+      - PORT=3002
+      - JARVIS_DB_PATH=/data/jarvis.db
+      - JARVIS_SKILLS_DIR=/skills
+    volumes:
+      - jarvis_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3002/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - jarvis
+
+  # ── API Gateway (Fastify/TS BFF) ──
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    image: jarvis-api:latest
+    container_name: jarvis-api
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    env_file:
+      - apps/api/.env
+    environment:
+      - PORT=3001
+      - NODE_ENV=production
+      - AGENT_GO_URL=http://agent-go:3002
+      - AGENT_BACKEND=go
+    depends_on:
+      agent-go:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - jarvis
+
+  # ── Frontend (React/Vite → nginx) ──
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    image: jarvis-web:latest
+    container_name: jarvis-web
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+    networks:
+      - jarvis
+
+networks:
+  jarvis:
+    driver: bridge
+
+volumes:
+  jarvis_data:
+    driver: local
