@@ -93,17 +93,18 @@ func (t *webSearchTool) Execute(ctx context.Context, rawArgs json.RawMessage) (R
 		return Result{}, fmt.Errorf("web.search: read body: %w", err)
 	}
 
-	// DuckDuckGo HTML search (lite version) + JSON API as fallback
-	results := parseDDGLite(string(body), args.Query)
-	// Fallback 2: DuckDuckGo JSON API
+	// Search chain: Wikipedia → DDG HTML → DDG JSON → fallback message
+	results := searchWikipedia(ctx, t.httpClient, args.Query)
+	if len(results) == 0 {
+		results = parseDDGLite(string(body), args.Query)
+	}
 	if len(results) == 0 {
 		results = searchDDGJSON(ctx, t.httpClient, args.Query)
 	}
-
 	if len(results) == 0 {
 		results = append(results, map[string]string{
-			"title":   "Search failed — use Google Search instead",
-			"snippet": "DuckDuckGo search is currently unavailable (rate limited or blocked). DO NOT retry web.search. Instead, use your BUILT-IN Google Search capability to find information about: " + args.Query,
+			"title":   "No results — use built-in Google Search",
+			"snippet": "All search engines unavailable. Use your BUILT-IN Google Search for: " + args.Query,
 			"url":     "",
 		})
 	}
@@ -183,6 +184,46 @@ type DDGResponse struct {
 		Text     string `json:"Text"`
 		FirstURL string `json:"FirstURL"`
 	} `json:"RelatedTopics"`
+}
+
+// searchWikipedia queries Wikipedia API (free, no rate limit, reliable).
+func searchWikipedia(ctx context.Context, client *http.Client, query string) []map[string]string {
+	reqURL := fmt.Sprintf("https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=%s&format=json&srlimit=5", url.QueryEscape(query))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+	if err != nil {
+		return nil
+	}
+	req.Header.Set("User-Agent", randomUA())
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	var result struct {
+		Query struct {
+			Search []struct {
+				Title   string `json:"title"`
+				Snippet string `json:"snippet"`
+				PageID  int    `json:"pageid"`
+			} `json:"search"`
+		} `json:"query"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil
+	}
+
+	results := make([]map[string]string, 0, len(result.Query.Search))
+	for _, r := range result.Query.Search {
+		results = append(results, map[string]string{
+			"title":   r.Title,
+			"snippet": cleanHTML(r.Snippet),
+			"url":     fmt.Sprintf("https://en.wikipedia.org/wiki/%s", url.PathEscape(strings.ReplaceAll(r.Title, " ", "_"))),
+		})
+	}
+	return results
 }
 
 // searchDDGJSON fallback: original DuckDuckGo JSON API for instant answers.
