@@ -220,7 +220,11 @@ func (c *Client) Generate(ctx context.Context, req provider.GenerateRequest) (<-
 				idx := int(event.Index)
 				if idx >= 0 && idx < len(acc.Content) {
 					if blk := acc.Content[idx]; blk.Type == "tool_use" {
-						tc := provider.ToolCall{ID: blk.ID, Name: unsanitizeToolName(blk.Name), Args: blk.Input}
+						args := blk.Input
+					if len(args) == 0 {
+						args = json.RawMessage("{}")
+					}
+					tc := provider.ToolCall{ID: blk.ID, Name: unsanitizeToolName(blk.Name), Args: args}
 						if !send(ctx, out, provider.StreamChunk{Kind: provider.ChunkToolCall, ToolCall: &tc}) {
 							return
 						}
