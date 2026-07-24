@@ -1,22 +1,52 @@
-/**
- * Replaces the old light/dark toggle.
- * Shows "SYS ONLINE" indicator — cyberpunk dark-only.
- * Keeps initTheme stub for backward compat.
- */
+import { useEffect, useState } from "react";
 
-/** No-op: always dark. */
-export function initTheme() {}
+const KEY = "jarvis-theme";
 
-export default function SysOnline() {
+export function initTheme() {
+  const saved = localStorage.getItem(KEY) || "dark";
+  document.documentElement.setAttribute("data-theme", saved);
+}
+
+export default function ThemeToggle() {
+  const [theme, setTheme] = useState<"dark" | "light">(() => {
+    return (localStorage.getItem(KEY) as "dark" | "light") || "dark";
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem(KEY, theme);
+  }, [theme]);
+
+  const toggle = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
+
   return (
-    <div className="flex items-center gap-2" aria-label="System online">
-      <span className="relative flex h-2 w-2">
-        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--cyber-success)] opacity-75" />
-        <span className="relative inline-flex h-2 w-2 rounded-full bg-[var(--cyber-success)]" />
+    <button
+      onClick={toggle}
+      aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+      className="flex items-center gap-2 rounded-full px-3 py-1.5 text-xs transition hover:bg-[var(--cyber-subtle2)]"
+      style={{ color: "var(--cyber-muted)" }}
+    >
+      {theme === "dark" ? <SunIcon /> : <MoonIcon />}
+      <span className="hidden sm:inline tracking-wider uppercase text-[10px]">
+        {theme === "dark" ? "Light" : "Dark"}
       </span>
-      <span className="text-[10px] font-medium tracking-widest text-[var(--cyber-faint)] uppercase">
-        SYS ONLINE
-      </span>
-    </div>
+    </button>
+  );
+}
+
+function SunIcon() {
+  return (
+    <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6}>
+      <circle cx={12} cy={12} r={5} />
+      <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+    </svg>
+  );
+}
+
+function MoonIcon() {
+  return (
+    <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6}>
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+    </svg>
   );
 }

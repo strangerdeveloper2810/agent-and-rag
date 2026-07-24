@@ -4,7 +4,10 @@ import { BrowserRouter } from "react-router-dom";
 import App from "./App.tsx";
 import { ToastProvider } from "@/shared/components/Toast";
 import ScanlineOverlay from "@/shared/components/ScanlineOverlay";
+import { initTheme } from "@/shared/components/ThemeToggle";
 import "./index.css";
+
+initTheme();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
