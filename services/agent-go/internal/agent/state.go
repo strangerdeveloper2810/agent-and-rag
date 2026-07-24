@@ -37,6 +37,7 @@ type RunInput struct {
 	ConversationID string
 	History        []provider.Message
 	UserMessage    string
+	Attachments    []provider.Attachment // image/file attachments (multimodal)
 	Provider       string
 	MaxSteps       int
 }
@@ -74,6 +75,10 @@ type State struct {
 	Usage    provider.Usage
 	Done     bool
 
+	// TrimmedTokens counts how many tokens were trimmed from context
+	// during this run (for observability).
+	TrimmedTokens int
+
 	// Interrupt != nil khi engine dừng chờ HITL. Lúc này State có thể được
 	// serialize/lưu lại để resume sau.
 	Interrupt *Interrupt
@@ -81,12 +86,29 @@ type State struct {
 
 // newState khởi tạo State từ RunInput.
 // Append user message vào history và đánh dấu bắt đầu lượt.
+// Nếu có attachments: file content được nối vào Content dạng text,
+// image được giữ trong Message.Attachments để adapter xử lý multimodal.
 func newState(in RunInput) *State {
 	messages := make([]provider.Message, 0, len(in.History)+1)
 	messages = append(messages, in.History...)
+
+	// Build user message content with any file attachment text.
+	content := in.UserMessage
+	var imageAttachments []provider.Attachment
+	for _, att := range in.Attachments {
+		switch att.Type {
+		case "file":
+			content += "\n\n[File: " + att.Name + "]\n" + att.Data
+		case "image":
+			imageAttachments = append(imageAttachments, att)
+			content += "\n[Image attached: " + att.Name + "]"
+		}
+	}
+
 	messages = append(messages, provider.Message{
-		Role:    provider.RoleUser,
-		Content: in.UserMessage,
+		Role:        provider.RoleUser,
+		Content:     content,
+		Attachments: imageAttachments,
 	})
 
 	maxSteps := in.MaxSteps

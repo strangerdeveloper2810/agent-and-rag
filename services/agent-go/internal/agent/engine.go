@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ai-agent-tut/agent-go/internal/guardrails"
 	"github.com/ai-agent-tut/agent-go/internal/provider"
 	"github.com/ai-agent-tut/agent-go/internal/tools"
 )
@@ -27,11 +28,23 @@ type Engine struct {
 	recallFn    Node
 	extractFn   Node
 	summarizeFn Node
+
+	// Circuit breaker detects stuck loops (same tool+args called consecutively).
+	// nil = disabled.
+	circuitBreaker *guardrails.CircuitBreaker
+
+	// MaxContextTokens is the token budget before context trimming kicks in.
+	// 0 = unlimited (no trimming). Default: 100000.
+	maxContextTokens int
 }
 
 // NewEngine tạo Engine với provider và tool registry cho trước.
 func NewEngine(prov provider.Provider, registry *tools.Registry) *Engine {
-	return &Engine{prov: prov, registry: registry}
+	return &Engine{
+		prov:             prov,
+		registry:         registry,
+		maxContextTokens: 100000,
+	}
 }
 
 // SetMemoryNodes gán các node memory (recall, extract, summarize).
@@ -52,6 +65,21 @@ func (e *Engine) getSystemPrompt() string          { return e.systemPrompt }
 func (e *Engine) SetSystemPrompt(prompt string) {
 	e.systemPrompt = prompt
 }
+
+// SetCircuitBreaker sets the circuit breaker for stuck-loop detection.
+// Pass nil to disable.
+func (e *Engine) SetCircuitBreaker(cb *guardrails.CircuitBreaker) {
+	e.circuitBreaker = cb
+}
+
+// SetMaxContextTokens sets the token budget before context trimming kicks in.
+// 0 = unlimited (no trimming).
+func (e *Engine) SetMaxContextTokens(n int) {
+	e.maxContextTokens = n
+}
+
+// getMaxContextTokens implements modelEngine.
+func (e *Engine) getMaxContextTokens() int { return e.maxContextTokens }
 
 // Run chạy agent loop cho một lượt chat.
 //
@@ -114,6 +142,18 @@ func (e *Engine) dispatch(ctx context.Context, node NodeID, s *State, emit EmitF
 	case NodeModel:
 		return nodeModel(ctx, e, s, emit)
 	case NodeTools:
+		// Circuit breaker: detect stuck loops (same tool+args called consecutively).
+		if e.circuitBreaker != nil {
+			last := s.LastAssistant()
+			if last != nil {
+				for _, tc := range last.ToolCalls {
+					if err := e.circuitBreaker.Record(tc.Name, tc.Args); err != nil {
+						emit(ErrorEvent(err.Error()))
+						return NodeEnd, nil
+					}
+				}
+			}
+		}
 		return nodeTools(ctx, e, s, emit)
 	case NodeExtract:
 		if e.extractFn != nil {
