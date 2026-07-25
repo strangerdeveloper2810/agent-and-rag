@@ -34,7 +34,7 @@ const circuit: CircuitState = {
 const CIRCUIT_THRESHOLD = 5; // 5 lỗi liên tiếp → mở mạch
 const CIRCUIT_TIMEOUT_MS = 30_000; // 30s đóng lại
 
-function checkCircuit(): void {
+const checkCircuit = (): void => {
   if (!circuit.open) return;
   if (Date.now() - circuit.lastFailureTime >= CIRCUIT_TIMEOUT_MS) {
     circuit.open = false;
@@ -49,7 +49,7 @@ function checkCircuit(): void {
   }
 }
 
-function recordFailure(): void {
+const recordFailure = (): void => {
   circuit.failures++;
   circuit.lastFailureTime = Date.now();
   if (circuit.failures >= CIRCUIT_THRESHOLD) {
@@ -57,7 +57,7 @@ function recordFailure(): void {
   }
 }
 
-function recordSuccess(): void {
+const recordSuccess = (): void => {
   circuit.failures = 0;
   circuit.open = false;
 }
@@ -67,7 +67,7 @@ function recordSuccess(): void {
 const MAX_RETRIES = 3;
 const RETRY_BASE_DELAY_MS = 500;
 
-async function sleep(ms: number): Promise<void> {
+const sleep = async (ms: number): Promise<void> => {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
@@ -79,7 +79,7 @@ async function sleep(ms: number): Promise<void> {
  * - Circuit breaker (đánh dấu lỗi nếu health check thất bại).
  * - app.ts /healthz endpoint (báo trạng thái Go agent).
  */
-export async function checkGoAgentHealth(): Promise<boolean> {
+export const checkGoAgentHealth = async (): Promise<boolean> => {
   const url = `${config.AGENT_GO_URL}/healthz`;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 5_000);

@@ -2,7 +2,7 @@ import { ChatAnthropic } from "@langchain/anthropic";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { config } from "../config";
-import { lcTools } from "./lc-tools";
+import { lcTools } from "./tools/index";
 
 /**
  * Tạo chat model cho agent theo LLM_PROVIDER (anthropic | google).

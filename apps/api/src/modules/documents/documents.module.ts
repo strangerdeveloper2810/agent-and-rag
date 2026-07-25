@@ -14,7 +14,7 @@ const authGuard: preHandlerAsyncHookHandler = async (_req) => {
  *
  * Đăng ký trong app.ts: `app.register(documentsModule, { prefix: "/api" });`
  */
-export async function documentsModule(app: FastifyInstance): Promise<void> {
+export const documentsModule = async (app: FastifyInstance): Promise<void> => {
   app.addHook("onRequest", authGuard);
   await documentsRoutes(app);
-}
+};

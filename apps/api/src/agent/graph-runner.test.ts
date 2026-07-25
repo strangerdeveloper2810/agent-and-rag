@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mapGraphEvent } from "./graph-runner";
+import { mapGraphEvent } from "./graph/index";
 
 describe("mapGraphEvent", () => {
   it("maps chat model token", () => {

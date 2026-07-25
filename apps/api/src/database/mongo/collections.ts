@@ -96,7 +96,7 @@ export const collections = {
  * LƯU Ý: KHÔNG bao gồm Atlas Vector Search index (`vector_index`) — cái đó phải
  * tạo thủ công trên Atlas UI/API.
  */
-export async function ensureIndexes(): Promise<void> {
+export const ensureIndexes = async (): Promise<void> => {
   const database = getDb();
 
   // Index gốc (backward-compatible, không có tenantId)

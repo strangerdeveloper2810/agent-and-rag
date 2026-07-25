@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { lcTools } from "./lc-tools";
+import { lcTools } from "./tools/index";
 
 describe("lcTools", () => {
   it("exposes đủ 7 langchain tool", () => {

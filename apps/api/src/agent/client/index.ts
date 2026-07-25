@@ -18,7 +18,7 @@ export { goAgentClient, checkGoAgentHealth } from "./go-agent.client";
  * - `"langgraph"` (mặc định): LangGraph in-process (legacy).
  * - `"go"`: Proxy HTTP+SSE sang service agent-go (khuyến nghị).
  */
-export function createAgentClient(): AgentClient {
+export const createAgentClient = (): AgentClient => {
   switch (config.AGENT_BACKEND) {
     case "go":
       return goAgentClient;

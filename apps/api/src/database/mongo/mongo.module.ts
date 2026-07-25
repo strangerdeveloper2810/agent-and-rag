@@ -22,7 +22,7 @@ let db: Db | null = null;
  * Kết nối đến MongoDB. Idempotent — gọi nhiều lần chỉ tạo 1 connection.
  * Dùng db name từ connection string (không cần truyền riêng).
  */
-export async function connectMongo(): Promise<Db> {
+export const connectMongo = async (): Promise<Db> => {
   if (db) return db;
   client = new MongoClient(config.MONGODB_URI);
   await client.connect();
@@ -34,7 +34,7 @@ export async function connectMongo(): Promise<Db> {
  * Lấy instance Db đã kết nối.
  * Throw nếu connectMongo() chưa được gọi.
  */
-export function getDb(): Db {
+export const getDb = (): Db => {
   if (!db) throw new Error("Mongo not connected. Call connectMongo() first.");
   return db;
 }
@@ -42,7 +42,7 @@ export function getDb(): Db {
 /**
  * Đóng kết nối Mongo (graceful shutdown).
  */
-export async function closeMongo(): Promise<void> {
+export const closeMongo = async (): Promise<void> => {
   await client?.close();
   client = null;
   db = null;

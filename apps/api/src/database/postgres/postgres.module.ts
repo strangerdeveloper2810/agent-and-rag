@@ -22,7 +22,7 @@ export interface PostgresConfig {
  *
  * @throws {Error} nếu PG_CONNECTION_STRING không được cấu hình.
  */
-export async function initPostgres(config: PostgresConfig): Promise<Pool> {
+export const initPostgres = async (config: PostgresConfig): Promise<Pool> => {
   if (!config.connectionString) {
     throw new Error("PG_CONNECTION_STRING not configured");
   }
@@ -40,7 +40,7 @@ export async function initPostgres(config: PostgresConfig): Promise<Pool> {
  *
  * @throws {Error} nếu initPostgres() chưa được gọi.
  */
-export function getPgPool(): Pool {
+export const getPgPool = (): Pool => {
   if (!pool) throw new Error("PostgreSQL not initialized. Call initPostgres() first.");
   return pool;
 }
@@ -48,7 +48,7 @@ export function getPgPool(): Pool {
 /**
  * Đóng connection pool PostgreSQL (graceful shutdown).
  */
-export async function closePostgres(): Promise<void> {
+export const closePostgres = async (): Promise<void> => {
   await pool?.end();
   pool = null;
 }

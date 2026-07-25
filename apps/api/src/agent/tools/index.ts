@@ -104,7 +104,7 @@ export const toolDefinitions = tools.map((t) => ({
   >,
 }));
 
-export function getTool(name: string): Tool | undefined {
+export const getTool = (name: string): Tool | undefined => {
   return tools.find((t) => t.name === name);
 }
 
