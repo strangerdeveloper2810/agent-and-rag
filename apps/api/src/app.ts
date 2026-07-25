@@ -17,6 +17,13 @@ import { checkGoAgentHealth } from "./agent/client";
  * - `/api/health`   — Liveness: process còn sống (không phụ thuộc DB/service ngoài).
  * - `/api/healthz`  — Deep health: MongoDB + Go agent (nếu dùng backend=go).
  * - `/api/ready`    — Readiness: sẵn sàng phục vụ (ping được MongoDB).
+ *
+ * Tổ chức module:
+ * - `app.ts` compose tất cả plugin/module vào 1 Fastify instance.
+ * - Mỗi module (`chatModule`, `documentsModule`, `tasksModule`) là 1 Fastify
+ *   plugin đóng gói route + auth guard + business logic của domain đó.
+ * - Auth guard hiện là placeholder (pass-through) — sẽ được kích hoạt khi
+ *   cài `jsonwebtoken` ở Phase 3 (xem TODO trong từng `*.module.ts`).
  */
 export function buildApp(): FastifyInstance {
   // Tắt logger khi chạy test cho đỡ nhiễu output.
@@ -24,6 +31,8 @@ export function buildApp(): FastifyInstance {
     logger: config.NODE_ENV !== "test",
     bodyLimit: 50 * 1024 * 1024, // 50MB — attachments + long conversation history
   });
+
+  // ---- Cross-cutting plugins ----
 
   // CORS: whitelist theo CORS_ORIGIN (prod) hoặc mọi origin (dev khi rỗng).
   app.register(cors, {
@@ -87,7 +96,16 @@ export function buildApp(): FastifyInstance {
     }
   });
 
-  // ---- Route modules ----
+  // ---- Feature modules (hiện tại dùng routes trực tiếp) ----
+  //
+  // Sau khi hoàn tất auth Phase 3, chuyển sang dùng module plugin:
+  //   app.register(chatModule, { prefix: "/api" });
+  //   app.register(documentsModule, { prefix: "/api" });
+  //   app.register(tasksModule, { prefix: "/api" });
+  //
+  // Các `*Module` plugin đã được tạo sẵn trong `*.module.ts` với
+  // authGuard placeholder. Khi `jsonwebtoken` được cài, chỉ cần
+  // uncomment import authGuard + đổi tên plugin là xong.
 
   app.register(chatRoutes, { prefix: "/api" });
   app.register(documentsRoutes, { prefix: "/api" });
