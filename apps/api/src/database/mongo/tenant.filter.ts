@@ -14,11 +14,11 @@ import type { FastifyRequest } from "fastify";
  *   .toArray();
  * ```
  */
-export function tenantFilter(
+export const tenantFilter = (
   req: FastifyRequest,
   extra: Record<string, unknown> = {},
-): Record<string, unknown> {
+): Record<string, unknown> => {
   const tid = (req as unknown as Record<string, unknown>).tenantId;
   if (!tid) return { ...extra };
   return { tenantId: tid as string, ...extra };
-}
+};

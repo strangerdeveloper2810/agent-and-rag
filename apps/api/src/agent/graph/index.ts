@@ -22,7 +22,7 @@ export type AgentEvent =
   | { type: "interrupt"; name?: string; message?: string };
 
 // Map một event của LangGraph streamEvents → AgentEvent (hoặc null nếu bỏ qua)
-export function mapGraphEvent(ev: any): AgentEvent | null {
+export const mapGraphEvent = (ev: any): AgentEvent | null => {
   if (ev.event === "on_chat_model_stream") {
     const content = ev.data?.chunk?.content;
     const text =
@@ -42,7 +42,7 @@ export function mapGraphEvent(ev: any): AgentEvent | null {
 }
 
 // Chuyển lịch sử DB → LangChain messages
-function toLcMessages(history: { role: string; content: string }[]) {
+const toLcMessages = (history: { role: string; content: string }[]) => {
   return history.map((m) =>
     m.role === "assistant"
       ? new AIMessage(m.content)

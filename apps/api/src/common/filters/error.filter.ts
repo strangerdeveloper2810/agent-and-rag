@@ -38,7 +38,7 @@ import {
  *  6. Lỗi Fastify (FST_*, validation).
  *  7. Fallback 500.
  */
-export function registerErrorFilter(app: FastifyInstance): void {
+export const registerErrorFilter = (app: FastifyInstance): void => {
   /** Gửi response lỗi chuẩn hoá { error, code, ...extras }. */
   const send = (
     reply: FastifyReply,

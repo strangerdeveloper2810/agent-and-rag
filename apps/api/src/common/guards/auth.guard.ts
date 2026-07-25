@@ -29,7 +29,7 @@ const JWT_SECRET: string =
  * Dùng parser thủ công thay vì `@fastify/cookie` để tránh thêm dependency
  * cho đến khi auth được triển khai chính thức.
  */
-function getCookie(cookieHeader: string, name: string): string | undefined {
+const getCookie = (cookieHeader: string, name: string): string | undefined => {
   for (const pair of cookieHeader.split(";")) {
     const [key, ...rest] = pair.trim().split("=");
     if (key === name) {

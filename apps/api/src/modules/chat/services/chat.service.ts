@@ -5,8 +5,8 @@ import {
   addMessage,
   deleteConversation as deleteConversationRepo,
 } from "../repositories";
-import { createAgentClient, type AgentClient } from "../../../agent/client";
-import type { AgentEvent } from "../../../agent/graph-runner";
+import { createAgentClient, type AgentClient } from "../../../agent/client/index";
+import type { AgentEvent } from "../../../agent/graph/index";
 import { config } from "../../../config";
 import type { MessageRole } from "../../../schemas/message";
 

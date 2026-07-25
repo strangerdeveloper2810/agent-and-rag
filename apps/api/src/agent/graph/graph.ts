@@ -31,7 +31,7 @@ const model = createAgentModel();
 
 const toolNode = new ToolNode(lcTools);
 
-async function agentNode(state: typeof MessagesAnnotation.State) {
+const agentNode = async (state: typeof MessagesAnnotation.State) => {
   const response = await model.invoke([
     new SystemMessage(SYSTEM_PROMPT),
     ...state.messages,
@@ -40,7 +40,7 @@ async function agentNode(state: typeof MessagesAnnotation.State) {
 }
 
 // Quyết định đi tiếp: có tool_calls → "tools", không → END
-function shouldContinue(state: typeof MessagesAnnotation.State) {
+const shouldContinue = (state: typeof MessagesAnnotation.State) => {
   const last = state.messages[state.messages.length - 1] as any;
   return last.tool_calls?.length ? "tools" : END;
 }

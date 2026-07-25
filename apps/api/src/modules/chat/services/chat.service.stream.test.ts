@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { AgentEvent } from "../../../agent/graph-runner";
-import type { AgentClient } from "../../../agent/client";
+import type { AgentEvent } from "../../../agent/graph/index";
+import type { AgentClient } from "../../../agent/client/index";
 
 // Mock repository (DB). Agent được INJECT qua tham số (không cần mock module).
 vi.mock("../repositories", () => ({

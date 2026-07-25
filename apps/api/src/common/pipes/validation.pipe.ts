@@ -13,7 +13,7 @@ import { ValidationError } from "../errors/app-errors";
  * @returns Dữ liệu đã parse + ép kiểu.
  * @throws  {ValidationError} nếu dữ liệu không hợp lệ.
  */
-export function validate<T>(schema: ZodSchema<T>, data: unknown): T {
+export const validate = <T>(schema: ZodSchema<T>, data: unknown): T => {
   const result = schema.safeParse(data);
   if (!result.success) {
     // Gom lỗi theo field path (dùng path.join('.') để tạo key).
