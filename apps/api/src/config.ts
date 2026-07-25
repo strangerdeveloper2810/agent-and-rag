@@ -11,6 +11,14 @@ const envSchema = z
     // ----- Database -----
     MONGODB_URI: z.string().min(1, "MONGODB_URI is required"),
 
+    // PostgreSQL (Auth DB — users, credentials, refresh tokens)
+    PG_CONNECTION_STRING: z
+      .string()
+      .min(1, "PG_CONNECTION_STRING is required"),
+
+    // Redis (rate limiting, embedding/chat/tool cache)
+    REDIS_URL: z.string().min(1, "REDIS_URL is required"),
+
     // ----- AI Provider: Anthropic -----
     ANTHROPIC_API_KEY: z.string().min(1, "ANTHROPIC_API_KEY is required"),
     CLAUDE_MODEL: z.string().default("claude-haiku-4-5-20251001"),
@@ -27,6 +35,19 @@ const envSchema = z
 
     // ----- Embedding -----
     VOYAGE_API_KEY: z.string().min(1, "VOYAGE_API_KEY is required"),
+
+    // ----- Auth: JWT -----
+    JWT_SECRET: z.string().min(32, "JWT_SECRET must be at least 32 characters"),
+    JWT_REFRESH_SECRET: z
+      .string()
+      .min(32, "JWT_REFRESH_SECRET must be at least 32 characters"),
+
+    // ----- Auth: Google OAuth -----
+    GOOGLE_CLIENT_ID: z.string().min(1, "GOOGLE_CLIENT_ID is required"),
+    GOOGLE_CLIENT_SECRET: z.string().min(1, "GOOGLE_CLIENT_SECRET is required"),
+    GOOGLE_REDIRECT_URI: z
+      .string()
+      .url("GOOGLE_REDIRECT_URI must be a valid URL"),
 
     // ----- Agent Backend -----
     // "langgraph" = in-process LangChain (legacy).

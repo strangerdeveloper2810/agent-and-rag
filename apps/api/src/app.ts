@@ -46,7 +46,8 @@ export function buildApp(): FastifyInstance {
     limits: { fileSize: 25 * 1024 * 1024, files: 7 },
   });
 
-  // Chặn abuse/DoS ở mức toàn cục.
+  // Rate limiting chống abuse/DoS — in-memory (đủ cho single instance).
+  // TODO Phase 2: Redis-backed rate limit sau khi refactor startup order.
   app.register(rateLimit, { max: 120, timeWindow: "1 minute" });
 
   // Middleware: error handler tập trung (controller chỉ cần throw).
