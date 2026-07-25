@@ -1,15 +1,6 @@
 import { useEffect } from "react";
 
-export default function ConfirmDialog({
-  open,
-  title,
-  message,
-  confirmLabel = "Confirm",
-  cancelLabel = "Cancel",
-  danger = false,
-  onConfirm,
-  onCancel,
-}: {
+export interface ConfirmDialogProps {
   open: boolean;
   title: string;
   message?: string;
@@ -18,7 +9,21 @@ export default function ConfirmDialog({
   danger?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
-}) {
+}
+
+/**
+ * ConfirmDialog component rendering a modal confirmation dialog for destructive or important actions.
+ */
+export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
+  open,
+  title,
+  message,
+  confirmLabel = "Confirm",
+  cancelLabel = "Cancel",
+  danger = false,
+  onConfirm,
+  onCancel,
+}) => {
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -82,4 +87,6 @@ export default function ConfirmDialog({
       </div>
     </div>
   );
-}
+};
+
+export default ConfirmDialog;

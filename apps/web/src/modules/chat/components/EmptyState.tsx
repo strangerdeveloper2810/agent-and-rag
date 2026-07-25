@@ -1,7 +1,14 @@
 import { useEffect, useState } from "react";
 import SuggestionChips from "@/shared/components/SuggestionChips";
 
-async function fetchSuggestions(): Promise<string[]> {
+import type { EmptyStateProps } from "@/types";
+
+/**
+ * Fetches initial prompt recommendations from server or returns fallbacks.
+ *
+ * @returns Promise resolving to array of prompt suggestion strings
+ */
+const fetchSuggestions = async (): Promise<string[]> => {
   try {
     const baseUrl = import.meta.env.VITE_AGENT_URL ?? "";
     const res = await fetch(`${baseUrl}/suggestions`);
@@ -18,9 +25,12 @@ async function fetchSuggestions(): Promise<string[]> {
       "Research a technical topic in depth",
     ];
   }
-}
+};
 
-function Skeleton() {
+/**
+ * Skeleton loader component for suggestion chips.
+ */
+const Skeleton: React.FC = () => {
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       {Array.from({ length: 4 }).map((_, i) => (
@@ -36,13 +46,12 @@ function Skeleton() {
       ))}
     </div>
   );
-}
+};
 
-export default function EmptyState({
-  onPick,
-}: {
-  onPick: (prompt: string) => void;
-}) {
+/**
+ * EmptyState centerpiece component rendered when starting a new chat conversation.
+ */
+export const EmptyState: React.FC<EmptyStateProps> = ({ onPick }) => {
   const [suggestions, setSuggestions] = useState<string[] | null>(null);
 
   useEffect(() => {
@@ -50,67 +59,53 @@ export default function EmptyState({
   }, []);
 
   return (
-    <div className="mx-auto flex h-full max-w-3xl flex-col justify-center px-4 sm:px-6 animate-fade-in">
+    <div className="mx-auto flex h-full max-w-3xl flex-col justify-center px-4 sm:px-6 animate-fade-in py-8 relative">
+      {/* Background Raycast Ambient Glow */}
+      <div 
+        className="pointer-events-none absolute left-1/2 top-1/3 -translate-x-1/2 -translate-y-1/2 h-72 w-72 rounded-full blur-[120px] opacity-20"
+        style={{ background: "radial-gradient(circle, var(--accent) 0%, var(--accent-violet) 100%)" }}
+      />
+
       {/* Centerpiece */}
-      <div className="mb-6 flex flex-col items-center">
-        {/* Glowing orb */}
+      <div className="mb-8 flex flex-col items-center text-center relative z-10">
         <div
-          className="mb-5 flex h-20 w-20 items-center justify-center rounded-full"
+          className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border shadow-lg transition-transform duration-300 hover:scale-105 backdrop-blur-xl glow-cyan-border"
           style={{
-            background:
-              "radial-gradient(circle, rgba(0,240,255,0.3) 0%, rgba(0,240,255,0.05) 60%, transparent 100%)",
-            boxShadow:
-              "0 0 40px rgba(0,240,255,0.2), 0 0 80px rgba(0,240,255,0.1)",
+            borderColor: "rgba(59, 130, 246, 0.3)",
+            backgroundColor: "var(--surface)",
           }}
         >
           <svg
-            width={32}
-            height={32}
+            width={30}
+            height={30}
             viewBox="0 0 24 24"
             fill="none"
             stroke="var(--accent)"
-            strokeWidth={1.4}
+            strokeWidth={1.8}
             strokeLinecap="round"
             strokeLinejoin="round"
-            style={{
-              filter: "drop-shadow(0 0 6px rgba(0,240,255,0.6))",
-            }}
           >
-            <path d="M12 4c.6 3.7 1.8 4.9 5.5 5.5-3.7.6-4.9 1.8-5.5 5.5-.6-3.7-1.8-4.9-5.5-5.5 3.7-.6 4.9-1.8 5.5-5.5Z" />
+            <path d="M12 3.5c.6 3.7 1.8 4.9 5.5 5.5-3.7.6-4.9 1.8-5.5 5.5-.6-3.7-1.8-4.9-5.5-5.5 3.7-.6 4.9-1.8 5.5-5.5Z" />
             <path d="M18 14c.3 1.6.8 2.1 2.4 2.4-1.6.3-2.1.8-2.4 2.4-.3-1.6-.8-2.1-2.4-2.4 1.6-.3 2.1-.8 2.4-2.4Z" />
           </svg>
         </div>
 
         <h1
-          className="text-2xl font-medium tracking-[0.3em] uppercase animate-neon-pulse sm:text-3xl"
-          style={{ color: "var(--accent)" }}
+          className="font-display text-2xl sm:text-3xl font-extrabold tracking-tight"
+          style={{ color: "var(--text)" }}
         >
-          J.A.R.V.I.S.
+          How can J.A.R.V.I.S. help you today?
         </h1>
-
-        <div className="mt-1 flex items-center gap-2">
-          <span className="relative flex h-1.5 w-1.5" aria-hidden="true">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--success)] opacity-75" />
-            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[var(--success)]" />
-          </span>
-          <span
-            className="text-[11px] tracking-[0.2em] uppercase"
-            style={{ color: "var(--text-tertiary)" }}
-          >
-            ONLINE
-          </span>
-        </div>
-
         <p
-          className="mt-4 text-sm text-center"
+          className="mt-2.5 text-xs sm:text-sm font-medium max-w-md"
           style={{ color: "var(--text-secondary)" }}
         >
-          How can I help you today?
+          Dispatch commands, search vector knowledge base, or execute intelligent workflows.
         </p>
       </div>
 
-      {/* Suggestions */}
-      <div className="mt-6">
+      {/* Suggestion Chips */}
+      <div className="mt-2 relative z-10">
         {suggestions === null ? (
           <Skeleton />
         ) : (
@@ -119,4 +114,6 @@ export default function EmptyState({
       </div>
     </div>
   );
-}
+};
+
+export default EmptyState;

@@ -3,6 +3,7 @@ import {
   collections,
   type ConversationDoc,
   type MessageDoc,
+  type AttachmentMetaDoc,
 } from "../../../lib/collections";
 import { toObjectId } from "../../../lib/object-id";
 import type { MessageRole } from "../../../schemas/message";
@@ -39,12 +40,14 @@ export function createChatRepository(
       role: MessageRole,
       content: string,
       toolCalls?: unknown[],
+      attachments?: AttachmentMetaDoc[],
     ) => {
-      const doc = {
+      const doc: MessageDoc = {
         conversationId,
         role,
         content,
         ...(toolCalls ? { toolCalls } : {}),
+        ...(attachments && attachments.length > 0 ? { attachments } : {}),
         createdAt: new Date(),
       };
       await messages().insertOne(doc);

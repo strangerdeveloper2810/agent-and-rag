@@ -1,11 +1,14 @@
 import { LinkIcon } from "./icons";
 import type { CitationData } from "@/modules/chat/chat.api";
 
-interface CitationListProps {
+export interface CitationListProps {
   citations: CitationData[];
 }
 
-export default function CitationList({ citations }: CitationListProps) {
+/**
+ * CitationList component for rendering document and web citations referenced by the agent.
+ */
+export const CitationList: React.FC<CitationListProps> = ({ citations }) => {
   if (citations.length === 0) return null;
 
   return (
@@ -51,4 +54,6 @@ export default function CitationList({ citations }: CitationListProps) {
       </ul>
     </div>
   );
-}
+};
+
+export default CitationList;

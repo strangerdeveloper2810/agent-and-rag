@@ -7,12 +7,12 @@ export default {
   theme: {
     extend: {
       fontFamily: {
+        display: ['"Outfit"', "ui-sans-serif", "system-ui", "sans-serif"],
         sans: [
-          '"JetBrains Mono"',
-          "ui-monospace",
-          "SF Mono",
-          "Consolas",
-          "monospace",
+          '"Plus Jakarta Sans"',
+          "ui-sans-serif",
+          "system-ui",
+          "sans-serif",
         ],
         mono: [
           '"JetBrains Mono"',
