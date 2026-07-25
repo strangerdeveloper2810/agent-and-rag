@@ -51,8 +51,34 @@ export const getConversationMessages = (id: string) => getMessagesRepo(id);
 export const deleteConversation = (id: string) => deleteConversationRepo(id);
 
 /** Lưu tin nhắn user (gọi TRƯỚC khi mở SSE để validate sớm). */
-export const appendUserMessage = (conversationId: string, content: string) =>
-  addMessage(conversationId, "user", content);
+export const appendUserMessage = (
+  conversationId: string,
+  content: string,
+  attachments?: Array<{
+    type: string;
+    name: string;
+    size?: number;
+    mimeType: string;
+    data?: string;
+    thumbnail?: string;
+  }>,
+) => {
+  const metaAttachments = attachments?.map((a) => ({
+    type: (a.type === "image" ? "image" : "file") as "image" | "file",
+    name: a.name,
+    size: a.size ?? 0,
+    mimeType: a.mimeType,
+    thumbnail:
+      a.thumbnail ||
+      (a.data
+        ? a.data.startsWith("data:")
+          ? a.data
+          : `data:${a.mimeType};base64,${a.data}`
+        : undefined),
+  }));
+
+  return addMessage(conversationId, "user", content, undefined, metaAttachments);
+};
 
 /**
  * Chạy agent cho hội thoại, yield từng AgentEvent để controller đẩy ra SSE.

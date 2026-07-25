@@ -11,12 +11,21 @@ export interface ConversationDoc {
   updatedAt: Date;
 }
 
+export interface AttachmentMetaDoc {
+  type: "image" | "file";
+  name: string;
+  size: number;
+  mimeType: string;
+  thumbnail?: string;
+}
+
 export interface MessageDoc {
   _id?: ObjectId;
   conversationId: string;
   role: MessageRole;
   content: string;
   toolCalls?: unknown[];
+  attachments?: AttachmentMetaDoc[];
   createdAt: Date;
 }
 

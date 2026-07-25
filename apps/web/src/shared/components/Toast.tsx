@@ -20,15 +20,23 @@ type ToastApi = {
 
 const ToastContext = createContext<ToastApi | null>(null);
 
-export function useToast(): ToastApi {
+/**
+ * Custom hook to access toast notification API.
+ *
+ * @returns ToastApi object with success and error methods
+ */
+export const useToast = (): ToastApi => {
   const ctx = useContext(ToastContext);
   if (!ctx) throw new Error("useToast must be used inside <ToastProvider>");
   return ctx;
-}
+};
 
 const DURATION = 3500;
 
-export function ToastProvider({ children }: { children: ReactNode }) {
+/**
+ * ToastProvider component managing global toast notification stack and context.
+ */
+export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const idRef = useRef(0);
 
@@ -57,9 +65,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       </div>
     </ToastContext.Provider>
   );
-}
+};
 
-function Toast({ toast, onClose }: { toast: ToastItem; onClose: () => void }) {
+/**
+ * Individual Toast item component displaying notification message with auto-dismiss.
+ */
+const Toast: React.FC<{ toast: ToastItem; onClose: () => void }> = ({ toast, onClose }) => {
   useEffect(() => {
     const timer = setTimeout(onClose, DURATION);
     return () => clearTimeout(timer);
@@ -108,4 +119,4 @@ function Toast({ toast, onClose }: { toast: ToastItem; onClose: () => void }) {
       </button>
     </div>
   );
-}
+};

@@ -17,44 +17,60 @@ const TOOL_LABELS: Record<string, string> = {
   notes: "Managing notes",
 };
 
-function toolLabel(name: string): string {
-  return TOOL_LABELS[name] ?? name;
-}
+/**
+ * Resolves user-friendly display labels for agent tool names.
+ *
+ * @param name - Raw tool name string
+ * @returns Human-readable label string
+ */
+const toolLabel = (name: string): string => TOOL_LABELS[name] ?? name;
 
-interface ToolCallCardProps {
+export interface ToolCallCardProps {
   tool: ToolCallState;
 }
 
-export default function ToolCallCard({ tool }: ToolCallCardProps) {
+/**
+ * ToolCallCard component for rendering real-time agent tool executions and logs.
+ */
+export const ToolCallCard: React.FC<ToolCallCardProps> = ({ tool }) => {
   const [expanded, setExpanded] = useState(false);
   const isRunning = tool.status === "running";
   const isError = tool.status === "error";
   const hasDetail = tool.result || tool.error;
 
   const bgColor = isRunning
-    ? "rgba(0,240,255,0.06)"
+    ? "rgba(0, 240, 255, 0.04)"
     : isError
-      ? "rgba(255,51,102,0.08)"
-      : "transparent";
+      ? "rgba(255, 71, 87, 0.06)"
+      : "var(--bg-raised)";
   const borderColor = isRunning
-    ? "rgba(0,240,255,0.3)"
+    ? "rgba(0, 240, 255, 0.3)"
     : isError
-      ? "rgba(255,51,102,0.3)"
+      ? "rgba(255, 71, 87, 0.3)"
       : "var(--border)";
 
   return (
     <div
-      className="my-2 rounded-xl border px-4 py-3 transition-all duration-200"
+      className="my-2.5 rounded-2xl border px-3.5 py-2.5 transition-all duration-200 backdrop-blur-md shadow-sm"
       style={{ backgroundColor: bgColor, borderColor }}
     >
       <button
         type="button"
         onClick={() => hasDetail && setExpanded(!expanded)}
-        className="flex w-full items-center gap-2.5 text-left"
+        className="flex w-full items-center gap-3 text-left group"
         aria-expanded={expanded}
         aria-label={`Tool: ${toolLabel(tool.name)} - ${tool.status}`}
       >
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full">
+        <span
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl transition-transform group-hover:scale-105"
+          style={{
+            backgroundColor: isRunning
+              ? "var(--accent-bg)"
+              : isError
+                ? "var(--danger-bg)"
+                : "var(--success-bg)",
+          }}
+        >
           {isRunning ? (
             <WrenchIcon
               width={14}
@@ -64,7 +80,7 @@ export default function ToolCallCard({ tool }: ToolCallCardProps) {
             />
           ) : isError ? (
             <span
-              className="text-sm font-bold"
+              className="text-xs font-bold font-mono"
               style={{ color: "var(--danger)" }}
             >
               !
@@ -80,46 +96,61 @@ export default function ToolCallCard({ tool }: ToolCallCardProps) {
 
         <div className="min-w-0 flex-1">
           <p
-            className="truncate text-xs font-medium"
+            className="truncate text-xs font-semibold tracking-wide"
             style={{ color: "var(--text)" }}
           >
             {toolLabel(tool.name)}
           </p>
-          <p
-            className="text-[10px]"
-            style={{
-              color: isError ? "var(--danger)" : "var(--text-secondary)",
-            }}
-          >
-            {isRunning ? "Running..." : isError ? "Failed" : "Completed"}
-          </p>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${isRunning ? "animate-pulse" : ""}`}
+              style={{
+                backgroundColor: isRunning
+                  ? "var(--accent)"
+                  : isError
+                    ? "var(--danger)"
+                    : "var(--success)",
+              }}
+            />
+            <span
+              className="text-[10px] font-mono tracking-wider uppercase"
+              style={{
+                color: isError ? "var(--danger)" : "var(--text-tertiary)",
+              }}
+            >
+              {isRunning ? "Executing..." : isError ? "Failed" : "Completed"}
+            </span>
+          </div>
         </div>
 
         {hasDetail && (
-          <ChevronDownIcon
-            width={14}
-            height={14}
-            style={{ color: "var(--text-tertiary)" }}
-            className={`shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`}
-          />
+          <span className="flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-mono text-[var(--text-tertiary)] bg-black/10 group-hover:bg-black/20">
+            <span>{expanded ? "Hide" : "Logs"}</span>
+            <ChevronDownIcon
+              width={12}
+              height={12}
+              style={{ color: "var(--text-tertiary)" }}
+              className={`shrink-0 transition-transform duration-200 ${expanded ? "rotate-180" : ""}`}
+            />
+          </span>
         )}
       </button>
 
       {expanded && hasDetail && (
         <div
-          className="mt-3 border-t pt-3"
+          className="mt-3 border-t pt-3 animate-fade-in"
           style={{ borderColor: "var(--border)" }}
         >
           {tool.result && (
             <div>
               <p
-                className="mb-1 text-[10px] font-medium uppercase tracking-wider"
-                style={{ color: "var(--text-tertiary)" }}
+                className="mb-1 text-[9px] font-mono font-bold uppercase tracking-widest"
+                style={{ color: "var(--accent)" }}
               >
-                Result
+                // Execution Result Output
               </p>
               <pre
-                className="scroll-fine max-h-48 overflow-auto whitespace-pre-wrap rounded-lg px-3 py-2 text-[11px] leading-relaxed"
+                className="scroll-fine max-h-56 overflow-auto whitespace-pre-wrap rounded-xl px-3.5 py-2.5 text-[11px] font-mono leading-relaxed shadow-inner"
                 style={{
                   color: "var(--text-secondary)",
                   backgroundColor: "var(--bg)",
@@ -133,18 +164,27 @@ export default function ToolCallCard({ tool }: ToolCallCardProps) {
           {tool.error && (
             <div>
               <p
-                className="mb-1 text-[10px] font-medium uppercase tracking-wider"
+                className="mb-1 text-[9px] font-mono font-bold uppercase tracking-widest"
                 style={{ color: "var(--danger)" }}
               >
-                Error
+                // Error Log Output
               </p>
-              <p className="text-xs" style={{ color: "var(--danger)" }}>
+              <pre
+                className="scroll-fine max-h-56 overflow-auto whitespace-pre-wrap rounded-xl px-3.5 py-2.5 text-[11px] font-mono leading-relaxed"
+                style={{
+                  color: "var(--danger)",
+                  backgroundColor: "var(--danger-bg)",
+                  border: "1px solid rgba(255, 71, 87, 0.2)",
+                }}
+              >
                 {tool.error}
-              </p>
+              </pre>
             </div>
           )}
         </div>
       )}
     </div>
   );
-}
+};
+
+export default ToolCallCard;

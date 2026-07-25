@@ -10,15 +10,20 @@ const DocumentsView = lazy(
   () => import("@/modules/documents/components/DocumentsView"),
 );
 
-export default function App() {
+/**
+ * Main application component configuring React Router routes with lazy loading & code splitting.
+ */
+export const App: React.FC = () => {
   return (
     <Routes>
       <Route element={<AppLayout />}>
-        {/* Home = hội thoại mới; /messages/:id = mở đúng phiên (reload vẫn giữ) */}
+        {/* Home = new chat; /messages/:id = active session */}
         <Route path="/" element={<ChatPage />} />
         <Route path="/messages/:id" element={<ChatPage />} />
         <Route path="/documents" element={<DocumentsView />} />
       </Route>
     </Routes>
   );
-}
+};
+
+export default App;

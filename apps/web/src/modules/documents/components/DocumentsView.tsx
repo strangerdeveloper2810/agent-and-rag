@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { useOutletContext } from "react-router-dom";
 import {
   listDocuments,
   uploadDocuments,
@@ -11,19 +10,20 @@ import {
   type DocumentVersion,
   type VersionContent,
 } from "@/modules/documents/documents.api";
-import type { OutletCtx } from "@/shared/components/AppLayout";
 import {
   UploadIcon,
   DocIcon,
   TrashIcon,
-  MenuIcon,
   CloseIcon,
 } from "@/shared/components/icons";
 import ConfirmDialog from "@/shared/components/ConfirmDialog";
 import { useToast } from "@/shared/components/Toast";
 
-export default function DocumentsView() {
-  const { toggleSidebar } = useOutletContext<OutletCtx>();
+/**
+ * DocumentsView component for managing RAG knowledge base documents,
+ * multi-file upload dropzone, version history, and content inspection.
+ */
+export const DocumentsView: React.FC = () => {
   const toast = useToast();
   const [docs, setDocs] = useState<DocumentInfo[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -120,88 +120,58 @@ export default function DocumentsView() {
     setViewing(await getVersionContent(documentId, version));
   };
 
+  const totalChunks = docs.reduce((acc, d) => acc + (d.chunks || 0), 0);
+
   return (
     <main className="flex min-w-0 flex-1 flex-col" style={{ minHeight: 0 }}>
-      <header
-        className="flex shrink-0 items-center gap-3 px-4 py-3 sm:px-6"
-        style={{
-          borderBottom: "1px solid var(--border)",
-          backgroundColor: "var(--surface)",
-        }}
-      >
-        <button
-          type="button"
-          onClick={toggleSidebar}
-          aria-label="Toggle menu"
-          className="rounded-full p-2 transition hover:bg-[var(--border)]"
-          style={{ color: "var(--text-secondary)" }}
-        >
-          <MenuIcon />
-        </button>
-        <h1
-          className="text-sm font-medium tracking-wider"
-          style={{ color: "var(--text)" }}
-        >
-          Documents
-        </h1>
-      </header>
-
       <div
         className="scroll-fine overflow-y-auto"
         style={{ flex: 1, minHeight: 0 }}
       >
-        <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
-          <h2
-            className="text-2xl font-medium tracking-tight"
-            style={{ color: "var(--accent)" }}
-          >
-            Knowledge Base
-          </h2>
-          <p
-            className="mt-2 text-xs leading-relaxed"
-            style={{ color: "var(--text-secondary)" }}
-          >
-            Upload{" "}
-            <code
-              className="rounded px-1 py-0.5 text-[11px]"
-              style={{
-                color: "var(--accent)",
-                backgroundColor: "var(--border)",
-              }}
-            >
-              .txt
-            </code>
-            ,{" "}
-            <code
-              className="rounded px-1 py-0.5 text-[11px]"
-              style={{
-                color: "var(--accent)",
-                backgroundColor: "var(--border)",
-              }}
-            >
-              .md
-            </code>
-            , or{" "}
-            <code
-              className="rounded px-1 py-0.5 text-[11px]"
-              style={{
-                color: "var(--accent)",
-                backgroundColor: "var(--border)",
-              }}
-            >
-              .pdf
-            </code>{" "}
-            files for RAG retrieval.
-          </p>
+        <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
+          {/* Header section */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div>
+              <h2
+                className="text-2xl font-bold tracking-tight bg-gradient-to-r from-[var(--text)] to-[var(--accent)] bg-clip-text text-transparent"
+              >
+                Knowledge Base (RAG)
+              </h2>
+              <p
+                className="mt-1 text-xs leading-relaxed"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                Upload documents to empower J.A.R.V.I.S. vector search capabilities.
+              </p>
+            </div>
+
+            {/* Metrics cards */}
+            <div className="flex items-center gap-3">
+              <div 
+                className="rounded-2xl border px-4 py-2 text-center backdrop-blur-md"
+                style={{ backgroundColor: "var(--bg-raised)", borderColor: "var(--border)" }}
+              >
+                <p className="text-[10px] font-mono uppercase text-[var(--text-tertiary)]">Documents</p>
+                <p className="text-lg font-bold font-mono text-[var(--accent)]">{docs.length}</p>
+              </div>
+              <div 
+                className="rounded-2xl border px-4 py-2 text-center backdrop-blur-md"
+                style={{ backgroundColor: "var(--bg-raised)", borderColor: "var(--border)" }}
+              >
+                <p className="text-[10px] font-mono uppercase text-[var(--text-tertiary)]">Total Chunks</p>
+                <p className="text-lg font-bold font-mono text-[var(--accent-violet)]">{totalChunks}</p>
+              </div>
+            </div>
+          </div>
 
           {/* Upload zone */}
           <label
-            className={`mt-6 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-6 py-10 text-center transition-all duration-200 hover:shadow-[0_0_15px_rgba(0,240,255,0.1)] ${
+            className={`group relative flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed px-6 py-10 text-center transition-all duration-300 hover:border-[var(--accent)] hover:shadow-[0_0_30px_-5px_var(--glow-cyan)] ${
               uploading ? "pointer-events-none opacity-60" : ""
             }`}
             style={{
               borderColor: "var(--border)",
-              backgroundColor: "var(--bg-raised)",
+              backgroundColor: "var(--surface)",
             }}
           >
             <input
@@ -216,181 +186,198 @@ export default function DocumentsView() {
               }}
             />
             <div
-              className="flex h-12 w-12 items-center justify-center rounded-full"
+              className="flex h-14 w-14 items-center justify-center rounded-2xl shadow-lg transition-transform duration-300 group-hover:scale-110"
               style={{
-                backgroundColor: "var(--accent-bg)",
+                background: "linear-gradient(135deg, rgba(0,240,255,0.2) 0%, rgba(139,92,246,0.2) 100%)",
+                border: "1px solid rgba(0, 240, 255, 0.3)",
                 color: "var(--accent)",
               }}
             >
-              <UploadIcon width={20} height={20} />
+              <UploadIcon width={24} height={24} />
             </div>
-            <span
-              className="text-xs font-medium"
-              style={{ color: "var(--text)" }}
-            >
-              {uploading
-                ? "Uploading & embedding..."
-                : "Click to upload files (max 7)"}
-            </span>
-            <span
-              className="text-[10px]"
-              style={{ color: "var(--text-tertiary)" }}
-            >
-              .txt / .md / .pdf - max 7 files per batch
-            </span>
+            <div>
+              <span
+                className="text-sm font-semibold block"
+                style={{ color: "var(--text)" }}
+              >
+                {uploading
+                  ? "Embedding & vectorizing documents..."
+                  : "Click or drag & drop files to upload"}
+              </span>
+              <p
+                className="mt-1 text-[11px] text-[var(--text-tertiary)] font-mono"
+              >
+                Supported extensions: <code className="text-[var(--accent)] bg-[var(--accent-bg)] px-1.5 py-0.5 rounded">.txt</code> <code className="text-[var(--accent)] bg-[var(--accent-bg)] px-1.5 py-0.5 rounded">.md</code> <code className="text-[var(--accent)] bg-[var(--accent-bg)] px-1.5 py-0.5 rounded">.pdf</code> (max 7 files per batch)
+              </p>
+            </div>
           </label>
 
           {/* Document list */}
           <div className="mt-8">
-            <h3
-              className="mb-3 text-[10px] font-medium uppercase tracking-widest"
-              style={{ color: "var(--text-tertiary)" }}
-            >
-              Uploaded ({docs.length})
-            </h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3
+                className="text-[11px] font-mono font-bold uppercase tracking-widest"
+                style={{ color: "var(--text-tertiary)" }}
+              >
+                Indexed Files ({docs.length})
+              </h3>
+            </div>
+
             {docs.length === 0 ? (
               <div
-                className="rounded-xl px-4 py-8 text-center text-xs"
+                className="rounded-2xl px-4 py-12 text-center text-xs backdrop-blur-md"
                 style={{
                   backgroundColor: "var(--bg-raised)",
                   color: "var(--text-tertiary)",
                   border: "1px solid var(--border)",
                 }}
               >
-                No documents yet.
+                No documents uploaded yet. Upload your first text or PDF document above.
               </div>
             ) : (
-              <ul className="space-y-2">
+              <ul className="space-y-2.5">
                 {docs.map((d) => (
                   <li
                     key={d.documentId}
-                    className="rounded-xl px-4 py-3 transition-all"
+                    className="rounded-2xl px-4 py-3.5 transition-all duration-200 backdrop-blur-md hover:border-[rgba(0,240,255,0.3)] shadow-sm"
                     style={{
-                      backgroundColor: "var(--bg-raised)",
+                      backgroundColor: "var(--surface)",
                       border: "1px solid var(--border)",
                     }}
                   >
-                    <div className="group flex items-center gap-3">
+                    <div className="group flex items-center gap-3.5">
                       <div
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
                         style={{
                           backgroundColor: "var(--accent-bg)",
                           color: "var(--accent)",
+                          border: "1px solid rgba(0,240,255,0.2)",
                         }}
                       >
-                        <DocIcon width={16} height={16} />
+                        <DocIcon width={18} height={18} />
                       </div>
                       <div className="min-w-0 flex-1">
                         <p
-                          className="flex items-center gap-2 truncate text-xs font-medium"
+                          className="flex items-center gap-2 truncate text-xs font-semibold"
                           style={{ color: "var(--text)" }}
                         >
                           {d.source}
                           <span
-                            className="rounded-full px-2 py-0.5 text-[10px] font-medium"
+                            className="rounded-full px-2 py-0.5 text-[10px] font-mono font-medium"
                             style={{
                               backgroundColor: "var(--accent-bg)",
                               color: "var(--accent)",
+                              border: "1px solid rgba(0, 240, 255, 0.2)",
                             }}
                           >
                             v{d.version}
                           </span>
                         </p>
                         <p
-                          className="text-[10px]"
+                          className="text-[10px] font-mono"
                           style={{ color: "var(--text-tertiary)" }}
                         >
-                          {d.chunks} chunks
+                          {d.chunks} vector chunks indexed
                         </p>
                       </div>
 
-                      <label
-                        className={`cursor-pointer rounded-lg px-3 py-1.5 text-[10px] font-medium transition hover:bg-[var(--border)] ${
-                          updatingId === d.documentId
-                            ? "pointer-events-none opacity-60"
-                            : ""
-                        }`}
-                        style={{ color: "var(--text-secondary)" }}
-                      >
-                        <input
-                          type="file"
-                          accept=".txt,.md,.pdf,text/plain,text/markdown,application/pdf"
-                          className="hidden"
-                          onChange={(e) => {
-                            const f = e.target.files?.[0];
-                            if (f) onUpdate(d.documentId, f);
-                            e.target.value = "";
-                          }}
-                        />
-                        {updatingId === d.documentId ? "..." : "Update"}
-                      </label>
+                      <div className="flex items-center gap-1.5">
+                        <label
+                          className={`cursor-pointer rounded-xl border px-3 py-1.5 text-[11px] font-medium transition hover:bg-[var(--bg-raised)] hover:border-[var(--accent)] ${
+                            updatingId === d.documentId
+                              ? "pointer-events-none opacity-60"
+                              : ""
+                          }`}
+                          style={{ color: "var(--text-secondary)", borderColor: "var(--border)" }}
+                        >
+                          <input
+                            type="file"
+                            accept=".txt,.md,.pdf,text/plain,text/markdown,application/pdf"
+                            className="hidden"
+                            onChange={(e) => {
+                              const f = e.target.files?.[0];
+                              if (f) onUpdate(d.documentId, f);
+                              e.target.value = "";
+                            }}
+                          />
+                          {updatingId === d.documentId ? "Updating..." : "Update"}
+                        </label>
 
-                      <button
-                        type="button"
-                        onClick={() => toggleHistory(d.documentId)}
-                        className="rounded-lg px-3 py-1.5 text-[10px] font-medium transition hover:bg-[var(--border)]"
-                        style={{ color: "var(--text-secondary)" }}
-                      >
-                        History
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => toggleHistory(d.documentId)}
+                          className="rounded-xl border px-3 py-1.5 text-[11px] font-medium transition hover:bg-[var(--bg-raised)] hover:border-[var(--accent)]"
+                          style={{ color: "var(--text-secondary)", borderColor: "var(--border)" }}
+                        >
+                          History
+                        </button>
 
-                      <button
-                        type="button"
-                        onClick={() => setConfirming(d)}
-                        aria-label={`Delete ${d.source}`}
-                        className="rounded-full p-2 opacity-0 transition hover:bg-[rgba(255,51,102,0.1)] hover:text-[var(--danger)] focus:opacity-100 group-hover:opacity-100"
-                        style={{ color: "var(--text-tertiary)" }}
-                      >
-                        <TrashIcon width={14} height={14} />
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirming(d)}
+                          aria-label={`Delete ${d.source}`}
+                          className="rounded-xl p-2 transition hover:bg-[var(--danger-bg)] hover:text-[var(--danger)] text-[var(--text-tertiary)]"
+                        >
+                          <TrashIcon width={14} height={14} />
+                        </button>
+                      </div>
                     </div>
 
                     {openHistory === d.documentId && (
-                      <ul
-                        className="mt-3 space-y-1 border-t pt-3"
+                      <div
+                        className="mt-3.5 border-t pt-3 space-y-2 animate-fade-in"
                         style={{ borderColor: "var(--border)" }}
                       >
-                        {versions.map((v) => (
-                          <li
-                            key={v.version}
-                            className="flex items-center gap-2 text-xs"
-                          >
-                            <span
-                              className="rounded px-1.5 py-0.5 text-[10px] font-medium"
-                              style={{
-                                backgroundColor: "var(--border)",
-                                color: "var(--text-secondary)",
-                              }}
+                        <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--text-tertiary)]">
+                          Version History
+                        </p>
+                        <ul className="space-y-1">
+                          {versions.map((v) => (
+                            <li
+                              key={v.version}
+                              className="flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs bg-[var(--bg-raised)]"
                             >
-                              v{v.version}
-                            </span>
-                            <span
-                              className="min-w-0 flex-1 truncate"
-                              style={{ color: "var(--text-secondary)" }}
-                            >
-                              {v.source}
-                            </span>
-                            {v.isLatest && (
                               <span
-                                className="text-[10px]"
+                                className="rounded-lg px-2 py-0.5 text-[10px] font-mono font-medium"
+                                style={{
+                                  backgroundColor: "var(--surface)",
+                                  color: "var(--accent)",
+                                  border: "1px solid var(--border)",
+                                }}
+                              >
+                                v{v.version}
+                              </span>
+                              <span
+                                className="min-w-0 flex-1 truncate font-mono text-[11px]"
+                                style={{ color: "var(--text-secondary)" }}
+                              >
+                                {v.source}
+                              </span>
+                              {v.isLatest && (
+                                <span
+                                  className="rounded-full px-2 py-0.5 text-[9px] font-mono font-bold uppercase"
+                                  style={{
+                                    backgroundColor: "var(--success-bg)",
+                                    color: "var(--success)",
+                                  }}
+                                >
+                                  Active
+                                </span>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  onViewVersion(d.documentId, v.version)
+                                }
+                                className="rounded-lg px-2.5 py-1 text-[10px] font-medium transition hover:bg-[var(--accent-bg)]"
                                 style={{ color: "var(--accent)" }}
                               >
-                                latest
-                              </span>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() =>
-                                onViewVersion(d.documentId, v.version)
-                              }
-                              className="rounded-lg px-2 py-1 text-[10px] font-medium transition hover:bg-[var(--accent-bg)]"
-                              style={{ color: "var(--accent)" }}
-                            >
-                              View
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
+                                Preview
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
                     )}
                   </li>
                 ))}
@@ -403,41 +390,43 @@ export default function DocumentsView() {
       {/* Version content modal */}
       {viewing && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4 animate-fade-in"
           onClick={() => setViewing(null)}
         >
           <div
-            className="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-2xl p-6 shadow-2xl"
+            className="flex max-h-[80vh] w-full max-w-3xl flex-col rounded-3xl p-6 shadow-2xl backdrop-blur-xl"
             style={{
               backgroundColor: "var(--surface)",
               border: "1px solid var(--border)",
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="mb-4 flex items-center gap-3">
+            <div className="mb-4 flex items-center gap-3 border-b pb-4" style={{ borderColor: "var(--border)" }}>
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--accent-bg)] text-[var(--accent)]">
+                <DocIcon width={16} height={16} />
+              </div>
               <h3
-                className="min-w-0 flex-1 truncate text-sm font-medium"
+                className="min-w-0 flex-1 truncate text-sm font-bold"
                 style={{ color: "var(--text)" }}
               >
                 {viewing.source}{" "}
-                <span style={{ color: "var(--text-tertiary)" }}>
-                  v{viewing.version}
+                <span className="font-mono text-xs text-[var(--accent)]">
+                  (v{viewing.version})
                 </span>
               </h3>
               <button
                 type="button"
                 onClick={() => setViewing(null)}
                 aria-label="Close"
-                className="rounded-full p-2 transition hover:bg-[var(--bg-raised)]"
-                style={{ color: "var(--text-tertiary)" }}
+                className="rounded-xl p-2 transition hover:bg-[var(--bg-raised)] text-[var(--text-tertiary)]"
               >
                 <CloseIcon width={16} height={16} />
               </button>
             </div>
             <pre
-              className="scroll-fine flex-1 overflow-y-auto whitespace-pre-wrap break-words rounded-xl px-4 py-3 text-xs leading-relaxed"
+              className="scroll-fine flex-1 overflow-y-auto whitespace-pre-wrap break-words rounded-2xl px-4 py-3.5 text-xs font-mono leading-relaxed"
               style={{
-                backgroundColor: "var(--bg-raised)",
+                backgroundColor: "var(--bg)",
                 color: "var(--text-secondary)",
                 border: "1px solid var(--border)",
               }}
@@ -463,4 +452,6 @@ export default function DocumentsView() {
       />
     </main>
   );
-}
+};
+
+export default DocumentsView;
