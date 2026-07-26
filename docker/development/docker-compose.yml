@@ -42,8 +42,30 @@ services:
       retries: 3
       start_period: 10s
 
+  # ── MinIO (S3-compatible object storage — ảnh, doc, file agent tạo) ──
+  minio:
+    image: minio/minio:latest
+    container_name: jarvis-development-minio
+    restart: unless-stopped
+    ports:
+      - "9000:9000" # S3 API
+      - "9001:9001" # Web console (http://localhost:9001)
+    env_file:
+      - ../../env/.env.development
+    volumes:
+      - minio_dev:/data
+    command: server /data --console-address :9001
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
 volumes:
   pgdata_dev:
     driver: local
   redis_dev:
+    driver: local
+  minio_dev:
     driver: local

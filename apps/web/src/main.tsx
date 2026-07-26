@@ -4,9 +4,13 @@ import { BrowserRouter } from "react-router-dom";
 import App from "./App.tsx";
 import { ToastProvider } from "@/shared/components/Toast";
 import { initTheme } from "@/shared/components/ThemeToggle";
+import { useAuthStore } from "@/stores/auth.store";
 import "./index.css";
 
 initTheme();
+
+// Khởi tạo auth — kiểm tra session hiện có (nếu có cookie còn hạn)
+useAuthStore.getState().init();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

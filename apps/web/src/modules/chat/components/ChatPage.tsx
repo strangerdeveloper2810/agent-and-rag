@@ -18,6 +18,9 @@ import MessageBubble from "./MessageBubble";
 import Composer from "./Composer";
 import EmptyState from "./EmptyState";
 import { StopIcon } from "@/shared/components/icons";
+import { useToast } from "@/shared/components/Toast";
+import { validateComposerInput } from "@/lib/validation";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
 export type MessageMeta = {
   toolCalls: ToolCallState[];
@@ -182,6 +185,8 @@ export const ChatPage: React.FC = () => {
   const loadedIdRef = useRef<string | null>(null);
   const streamCtrlRef = useRef<AbortController | null>(null);
   const userScrolledUpRef = useRef(false);
+  const toast = useToast();
+  useDocumentTitle("Chat");
 
   const streamingRef = useRef(false);
   streamingRef.current = streaming;
@@ -268,9 +273,19 @@ export const ChatPage: React.FC = () => {
   }, [messages, scrollToBottom, streaming]);
 
   const send = async (text?: string) => {
-    const content = (text ?? input).trim();
-    if ((!content && attachments.length === 0) || streaming) return;
+    const rawContent = (text ?? input).trim();
+    if ((!rawContent && attachments.length === 0) || streaming) return;
 
+    // Validate input chống XSS/script injection
+    if (rawContent) {
+      const validation = validateComposerInput(rawContent);
+      if (!validation.valid) {
+        toast.error(validation.error);
+        return;
+      }
+    }
+
+    const content = rawContent;
     setInput("");
     const snapAttachments = [...attachments];
     setAttachments([]);

@@ -4,9 +4,11 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/ai-agent-tut/agent-go/internal/agent"
+	"github.com/ai-agent-tut/agent-go/internal/guardrails"
 	"github.com/ai-agent-tut/agent-go/internal/provider"
 )
 
@@ -60,6 +62,13 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.UserMessage == "" {
 		http.Error(w, `{"error":"userMessage is required"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Validate input chống prompt injection + XSS (defense in depth).
+	if err := guardrails.ValidateUserInput(req.UserMessage); err != nil {
+		slog.Warn("chat input rejected by guardrails", "error", err, "len", len(req.UserMessage))
+		http.Error(w, fmt.Sprintf(`{"error":"%v"}`, err), http.StatusBadRequest)
 		return
 	}
 

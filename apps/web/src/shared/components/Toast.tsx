@@ -10,12 +10,14 @@ import {
 } from "react";
 import { CheckIcon, CloseIcon } from "./icons";
 
-type ToastType = "success" | "error";
+type ToastType = "success" | "error" | "info" | "warning";
 type ToastItem = { id: number; type: ToastType; message: string };
 
 type ToastApi = {
   success: (message: string) => void;
   error: (message: string) => void;
+  info: (message: string) => void;
+  warning: (message: string) => void;
 };
 
 const ToastContext = createContext<ToastApi | null>(null);
@@ -52,6 +54,8 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     return {
       success: (message) => push("success", message),
       error: (message) => push("error", message),
+      info: (message) => push("info", message),
+      warning: (message) => push("warning", message),
     };
   }, []);
 
@@ -77,7 +81,17 @@ const Toast: React.FC<{ toast: ToastItem; onClose: () => void }> = ({ toast, onC
   }, [onClose]);
 
   const isError = toast.type === "error";
-  const accentColor = isError ? "var(--danger)" : "var(--success)";
+  const isSuccess = toast.type === "success";
+  const isInfo = toast.type === "info";
+  const isWarning = toast.type === "warning";
+
+  const accentColor = isError
+    ? "var(--danger)"
+    : isWarning
+      ? "var(--warning, #f59e0b)"
+      : isInfo
+        ? "var(--info, #3b82f6)"
+        : "var(--success)";
 
   return (
     <div
@@ -96,11 +110,10 @@ const Toast: React.FC<{ toast: ToastItem; onClose: () => void }> = ({ toast, onC
           color: "#0a0a0f",
         }}
       >
-        {isError ? (
-          <CloseIcon width={13} height={13} />
-        ) : (
-          <CheckIcon width={13} height={13} />
-        )}
+        {isError && <CloseIcon width={13} height={13} />}
+        {isSuccess && <CheckIcon width={13} height={13} />}
+        {isInfo && <InfoSvg />}
+        {isWarning && <WarnSvg />}
       </span>
       <p
         className="min-w-0 flex-1 py-0.5 text-xs"
@@ -120,3 +133,21 @@ const Toast: React.FC<{ toast: ToastItem; onClose: () => void }> = ({ toast, onC
     </div>
   );
 };
+
+/** Icon "i" cho toast info. */
+const InfoSvg: React.FC = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" />
+    <line x1="12" y1="16" x2="12" y2="12" />
+    <line x1="12" y1="8" x2="12.01" y2="8" />
+  </svg>
+);
+
+/** Icon "!" cho toast warning. */
+const WarnSvg: React.FC = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+    <line x1="12" y1="9" x2="12" y2="13" />
+    <line x1="12" y1="17" x2="12.01" y2="17" />
+  </svg>
+);

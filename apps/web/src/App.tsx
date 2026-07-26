@@ -1,28 +1,58 @@
 import { lazy } from "react";
 import { Routes, Route } from "react-router-dom";
 import AppLayout from "@/shared/components/AppLayout";
+import AuthGuard from "@/components/guards/AuthGuard";
+import GuestGuard from "@/components/guards/GuestGuard";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
-// Lazy-load trang theo route → code-splitting: bundle vào đầu nhẹ hơn, trang
-// Documents (và các dep của nó) chỉ tải khi thực sự mở. Suspense đặt trong
-// AppLayout (quanh Outlet) nên sidebar vẫn hiển thị khi chunk đang tải.
+// Lazy-load trang theo route → code-splitting: bundle vào đầu nhẹ hơn.
+// Suspense đặt trong AppLayout (quanh Outlet) nên sidebar vẫn hiển thị khi chunk đang tải.
 const ChatPage = lazy(() => import("@/modules/chat/components/ChatPage"));
 const DocumentsView = lazy(
   () => import("@/modules/documents/components/DocumentsView"),
 );
+const LoginPage = lazy(() => import("@/pages/auth/LoginPage"));
+const RegisterPage = lazy(() => import("@/pages/auth/RegisterPage"));
 
 /**
  * Main application component configuring React Router routes with lazy loading & code splitting.
  */
 export const App: React.FC = () => {
   return (
-    <Routes>
-      <Route element={<AppLayout />}>
-        {/* Home = new chat; /messages/:id = active session */}
-        <Route path="/" element={<ChatPage />} />
-        <Route path="/messages/:id" element={<ChatPage />} />
-        <Route path="/documents" element={<DocumentsView />} />
-      </Route>
-    </Routes>
+    <ErrorBoundary>
+      <Routes>
+        {/* Auth pages — chặn user đã đăng nhập, không có sidebar */}
+        <Route
+          path="/login"
+          element={
+            <GuestGuard>
+              <LoginPage />
+            </GuestGuard>
+          }
+        />
+        <Route
+          path="/register"
+          element={
+            <GuestGuard>
+              <RegisterPage />
+            </GuestGuard>
+          }
+        />
+
+        {/* Protected routes — wrapped với AuthGuard + AppLayout */}
+        <Route
+          element={
+            <AuthGuard>
+              <AppLayout />
+            </AuthGuard>
+          }
+        >
+          <Route path="/" element={<ChatPage />} />
+          <Route path="/messages/:id" element={<ChatPage />} />
+          <Route path="/documents" element={<DocumentsView />} />
+        </Route>
+      </Routes>
+    </ErrorBoundary>
   );
 };
 
