@@ -17,6 +17,7 @@ import (
 	"github.com/ai-agent-tut/agent-go/internal/config"
 	"github.com/ai-agent-tut/agent-go/internal/guardrails"
 	"github.com/ai-agent-tut/agent-go/internal/memory"
+	"github.com/ai-agent-tut/agent-go/internal/middleware"
 	"github.com/ai-agent-tut/agent-go/internal/mongo"
 	"github.com/ai-agent-tut/agent-go/internal/orchestrator"
 	"github.com/ai-agent-tut/agent-go/internal/provider/factory"
@@ -216,7 +217,7 @@ Bạn là chuyên gia nghiên cứu internet của JARVIS. Nhiệm vụ của b�
 	mux.HandleFunc("POST /chat", agenthttp.NewChatHandler(orch).ServeHTTP)
 	mux.HandleFunc("GET /suggestions", agenthttp.NewSuggestionsHandler(orch).ServeHTTP)
 
-	srv := &http.Server{Addr: ":" + cfg.Port, Handler: mux}
+	srv := &http.Server{Addr: ":" + cfg.Port, Handler: middleware.TenantMiddleware(mux)}
 
 	// Start server
 	go func() {

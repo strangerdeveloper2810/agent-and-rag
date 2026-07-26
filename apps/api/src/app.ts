@@ -1,11 +1,16 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
+import cookie from "@fastify/cookie";
 import multipart from "@fastify/multipart";
 import rateLimit from "@fastify/rate-limit";
 import { chatRoutes } from "./modules/chat";
 import { documentsRoutes } from "./modules/documents";
 import { tasksRoutes } from "./modules/tasks";
-import { registerErrorHandler } from "./middleware/error-handler";
+import { uploadRoutes } from "./modules/upload/upload.routes";
+import { authModule } from "./modules/auth/auth.module";
+import { usersModule } from "./modules/users/users.module";
+import { getPgPool } from "./database/index.js";
+import { registerErrorFilter } from "./common/filters/error.filter";
 import { getDb } from "./lib/mongo";
 import { config } from "./config";
 import { checkGoAgentHealth } from "./agent/client";
@@ -46,12 +51,14 @@ export function buildApp(): FastifyInstance {
     limits: { fileSize: 25 * 1024 * 1024, files: 7 },
   });
 
+  // Cookie parser — cần cho auth guard đọc access_token/refresh_token.
+  app.register(cookie);
+
   // Rate limiting chống abuse/DoS — in-memory (đủ cho single instance).
-  // TODO Phase 2: Redis-backed rate limit sau khi refactor startup order.
   app.register(rateLimit, { max: 120, timeWindow: "1 minute" });
 
-  // Middleware: error handler tập trung (controller chỉ cần throw).
-  registerErrorHandler(app);
+  // Error filter tập trung (thay thế middleware/error-handler.ts cũ).
+  registerErrorFilter(app);
 
   // ---- Health endpoints ----
 
@@ -97,20 +104,15 @@ export function buildApp(): FastifyInstance {
     }
   });
 
-  // ---- Feature modules (hiện tại dùng routes trực tiếp) ----
-  //
-  // Sau khi hoàn tất auth Phase 3, chuyển sang dùng module plugin:
-  //   app.register(chatModule, { prefix: "/api" });
-  //   app.register(documentsModule, { prefix: "/api" });
-  //   app.register(tasksModule, { prefix: "/api" });
-  //
-  // Các `*Module` plugin đã được tạo sẵn trong `*.module.ts` với
-  // authGuard placeholder. Khi `jsonwebtoken` được cài, chỉ cần
-  // uncomment import authGuard + đổi tên plugin là xong.
+  // ---- Auth + Admin modules ----
+  app.register(authModule, { pgPool: getPgPool() });
+  app.register(usersModule, { pgPool: getPgPool() });
 
+  // ---- Feature modules ----
   app.register(chatRoutes, { prefix: "/api" });
   app.register(documentsRoutes, { prefix: "/api" });
   app.register(tasksRoutes, { prefix: "/api" });
+  app.register(uploadRoutes);
 
   return app;
 }

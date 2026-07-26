@@ -19,6 +19,16 @@ const envSchema = z
     // Redis (rate limiting, embedding/chat/tool cache)
     REDIS_URL: z.string().min(1, "REDIS_URL is required"),
 
+    // MinIO / S3 (object storage: ảnh, doc, file agent)
+    S3_ENDPOINT: z.string().default("http://localhost:9000"),
+    S3_ACCESS_KEY: z.string().default("minioadmin"),
+    S3_SECRET_KEY: z.string().default("minioadmin"),
+    S3_BUCKET: z.string().default("jarvis-uploads"),
+    S3_REGION: z.string().default("us-east-1"),
+    S3_USE_SSL: z
+      .enum(["true", "false"])
+      .default("false"),
+
     // ----- AI Provider: Anthropic -----
     ANTHROPIC_API_KEY: z.string().min(1, "ANTHROPIC_API_KEY is required"),
     CLAUDE_MODEL: z.string().default("claude-haiku-4-5-20251001"),
@@ -61,6 +71,9 @@ const envSchema = z
     // ----- Vận hành -----
     /** Danh sách origin cho CORS, phân tách bằng dấu phẩy. Rỗng = cho mọi origin (dev). */
     CORS_ORIGIN: z.string().optional(),
+
+    /** URL frontend (dùng cho Google OAuth redirect). */
+    FRONTEND_URL: z.string().default("http://localhost:3000"),
 
     // ----- LangSmith tracing (tùy chọn) -----
     LANGSMITH_TRACING: z.string().optional(),

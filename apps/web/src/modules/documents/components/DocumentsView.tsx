@@ -18,6 +18,7 @@ import {
 } from "@/shared/components/icons";
 import ConfirmDialog from "@/shared/components/ConfirmDialog";
 import { useToast } from "@/shared/components/Toast";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
 /**
  * DocumentsView component for managing RAG knowledge base documents,
@@ -25,6 +26,7 @@ import { useToast } from "@/shared/components/Toast";
  */
 export const DocumentsView: React.FC = () => {
   const toast = useToast();
+  useDocumentTitle("Documents");
   const [docs, setDocs] = useState<DocumentInfo[]>([]);
   const [uploading, setUploading] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
