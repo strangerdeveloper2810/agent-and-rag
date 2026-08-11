@@ -54,10 +54,9 @@ export class GoogleStrategy {
 
   /** Lấy thông tin user từ Google. */
   async getUserInfo(accessToken: string): Promise<GoogleUser> {
-    const res = await fetch(
-      "https://www.googleapis.com/oauth2/v3/userinfo",
-      { headers: { Authorization: `Bearer ${accessToken}` } },
-    );
+    const res = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
 
     if (!res.ok) {
       throw new Error(`Google userinfo failed: ${await res.text()}`);

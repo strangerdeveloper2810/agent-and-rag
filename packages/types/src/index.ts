@@ -49,24 +49,19 @@ export interface ToolCallState {
   error?: string;
 }
 
-export interface ChatEvent {
-  type:
-    | "step"
-    | "text"
-    | "tool_start"
-    | "tool_end"
-    | "citation"
-    | "memory"
-    | "agent"
-    | "interrupt"
-    | "error"
-    | "done";
-  node?: string;
-  text?: string;
-  name?: string;
-  message?: string;
-  usage?: UsageData;
-}
+// ChatEvent — discriminated union matching Go agent event.go
+export type ChatEvent =
+  | { type: "step"; node?: string }
+  | { type: "text"; text: string }
+  | { type: "tool_start"; name: string }
+  | { type: "tool_end"; name: string; message?: string }
+  | { type: "citation"; text?: string }
+  | { type: "memory"; message?: string }
+  | { type: "agent"; name?: string; message?: string }
+  | { type: "interrupt"; name?: string; message?: string }
+  | { type: "error"; message?: string }
+  | { type: "usage"; usage?: UsageData; totalTokens?: number }
+  | { type: "done"; usage?: UsageData; totalTokens?: number };
 
 // Task & Document Types
 export interface Task {

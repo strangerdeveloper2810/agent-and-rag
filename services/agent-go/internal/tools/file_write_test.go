@@ -111,9 +111,11 @@ func TestFileWriteTool_WritesContent(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	data, err := os.ReadFile(filePath)
+	// Tenant isolation puts files in {dir}/{tenantId}/... (default tenant = "default")
+	tenantPath := filepath.Join(dir, "default", "hello.txt")
+	data, err := os.ReadFile(tenantPath)
 	if err != nil {
-		t.Fatalf("failed to read file: %v", err)
+		t.Fatalf("failed to read file at tenant path: %v", err)
 	}
 	if string(data) != "Hello, JARVIS!" {
 		t.Errorf("expected 'Hello, JARVIS!', got %q", string(data))
@@ -132,9 +134,11 @@ func TestFileWriteTool_NestedDirectories(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	data, err := os.ReadFile(filePath)
+	// Tenant isolation puts {tenantId} as a subdirectory of the file's parent dir
+	tenantPath := filepath.Join(dir, "a", "b", "c", "default", "deep.txt")
+	data, err := os.ReadFile(tenantPath)
 	if err != nil {
-		t.Fatalf("deep file not created: %v", err)
+		t.Fatalf("deep file not created at tenant path: %v", err)
 	}
 	if string(data) != "deep" {
 		t.Errorf("expected 'deep', got %q", string(data))
@@ -154,7 +158,8 @@ func TestFileWriteTool_NoRestrictions(t *testing.T) {
 		t.Fatalf("unexpected error with no restrictions: %v", err)
 	}
 
-	data, _ := os.ReadFile(filePath)
+	tenantPath := filepath.Join(dir, "default", "unrestricted.txt")
+	data, _ := os.ReadFile(tenantPath)
 	if string(data) != "free" {
 		t.Errorf("expected 'free', got %q", string(data))
 	}

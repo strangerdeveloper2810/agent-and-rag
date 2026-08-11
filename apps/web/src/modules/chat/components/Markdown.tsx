@@ -5,7 +5,10 @@ import remarkGfm from "remark-gfm";
 /**
  * CodeBlock component rendering syntax-highlighted code with copy to clipboard button.
  */
-const CodeBlock: React.FC<{ language?: string; code: string }> = ({ language, code }) => {
+const CodeBlock: React.FC<{ language?: string; code: string }> = ({
+  language,
+  code,
+}) => {
   const [copied, setCopied] = useState(false);
   const handleCopy = async () => {
     await navigator.clipboard.writeText(code);
@@ -47,7 +50,7 @@ const CodeBlock: React.FC<{ language?: string; code: string }> = ({ language, co
       </pre>
     </div>
   );
-}
+};
 
 const components: Components = {
   table: ({ children }) => (

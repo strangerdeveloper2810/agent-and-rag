@@ -1,6 +1,6 @@
 import { lazy } from "react";
 import { Routes, Route } from "react-router-dom";
-import AppLayout from "@/shared/components/AppLayout";
+import AppLayout from "@/design-system/templates/AppLayout";
 import AuthGuard from "@/components/guards/AuthGuard";
 import GuestGuard from "@/components/guards/GuestGuard";
 import { ErrorBoundary } from "@/components/ErrorBoundary";

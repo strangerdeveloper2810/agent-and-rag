@@ -1,4 +1,4 @@
-import { AgentIcon, SparkIcon, BrainIcon, WrenchIcon } from "./icons";
+import { AgentIcon, SparkIcon, BrainIcon, WrenchIcon } from "@app/ui";
 import type { ComponentType, SVGProps } from "react";
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;

@@ -6,15 +6,18 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+
+	"github.com/ai-agent-tut/agent-go/internal/middleware"
 )
 
 // memoryStore is an in-memory key-value store shared across memory tools.
+// Each tenant has its own isolated namespace.
 type memoryStore struct {
 	mu   sync.RWMutex
-	data map[string]string
+	data map[string]map[string]string // tenantID -> key -> value
 }
 
-var globalMemoryStore = &memoryStore{data: make(map[string]string)}
+var globalMemoryStore = &memoryStore{data: make(map[string]map[string]string)}
 
 // ---------------------------------------------------------------------------
 // SaveMemoryTool — lưu key+value vào in-memory store
@@ -51,7 +54,7 @@ func (t *saveMemoryTool) Schema() json.RawMessage {
 
 func (t *saveMemoryTool) Kind() Kind { return KindWrite }
 
-func (t *saveMemoryTool) Execute(_ context.Context, rawArgs json.RawMessage) (Result, error) {
+func (t *saveMemoryTool) Execute(ctx context.Context, rawArgs json.RawMessage) (Result, error) {
 	var args struct {
 		Key   string `json:"key"`
 		Value string `json:"value"`
@@ -66,8 +69,13 @@ func (t *saveMemoryTool) Execute(_ context.Context, rawArgs json.RawMessage) (Re
 		return Result{}, fmt.Errorf("memory.save: value is required")
 	}
 
+	tenantID := middleware.GetTenantID(ctx)
+
 	t.store.mu.Lock()
-	t.store.data[args.Key] = args.Value
+	if t.store.data[tenantID] == nil {
+		t.store.data[tenantID] = make(map[string]string)
+	}
+	t.store.data[tenantID][args.Key] = args.Value
 	t.store.mu.Unlock()
 
 	out, _ := json.Marshal(map[string]any{
@@ -111,7 +119,7 @@ func (t *recallMemoryTool) Schema() json.RawMessage {
 
 func (t *recallMemoryTool) Kind() Kind { return KindRead }
 
-func (t *recallMemoryTool) Execute(_ context.Context, rawArgs json.RawMessage) (Result, error) {
+func (t *recallMemoryTool) Execute(ctx context.Context, rawArgs json.RawMessage) (Result, error) {
 	var args struct {
 		Keyword string `json:"keyword"`
 	}
@@ -122,13 +130,15 @@ func (t *recallMemoryTool) Execute(_ context.Context, rawArgs json.RawMessage) (
 		return Result{}, fmt.Errorf("memory.recall: keyword is required")
 	}
 
+	tenantID := middleware.GetTenantID(ctx)
 	keyword := strings.ToLower(args.Keyword)
 
 	t.store.mu.RLock()
 	defer t.store.mu.RUnlock()
 
 	matches := make([]map[string]string, 0)
-	for k, v := range t.store.data {
+	tenantData := t.store.data[tenantID]
+	for k, v := range tenantData {
 		if strings.Contains(strings.ToLower(k), keyword) || strings.Contains(strings.ToLower(v), keyword) {
 			matches = append(matches, map[string]string{"key": k, "value": v})
 		}
@@ -173,7 +183,7 @@ func (t *listMemoriesTool) Schema() json.RawMessage {
 
 func (t *listMemoriesTool) Kind() Kind { return KindRead }
 
-func (t *listMemoriesTool) Execute(_ context.Context, rawArgs json.RawMessage) (Result, error) {
+func (t *listMemoriesTool) Execute(ctx context.Context, rawArgs json.RawMessage) (Result, error) {
 	// Accept empty args or empty object
 	if len(rawArgs) > 0 {
 		var check struct{}
@@ -182,11 +192,14 @@ func (t *listMemoriesTool) Execute(_ context.Context, rawArgs json.RawMessage) (
 		}
 	}
 
+	tenantID := middleware.GetTenantID(ctx)
+
 	t.store.mu.RLock()
 	defer t.store.mu.RUnlock()
 
-	items := make([]map[string]string, 0, len(t.store.data))
-	for k, v := range t.store.data {
+	tenantData := t.store.data[tenantID]
+	items := make([]map[string]string, 0, len(tenantData))
+	for k, v := range tenantData {
 		items = append(items, map[string]string{"key": k, "value": v})
 	}
 

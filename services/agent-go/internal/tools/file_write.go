@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/ai-agent-tut/agent-go/internal/middleware"
 )
 
 // ---------------------------------------------------------------------------
@@ -59,6 +61,10 @@ func (t *fileWriteTool) Execute(ctx context.Context, rawArgs json.RawMessage) (R
 	if len(args.Content) > 100_000 {
 		return Result{}, fmt.Errorf("file.write: content too large (max 100KB, got %d bytes)", len(args.Content))
 	}
+
+	tenantID := middleware.GetTenantID(ctx)
+	// Nest files under a tenant-specific subdirectory
+	args.Path = filepath.Join(filepath.Dir(args.Path), tenantID, filepath.Base(args.Path))
 
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()

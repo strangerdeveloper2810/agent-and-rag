@@ -22,10 +22,7 @@ export class UsersService {
   };
 
   /** Admin vô hiệu hoá 1 user. Không được tự vô hiệu hoá chính mình. */
-  disableUser = async (
-    adminId: string,
-    targetId: string,
-  ): Promise<UserRow> => {
+  disableUser = async (adminId: string, targetId: string): Promise<UserRow> => {
     if (adminId === targetId) {
       throw new ForbiddenError(
         "Không thể tự vô hiệu hoá tài khoản của chính mình.",

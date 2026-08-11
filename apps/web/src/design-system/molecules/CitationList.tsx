@@ -1,4 +1,4 @@
-import { LinkIcon } from "./icons";
+import { LinkIcon } from "@app/ui";
 import type { CitationData } from "@/modules/chat/chat.api";
 
 export interface CitationListProps {

@@ -10,14 +10,9 @@ import {
   type DocumentVersion,
   type VersionContent,
 } from "@/modules/documents/documents.api";
-import {
-  UploadIcon,
-  DocIcon,
-  TrashIcon,
-  CloseIcon,
-} from "@/shared/components/icons";
-import ConfirmDialog from "@/shared/components/ConfirmDialog";
-import { useToast } from "@/shared/components/Toast";
+import { UploadIcon, DocIcon, TrashIcon, CloseIcon } from "@app/ui";
+import ConfirmDialog from "@/design-system/molecules/ConfirmDialog";
+import { useToast } from "@/design-system/molecules/Toast";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
 /**
@@ -134,34 +129,47 @@ export const DocumentsView: React.FC = () => {
           {/* Header section */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <div>
-              <h2
-                className="text-2xl font-bold tracking-tight bg-gradient-to-r from-[var(--text)] to-[var(--accent)] bg-clip-text text-transparent"
-              >
+              <h2 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-[var(--text)] to-[var(--accent)] bg-clip-text text-transparent">
                 Knowledge Base (RAG)
               </h2>
               <p
                 className="mt-1 text-xs leading-relaxed"
                 style={{ color: "var(--text-secondary)" }}
               >
-                Upload documents to empower J.A.R.V.I.S. vector search capabilities.
+                Upload documents to empower J.A.R.V.I.S. vector search
+                capabilities.
               </p>
             </div>
 
             {/* Metrics cards */}
             <div className="flex items-center gap-3">
-              <div 
+              <div
                 className="rounded-2xl border px-4 py-2 text-center backdrop-blur-md"
-                style={{ backgroundColor: "var(--bg-raised)", borderColor: "var(--border)" }}
+                style={{
+                  backgroundColor: "var(--bg-raised)",
+                  borderColor: "var(--border)",
+                }}
               >
-                <p className="text-[10px] font-mono uppercase text-[var(--text-tertiary)]">Documents</p>
-                <p className="text-lg font-bold font-mono text-[var(--accent)]">{docs.length}</p>
+                <p className="text-[10px] font-mono uppercase text-[var(--text-tertiary)]">
+                  Documents
+                </p>
+                <p className="text-lg font-bold font-mono text-[var(--accent)]">
+                  {docs.length}
+                </p>
               </div>
-              <div 
+              <div
                 className="rounded-2xl border px-4 py-2 text-center backdrop-blur-md"
-                style={{ backgroundColor: "var(--bg-raised)", borderColor: "var(--border)" }}
+                style={{
+                  backgroundColor: "var(--bg-raised)",
+                  borderColor: "var(--border)",
+                }}
               >
-                <p className="text-[10px] font-mono uppercase text-[var(--text-tertiary)]">Total Chunks</p>
-                <p className="text-lg font-bold font-mono text-[var(--accent-violet)]">{totalChunks}</p>
+                <p className="text-[10px] font-mono uppercase text-[var(--text-tertiary)]">
+                  Total Chunks
+                </p>
+                <p className="text-lg font-bold font-mono text-[var(--accent-violet)]">
+                  {totalChunks}
+                </p>
               </div>
             </div>
           </div>
@@ -190,7 +198,8 @@ export const DocumentsView: React.FC = () => {
             <div
               className="flex h-14 w-14 items-center justify-center rounded-2xl shadow-lg transition-transform duration-300 group-hover:scale-110"
               style={{
-                background: "linear-gradient(135deg, rgba(0,240,255,0.2) 0%, rgba(139,92,246,0.2) 100%)",
+                background:
+                  "linear-gradient(135deg, rgba(0,240,255,0.2) 0%, rgba(139,92,246,0.2) 100%)",
                 border: "1px solid rgba(0, 240, 255, 0.3)",
                 color: "var(--accent)",
               }}
@@ -206,10 +215,18 @@ export const DocumentsView: React.FC = () => {
                   ? "Embedding & vectorizing documents..."
                   : "Click or drag & drop files to upload"}
               </span>
-              <p
-                className="mt-1 text-[11px] text-[var(--text-tertiary)] font-mono"
-              >
-                Supported extensions: <code className="text-[var(--accent)] bg-[var(--accent-bg)] px-1.5 py-0.5 rounded">.txt</code> <code className="text-[var(--accent)] bg-[var(--accent-bg)] px-1.5 py-0.5 rounded">.md</code> <code className="text-[var(--accent)] bg-[var(--accent-bg)] px-1.5 py-0.5 rounded">.pdf</code> (max 7 files per batch)
+              <p className="mt-1 text-[11px] text-[var(--text-tertiary)] font-mono">
+                Supported extensions:{" "}
+                <code className="text-[var(--accent)] bg-[var(--accent-bg)] px-1.5 py-0.5 rounded">
+                  .txt
+                </code>{" "}
+                <code className="text-[var(--accent)] bg-[var(--accent-bg)] px-1.5 py-0.5 rounded">
+                  .md
+                </code>{" "}
+                <code className="text-[var(--accent)] bg-[var(--accent-bg)] px-1.5 py-0.5 rounded">
+                  .pdf
+                </code>{" "}
+                (max 7 files per batch)
               </p>
             </div>
           </label>
@@ -234,7 +251,8 @@ export const DocumentsView: React.FC = () => {
                   border: "1px solid var(--border)",
                 }}
               >
-                No documents uploaded yet. Upload your first text or PDF document above.
+                No documents uploaded yet. Upload your first text or PDF
+                document above.
               </div>
             ) : (
               <ul className="space-y-2.5">
@@ -290,7 +308,10 @@ export const DocumentsView: React.FC = () => {
                               ? "pointer-events-none opacity-60"
                               : ""
                           }`}
-                          style={{ color: "var(--text-secondary)", borderColor: "var(--border)" }}
+                          style={{
+                            color: "var(--text-secondary)",
+                            borderColor: "var(--border)",
+                          }}
                         >
                           <input
                             type="file"
@@ -302,14 +323,19 @@ export const DocumentsView: React.FC = () => {
                               e.target.value = "";
                             }}
                           />
-                          {updatingId === d.documentId ? "Updating..." : "Update"}
+                          {updatingId === d.documentId
+                            ? "Updating..."
+                            : "Update"}
                         </label>
 
                         <button
                           type="button"
                           onClick={() => toggleHistory(d.documentId)}
                           className="rounded-xl border px-3 py-1.5 text-[11px] font-medium transition hover:bg-[var(--bg-raised)] hover:border-[var(--accent)]"
-                          style={{ color: "var(--text-secondary)", borderColor: "var(--border)" }}
+                          style={{
+                            color: "var(--text-secondary)",
+                            borderColor: "var(--border)",
+                          }}
                         >
                           History
                         </button>
@@ -403,7 +429,10 @@ export const DocumentsView: React.FC = () => {
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="mb-4 flex items-center gap-3 border-b pb-4" style={{ borderColor: "var(--border)" }}>
+            <div
+              className="mb-4 flex items-center gap-3 border-b pb-4"
+              style={{ borderColor: "var(--border)" }}
+            >
               <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--accent-bg)] text-[var(--accent)]">
                 <DocIcon width={16} height={16} />
               </div>

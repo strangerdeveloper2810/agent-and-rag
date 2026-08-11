@@ -1,14 +1,9 @@
 import { useCallback, useState } from "react";
 import Markdown from "./Markdown";
-import {
-  CopyIcon,
-  CheckIcon,
-  CloseIcon,
-  DocIcon,
-} from "@/shared/components/icons";
-import AgentBadge from "@/shared/components/AgentBadge";
-import ToolCallCard from "@/shared/components/ToolCallCard";
-import CitationList from "@/shared/components/CitationList";
+import { CopyIcon, CheckIcon, CloseIcon, DocIcon } from "@app/ui";
+import AgentBadge from "@/design-system/atoms/AgentBadge";
+import ToolCallCard from "@/design-system/molecules/ToolCallCard";
+import CitationList from "@/design-system/molecules/CitationList";
 import type { Message, AttachmentMeta } from "@/modules/chat/chat.api";
 import type {
   ToolCallState,
@@ -69,7 +64,9 @@ function UsageFooter({ usage }: { usage: UsageData }) {
 /**
  * AttachmentList component for rendering image previews and file chips attached to messages.
  */
-const AttachmentList: React.FC<{ attachments: AttachmentMeta[] }> = ({ attachments }) => {
+const AttachmentList: React.FC<{ attachments: AttachmentMeta[] }> = ({
+  attachments,
+}) => {
   const [expandedUrl, setExpandedUrl] = useState<string | null>(null);
 
   const images = attachments.filter((a) => a.type === "image");
@@ -177,7 +174,7 @@ const AttachmentList: React.FC<{ attachments: AttachmentMeta[] }> = ({ attachmen
       )}
     </>
   );
-}
+};
 
 // ── Main Component ──
 
@@ -227,7 +224,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             borderColor: "var(--user-bubble-border)",
           }}
         >
-          {hasText && <p className="whitespace-pre-wrap font-sans">{message.content}</p>}
+          {hasText && (
+            <p className="whitespace-pre-wrap font-sans">{message.content}</p>
+          )}
           {hasAttachments && (
             <AttachmentList attachments={message.attachments!} />
           )}
@@ -312,7 +311,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             onClick={copyMessage}
             aria-label="Copy response"
             className="mt-2.5 inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[10px] font-medium opacity-0 transition duration-150 hover:bg-[var(--bg-raised)] hover:border-[var(--accent)] focus:opacity-100 group-hover:opacity-100"
-            style={{ 
+            style={{
               color: "var(--text-tertiary)",
               borderColor: "var(--border)",
             }}

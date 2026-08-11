@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ai-agent-tut/agent-go/internal/provider"
+	"github.com/ai-agent-tut/agent-go/internal/skills"
 	"github.com/ai-agent-tut/agent-go/internal/tools"
 )
 
@@ -20,6 +21,7 @@ func (e *fakeEngine) getRegistry() *tools.Registry              { return e.regis
 func (e *fakeEngine) getSystemPrompt() string                   { return "" }
 func (e *fakeEngine) getMaxContextTokens() int                  { return 0 }
 func (e *fakeEngine) getDynamicThinking() DynamicThinkingConfig { return DynamicThinkingConfig{} }
+func (e *fakeEngine) getSkillLoader() *skills.Loader            { return nil }
 
 func TestNodeModel_TextOnly(t *testing.T) {
 	// Kịch bản đơn giản nhất: LLM trả về text, không tool call.

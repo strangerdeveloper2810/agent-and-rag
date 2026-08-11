@@ -47,7 +47,7 @@ const checkCircuit = (): void => {
       ),
     );
   }
-}
+};
 
 const recordFailure = (): void => {
   circuit.failures++;
@@ -55,12 +55,12 @@ const recordFailure = (): void => {
   if (circuit.failures >= CIRCUIT_THRESHOLD) {
     circuit.open = true;
   }
-}
+};
 
 const recordSuccess = (): void => {
   circuit.failures = 0;
   circuit.open = false;
-}
+};
 
 // ----- Retry -----
 
@@ -69,7 +69,7 @@ const RETRY_BASE_DELAY_MS = 500;
 
 const sleep = async (ms: number): Promise<void> => {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
+};
 
 // ----- Health Check -----
 
@@ -92,7 +92,7 @@ export const checkGoAgentHealth = async (): Promise<boolean> => {
   } finally {
     clearTimeout(timeoutId);
   }
-}
+};
 
 // ----- SSE Parser -----
 
