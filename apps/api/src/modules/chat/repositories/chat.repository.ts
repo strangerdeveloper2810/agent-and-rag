@@ -37,7 +37,10 @@ export function createChatRepository(
 
     getMessages: async (conversationId: string) => {
       if (!isMongoConnected()) return [];
-      return messages().find({ conversationId }).sort({ createdAt: 1 }).toArray();
+      return messages()
+        .find({ conversationId })
+        .sort({ createdAt: 1 })
+        .toArray();
     },
 
     addMessage: async (

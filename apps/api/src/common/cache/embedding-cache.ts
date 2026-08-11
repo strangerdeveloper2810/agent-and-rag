@@ -8,7 +8,11 @@
  * - Re-index sau khi xoá nhầm
  */
 import { createHash } from "crypto";
-import { cacheGet, cacheSet, cacheKey } from "../../database/redis/redis.module";
+import {
+  cacheGet,
+  cacheSet,
+  cacheKey,
+} from "../../database/redis/redis.module";
 
 const EMBED_TTL = 30 * 24 * 3600; // 30 ngày
 

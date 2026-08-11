@@ -12,9 +12,7 @@ const envSchema = z
     MONGODB_URI: z.string().min(1, "MONGODB_URI is required"),
 
     // PostgreSQL (Auth DB — users, credentials, refresh tokens)
-    PG_CONNECTION_STRING: z
-      .string()
-      .min(1, "PG_CONNECTION_STRING is required"),
+    PG_CONNECTION_STRING: z.string().min(1, "PG_CONNECTION_STRING is required"),
 
     // Redis (rate limiting, embedding/chat/tool cache)
     REDIS_URL: z.string().min(1, "REDIS_URL is required"),
@@ -25,9 +23,7 @@ const envSchema = z
     S3_SECRET_KEY: z.string().default("minioadmin"),
     S3_BUCKET: z.string().default("jarvis-uploads"),
     S3_REGION: z.string().default("us-east-1"),
-    S3_USE_SSL: z
-      .enum(["true", "false"])
-      .default("false"),
+    S3_USE_SSL: z.enum(["true", "false"]).default("false"),
 
     // ----- AI Provider: Anthropic -----
     ANTHROPIC_API_KEY: z.string().min(1, "ANTHROPIC_API_KEY is required"),

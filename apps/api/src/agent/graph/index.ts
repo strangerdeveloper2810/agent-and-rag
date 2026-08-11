@@ -17,7 +17,11 @@ export type AgentEvent =
   | { type: "step"; node?: string }
   | { type: "error"; message?: string }
   | { type: "done"; agent?: string; tokens?: number }
-  | { type: "usage"; usage?: { inputTokens: number; outputTokens: number }; totalTokens?: number }
+  | {
+      type: "usage";
+      usage?: { inputTokens: number; outputTokens: number };
+      totalTokens?: number;
+    }
   | { type: "citation"; text?: string }
   | { type: "memory"; message?: string }
   | { type: "interrupt"; name?: string; message?: string };
@@ -40,7 +44,7 @@ export const mapGraphEvent = (ev: any): AgentEvent | null => {
     return { type: "tool_start", name: ev.name };
   if (ev.event === "on_tool_end") return { type: "tool_end", name: ev.name };
   return null;
-}
+};
 
 // Chuyển lịch sử DB → LangChain messages
 const toLcMessages = (history: { role: string; content: string }[]) => {
@@ -49,7 +53,7 @@ const toLcMessages = (history: { role: string; content: string }[]) => {
       ? new AIMessage(m.content)
       : new HumanMessage(m.content),
   );
-}
+};
 
 export async function* runGraph(
   history: { role: string; content: string }[],

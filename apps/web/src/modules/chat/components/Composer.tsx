@@ -1,13 +1,13 @@
 import { useEffect, useRef } from "react";
-import {
-  SendIcon,
-  UploadIcon,
-  CloseIcon,
-  DocIcon,
-} from "@app/ui";
+import { SendIcon, UploadIcon, CloseIcon, DocIcon } from "@app/ui";
 import { useToast } from "@/design-system/molecules/Toast";
 
-import type { NextIdFn, FormatSizeFn, ReadAsDataURLFn, PendingAttachment } from "@/types";
+import type {
+  NextIdFn,
+  FormatSizeFn,
+  ReadAsDataURLFn,
+  PendingAttachment,
+} from "@/types";
 
 // Re-export PendingAttachment for backwards compatibility
 export type { PendingAttachment };

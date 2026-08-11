@@ -1,7 +1,12 @@
 import { buildApp } from "./app.js";
 import { config } from "./config.js";
 import { connectMongo, closeMongo, ensureIndexes } from "./lib/mongo.js";
-import { initPostgres, closePostgres, initRedis, closeRedis } from "./database/index.js";
+import {
+  initPostgres,
+  closePostgres,
+  initRedis,
+  closeRedis,
+} from "./database/index.js";
 import type { FastifyInstance } from "fastify";
 
 let app: FastifyInstance;
@@ -18,7 +23,10 @@ async function start() {
     await ensureIndexes();
     console.log("MongoDB connected");
   } catch (err) {
-    console.warn("MongoDB unavailable — chat/document/task features degraded:", (err as Error).message);
+    console.warn(
+      "MongoDB unavailable — chat/document/task features degraded:",
+      (err as Error).message,
+    );
   }
 
   // PostgreSQL (auth data: users, credentials, refresh tokens)
@@ -26,7 +34,10 @@ async function start() {
     await initPostgres({ connectionString: config.PG_CONNECTION_STRING });
     console.log("PostgreSQL connected");
   } catch (err) {
-    console.warn("PostgreSQL unavailable — auth features degraded:", (err as Error).message);
+    console.warn(
+      "PostgreSQL unavailable — auth features degraded:",
+      (err as Error).message,
+    );
   }
 
   // Redis (rate limiting, embedding/chat/tool cache)
@@ -34,7 +45,10 @@ async function start() {
     await initRedis({ url: config.REDIS_URL });
     console.log("Redis connected");
   } catch (err) {
-    console.warn("Redis unavailable — caching & rate-limit degraded:", (err as Error).message);
+    console.warn(
+      "Redis unavailable — caching & rate-limit degraded:",
+      (err as Error).message,
+    );
   }
 
   // ── Build & start HTTP server ──

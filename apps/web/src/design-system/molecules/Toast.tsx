@@ -38,7 +38,9 @@ const DURATION = 3500;
 /**
  * ToastProvider component managing global toast notification stack and context.
  */
-export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export const ToastProvider: React.FC<{ children: ReactNode }> = ({
+  children,
+}) => {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const idRef = useRef(0);
 
@@ -74,7 +76,10 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 /**
  * Individual Toast item component displaying notification message with auto-dismiss.
  */
-const Toast: React.FC<{ toast: ToastItem; onClose: () => void }> = ({ toast, onClose }) => {
+const Toast: React.FC<{ toast: ToastItem; onClose: () => void }> = ({
+  toast,
+  onClose,
+}) => {
   useEffect(() => {
     const timer = setTimeout(onClose, DURATION);
     return () => clearTimeout(timer);
@@ -136,7 +141,16 @@ const Toast: React.FC<{ toast: ToastItem; onClose: () => void }> = ({ toast, onC
 
 /** Icon "i" cho toast info. */
 const InfoSvg: React.FC = () => (
-  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+  <svg
+    width="13"
+    height="13"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
     <circle cx="12" cy="12" r="10" />
     <line x1="12" y1="16" x2="12" y2="12" />
     <line x1="12" y1="8" x2="12.01" y2="8" />
@@ -145,7 +159,16 @@ const InfoSvg: React.FC = () => (
 
 /** Icon "!" cho toast warning. */
 const WarnSvg: React.FC = () => (
-  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+  <svg
+    width="13"
+    height="13"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
     <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
     <line x1="12" y1="9" x2="12" y2="13" />
     <line x1="12" y1="17" x2="12.01" y2="17" />

@@ -214,7 +214,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <span>RAG Knowledge Base</span>
                 </div>
                 <p className="text-[11px] leading-relaxed text-[var(--text-secondary)]">
-                  Uploaded documents are vectorized and indexed for J.A.R.V.I.S. contextual retrieval.
+                  Uploaded documents are vectorized and indexed for J.A.R.V.I.S.
+                  contextual retrieval.
                 </p>
               </div>
             </div>
@@ -253,7 +254,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 className="px-3 py-6 text-center text-[11px]"
                 style={{ color: "var(--text-tertiary)" }}
               >
-                {searchQuery ? "No matching conversations." : "No conversations yet."}
+                {searchQuery
+                  ? "No matching conversations."
+                  : "No conversations yet."}
               </p>
             ) : (
               filtered.map((c) => {

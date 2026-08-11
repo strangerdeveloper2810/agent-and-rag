@@ -88,10 +88,10 @@ func (e *Engine) SetPlanningNodes(plan, reflect Node) {
 }
 
 // getProvider / getRegistry / getSystemPrompt / getSkillLoader — implements modelEngine & toolsEngine.
-func (e *Engine) getProvider() provider.Provider    { return e.prov }
-func (e *Engine) getRegistry() *tools.Registry      { return e.registry }
-func (e *Engine) getSystemPrompt() string           { return e.systemPrompt }
-func (e *Engine) getSkillLoader() *skills.Loader    { return e.skillLoader }
+func (e *Engine) getProvider() provider.Provider { return e.prov }
+func (e *Engine) getRegistry() *tools.Registry   { return e.registry }
+func (e *Engine) getSystemPrompt() string        { return e.systemPrompt }
+func (e *Engine) getSkillLoader() *skills.Loader { return e.skillLoader }
 
 // SetSystemPrompt sets the system prompt used for every LLM call.
 func (e *Engine) SetSystemPrompt(prompt string) {

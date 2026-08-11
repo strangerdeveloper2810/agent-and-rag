@@ -77,8 +77,6 @@ export async function embed(
       body: JSON.stringify(buildEmbeddingRequest(missTexts, inputType)),
     });
 
-    console.log({res})
-
     if (res.ok) {
       const data = (await res.json()) as { data: { embedding: number[] }[] };
       missVectors = data.data.map((d) => d.embedding);

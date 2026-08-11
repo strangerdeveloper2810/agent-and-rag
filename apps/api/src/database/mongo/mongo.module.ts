@@ -28,7 +28,7 @@ export const connectMongo = async (): Promise<Db> => {
   await client.connect();
   db = client.db(); // dùng db name trong URI
   return db;
-}
+};
 
 /**
  * Lấy instance Db đã kết nối.
@@ -37,7 +37,7 @@ export const connectMongo = async (): Promise<Db> => {
 export const getDb = (): Db => {
   if (!db) throw new Error("Mongo not connected. Call connectMongo() first.");
   return db;
-}
+};
 
 /**
  * Đóng kết nối Mongo (graceful shutdown).
@@ -46,4 +46,4 @@ export const closeMongo = async (): Promise<void> => {
   await client?.close();
   client = null;
   db = null;
-}
+};

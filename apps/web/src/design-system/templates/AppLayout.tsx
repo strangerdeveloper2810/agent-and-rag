@@ -104,7 +104,10 @@ export const AppLayout: React.FC = () => {
       />
 
       {/* Main Content Area */}
-      <div className="flex min-w-0 flex-1 flex-col relative z-10" style={{ minHeight: 0 }}>
+      <div
+        className="flex min-w-0 flex-1 flex-col relative z-10"
+        style={{ minHeight: 0 }}
+      >
         <Header onToggleSidebar={toggleSidebar} />
 
         <Suspense

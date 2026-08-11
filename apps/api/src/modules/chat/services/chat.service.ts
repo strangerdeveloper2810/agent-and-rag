@@ -5,7 +5,10 @@ import {
   addMessage,
   deleteConversation as deleteConversationRepo,
 } from "../repositories";
-import { createAgentClient, type AgentClient } from "../../../agent/client/index";
+import {
+  createAgentClient,
+  type AgentClient,
+} from "../../../agent/client/index";
 import type { AgentEvent } from "../../../agent/graph/index";
 import { config } from "../../../config";
 import type { MessageRole } from "../../../schemas/message";
@@ -78,7 +81,13 @@ export const appendUserMessage = (
         : undefined),
   }));
 
-  return addMessage(conversationId, "user", content, undefined, metaAttachments);
+  return addMessage(
+    conversationId,
+    "user",
+    content,
+    undefined,
+    metaAttachments,
+  );
 };
 
 /**

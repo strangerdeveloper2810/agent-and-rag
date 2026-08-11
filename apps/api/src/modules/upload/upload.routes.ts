@@ -15,7 +15,7 @@ import * as uploadService from "./upload.service";
 import { BadRequestError } from "../../lib/errors";
 
 const getTenantId = (req: FastifyRequest): string =>
-  (req as unknown as Record<string, unknown>).tenantId as string ?? "default";
+  ((req as unknown as Record<string, unknown>).tenantId as string) ?? "default";
 
 export const uploadRoutes = async (app: FastifyInstance): Promise<void> => {
   /**
