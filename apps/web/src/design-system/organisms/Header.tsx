@@ -26,7 +26,10 @@ export const Header: React.FC<HeaderProps> = ({
           onClick={onToggleSidebar}
           aria-label="Toggle sidebar"
           className="flex h-8 w-8 items-center justify-center rounded-lg transition duration-150 hover:bg-[var(--bg-hover)] active:scale-95 border"
-          style={{ color: "var(--text-secondary)", borderColor: "var(--border)" }}
+          style={{
+            color: "var(--text-secondary)",
+            borderColor: "var(--border)",
+          }}
         >
           <svg
             width={18}

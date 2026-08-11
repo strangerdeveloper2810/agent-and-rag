@@ -80,11 +80,14 @@ const tools: Tool[] = [
     description:
       "Tìm kiếm thông tin trong các tài liệu người dùng đã nạp. Dùng khi câu hỏi liên quan đến nội dung tài liệu.",
     schema: ragSearchSchema,
-    execute: withCache("ragSearch", async ({ query }: z.infer<typeof ragSearchSchema>) => {
-      const [vec] = await embed([query], "query");
-      const results = await searchSimilar(vec, 5);
-      return results;
-    }),
+    execute: withCache(
+      "ragSearch",
+      async ({ query }: z.infer<typeof ragSearchSchema>) => {
+        const [vec] = await embed([query], "query");
+        const results = await searchSimilar(vec, 5);
+        return results;
+      },
+    ),
   },
   {
     name: "listDocuments",
@@ -98,8 +101,11 @@ const tools: Tool[] = [
     description:
       "Đọc TOÀN BỘ nội dung của MỘT tài liệu theo documentId. Dùng khi người dùng muốn xem nội dung đầy đủ của một tài liệu cụ thể. Lấy documentId từ listDocuments/ragSearch trước (KHÔNG dùng tên file).",
     schema: readDocumentSchema,
-    execute: withCache("readDocument", async ({ documentId }: z.infer<typeof readDocumentSchema>) =>
-      getDocumentContent(documentId)),
+    execute: withCache(
+      "readDocument",
+      async ({ documentId }: z.infer<typeof readDocumentSchema>) =>
+        getDocumentContent(documentId),
+    ),
   },
   {
     name: "createTask",
@@ -113,7 +119,9 @@ const tools: Tool[] = [
     name: "listTasks",
     description: "Liệt kê task, có thể lọc theo status, priority, hoặc tag.",
     schema: listTasksInputSchema,
-    execute: withCache("listTasks", async (input) => listTasks(listTasksInputSchema.parse(input))),
+    execute: withCache("listTasks", async (input) =>
+      listTasks(listTasksInputSchema.parse(input)),
+    ),
   },
   {
     name: "updateTask",
@@ -141,7 +149,7 @@ export const toolDefinitions = tools.map((t) => ({
 
 export const getTool = (name: string): Tool | undefined => {
   return tools.find((t) => t.name === name);
-}
+};
 
 // ----- LangChain tool wrappers -----
 

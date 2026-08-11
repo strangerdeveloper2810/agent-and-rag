@@ -9,7 +9,11 @@
  * TTL = 1 giờ (đủ lâu để tránh trùng lặp, đủ ngắn để không stale)
  */
 import { createHash } from "crypto";
-import { cacheGet, cacheSet, cacheKey } from "../../database/redis/redis.module";
+import {
+  cacheGet,
+  cacheSet,
+  cacheKey,
+} from "../../database/redis/redis.module";
 
 const CHAT_TTL = 3600; // 1 giờ
 

@@ -142,4 +142,4 @@ export const registerErrorFilter = (app: FastifyInstance): void => {
     req.log.error(err);
     return send(reply, 500, "Lỗi máy chủ.", "INTERNAL");
   });
-}
+};

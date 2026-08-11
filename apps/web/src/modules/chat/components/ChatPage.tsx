@@ -31,7 +31,12 @@ export type MessageMeta = {
 
 // ── Helpers ──
 
-import type { FileToBase64Fn, OptimizeImageFn, PendingToPayloadFn, PendingToMetaFn } from "@/types";
+import type {
+  FileToBase64Fn,
+  OptimizeImageFn,
+  PendingToPayloadFn,
+  PendingToMetaFn,
+} from "@/types";
 
 // Image optimization constants — LLMs don't need full-resolution images.
 // Gemini vision works well with 800px images at JPEG quality 75%.
@@ -154,7 +159,9 @@ const pendingToPayload: PendingToPayloadFn = async (
  * @param pa - PendingAttachment object
  * @returns AttachmentMeta display object
  */
-const pendingToMeta: PendingToMetaFn = (pa: PendingAttachment): AttachmentMeta => {
+const pendingToMeta: PendingToMetaFn = (
+  pa: PendingAttachment,
+): AttachmentMeta => {
   return {
     type: pa.type,
     name: pa.name,

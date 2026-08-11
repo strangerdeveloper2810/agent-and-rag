@@ -30,8 +30,7 @@ export const initRedis = async (config: RedisConfig): Promise<Redis> => {
 
 /** Lấy Redis instance đã khởi tạo. Throw nếu chưa gọi initRedis(). */
 export const getRedis = (): Redis => {
-  if (!redis)
-    throw new Error("Redis not initialized. Call initRedis() first.");
+  if (!redis) throw new Error("Redis not initialized. Call initRedis() first.");
   return redis;
 };
 

@@ -82,7 +82,11 @@ export const RegisterPage: React.FC = () => {
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+        <form
+          onSubmit={handleSubmit(onSubmit)}
+          className="space-y-4"
+          noValidate
+        >
           {/* Name */}
           <div>
             <label
@@ -100,9 +104,7 @@ export const RegisterPage: React.FC = () => {
               className={inputBase}
               {...register("name")}
             />
-            {errors.name && (
-              <p className={fieldError}>{errors.name.message}</p>
-            )}
+            {errors.name && <p className={fieldError}>{errors.name.message}</p>}
           </div>
 
           {/* Email */}

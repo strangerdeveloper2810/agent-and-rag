@@ -7,7 +7,11 @@ export interface AvatarProps {
 /**
  * Avatar atom component for user and AI profile representations.
  */
-export const Avatar: React.FC<AvatarProps> = ({ type, size = "md", className = "" }) => {
+export const Avatar: React.FC<AvatarProps> = ({
+  type,
+  size = "md",
+  className = "",
+}) => {
   const sizeStyles = {
     sm: "h-7 w-7 text-xs rounded-lg",
     md: "h-8 w-8 text-sm rounded-xl",

@@ -6,7 +6,10 @@ export interface SuggestionChipProps {
 /**
  * SuggestionChip molecule component for individual prompt action cards.
  */
-export const SuggestionChip: React.FC<SuggestionChipProps> = ({ label, onClick }) => {
+export const SuggestionChip: React.FC<SuggestionChipProps> = ({
+  label,
+  onClick,
+}) => {
   return (
     <button
       type="button"

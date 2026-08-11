@@ -10,7 +10,11 @@
  * Mỗi tool có TTL riêng, config trong TOOL_TTL_MAP.
  */
 import { createHash } from "crypto";
-import { cacheGet, cacheSet, cacheKey } from "../../database/redis/redis.module";
+import {
+  cacheGet,
+  cacheSet,
+  cacheKey,
+} from "../../database/redis/redis.module";
 
 const hash = (input: string): string =>
   createHash("md5").update(input).digest("hex");
