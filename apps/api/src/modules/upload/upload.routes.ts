@@ -10,32 +10,12 @@
  *
  * Auth guard sẽ được thêm ở Phase 5 (BFF refactor).
  */
-import type { FastifyInstance } from "fastify";
-import {
-  uploadFile,
-  getPublicUrl,
-  deleteFile,
-  createUploadUrl,
-} from "../../common/storage/storage.service";
-import type { StorageCategory } from "../../common/storage/storage.service";
-import { v4 as uuid } from "uuid";
+import type { FastifyInstance, FastifyRequest } from "fastify";
+import * as uploadService from "./upload.service";
+import { BadRequestError } from "../../lib/errors";
 
-// TODO Phase 5: thay placeholder bằng req.tenantId từ authGuard
-const PLACEHOLDER_TENANT = "default";
-
-const VALID_CATEGORIES: StorageCategory[] = [
-  "images",
-  "docs",
-  "notes",
-  "memories",
-];
-
-const parseCategory = (cat?: unknown): StorageCategory => {
-  const c = typeof cat === "string" ? cat : "images";
-  return VALID_CATEGORIES.includes(c as StorageCategory)
-    ? (c as StorageCategory)
-    : "images";
-};
+const getTenantId = (req: FastifyRequest): string =>
+  ((req as unknown as Record<string, unknown>).tenantId as string) ?? "default";
 
 export const uploadRoutes = async (app: FastifyInstance): Promise<void> => {
   /**
@@ -53,17 +33,16 @@ export const uploadRoutes = async (app: FastifyInstance): Promise<void> => {
    */
   app.get("/api/upload/presigned", async (req, reply) => {
     const q = req.query as Record<string, string | undefined>;
-    const category = parseCategory(q.category);
+    const tenantId = getTenantId(req);
+    const category = uploadService.parseCategory(q.category);
     const ext = q.ext?.replace(/^\./, "") ?? "bin";
-    const filename = `${uuid()}.${ext}`;
-    const contentType = q.contentType;
 
-    const result = await createUploadUrl(
-      PLACEHOLDER_TENANT,
+    const result = await uploadService.createPresignedUpload({
+      tenantId,
       category,
-      filename,
-      contentType,
-    );
+      ext,
+      contentType: q.contentType,
+    });
 
     return reply.status(200).send(result);
   });
@@ -77,39 +56,53 @@ export const uploadRoutes = async (app: FastifyInstance): Promise<void> => {
   app.post("/api/upload", async (req, reply) => {
     const file = await req.file();
     if (!file) {
-      return reply.status(400).send({ error: "Thiếu file." });
+      throw new BadRequestError("Thiếu file.");
     }
 
-    const category = parseCategory(
+    const tenantId = getTenantId(req);
+    const category = uploadService.parseCategory(
       (req.query as Record<string, unknown>)?.category,
     );
-    const ext = file.filename.split(".").pop() ?? "bin";
-    const filename = `${uuid()}.${ext}`;
     const buf = await file.toBuffer();
 
-    const result = await uploadFile(
-      PLACEHOLDER_TENANT,
+    const record = await uploadService.uploadFileServer({
+      tenantId,
+      originalName: file.filename,
+      mimeType: file.mimetype,
+      size: buf.length,
+      buffer: buf,
       category,
-      filename,
-      buf,
-      file.mimetype,
-    );
+    });
 
     return reply.status(201).send({
-      key: result.key,
-      url: result.url,
-      filename: file.filename,
-      size: buf.length,
-      category,
+      _id: record._id,
+      key: record.key,
+      url: record.url,
+      filename: record.filename,
+      originalName: record.originalName,
+      size: record.size,
+      category: record.category,
     });
   });
 
   /**
-   * GET /api/upload/:tenantId/:category/:filename
+   * GET /api/upload
+   * Liệt kê danh sách upload của tenant hiện tại (auth required).
+   * Query: ?category=images (tuỳ chọn)
+   */
+  app.get("/api/upload", async (req, reply) => {
+    const tenantId = getTenantId(req);
+    const q = req.query as Record<string, string | undefined>;
+    const records = await uploadService.listUploads(tenantId, q.category);
+    return reply.status(200).send(records);
+  });
+
+  /**
+   * GET /api/upload/download/:tenantId/:category/:filename
    * Lấy URL để download/view file (presigned, 1h).
    */
   app.get(
-    "/api/upload/:tenantId/:category/:filename",
+    "/api/upload/download/:tenantId/:category/:filename",
     async (req, reply) => {
       const { tenantId, category, filename } = req.params as {
         tenantId: string;
@@ -117,26 +110,19 @@ export const uploadRoutes = async (app: FastifyInstance): Promise<void> => {
         filename: string;
       };
       const key = `${tenantId}/${category}/${filename}`;
-      const url = await getPublicUrl(key);
+      const url = await uploadService.getDownloadUrl(key);
       return reply.status(200).send({ key, url });
     },
   );
 
   /**
-   * DELETE /api/upload/:tenantId/:category/:filename
-   * Xoá file khỏi MinIO.
+   * DELETE /api/upload/:key
+   * Xoá file khỏi MinIO và database record.
    */
-  app.delete(
-    "/api/upload/:tenantId/:category/:filename",
-    async (req, reply) => {
-      const { tenantId, category, filename } = req.params as {
-        tenantId: string;
-        category: string;
-        filename: string;
-      };
-      const key = `${tenantId}/${category}/${filename}`;
-      await deleteFile(key);
-      return reply.status(200).send({ deleted: key });
-    },
-  );
+  app.delete("/api/upload/:key", async (req, reply) => {
+    const tenantId = getTenantId(req);
+    const { key } = req.params as { key: string };
+    await uploadService.removeUpload(tenantId, key);
+    return reply.status(200).send({ deleted: key });
+  });
 };

@@ -10,22 +10,30 @@
  * Mỗi tool có TTL riêng, config trong TOOL_TTL_MAP.
  */
 import { createHash } from "crypto";
-import { cacheGet, cacheSet, cacheKey } from "../../database/redis/redis.module";
+import {
+  cacheGet,
+  cacheSet,
+  cacheKey,
+} from "../../database/redis/redis.module";
 
 const hash = (input: string): string =>
   createHash("md5").update(input).digest("hex");
 
 // TTL riêng cho từng tool (giây)
 const TOOL_TTL_MAP: Record<string, number> = {
-  web_search: 300, // 5 phút
+  web_search: 300,
   wikipedia_search: 300,
   duckduckgo_search: 300,
-  get_document: 60, // 1 phút — doc có thể được update
+  get_document: 60,
   list_documents: 60,
   get_task: 60,
   list_tasks: 60,
   get_memory: 300,
   search_memories: 300,
+  ragSearch: 300,
+  listDocuments: 60,
+  readDocument: 60,
+  listTasks: 60,
 };
 
 // Tool KHÔNG BAO GIỜ cache (có side effect hoặc real-time)
@@ -37,6 +45,9 @@ const NO_CACHE_TOOLS = new Set([
   "delete_document",
   "upload_file",
   "send_message",
+  "createTask",
+  "updateTask",
+  "deleteTask",
 ]);
 
 const DEFAULT_TTL = 120; // 2 phút cho tool không có trong map

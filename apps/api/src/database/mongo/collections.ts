@@ -153,4 +153,4 @@ export const ensureIndexes = async (): Promise<void> => {
   ];
 
   await Promise.all([...legacyIndexes, ...tenantIndexes]);
-}
+};

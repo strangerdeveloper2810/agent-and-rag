@@ -5,7 +5,11 @@ import { goAgentClient } from "./go-agent.client";
 
 // ----- Re-exports -----
 
-export type { AgentMessage, AgentStreamOptions, AgentClient } from "./agent-client.interface";
+export type {
+  AgentMessage,
+  AgentStreamOptions,
+  AgentClient,
+} from "./agent-client.interface";
 export { langGraphAgentClient } from "./langgraph.client";
 export { goAgentClient, checkGoAgentHealth } from "./go-agent.client";
 
@@ -26,4 +30,4 @@ export const createAgentClient = (): AgentClient => {
     default:
       return langGraphAgentClient;
   }
-}
+};

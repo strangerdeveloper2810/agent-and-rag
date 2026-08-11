@@ -37,15 +37,32 @@ export async function embed(
   texts: string[],
   inputType: "document" | "query",
 ): Promise<number[][]> {
-  // 1. Kiểm tra Redis cache trước
-  const { vectors, hits } = await getEmbeddingCache(texts, MODEL, inputType);
+  // 1. Kiểm tra Redis cache trước (graceful: nếu Redis down, fallback sang API)
+  let vectors: number[][] = [];
+  let hits: boolean[] = [];
+  try {
+    const cached = await getEmbeddingCache(texts, MODEL, inputType);
+    vectors = cached.vectors;
+    hits = cached.hits;
+    const hitCount = hits.filter(Boolean).length;
+    if (hitCount > 0) {
+      console.log(
+        `[embedding-cache] ${hitCount}/${texts.length} hit (model=${MODEL}, type=${inputType})`,
+      );
+    }
+  } catch {
+    hits = texts.map(() => false);
+  }
 
   // 2. Xác định text nào chưa có trong cache
   const missTexts = texts.filter((_, i) => !hits[i]);
   if (missTexts.length === 0) {
-    // Toàn bộ cache hit — trả về luôn, không cần gọi API
     return texts.map((_, i) => vectors[i]);
   }
+
+  console.log(
+    `[embedding-cache] ${missTexts.length}/${texts.length} miss → calling Voyage API`,
+  );
 
   // 3. Gọi Voyage API cho các text cache miss
   const MAX_RETRIES = 2;

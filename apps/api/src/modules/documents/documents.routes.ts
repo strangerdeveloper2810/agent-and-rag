@@ -12,7 +12,19 @@ export async function documentsRoutes(app: FastifyInstance) {
   app.post("/documents/upload", embedLimit, ctrl.uploadDocuments);
   app.put("/documents/:documentId", embedLimit, ctrl.updateDocument);
   app.get("/documents", { preHandler: [authGuard] }, ctrl.listDocuments);
-  app.get("/documents/:documentId/versions", { preHandler: [authGuard] }, ctrl.getVersions);
-  app.get("/documents/:documentId/versions/:version", { preHandler: [authGuard] }, ctrl.getVersionContent);
-  app.delete("/documents/:documentId", { preHandler: [authGuard] }, ctrl.deleteDocument);
+  app.get(
+    "/documents/:documentId/versions",
+    { preHandler: [authGuard] },
+    ctrl.getVersions,
+  );
+  app.get(
+    "/documents/:documentId/versions/:version",
+    { preHandler: [authGuard] },
+    ctrl.getVersionContent,
+  );
+  app.delete(
+    "/documents/:documentId",
+    { preHandler: [authGuard] },
+    ctrl.deleteDocument,
+  );
 }

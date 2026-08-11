@@ -10,7 +10,12 @@ export interface NavTabProps {
 /**
  * NavTab molecule component for sidebar view switching (Chat / Documents).
  */
-export const NavTab: React.FC<NavTabProps> = ({ active, onClick, icon, children }) => {
+export const NavTab: React.FC<NavTabProps> = ({
+  active,
+  onClick,
+  icon,
+  children,
+}) => {
   return (
     <button
       type="button"

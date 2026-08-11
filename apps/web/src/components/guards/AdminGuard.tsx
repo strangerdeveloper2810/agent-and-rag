@@ -21,8 +21,13 @@ export const AdminGuard: React.FC<AdminGuardProps> = ({ children }) => {
 
   useEffect(() => {
     init();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [init]);
+
+  useEffect(() => {
+    if (!isLoading && !user) {
+      navigate("/login", { replace: true });
+    }
+  }, [isLoading, user, navigate]);
 
   // Đang kiểm tra session → spinner
   if (isLoading) {
@@ -39,11 +44,8 @@ export const AdminGuard: React.FC<AdminGuardProps> = ({ children }) => {
     );
   }
 
-  // Không có session → redirect về login
+  // Không có session → render null (useEffect trên sẽ redirect)
   if (!user) {
-    useEffect(() => {
-      navigate("/login", { replace: true });
-    });
     return null;
   }
 

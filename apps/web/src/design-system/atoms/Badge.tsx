@@ -30,12 +30,10 @@ export const Badge: React.FC<BadgeProps> = ({
       "bg-[var(--accent-bg)] text-[var(--accent)] border border-[var(--accent)]/30",
     success:
       "bg-[var(--success-bg)] text-[var(--success)] border border-[var(--success)]/30",
-    warning:
-      "bg-amber-500/10 text-amber-500 border border-amber-500/20",
+    warning: "bg-amber-500/10 text-amber-500 border border-amber-500/20",
     danger:
       "bg-[var(--danger-bg)] text-[var(--danger)] border border-[var(--danger)]/30",
-    mono:
-      "bg-[var(--bg-hover)] text-[var(--text-tertiary)] border border-[var(--border)] font-mono uppercase tracking-wider",
+    mono: "bg-[var(--bg-hover)] text-[var(--text-tertiary)] border border-[var(--border)] font-mono uppercase tracking-wider",
   };
 
   const dotColors = {
@@ -52,9 +50,7 @@ export const Badge: React.FC<BadgeProps> = ({
       className={`inline-flex items-center gap-1.5 rounded-full ${sizeStyles[size]} ${variantStyles[variant]} ${className}`}
     >
       {dot && (
-        <span
-          className={`h-1.5 w-1.5 rounded-full ${dotColors[variant]}`}
-        />
+        <span className={`h-1.5 w-1.5 rounded-full ${dotColors[variant]}`} />
       )}
       {children}
     </span>

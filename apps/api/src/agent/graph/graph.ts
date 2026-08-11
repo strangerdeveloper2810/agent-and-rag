@@ -37,13 +37,13 @@ const agentNode = async (state: typeof MessagesAnnotation.State) => {
     ...state.messages,
   ]);
   return { messages: [response] };
-}
+};
 
 // Quyết định đi tiếp: có tool_calls → "tools", không → END
 const shouldContinue = (state: typeof MessagesAnnotation.State) => {
   const last = state.messages[state.messages.length - 1] as any;
   return last.tool_calls?.length ? "tools" : END;
-}
+};
 
 export const agentGraph = new StateGraph(MessagesAnnotation)
   .addNode("agent", agentNode)

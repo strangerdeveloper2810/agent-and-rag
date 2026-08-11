@@ -65,6 +65,22 @@ export interface DocVersionDoc {
   archivedAt: Date;
 }
 
+/** Bản ghi file đã upload trong collection `uploads`. */
+export interface UploadDoc {
+  _id?: ObjectId;
+  tenantId: string;
+  userId?: string;
+  filename: string;
+  originalName: string;
+  mimeType: string;
+  size: number;
+  url: string;
+  key: string;
+  bucket: string;
+  category: string;
+  createdAt: Date;
+}
+
 /**
  * Truy cập collection Mongo có TÊN TẬP TRUNG (COLLECTIONS) + KIỂU tường minh.
  * Repository dùng cái này thay `getDb().collection("...")` → hết magic string,
@@ -81,4 +97,6 @@ export const collections = {
     getDb().collection<DocChunkDoc>(COLLECTIONS.documents),
   documentVersions: (): Collection<DocVersionDoc> =>
     getDb().collection<DocVersionDoc>(COLLECTIONS.documentVersions),
+  uploads: (): Collection<UploadDoc> =>
+    getDb().collection<UploadDoc>(COLLECTIONS.uploads),
 };

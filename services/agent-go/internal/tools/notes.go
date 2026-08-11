@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/ai-agent-tut/agent-go/internal/middleware"
 )
 
 // ---------------------------------------------------------------------------
@@ -160,7 +162,10 @@ func (t *notesCreateTool) Execute(ctx context.Context, rawArgs json.RawMessage) 
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	if err := os.MkdirAll(t.notesDir, 0755); err != nil {
+	tenantID := middleware.GetTenantID(ctx)
+	tenantNotesDir := filepath.Join(t.notesDir, tenantID)
+
+	if err := os.MkdirAll(tenantNotesDir, 0755); err != nil {
 		return Result{}, fmt.Errorf("notes.create: %w", err)
 	}
 
@@ -170,7 +175,7 @@ func (t *notesCreateTool) Execute(ctx context.Context, rawArgs json.RawMessage) 
 		filename = filename[:100]
 	}
 	filename = filename + ".md"
-	filePath := filepath.Join(t.notesDir, filename)
+	filePath := filepath.Join(tenantNotesDir, filename)
 
 	var sb strings.Builder
 	sb.WriteString("# ")

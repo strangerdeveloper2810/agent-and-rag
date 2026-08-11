@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import SuggestionChips from "@/shared/components/SuggestionChips";
+import { SuggestionChip } from "@/design-system/molecules/SuggestionChip";
 
 import type { EmptyStateProps } from "@/types";
 
@@ -61,9 +61,12 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ onPick }) => {
   return (
     <div className="mx-auto flex h-full max-w-3xl flex-col justify-center px-4 sm:px-6 animate-fade-in py-8 relative">
       {/* Background Raycast Ambient Glow */}
-      <div 
+      <div
         className="pointer-events-none absolute left-1/2 top-1/3 -translate-x-1/2 -translate-y-1/2 h-72 w-72 rounded-full blur-[120px] opacity-20"
-        style={{ background: "radial-gradient(circle, var(--accent) 0%, var(--accent-violet) 100%)" }}
+        style={{
+          background:
+            "radial-gradient(circle, var(--accent) 0%, var(--accent-violet) 100%)",
+        }}
       />
 
       {/* Centerpiece */}
@@ -100,7 +103,8 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ onPick }) => {
           className="mt-2.5 text-xs sm:text-sm font-medium max-w-md"
           style={{ color: "var(--text-secondary)" }}
         >
-          Dispatch commands, search vector knowledge base, or execute intelligent workflows.
+          Dispatch commands, search vector knowledge base, or execute
+          intelligent workflows.
         </p>
       </div>
 
@@ -109,7 +113,11 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ onPick }) => {
         {suggestions === null ? (
           <Skeleton />
         ) : (
-          <SuggestionChips suggestions={suggestions} onPick={onPick} />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2" role="list">
+            {suggestions?.map((s) => (
+              <SuggestionChip key={s} label={s} onClick={onPick} />
+            ))}
+          </div>
         )}
       </div>
     </div>

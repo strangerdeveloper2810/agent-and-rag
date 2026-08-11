@@ -12,13 +12,13 @@ import {
   type AttachmentPayload,
   type AttachmentMeta,
 } from "@/modules/chat/chat.api";
-import type { OutletCtx } from "@/shared/components/AppLayout";
+import type { OutletCtx } from "@/design-system/templates/AppLayout";
 import type { PendingAttachment } from "./Composer";
 import MessageBubble from "./MessageBubble";
 import Composer from "./Composer";
 import EmptyState from "./EmptyState";
-import { StopIcon } from "@/shared/components/icons";
-import { useToast } from "@/shared/components/Toast";
+import { StopIcon } from "@app/ui";
+import { useToast } from "@/design-system/molecules/Toast";
 import { validateComposerInput } from "@/lib/validation";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
@@ -31,7 +31,12 @@ export type MessageMeta = {
 
 // ── Helpers ──
 
-import type { FileToBase64Fn, OptimizeImageFn, PendingToPayloadFn, PendingToMetaFn } from "@/types";
+import type {
+  FileToBase64Fn,
+  OptimizeImageFn,
+  PendingToPayloadFn,
+  PendingToMetaFn,
+} from "@/types";
 
 // Image optimization constants — LLMs don't need full-resolution images.
 // Gemini vision works well with 800px images at JPEG quality 75%.
@@ -154,7 +159,9 @@ const pendingToPayload: PendingToPayloadFn = async (
  * @param pa - PendingAttachment object
  * @returns AttachmentMeta display object
  */
-const pendingToMeta: PendingToMetaFn = (pa: PendingAttachment): AttachmentMeta => {
+const pendingToMeta: PendingToMetaFn = (
+  pa: PendingAttachment,
+): AttachmentMeta => {
   return {
     type: pa.type,
     name: pa.name,

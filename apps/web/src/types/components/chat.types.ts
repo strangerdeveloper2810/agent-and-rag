@@ -1,4 +1,9 @@
-import type { Message, ToolCallState, CitationData, UsageData } from "@app/types";
+import type {
+  Message,
+  ToolCallState,
+  CitationData,
+  UsageData,
+} from "@app/types";
 
 /** Metadata structure tracked per message. */
 export type MessageMeta = {

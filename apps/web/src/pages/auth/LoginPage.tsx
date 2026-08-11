@@ -9,7 +9,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuthStore } from "@/stores/auth.store";
-import { useToast } from "@/shared/components/Toast";
+import { useToast } from "@/design-system/molecules/Toast";
 import { loginSchema, type LoginFormValues } from "@/lib/validation";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import type { ApiError } from "@/lib/http";
@@ -82,7 +82,11 @@ export const LoginPage: React.FC = () => {
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+        <form
+          onSubmit={handleSubmit(onSubmit)}
+          className="space-y-4"
+          noValidate
+        >
           {/* Email */}
           <div>
             <label

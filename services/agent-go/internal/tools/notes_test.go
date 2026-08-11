@@ -51,10 +51,12 @@ func TestNotesSearchTool(t *testing.T) {
 
 func TestNotesSearchTool_FindsNotes(t *testing.T) {
 	dir := t.TempDir()
-	// Create test notes
-	os.WriteFile(filepath.Join(dir, "note1.md"), []byte("# Alpha\nThis is a test note about golang."), 0644)
-	os.WriteFile(filepath.Join(dir, "note2.md"), []byte("# Beta\nNothing relevant here."), 0644)
-	os.WriteFile(filepath.Join(dir, "note3.md"), []byte("# Gamma\nAnother test entry with TEST keyword."), 0644)
+	// Create test notes in tenant subdirectory (default tenant = "default")
+	tenantDir := filepath.Join(dir, "default")
+	os.MkdirAll(tenantDir, 0755)
+	os.WriteFile(filepath.Join(tenantDir, "note1.md"), []byte("# Alpha\nThis is a test note about golang."), 0644)
+	os.WriteFile(filepath.Join(tenantDir, "note2.md"), []byte("# Beta\nNothing relevant here."), 0644)
+	os.WriteFile(filepath.Join(tenantDir, "note3.md"), []byte("# Gamma\nAnother test entry with TEST keyword."), 0644)
 
 	tool := NewNotesSearchTool(dir)
 	ctx := context.Background()
@@ -138,7 +140,9 @@ func TestNotesCreateTool_CreatesFile(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	entries, _ := os.ReadDir(dir)
+	// Notes are created in tenant subdirectory (default = "default")
+	tenantDir := filepath.Join(dir, "default")
+	entries, _ := os.ReadDir(tenantDir)
 	if len(entries) == 0 {
 		t.Fatal("expected at least one file created")
 	}

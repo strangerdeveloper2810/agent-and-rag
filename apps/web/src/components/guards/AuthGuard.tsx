@@ -19,13 +19,16 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
   const { user, isLoading, init } = useAuthStore();
   const navigate = useNavigate();
 
-  // Gọi init() một lần khi component mount
   useEffect(() => {
     init();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [init]);
 
-  // Chưa kiểm tra session xong → spinner
+  useEffect(() => {
+    if (!isLoading && !user) {
+      navigate("/login", { replace: true });
+    }
+  }, [isLoading, user, navigate]);
+
   if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center bg-[var(--bg)]">
@@ -40,11 +43,7 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
     );
   }
 
-  // Không có session → redirect
   if (!user) {
-    useEffect(() => {
-      navigate("/login", { replace: true });
-    });
     return null;
   }
 

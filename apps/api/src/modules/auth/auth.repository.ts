@@ -134,9 +134,7 @@ export class AuthRepository {
     );
   }
 
-  async findRefreshToken(
-    tokenHash: string,
-  ): Promise<RefreshTokenRow | null> {
+  async findRefreshToken(tokenHash: string): Promise<RefreshTokenRow | null> {
     const { rows } = await this.pg.query<RefreshTokenRow>(
       "SELECT * FROM refresh_tokens WHERE token_hash = $1",
       [tokenHash],

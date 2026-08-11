@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { WrenchIcon, CheckIcon, ChevronDownIcon } from "./icons";
+import { WrenchIcon, CheckIcon, ChevronDownIcon } from "@app/ui";
 import type { ToolCallState } from "@/modules/chat/chat.api";
 
 const TOOL_LABELS: Record<string, string> = {
