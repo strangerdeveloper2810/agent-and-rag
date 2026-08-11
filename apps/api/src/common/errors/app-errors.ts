@@ -58,6 +58,18 @@ export class ConflictError extends AppError {
   }
 }
 
+/** 503 — Dịch vụ ngoại vi không khả dụng (vd MongoDB, Redis down). */
+export class ServiceUnavailableError extends AppError {
+  constructor(service: string, detail?: string) {
+    super(
+      `${service} không khả dụng${detail ? `: ${detail}` : ""}. Tính năng này tạm thời bị vô hiệu.`,
+      503,
+      "SERVICE_UNAVAILABLE",
+    );
+    this.name = "ServiceUnavailableError";
+  }
+}
+
 /**
  * 422 — Dữ liệu đầu vào không hợp lệ (validate thất bại).
  * Mang theo `fieldErrors` map từng field -> danh sách lỗi để client

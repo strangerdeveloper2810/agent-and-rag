@@ -38,6 +38,10 @@ type Config struct {
 	VoyageKey  string
 	EmbedModel string // embedding model. default: nomic-embed-text
 
+	// RAG
+	EnableHybridSearch bool
+	EnableRerank       bool
+
 	// Limits
 	MaxSteps              int  // default: 12
 	MaxTokens             int  // default: 0 (unlimited output tokens)
@@ -70,6 +74,8 @@ func Load() (Config, error) {
 		MongoDB:               envOr("MONGODB_DB", "ai_agent_tut"),
 		VoyageKey:             os.Getenv("VOYAGE_API_KEY"),
 		EmbedModel:            envOr("EMBED_MODEL", "nomic-embed-text"),
+		EnableHybridSearch:    envOr("ENABLE_HYBRID_SEARCH", "true") == "true",
+		EnableRerank:          envOr("ENABLE_RERANK", "true") == "true",
 		MaxSteps:              12,
 		MaxTokens:             0,
 		MaxContextTokens:      100000,

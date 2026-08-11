@@ -4,8 +4,8 @@ import {
   UploadIcon,
   CloseIcon,
   DocIcon,
-} from "@/shared/components/icons";
-import { useToast } from "@/shared/components/Toast";
+} from "@app/ui";
+import { useToast } from "@/design-system/molecules/Toast";
 
 import type { NextIdFn, FormatSizeFn, ReadAsDataURLFn, PendingAttachment } from "@/types";
 

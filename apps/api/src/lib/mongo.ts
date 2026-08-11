@@ -1,5 +1,6 @@
 import { MongoClient, type Db } from "mongodb";
 import { config } from "../config";
+import { ServiceUnavailableError } from "../common/errors/app-errors";
 
 /** Tên collection Mongo — 1 NGUỒN SỰ THẬT (tránh magic string rải rác + typo). */
 export const COLLECTIONS = {
@@ -8,6 +9,7 @@ export const COLLECTIONS = {
   tasks: "tasks",
   documents: "documents",
   documentVersions: "document_versions",
+  uploads: "uploads",
 } as const;
 
 let client: MongoClient | null = null;
@@ -21,8 +23,12 @@ export async function connectMongo(): Promise<Db> {
   return db;
 }
 
+export function isMongoConnected(): boolean {
+  return db !== null;
+}
+
 export function getDb(): Db {
-  if (!db) throw new Error("Mongo not connected. Call connectMongo() first.");
+  if (!db) throw new ServiceUnavailableError("MongoDB");
   return db;
 }
 
@@ -57,5 +63,14 @@ export async function ensureIndexes(): Promise<void> {
     database
       .collection(COLLECTIONS.documentVersions)
       .createIndex({ documentId: 1, version: 1 }),
+    database
+      .collection(COLLECTIONS.uploads)
+      .createIndex({ tenantId: 1, createdAt: -1 }),
+    database
+      .collection(COLLECTIONS.uploads)
+      .createIndex({ tenantId: 1, key: 1 }, { unique: true }),
+    database
+      .collection(COLLECTIONS.uploads)
+      .createIndex({ tenantId: 1, category: 1 }),
   ]);
 }

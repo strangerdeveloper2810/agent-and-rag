@@ -2,8 +2,8 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App.tsx";
-import { ToastProvider } from "@/shared/components/Toast";
-import { initTheme } from "@/shared/components/ThemeToggle";
+import { ToastProvider } from "@/design-system/molecules/Toast";
+import { initTheme } from "@/design-system/atoms/ThemeToggle";
 import { useAuthStore } from "@/stores/auth.store";
 import "./index.css";
 

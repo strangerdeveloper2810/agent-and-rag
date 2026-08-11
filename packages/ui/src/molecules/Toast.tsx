@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { CheckIcon, CloseIcon } from "./icons";
+import { CheckIcon, CloseIcon } from "../icons/icons";
 
 type ToastType = "success" | "error" | "info" | "warning";
 type ToastItem = { id: number; type: ToastType; message: string };
@@ -134,7 +134,6 @@ const Toast: React.FC<{ toast: ToastItem; onClose: () => void }> = ({ toast, onC
   );
 };
 
-/** Icon "i" cho toast info. */
 const InfoSvg: React.FC = () => (
   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="12" r="10" />
@@ -143,7 +142,6 @@ const InfoSvg: React.FC = () => (
   </svg>
 );
 
-/** Icon "!" cho toast warning. */
 const WarnSvg: React.FC = () => (
   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
     <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />

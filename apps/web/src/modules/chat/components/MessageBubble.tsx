@@ -5,10 +5,10 @@ import {
   CheckIcon,
   CloseIcon,
   DocIcon,
-} from "@/shared/components/icons";
-import AgentBadge from "@/shared/components/AgentBadge";
-import ToolCallCard from "@/shared/components/ToolCallCard";
-import CitationList from "@/shared/components/CitationList";
+} from "@app/ui";
+import AgentBadge from "@/design-system/atoms/AgentBadge";
+import ToolCallCard from "@/design-system/molecules/ToolCallCard";
+import CitationList from "@/design-system/molecules/CitationList";
 import type { Message, AttachmentMeta } from "@/modules/chat/chat.api";
 import type {
   ToolCallState,

@@ -8,7 +8,7 @@ export { agentGraph };
  *
  * LangGraph chỉ phát: text, tool_start, tool_end.
  * Go agent phát thêm: step (node hiện tại), error (lỗi agent), done (kết thúc + token usage),
- * citation (RAG sources), memory (thao tác memory), interrupt (HITL).
+ * usage (per-step token), citation (RAG sources), memory (thao tác memory), interrupt (HITL).
  */
 export type AgentEvent =
   | { type: "text"; text: string }
@@ -17,6 +17,7 @@ export type AgentEvent =
   | { type: "step"; node?: string }
   | { type: "error"; message?: string }
   | { type: "done"; agent?: string; tokens?: number }
+  | { type: "usage"; usage?: { inputTokens: number; outputTokens: number }; totalTokens?: number }
   | { type: "citation"; text?: string }
   | { type: "memory"; message?: string }
   | { type: "interrupt"; name?: string; message?: string };

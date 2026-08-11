@@ -1,13 +1,30 @@
 # ── J.A.R.V.I.S. — Development Stack ──
 # Chỉ chạy các service cần thiết cho local dev.
 # Code (api, web, agent-go) chạy qua `pnpm dev` trên máy host.
-# MongoDB dùng Atlas cloud.
+# MongoDB: ưu tiên Atlas cloud (MONGODB_URI trong .env). Nếu không có Atlas,
+# dùng MongoDB local trong compose này.
 # Env vars: env/.env.development
 #
-# Start: docker compose -f docker/development/docker-compose.yml up -d
-# Stop:  docker compose -f docker/development/docker-compose.yml down
+# Start: pnpm docker:dev
+# Stop:  pnpm docker:dev:down
 
 services:
+  # ── MongoDB (chat history, documents, tasks, RAG) ──
+  mongo:
+    image: mongo:8
+    container_name: jarvis-development-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_dev:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
   # ── PostgreSQL (Auth DB: users, credentials, refresh tokens) ──
   postgres:
     image: postgres:17-alpine
@@ -63,6 +80,8 @@ services:
       start_period: 10s
 
 volumes:
+  mongo_dev:
+    driver: local
   pgdata_dev:
     driver: local
   redis_dev:

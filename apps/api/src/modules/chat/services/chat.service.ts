@@ -9,6 +9,7 @@ import { createAgentClient, type AgentClient } from "../../../agent/client/index
 import type { AgentEvent } from "../../../agent/graph/index";
 import { config } from "../../../config";
 import type { MessageRole } from "../../../schemas/message";
+import { getChatCache, setChatCache } from "../../../common/cache/index";
 
 type ChatMessage = { role: MessageRole; content: string };
 
@@ -107,17 +108,41 @@ export async function streamReply(
   let tokensUsed = 0;
   let backend: string = config.AGENT_BACKEND;
 
+  const model =
+    config.LLM_PROVIDER === "google"
+      ? config.GOOGLE_MODEL
+      : config.CLAUDE_MODEL;
+  const cacheInput = {
+    model,
+    temperature: 1.0,
+    messages: history as unknown as Record<string, unknown>[],
+  };
+
   let metadataResolve!: (meta: StreamMetadata) => void;
   const metadata = new Promise<StreamMetadata>((resolve) => {
     metadataResolve = resolve;
   });
 
   async function* generator(): AsyncGenerator<AgentEvent> {
+    // 1. Kiểm tra chat cache trước khi gọi agent
+    try {
+      const cached = await getChatCache(cacheInput);
+      if (cached) {
+        console.log(`[chat-cache] hit (model=${model})`);
+        full = cached;
+        yield { type: "text", text: cached };
+        metadataResolve({ backend: backend + "+cache", tokensUsed: 0 });
+        await addMessage(conversationId, "assistant", cached);
+        return;
+      }
+    } catch {
+      // Redis không khả dụng → fallback không cache
+    }
+
     try {
       for await (const ev of agent.stream(history, { signal, attachments })) {
         if (ev.type === "text") full += ev.text;
 
-        // Ghi nhận metadata từ event done của Go agent.
         if (ev.type === "done") {
           if (ev.agent) backend = ev.agent;
           if (ev.tokens) tokensUsed = ev.tokens;
@@ -126,13 +151,18 @@ export async function streamReply(
         yield ev;
       }
     } finally {
-      // Luôn trả metadata (kể cả khi bị abort giữa chừng).
       metadataResolve({ backend, tokensUsed });
 
-      // Lưu cả khi bị abort: giữ lại phần đã sinh, tránh mất câu trả lời
-      // dài khi user lỡ đổi trang.
       if (full.trim().length > 0) {
         await addMessage(conversationId, "assistant", full);
+
+        // Lưu response vào chat cache
+        try {
+          await setChatCache(cacheInput, full);
+          console.log(`[chat-cache] saved (model=${model})`);
+        } catch {
+          // Redis không khả dụng → bỏ qua
+        }
       }
     }
   }
