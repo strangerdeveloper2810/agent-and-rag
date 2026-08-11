@@ -6,7 +6,7 @@
   "packageManager": "pnpm@10.30.3",
   "scripts": {
     "dev": "turbo run dev --parallel",
-    "dev:go": "cd services/agent-go && go run ./cmd/server",
+    "dev:go": "cd services/agent-go && set -a && source ../../env/.env.development && source .env && export PORT=3002 && set +a && go run ./cmd/server",
     "dev:api": "turbo run dev --filter=@app/api",
     "dev:web": "turbo run dev --filter=@app/web",
     "build": "turbo run build",
@@ -28,8 +28,10 @@
     "fmt:check": "prettier --check .",
     "clean": "turbo run clean && rm -rf services/agent-go/bin/ services/agent-go/coverage.*",
     "setup": "pnpm install && cd services/agent-go && go mod download",
-    "docker:up": "docker compose up --build",
-    "docker:down": "docker compose down"
+    "docker:dev": "docker compose -f docker/development/docker-compose.yml up -d",
+    "docker:dev:down": "docker compose -f docker/development/docker-compose.yml down",
+    "docker:up": "docker compose -f docker/deployment/docker-compose.yml up -d --build",
+    "docker:down": "docker compose -f docker/deployment/docker-compose.yml down"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -7,16 +7,10 @@ import {
 } from "@/shared/components/icons";
 import { useToast } from "@/shared/components/Toast";
 
-// ── Types ──
+import type { NextIdFn, FormatSizeFn, ReadAsDataURLFn, PendingAttachment } from "@/types";
 
-export interface PendingAttachment {
-  id: string;
-  file: File;
-  type: "image" | "file";
-  preview: string;
-  name: string;
-  size: number;
-}
+// Re-export PendingAttachment for backwards compatibility
+export type { PendingAttachment };
 
 // ── Constants ──
 
@@ -44,46 +38,70 @@ const ACCEPT = [
 // ── Helpers ──
 
 let _attachId = 0;
-function nextId(): string {
-  return `att-${++_attachId}`;
-}
 
-function isImageType(file: File): boolean {
-  return file.type.startsWith("image/");
-}
+/**
+ * Generates an incremental unique ID for pending attachments.
+ *
+ * @returns Unique attachment ID string
+ */
+const nextId: NextIdFn = (): string => `att-${++_attachId}`;
 
-function readAsDataURL(file: File): Promise<string> {
+/**
+ * Checks if a file is an image based on its MIME type.
+ *
+ * @param file - File object to check
+ * @returns True if file is an image, false otherwise
+ */
+const isImageType = (file: File): boolean => file.type.startsWith("image/");
+
+/**
+ * Reads a File object as a Data URL string.
+ *
+ * @param file - File object to read
+ * @returns Promise resolving to Data URL string
+ */
+const readAsDataURL: ReadAsDataURLFn = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result as string);
     reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
     reader.readAsDataURL(file);
   });
-}
+};
 
-function formatSize(bytes: number): string {
+/**
+ * Formats byte size into human-readable B, KB, or MB string.
+ *
+ * @param bytes - Size in bytes
+ * @returns Formatted size string
+ */
+const formatSize: FormatSizeFn = (bytes: number): string => {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
+};
 
 // ── Component ──
 
-export default function Composer({
-  value,
-  onChange,
-  onSend,
-  disabled,
-  attachments,
-  onAttachmentsChange,
-}: {
+/**
+ * Composer component providing a Raycast-style prompt input bar
+ * with file attachment preview chips and submit keybindings.
+ */
+export const Composer: React.FC<{
   value: string;
   onChange: (v: string) => void;
   onSend: () => void;
   disabled: boolean;
   attachments: PendingAttachment[];
   onAttachmentsChange: (atts: PendingAttachment[]) => void;
-}) {
+}> = ({
+  value,
+  onChange,
+  onSend,
+  disabled,
+  attachments,
+  onAttachmentsChange,
+}) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
@@ -171,7 +189,7 @@ export default function Composer({
   const canSend = (value.trim().length > 0 || totalCount > 0) && !disabled;
 
   return (
-    <div className="px-4 pb-4 pt-2 sm:px-6">
+    <div className="px-4 pb-5 pt-2 sm:px-6">
       <input
         ref={fileInputRef}
         type="file"
@@ -185,7 +203,7 @@ export default function Composer({
       <div className="mx-auto max-w-3xl">
         {/* Attachment previews */}
         {totalCount > 0 && (
-          <div className="mb-2 space-y-1.5">
+          <div className="mb-2.5 space-y-1.5 animate-fade-in">
             <ul
               className="flex flex-wrap gap-2"
               role="list"
@@ -195,7 +213,7 @@ export default function Composer({
                 <li key={att.id} className="relative group">
                   {att.type === "image" ? (
                     <div
-                      className="relative h-16 w-16 overflow-hidden rounded-xl border bg-[var(--bg-raised)]"
+                      className="relative h-16 w-16 overflow-hidden rounded-2xl border bg-[var(--bg-raised)] shadow-md"
                       style={{ borderColor: "var(--border)" }}
                     >
                       <img
@@ -207,14 +225,14 @@ export default function Composer({
                         type="button"
                         onClick={() => removeAttachment(att.id)}
                         aria-label={`Remove ${att.name}`}
-                        className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition hover:bg-[var(--danger)] group-hover:opacity-100 focus:opacity-100"
+                        className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/70 text-white opacity-0 transition hover:bg-[var(--danger)] group-hover:opacity-100 focus:opacity-100"
                       >
                         <CloseIcon width={11} height={11} />
                       </button>
                     </div>
                   ) : (
                     <div
-                      className="relative flex items-center gap-2 rounded-xl border px-3 py-2 pr-8 transition"
+                      className="relative flex items-center gap-2 rounded-xl border px-3 py-2 pr-8 transition shadow-sm"
                       style={{
                         borderColor: "var(--border)",
                         backgroundColor: "var(--bg-raised)",
@@ -223,7 +241,7 @@ export default function Composer({
                       <DocIcon
                         width={14}
                         height={14}
-                        style={{ color: "var(--text-tertiary)" }}
+                        style={{ color: "var(--accent)" }}
                       />
                       <div className="min-w-0">
                         <p
@@ -243,7 +261,7 @@ export default function Composer({
                         type="button"
                         onClick={() => removeAttachment(att.id)}
                         aria-label={`Remove ${att.name}`}
-                        className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full transition hover:bg-[var(--border)]"
+                        className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full transition hover:bg-[var(--border)]"
                         style={{ color: "var(--text-tertiary)" }}
                       >
                         <CloseIcon width={11} height={11} />
@@ -254,7 +272,7 @@ export default function Composer({
               ))}
             </ul>
             <p
-              className="text-[10px]"
+              className="text-[10px] font-mono"
               style={{ color: "var(--text-tertiary)" }}
             >
               {imageCount}/{MAX_IMAGES} images, {fileCount}/{MAX_FILES} files
@@ -262,11 +280,11 @@ export default function Composer({
           </div>
         )}
 
-        {/* Input row */}
+        {/* Clean Input Box */}
         <div
-          className="flex items-end gap-2 rounded-xl px-3 py-2 transition-all duration-200 focus-within:shadow-[0_0_12px_rgba(0,240,255,0.15)]"
+          className="relative flex items-end gap-2 rounded-2xl px-3.5 py-2.5 transition-all duration-200 focus-within:border-[var(--accent)] focus-within:ring-2 focus-within:ring-[var(--accent-bg)] shadow-sm"
           style={{
-            backgroundColor: "var(--bg-raised)",
+            backgroundColor: "var(--surface)",
             border: "1px solid var(--border)",
           }}
         >
@@ -276,24 +294,15 @@ export default function Composer({
             onClick={() => fileInputRef.current?.click()}
             disabled={disabled || (atImageLimit && atFileLimit)}
             aria-label="Attach files"
-            className={`mb-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition ${
+            className={`mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition hover:bg-[var(--bg-hover)] active:scale-95 ${
               disabled || (atImageLimit && atFileLimit)
-                ? "cursor-not-allowed opacity-20"
+                ? "cursor-not-allowed opacity-30"
                 : ""
             }`}
             style={{ color: "var(--text-secondary)" }}
           >
             <UploadIcon width={18} height={18} />
           </button>
-
-          {/* Prompt prefix */}
-          <span
-            className="mb-2.5 select-none text-sm opacity-50"
-            style={{ color: "var(--accent)" }}
-            aria-hidden="true"
-          >
-            &gt;
-          </span>
 
           <textarea
             ref={textareaRef}
@@ -302,12 +311,10 @@ export default function Composer({
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={handleKeyDown}
             disabled={disabled}
-            placeholder="Enter command..."
-            className="scroll-fine max-h-52 flex-1 resize-none bg-transparent px-1 py-2 text-sm leading-relaxed outline-none placeholder:text-[var(--text-tertiary)] disabled:opacity-50"
+            placeholder="Instruct J.A.R.V.I.S..."
+            className="scroll-fine max-h-52 flex-1 resize-none bg-transparent px-1 py-1 text-sm leading-relaxed outline-none placeholder:text-[var(--text-tertiary)] disabled:opacity-50"
             style={{
               color: "var(--text)",
-              fontFamily:
-                "'JetBrains Mono', ui-monospace, SF Mono, Consolas, monospace",
             }}
           />
 
@@ -316,26 +323,21 @@ export default function Composer({
             onClick={onSend}
             disabled={!canSend}
             aria-label="Send message"
-            className={`mb-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-all duration-200 ${
+            className={`mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition duration-150 active:scale-95 ${
               canSend
-                ? "text-[#0a0a0f]"
-                : "cursor-not-allowed text-[var(--text-tertiary)]"
+                ? "text-white hover:opacity-90"
+                : "cursor-not-allowed opacity-40 text-[var(--text-tertiary)]"
             }`}
             style={{
-              backgroundColor: canSend ? "var(--accent)" : "transparent",
-              boxShadow: canSend ? "0 0 12px rgba(0,240,255,0.3)" : "none",
+              backgroundColor: canSend ? "var(--accent)" : "var(--bg-hover)",
             }}
           >
-            <SendIcon width={17} height={17} />
+            <SendIcon width={16} height={16} />
           </button>
         </div>
-        <p
-          className="mt-2 text-center text-[10px]"
-          style={{ color: "var(--text-tertiary)" }}
-        >
-          Press Enter to send · Shift+Enter for new line
-        </p>
       </div>
     </div>
   );
-}
+};
+
+export default Composer;

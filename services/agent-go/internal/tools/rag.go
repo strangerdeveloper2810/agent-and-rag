@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/ai-agent-tut/agent-go/internal/middleware"
 	"github.com/ai-agent-tut/agent-go/internal/mongo"
 	"github.com/ai-agent-tut/agent-go/internal/rag"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -74,6 +75,8 @@ func (t *ragSearchTool) Execute(ctx context.Context, args json.RawMessage) (Resu
 		return Result{Content: "RAG not configured. Set MONGODB_URI and VOYAGE_API_KEY to enable document search."}, nil
 	}
 
+	tenantID := middleware.GetTenantID(ctx)
+
 	var parsed ragSearchArgs
 	if err := json.Unmarshal(args, &parsed); err != nil {
 		return Result{}, fmt.Errorf("rag.search: invalid args: %w", err)
@@ -103,6 +106,7 @@ func (t *ragSearchTool) Execute(ctx context.Context, args json.RawMessage) (Resu
 				{Key: "queryVector", Value: queryVector},
 				{Key: "numCandidates", Value: 100},
 				{Key: "limit", Value: 5},
+					{Key: "filter", Value: bson.D{{Key: "tenantId", Value: tenantID}}},
 			}},
 		},
 		{

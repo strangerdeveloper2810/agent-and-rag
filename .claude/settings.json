@@ -16,7 +16,8 @@
       "Bash(node _smoke.mjs)",
       "Bash(node -e \"require.resolve\\('unpdf'\\); console.log\\('✓ installed'\\)\")",
       "Bash(pnpm graph:print)",
-      "Bash(git -C /Users/mdm/Desktop/company/NewPineTech/ai-agent-tut status --short)"
+      "Bash(go vet *)",
+      "Bash(go build *)"
     ],
     "additionalDirectories": [
       "/Users/mdm/.claude/projects/-Users-mdm-Desktop-company-NewPineTech-ai-agent-tut"

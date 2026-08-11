@@ -3,6 +3,8 @@ dist
 .env
 .env.local
 *-credentials.env
+# Cho phép env dev (safe defaults) — file production env/.env vẫn bị ignore
+!env/.env.development
 .turbo
 *.log
 .DS_Store

@@ -1,4 +1,5 @@
 import { config } from "../config";
+import { getEmbeddingCache, setEmbeddingCache } from "../common/cache/index.js";
 
 const VOYAGE_URL = "https://api.voyageai.com/v1/embeddings";
 const MODEL = "voyage-3"; // 1024 chiều — phải khớp numDimensions của Atlas Vector Index
@@ -36,7 +37,19 @@ export async function embed(
   texts: string[],
   inputType: "document" | "query",
 ): Promise<number[][]> {
+  // 1. Kiểm tra Redis cache trước
+  const { vectors, hits } = await getEmbeddingCache(texts, MODEL, inputType);
+
+  // 2. Xác định text nào chưa có trong cache
+  const missTexts = texts.filter((_, i) => !hits[i]);
+  if (missTexts.length === 0) {
+    // Toàn bộ cache hit — trả về luôn, không cần gọi API
+    return texts.map((_, i) => vectors[i]);
+  }
+
+  // 3. Gọi Voyage API cho các text cache miss
   const MAX_RETRIES = 2;
+  let missVectors: number[][] = [];
   for (let attempt = 0; ; attempt++) {
     const res = await fetch(VOYAGE_URL, {
       method: "POST",
@@ -44,12 +57,13 @@ export async function embed(
         "content-type": "application/json",
         authorization: `Bearer ${config.VOYAGE_API_KEY}`,
       },
-      body: JSON.stringify(buildEmbeddingRequest(texts, inputType)),
+      body: JSON.stringify(buildEmbeddingRequest(missTexts, inputType)),
     });
 
     if (res.ok) {
       const data = (await res.json()) as { data: { embedding: number[] }[] };
-      return data.data.map((d) => d.embedding);
+      missVectors = data.data.map((d) => d.embedding);
+      break;
     }
 
     const detail = await res.text();
@@ -60,6 +74,16 @@ export async function embed(
     }
     throw new VoyageError(res.status, detail);
   }
+
+  // 4. Lưu kết quả mới vào cache (fire-and-forget, không chặn response)
+  setEmbeddingCache(missTexts, missVectors, MODEL, inputType).catch(() => {});
+
+  // 5. Merge cache hits + API results theo đúng thứ tự input
+  let missIdx = 0;
+  return texts.map((_, i) => {
+    if (hits[i]) return vectors[i];
+    return missVectors[missIdx++];
+  });
 }
 
 // Voyage giới hạn số text mỗi request (tối đa ~1000). Tài liệu lớn có thể sinh
