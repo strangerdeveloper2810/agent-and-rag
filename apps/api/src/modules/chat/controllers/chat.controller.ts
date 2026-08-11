@@ -39,7 +39,7 @@ export const postChat = async (req: FastifyRequest, reply: FastifyReply) => {
 
   // Lưu user msg TRƯỚC khi mở SSE -> lỗi sớm (validate/DB) vẫn trả HTTP JSON
   // qua error handler (chưa "chiếm" reply nên còn gửi JSON được).
-  await chatService.appendUserMessage(id, content);
+  await chatService.appendUserMessage(id, content, attachments);
 
   // hijack(): ta tự ghi thẳng vào socket (SSE); Fastify không serialize/gửi nữa.
   reply.hijack();

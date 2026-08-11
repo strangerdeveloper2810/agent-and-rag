@@ -2,7 +2,10 @@ import { useState } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-function CodeBlock({ language, code }: { language?: string; code: string }) {
+/**
+ * CodeBlock component rendering syntax-highlighted code with copy to clipboard button.
+ */
+const CodeBlock: React.FC<{ language?: string; code: string }> = ({ language, code }) => {
   const [copied, setCopied] = useState(false);
   const handleCopy = async () => {
     await navigator.clipboard.writeText(code);
@@ -219,7 +222,10 @@ const components: Components = {
   ),
 };
 
-export default function Markdown({ content }: { content: string }) {
+/**
+ * Markdown component rendering formatted assistant text with GFM table & code block support.
+ */
+export const Markdown: React.FC<{ content: string }> = ({ content }) => {
   return (
     <div className="text-sm leading-relaxed">
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
@@ -227,4 +233,6 @@ export default function Markdown({ content }: { content: string }) {
       </ReactMarkdown>
     </div>
   );
-}
+};
+
+export default Markdown;

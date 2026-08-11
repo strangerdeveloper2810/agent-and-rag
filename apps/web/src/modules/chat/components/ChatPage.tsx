@@ -18,6 +18,9 @@ import MessageBubble from "./MessageBubble";
 import Composer from "./Composer";
 import EmptyState from "./EmptyState";
 import { StopIcon } from "@/shared/components/icons";
+import { useToast } from "@/shared/components/Toast";
+import { validateComposerInput } from "@/lib/validation";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
 export type MessageMeta = {
   toolCalls: ToolCallState[];
@@ -28,13 +31,22 @@ export type MessageMeta = {
 
 // ── Helpers ──
 
+import type { FileToBase64Fn, OptimizeImageFn, PendingToPayloadFn, PendingToMetaFn } from "@/types";
+
 // Image optimization constants — LLMs don't need full-resolution images.
 // Gemini vision works well with 800px images at JPEG quality 75%.
 const MAX_IMAGE_WIDTH = 800;
 const MAX_IMAGE_HEIGHT = 800;
 const JPEG_QUALITY = 0.75;
 
-function fileToBase64(file: File): Promise<string> {
+/**
+ * Reads a File object and converts it to a Base64 encoded string.
+ * Automatically optimizes raster images to reduce token usage.
+ *
+ * @param file - File object to read
+ * @returns Promise resolving to raw Base64 string
+ */
+const fileToBase64: FileToBase64Fn = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     // Always optimize images before sending to LLM
     if (file.type.startsWith("image/") && file.type !== "image/svg+xml") {
@@ -46,9 +58,15 @@ function fileToBase64(file: File): Promise<string> {
     // SVG and non-image files: read as-is
     fallbackRead(file).then(resolve).catch(reject);
   });
-}
+};
 
-function fallbackRead(file: File): Promise<string> {
+/**
+ * Fallback file reader converting file to base64 via FileReader.
+ *
+ * @param file - File object to read
+ * @returns Promise resolving to base64 string
+ */
+const fallbackRead = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
@@ -59,9 +77,15 @@ function fallbackRead(file: File): Promise<string> {
     reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
     reader.readAsDataURL(file);
   });
-}
+};
 
-function optimizeImage(file: File): Promise<string> {
+/**
+ * Resizes and compresses image files using Canvas.
+ *
+ * @param file - Image file to optimize
+ * @returns Promise resolving to compressed JPEG base64 string
+ */
+const optimizeImage: OptimizeImageFn = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
@@ -99,11 +123,17 @@ function optimizeImage(file: File): Promise<string> {
     };
     img.src = url;
   });
-}
+};
 
-async function pendingToPayload(
+/**
+ * Converts client-side PendingAttachment to API AttachmentPayload.
+ *
+ * @param pa - PendingAttachment object
+ * @returns Promise resolving to AttachmentPayload
+ */
+const pendingToPayload: PendingToPayloadFn = async (
   pa: PendingAttachment,
-): Promise<AttachmentPayload> {
+): Promise<AttachmentPayload> => {
   const data = await fileToBase64(pa.file);
   return {
     type: pa.type,
@@ -116,9 +146,15 @@ async function pendingToPayload(
         : pa.file.type || "application/octet-stream",
     size: pa.size,
   };
-}
+};
 
-function pendingToMeta(pa: PendingAttachment): AttachmentMeta {
+/**
+ * Converts client-side PendingAttachment to display AttachmentMeta.
+ *
+ * @param pa - PendingAttachment object
+ * @returns AttachmentMeta display object
+ */
+const pendingToMeta: PendingToMetaFn = (pa: PendingAttachment): AttachmentMeta => {
   return {
     type: pa.type,
     name: pa.name,
@@ -128,9 +164,13 @@ function pendingToMeta(pa: PendingAttachment): AttachmentMeta {
       (pa.type === "image" ? "image/png" : "application/octet-stream"),
     thumbnail: pa.type === "image" ? pa.preview : "",
   };
-}
+};
 
-export default function ChatPage() {
+/**
+ * ChatPage component for rendering active conversation, streaming SSE responses,
+ * and handling message dispatch with multimodal file attachments.
+ */
+export const ChatPage: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { reloadConversations } = useOutletContext<OutletCtx>();
@@ -145,6 +185,8 @@ export default function ChatPage() {
   const loadedIdRef = useRef<string | null>(null);
   const streamCtrlRef = useRef<AbortController | null>(null);
   const userScrolledUpRef = useRef(false);
+  const toast = useToast();
+  useDocumentTitle("Chat");
 
   const streamingRef = useRef(false);
   streamingRef.current = streaming;
@@ -231,9 +273,19 @@ export default function ChatPage() {
   }, [messages, scrollToBottom, streaming]);
 
   const send = async (text?: string) => {
-    const content = (text ?? input).trim();
-    if ((!content && attachments.length === 0) || streaming) return;
+    const rawContent = (text ?? input).trim();
+    if ((!rawContent && attachments.length === 0) || streaming) return;
 
+    // Validate input chống XSS/script injection
+    if (rawContent) {
+      const validation = validateComposerInput(rawContent);
+      if (!validation.valid) {
+        toast.error(validation.error);
+        return;
+      }
+    }
+
+    const content = rawContent;
     setInput("");
     const snapAttachments = [...attachments];
     setAttachments([]);
@@ -250,6 +302,8 @@ export default function ChatPage() {
         navigate(`/messages/${convId}`);
         reloadConversations();
       }
+
+      if (!convId) return;
 
       const attachmentPayloads: AttachmentPayload[] = await Promise.all(
         snapAttachments.map(pendingToPayload),
@@ -492,4 +546,6 @@ export default function ChatPage() {
       </div>
     </main>
   );
-}
+};
+
+export default ChatPage;

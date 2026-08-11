@@ -1,11 +1,16 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
+import cookie from "@fastify/cookie";
 import multipart from "@fastify/multipart";
 import rateLimit from "@fastify/rate-limit";
 import { chatRoutes } from "./modules/chat";
 import { documentsRoutes } from "./modules/documents";
 import { tasksRoutes } from "./modules/tasks";
-import { registerErrorHandler } from "./middleware/error-handler";
+import { uploadRoutes } from "./modules/upload/upload.routes";
+import { authModule } from "./modules/auth/auth.module";
+import { usersModule } from "./modules/users/users.module";
+import { getPgPool } from "./database/index.js";
+import { registerErrorFilter } from "./common/filters/error.filter";
 import { getDb } from "./lib/mongo";
 import { config } from "./config";
 import { checkGoAgentHealth } from "./agent/client";
@@ -17,6 +22,13 @@ import { checkGoAgentHealth } from "./agent/client";
  * - `/api/health`   — Liveness: process còn sống (không phụ thuộc DB/service ngoài).
  * - `/api/healthz`  — Deep health: MongoDB + Go agent (nếu dùng backend=go).
  * - `/api/ready`    — Readiness: sẵn sàng phục vụ (ping được MongoDB).
+ *
+ * Tổ chức module:
+ * - `app.ts` compose tất cả plugin/module vào 1 Fastify instance.
+ * - Mỗi module (`chatModule`, `documentsModule`, `tasksModule`) là 1 Fastify
+ *   plugin đóng gói route + auth guard + business logic của domain đó.
+ * - Auth guard hiện là placeholder (pass-through) — sẽ được kích hoạt khi
+ *   cài `jsonwebtoken` ở Phase 3 (xem TODO trong từng `*.module.ts`).
  */
 export function buildApp(): FastifyInstance {
   // Tắt logger khi chạy test cho đỡ nhiễu output.
@@ -24,6 +36,8 @@ export function buildApp(): FastifyInstance {
     logger: config.NODE_ENV !== "test",
     bodyLimit: 50 * 1024 * 1024, // 50MB — attachments + long conversation history
   });
+
+  // ---- Cross-cutting plugins ----
 
   // CORS: whitelist theo CORS_ORIGIN (prod) hoặc mọi origin (dev khi rỗng).
   app.register(cors, {
@@ -37,11 +51,14 @@ export function buildApp(): FastifyInstance {
     limits: { fileSize: 25 * 1024 * 1024, files: 7 },
   });
 
-  // Chặn abuse/DoS ở mức toàn cục.
+  // Cookie parser — cần cho auth guard đọc access_token/refresh_token.
+  app.register(cookie);
+
+  // Rate limiting chống abuse/DoS — in-memory (đủ cho single instance).
   app.register(rateLimit, { max: 120, timeWindow: "1 minute" });
 
-  // Middleware: error handler tập trung (controller chỉ cần throw).
-  registerErrorHandler(app);
+  // Error filter tập trung (thay thế middleware/error-handler.ts cũ).
+  registerErrorFilter(app);
 
   // ---- Health endpoints ----
 
@@ -87,11 +104,15 @@ export function buildApp(): FastifyInstance {
     }
   });
 
-  // ---- Route modules ----
+  // ---- Auth + Admin modules ----
+  app.register(authModule, { pgPool: getPgPool() });
+  app.register(usersModule, { pgPool: getPgPool() });
 
+  // ---- Feature modules ----
   app.register(chatRoutes, { prefix: "/api" });
   app.register(documentsRoutes, { prefix: "/api" });
   app.register(tasksRoutes, { prefix: "/api" });
+  app.register(uploadRoutes);
 
   return app;
 }

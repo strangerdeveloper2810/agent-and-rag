@@ -1,0 +1,157 @@
+# ── J.A.R.V.I.S. — Deployment Stack ──
+# Env vars: env/.env (copy từ env/.env.example và điền giá trị thật)
+#
+# Start: docker compose -f docker/deployment/docker-compose.yml up -d
+# Stop:  docker compose -f docker/deployment/docker-compose.yml down
+# Logs:  docker compose -f docker/deployment/docker-compose.yml logs -f
+
+services:
+  # ── PostgreSQL (Auth DB: users, credentials, refresh tokens) ──
+  postgres:
+    image: postgres:17-alpine
+    container_name: jarvis-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    env_file:
+      - ../../env/.env
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jarvis -d ai_agent_tut"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - jarvis
+
+  # ── Redis (rate limiting, embedding/chat/tool cache) ──
+  redis:
+    image: redis:7-alpine
+    container_name: jarvis-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - jarvis
+
+  # ── MinIO (S3-compatible object storage — ảnh, doc, file agent tạo) ──
+  minio:
+    image: minio/minio:latest
+    container_name: jarvis-minio
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    env_file:
+      - ../../env/.env
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address :9001
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - jarvis
+
+  # ── Go Agent Runtime (trái tim) ──
+  agent-go:
+    build:
+      context: ../../services/agent-go
+      dockerfile: Dockerfile
+    image: jarvis-agent-go:latest
+    container_name: jarvis-agent-go
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    env_file:
+      - ../../env/.env
+    environment:
+      - PORT=3002
+      - JARVIS_DB_PATH=/data/jarvis.db
+      - JARVIS_SKILLS_DIR=/skills
+    volumes:
+      - jarvis_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3002/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - jarvis
+
+  # ── API Gateway (Fastify/TS BFF) ──
+  api:
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+    image: jarvis-api:latest
+    container_name: jarvis-api
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    env_file:
+      - ../../env/.env
+    environment:
+      - PORT=3001
+      - NODE_ENV=production
+      - AGENT_BACKEND=go
+      - AGENT_GO_URL=http://agent-go:3002
+      - AGENT_GO_TIMEOUT=120000
+    depends_on:
+      agent-go:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - jarvis
+
+  # ── Frontend (React/Vite → nginx) ──
+  web:
+    build:
+      context: ../..
+      dockerfile: apps/web/Dockerfile
+    image: jarvis-web:latest
+    container_name: jarvis-web
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+    networks:
+      - jarvis
+
+networks:
+  jarvis:
+    driver: bridge
+
+volumes:
+  jarvis_data:
+    driver: local
+  pgdata:
+    driver: local
+  redis_data:
+    driver: local
+  minio_data:
+    driver: local

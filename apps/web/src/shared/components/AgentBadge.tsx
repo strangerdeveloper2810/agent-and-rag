@@ -9,12 +9,15 @@ const AGENT_CONFIG: Record<string, { label: string; Icon: IconComponent }> = {
   research: { label: "Research Agent", Icon: BrainIcon },
 };
 
-interface AgentBadgeProps {
+export interface AgentBadgeProps {
   agent: string | null;
   message?: string;
 }
 
-export default function AgentBadge({ agent, message }: AgentBadgeProps) {
+/**
+ * AgentBadge component for displaying active sub-agent badges (Code, Research, Assistant).
+ */
+export const AgentBadge: React.FC<AgentBadgeProps> = ({ agent, message }) => {
   if (!agent) return null;
 
   const config = AGENT_CONFIG[agent] ?? {
@@ -46,4 +49,6 @@ export default function AgentBadge({ agent, message }: AgentBadgeProps) {
       </span>
     </div>
   );
-}
+};
+
+export default AgentBadge;
