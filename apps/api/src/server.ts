@@ -10,19 +10,32 @@ async function start() {
   // ── Init tất cả DB connections TRƯỚC ──
   // Phải init trước buildApp() để getPgPool()/getRedis() hoạt động
   // khi Fastify plugin được register trong buildApp().
+  // Mỗi DB là graceful: lỗi = warning + continue, không crash server.
 
   // MongoDB (AI data: chat, documents, tasks, memories)
-  await connectMongo();
-  await ensureIndexes();
-  console.log("MongoDB connected");
+  try {
+    await connectMongo();
+    await ensureIndexes();
+    console.log("MongoDB connected");
+  } catch (err) {
+    console.warn("MongoDB unavailable — chat/document/task features degraded:", (err as Error).message);
+  }
 
   // PostgreSQL (auth data: users, credentials, refresh tokens)
-  await initPostgres({ connectionString: config.PG_CONNECTION_STRING });
-  console.log("PostgreSQL connected");
+  try {
+    await initPostgres({ connectionString: config.PG_CONNECTION_STRING });
+    console.log("PostgreSQL connected");
+  } catch (err) {
+    console.warn("PostgreSQL unavailable — auth features degraded:", (err as Error).message);
+  }
 
   // Redis (rate limiting, embedding/chat/tool cache)
-  await initRedis({ url: config.REDIS_URL });
-  console.log("Redis connected");
+  try {
+    await initRedis({ url: config.REDIS_URL });
+    console.log("Redis connected");
+  } catch (err) {
+    console.warn("Redis unavailable — caching & rate-limit degraded:", (err as Error).message);
+  }
 
   // ── Build & start HTTP server ──
   app = buildApp();

@@ -9,7 +9,8 @@ import "github.com/ai-agent-tut/agent-go/internal/provider"
 //  1. Interrupt != nil          → NodeInterrupt (dừng chờ HITL)
 //  2. Step >= MaxSteps          → NodeEnd (chốt an toàn)
 //  3. Assistant cuối có tool calls chưa được trả lời → NodeTools
-//  4. Mặc định                  → NodeEnd (final answer)
+//  3. Plan có bước chưa hoàn thành → NodeReflect (đánh giá tiến độ plan)
+//  4. Mặc định                  → NodeExtract (final answer)
 //
 // "Tool calls chưa được trả lời" = assistant message cuối cùng có ít nhất 1
 // ToolCall mà chưa có tool result message tương ứng (khớp ToolCallID) ở phía sau.
@@ -27,6 +28,10 @@ func route(s *State) NodeID {
 	// 3. Kiểm tra assistant cuối: có tool calls chưa được trả lời không?
 	last := s.LastAssistant()
 	if last == nil || len(last.ToolCalls) == 0 {
+		// Nếu plan còn bước chưa hoàn thành → reflect để đánh giá tiến độ.
+		if len(s.Plan) > 0 && s.PlanStep < len(s.Plan) {
+			return NodeReflect
+		}
 		return NodeExtract // không có tool call nào → extract memory rồi end
 	}
 

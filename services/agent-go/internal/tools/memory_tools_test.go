@@ -9,7 +9,7 @@ import (
 
 func clearMemoryStore() {
 	globalMemoryStore.mu.Lock()
-	globalMemoryStore.data = make(map[string]string)
+	globalMemoryStore.data = make(map[string]map[string]string)
 	globalMemoryStore.mu.Unlock()
 }
 
@@ -62,9 +62,10 @@ func TestSaveMemoryTool(t *testing.T) {
 			t.Error("expected stored=true for overwrite")
 		}
 
-		// Verify value was overwritten
+		// Verify value was overwritten (uses "default" tenant since no X-Tenant-ID in test context)
 		globalMemoryStore.mu.RLock()
-		val := globalMemoryStore.data["x"]
+		tenantData := globalMemoryStore.data["default"]
+		val := tenantData["x"]
 		globalMemoryStore.mu.RUnlock()
 		if val != "second" {
 			t.Errorf("expected 'second', got %q", val)

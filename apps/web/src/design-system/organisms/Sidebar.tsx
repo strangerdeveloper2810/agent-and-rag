@@ -7,8 +7,8 @@ import {
   TrashIcon,
   EditIcon,
   CheckIcon,
-} from "@/shared/components/icons";
-import ConfirmDialog from "@/shared/components/ConfirmDialog";
+} from "@app/ui";
+import ConfirmDialog from "../molecules/ConfirmDialog";
 import { Button } from "../atoms/Button";
 import { Kbd } from "../atoms/Kbd";
 import { NavTab } from "../molecules/NavTab";

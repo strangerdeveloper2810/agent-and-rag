@@ -6,6 +6,7 @@ import {
   NotFoundError as AppNotFoundError,
   ConflictError,
   ValidationError,
+  ServiceUnavailableError,
 } from "../errors/app-errors";
 import {
   HttpError,
@@ -71,6 +72,10 @@ export const registerErrorFilter = (app: FastifyInstance): void => {
 
     if (err instanceof ConflictError) {
       return send(reply, 409, err.message, "CONFLICT");
+    }
+
+    if (err instanceof ServiceUnavailableError) {
+      return send(reply, 503, err.message, "SERVICE_UNAVAILABLE");
     }
 
     if (err instanceof AppError) {

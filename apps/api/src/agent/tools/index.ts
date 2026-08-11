@@ -17,12 +17,47 @@ import {
 } from "../../schemas/task";
 import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
+import {
+  getToolCache,
+  setToolCache,
+  isToolCacheable,
+} from "../../common/cache/tool-cache";
 
 type Tool = {
   name: string;
   description: string;
   schema: z.ZodTypeAny;
   execute: (input: any) => Promise<unknown>;
+};
+
+const withCache = (
+  toolName: string,
+  fn: (input: any) => Promise<unknown>,
+): ((input: any) => Promise<unknown>) => {
+  return async (input: any) => {
+    if (!isToolCacheable(toolName)) return fn(input);
+
+    try {
+      const cached = await getToolCache(toolName, input);
+      if (cached !== null) {
+        console.log(`[tool-cache] hit (tool=${toolName})`);
+        return cached;
+      }
+    } catch {
+      // Redis không khả dụng → fallback
+    }
+
+    const result = await fn(input);
+
+    try {
+      await setToolCache(toolName, input, result);
+      console.log(`[tool-cache] saved (tool=${toolName})`);
+    } catch {
+      // Redis không khả dụng → bỏ qua
+    }
+
+    return result;
+  };
 };
 
 const ragSearchSchema = z.object({
@@ -45,26 +80,26 @@ const tools: Tool[] = [
     description:
       "Tìm kiếm thông tin trong các tài liệu người dùng đã nạp. Dùng khi câu hỏi liên quan đến nội dung tài liệu.",
     schema: ragSearchSchema,
-    execute: async ({ query }: z.infer<typeof ragSearchSchema>) => {
+    execute: withCache("ragSearch", async ({ query }: z.infer<typeof ragSearchSchema>) => {
       const [vec] = await embed([query], "query");
       const results = await searchSimilar(vec, 5);
       return results;
-    },
+    }),
   },
   {
     name: "listDocuments",
     description:
       "Liệt kê các tài liệu đã được nạp (tên file + số chunk). Dùng khi người dùng hỏi 'có bao nhiêu tài liệu' hoặc 'có những tài liệu nào'.",
     schema: listDocumentsSchema,
-    execute: async () => listDocuments(),
+    execute: withCache("listDocuments", async () => listDocuments()),
   },
   {
     name: "readDocument",
     description:
       "Đọc TOÀN BỘ nội dung của MỘT tài liệu theo documentId. Dùng khi người dùng muốn xem nội dung đầy đủ của một tài liệu cụ thể. Lấy documentId từ listDocuments/ragSearch trước (KHÔNG dùng tên file).",
     schema: readDocumentSchema,
-    execute: async ({ documentId }: z.infer<typeof readDocumentSchema>) =>
-      getDocumentContent(documentId),
+    execute: withCache("readDocument", async ({ documentId }: z.infer<typeof readDocumentSchema>) =>
+      getDocumentContent(documentId)),
   },
   {
     name: "createTask",
@@ -78,7 +113,7 @@ const tools: Tool[] = [
     name: "listTasks",
     description: "Liệt kê task, có thể lọc theo status, priority, hoặc tag.",
     schema: listTasksInputSchema,
-    execute: async (input) => listTasks(listTasksInputSchema.parse(input)),
+    execute: withCache("listTasks", async (input) => listTasks(listTasksInputSchema.parse(input))),
   },
   {
     name: "updateTask",

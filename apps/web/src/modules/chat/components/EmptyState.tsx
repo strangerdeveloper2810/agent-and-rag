@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import SuggestionChips from "@/shared/components/SuggestionChips";
+import { SuggestionChip } from "@/design-system/molecules/SuggestionChip";
 
 import type { EmptyStateProps } from "@/types";
 
@@ -109,7 +109,11 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ onPick }) => {
         {suggestions === null ? (
           <Skeleton />
         ) : (
-          <SuggestionChips suggestions={suggestions} onPick={onPick} />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2" role="list">
+            {suggestions?.map((s) => (
+              <SuggestionChip key={s} label={s} onClick={onPick} />
+            ))}
+          </div>
         )}
       </div>
     </div>

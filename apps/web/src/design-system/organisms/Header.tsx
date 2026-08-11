@@ -1,4 +1,4 @@
-import ThemeToggle from "@/shared/components/ThemeToggle";
+import ThemeToggle from "../atoms/ThemeToggle";
 
 export interface HeaderProps {
   onToggleSidebar: () => void;

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ai-agent-tut/agent-go/internal/provider"
+	"github.com/ai-agent-tut/agent-go/internal/skills"
 	"github.com/ai-agent-tut/agent-go/internal/tools"
 )
 
@@ -19,6 +20,7 @@ type modelEngine interface {
 	getSystemPrompt() string
 	getMaxContextTokens() int
 	getDynamicThinking() DynamicThinkingConfig
+	getSkillLoader() *skills.Loader
 }
 
 // nodeModel gọi LLM (qua Provider) với toàn bộ Messages + Tools,
@@ -57,8 +59,31 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 		thinkingLevel = ResolveThinking(dt, provider.ThinkingOff, userInput, hasToolCalls, s.Step)
 	}
 
+	// Progressive skill disclosure: match user input against skill triggers
+	// and inject full SKILL.md content into the system prompt on first match.
+	systemPrompt := eng.getSystemPrompt()
+	if sl := eng.getSkillLoader(); sl != nil && s.activatedSkills == nil {
+		s.activatedSkills = make(map[string]bool)
+	}
+	if sl := eng.getSkillLoader(); sl != nil {
+		// Get the original user message for skill matching.
+		var userInput string
+		for _, m := range s.Messages {
+			if m.Role == provider.RoleUser {
+				userInput = m.Content
+				break
+			}
+		}
+		if matched := sl.MatchSkill(userInput); matched != nil && !s.activatedSkills[matched.Name] {
+			s.activatedSkills[matched.Name] = true
+			systemPrompt += "\n\n[KỸ NĂNG ĐANG KÍCH HOẠT: " + matched.Name + "]\n" + matched.Content
+			slog.Info("model: skill activated", "skill", matched.Name)
+			emit(MemoryEvent("Kích hoạt kỹ năng: " + matched.Name + " — " + matched.Description))
+		}
+	}
+
 	req := provider.GenerateRequest{
-		System:   eng.getSystemPrompt(),
+		System:   systemPrompt,
 		Messages: s.Messages,
 		Tools:    reg.ToolDefs(),
 		Options: provider.ProviderOptions{

@@ -86,6 +86,16 @@ type State struct {
 	// Interrupt != nil khi engine dừng chờ HITL. Lúc này State có thể được
 	// serialize/lưu lại để resume sau.
 	Interrupt *Interrupt
+
+	// Plan chứa danh sách các bước (steps) được sinh ra bởi node plan.
+	// PlanStep là chỉ số bước hiện tại (0-based). Khi PlanStep >= len(Plan), plan đã hoàn thành.
+	// Plan rỗng nghĩa là request đơn giản, không cần plan.
+	Plan     []string
+	PlanStep int
+
+	// activatedSkills tracks which skills have been activated during this run.
+	// Used to prevent re-activation of the same skill within one conversation.
+	activatedSkills map[string]bool
 }
 
 // newState khởi tạo State từ RunInput.

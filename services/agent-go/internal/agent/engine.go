@@ -8,6 +8,7 @@ import (
 
 	"github.com/ai-agent-tut/agent-go/internal/guardrails"
 	"github.com/ai-agent-tut/agent-go/internal/provider"
+	"github.com/ai-agent-tut/agent-go/internal/skills"
 	"github.com/ai-agent-tut/agent-go/internal/tools"
 )
 
@@ -25,11 +26,20 @@ type Engine struct {
 	// System prompt — injected before each LLM call
 	systemPrompt string
 
+	// Skill loader for progressive disclosure — skills are loaded on demand
+	// when user input matches a skill's trigger keywords.
+	skillLoader *skills.Loader
+
 	// Memory node implementations — set via SetMemoryNodes.
 	// nil = skip node (fallback: jump to next logical node).
 	recallFn    Node
 	extractFn   Node
 	summarizeFn Node
+
+	// Planning node implementations — set via SetPlanningNodes.
+	// nil = skip node (fallback: jump to next logical node).
+	planFn    Node
+	reflectFn Node
 
 	// Circuit breaker detects stuck loops (same tool+args called consecutively).
 	// nil = disabled.
@@ -70,14 +80,28 @@ func (e *Engine) SetMemoryNodes(recall, extract, summarize Node) {
 	e.summarizeFn = summarize
 }
 
-// getProvider / getRegistry / getSystemPrompt — implements modelEngine & toolsEngine.
-func (e *Engine) getProvider() provider.Provider { return e.prov }
-func (e *Engine) getRegistry() *tools.Registry   { return e.registry }
-func (e *Engine) getSystemPrompt() string        { return e.systemPrompt }
+// SetPlanningNodes gán các node plan và reflect.
+// nil node → node bị skip khi dispatch (fallback an toàn).
+func (e *Engine) SetPlanningNodes(plan, reflect Node) {
+	e.planFn = plan
+	e.reflectFn = reflect
+}
+
+// getProvider / getRegistry / getSystemPrompt / getSkillLoader — implements modelEngine & toolsEngine.
+func (e *Engine) getProvider() provider.Provider    { return e.prov }
+func (e *Engine) getRegistry() *tools.Registry      { return e.registry }
+func (e *Engine) getSystemPrompt() string           { return e.systemPrompt }
+func (e *Engine) getSkillLoader() *skills.Loader    { return e.skillLoader }
 
 // SetSystemPrompt sets the system prompt used for every LLM call.
 func (e *Engine) SetSystemPrompt(prompt string) {
 	e.systemPrompt = prompt
+}
+
+// SetSkillLoader sets the skills loader for progressive disclosure.
+// When nil, skill matching is disabled.
+func (e *Engine) SetSkillLoader(l *skills.Loader) {
+	e.skillLoader = l
 }
 
 // SetCircuitBreaker sets the circuit breaker for stuck-loop detection.
@@ -157,11 +181,16 @@ func (e *Engine) dispatch(ctx context.Context, node NodeID, s *State, emit EmitF
 		if e.recallFn != nil {
 			return e.recallFn(ctx, s, emit)
 		}
-		// Fallback: không có recall → vào summarize rồi model
+		// Fallback: không có recall → vào summarize → plan → model
 		return NodeSummarize, nil
 	case NodeSummarize:
 		if e.summarizeFn != nil {
 			return e.summarizeFn(ctx, s, emit)
+		}
+		return NodePlan, nil
+	case NodePlan:
+		if e.planFn != nil {
+			return e.planFn(ctx, s, emit)
 		}
 		return NodeModel, nil
 	case NodeModel:
@@ -180,6 +209,11 @@ func (e *Engine) dispatch(ctx context.Context, node NodeID, s *State, emit EmitF
 			}
 		}
 		return nodeTools(ctx, e, s, emit)
+	case NodeReflect:
+		if e.reflectFn != nil {
+			return e.reflectFn(ctx, s, emit)
+		}
+		return NodeExtract, nil
 	case NodeExtract:
 		if e.extractFn != nil {
 			return e.extractFn(ctx, s, emit)

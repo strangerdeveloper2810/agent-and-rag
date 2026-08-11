@@ -12,13 +12,13 @@ import {
   type AttachmentPayload,
   type AttachmentMeta,
 } from "@/modules/chat/chat.api";
-import type { OutletCtx } from "@/shared/components/AppLayout";
+import type { OutletCtx } from "@/design-system/templates/AppLayout";
 import type { PendingAttachment } from "./Composer";
 import MessageBubble from "./MessageBubble";
 import Composer from "./Composer";
 import EmptyState from "./EmptyState";
-import { StopIcon } from "@/shared/components/icons";
-import { useToast } from "@/shared/components/Toast";
+import { StopIcon } from "@app/ui";
+import { useToast } from "@/design-system/molecules/Toast";
 import { validateComposerInput } from "@/lib/validation";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 

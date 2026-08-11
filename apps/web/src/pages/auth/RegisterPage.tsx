@@ -9,7 +9,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuthStore } from "@/stores/auth.store";
-import { useToast } from "@/shared/components/Toast";
+import { useToast } from "@/design-system/molecules/Toast";
 import { registerSchema, type RegisterFormValues } from "@/lib/validation";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import type { ApiError } from "@/lib/http";
