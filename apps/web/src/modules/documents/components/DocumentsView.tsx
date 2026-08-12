@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useReducer, useRef } from "react";
 import {
   listDocuments,
   uploadDocuments,
@@ -20,6 +20,68 @@ import ConfirmDialog from "@/shared/components/ConfirmDialog";
 import { useToast } from "@/shared/components/Toast";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
+interface State {
+  docs: DocumentInfo[];
+  uploading: boolean;
+  updatingId: string | null;
+  openHistory: string | null;
+  versions: DocumentVersion[];
+  viewing: VersionContent | null;
+  confirming: DocumentInfo | null;
+}
+
+type Action =
+  | { type: "SET_DOCS"; payload: DocumentInfo[] }
+  | { type: "REMOVE_DOC"; payload: string }
+  | { type: "SET_UPLOADING"; payload: boolean }
+  | { type: "SET_UPDATING_ID"; payload: string | null }
+  | { type: "SET_OPEN_HISTORY"; payload: { id: string | null; versions?: DocumentVersion[] } }
+  | { type: "SET_VERSIONS"; payload: DocumentVersion[] }
+  | { type: "SET_VIEWING"; payload: VersionContent | null }
+  | { type: "SET_CONFIRMING"; payload: DocumentInfo | null };
+
+const initialState: State = {
+  docs: [],
+  uploading: false,
+  updatingId: null,
+  openHistory: null,
+  versions: [],
+  viewing: null,
+  confirming: null,
+};
+
+function reducer(state: State, action: Action): State {
+  switch (action.type) {
+    case "SET_DOCS":
+      return { ...state, docs: action.payload };
+    case "REMOVE_DOC":
+      return {
+        ...state,
+        docs: state.docs.filter((d) => d.documentId !== action.payload),
+        confirming: null,
+        openHistory: state.openHistory === action.payload ? null : state.openHistory,
+      };
+    case "SET_UPLOADING":
+      return { ...state, uploading: action.payload };
+    case "SET_UPDATING_ID":
+      return { ...state, updatingId: action.payload };
+    case "SET_OPEN_HISTORY":
+      return {
+        ...state,
+        openHistory: action.payload.id,
+        versions: action.payload.versions ?? (action.payload.id === null ? [] : state.versions),
+      };
+    case "SET_VERSIONS":
+      return { ...state, versions: action.payload };
+    case "SET_VIEWING":
+      return { ...state, viewing: action.payload };
+    case "SET_CONFIRMING":
+      return { ...state, confirming: action.payload };
+    default:
+      return state;
+  }
+}
+
 /**
  * DocumentsView component for managing RAG knowledge base documents,
  * multi-file upload dropzone, version history, and content inspection.
@@ -27,18 +89,11 @@ import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 export const DocumentsView: React.FC = () => {
   const toast = useToast();
   useDocumentTitle("Documents");
-  const [docs, setDocs] = useState<DocumentInfo[]>([]);
-  const [uploading, setUploading] = useState(false);
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [state, dispatch] = useReducer(reducer, initialState);
+  const { docs, uploading, updatingId, openHistory, versions, viewing, confirming } = state;
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const [openHistory, setOpenHistory] = useState<string | null>(null);
-  const [versions, setVersions] = useState<DocumentVersion[]>([]);
-  const [viewing, setViewing] = useState<VersionContent | null>(null);
-  const [confirming, setConfirming] = useState<DocumentInfo | null>(null);
-  const [removing, setRemoving] = useState(false);
-
-  const refresh = () => listDocuments().then(setDocs);
+  const refresh = () => listDocuments().then((docs) => dispatch({ type: "SET_DOCS", payload: docs }));
   useEffect(() => {
     refresh();
   }, []);
@@ -50,7 +105,7 @@ export const DocumentsView: React.FC = () => {
       if (fileRef.current) fileRef.current.value = "";
       return;
     }
-    setUploading(true);
+    dispatch({ type: "SET_UPLOADING", payload: true });
     try {
       const { results } = await uploadDocuments(files);
       await refresh();
@@ -69,13 +124,13 @@ export const DocumentsView: React.FC = () => {
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Upload failed.");
     } finally {
-      setUploading(false);
+      dispatch({ type: "SET_UPLOADING", payload: false });
       if (fileRef.current) fileRef.current.value = "";
     }
   };
 
   const onUpdate = async (documentId: string, file: File) => {
-    setUpdatingId(documentId);
+    dispatch({ type: "SET_UPDATING_ID", payload: documentId });
     try {
       const res = await updateDocument(documentId, file);
       await refresh();
@@ -84,42 +139,40 @@ export const DocumentsView: React.FC = () => {
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Update failed.");
     } finally {
-      setUpdatingId(null);
+      dispatch({ type: "SET_UPDATING_ID", payload: null });
     }
   };
 
   const onRemove = async () => {
     if (!confirming) return;
     const { documentId, source } = confirming;
-    setRemoving(true);
+    dispatch({ type: "REMOVE_DOC", payload: documentId });
+    toast.success(`Deleted ${source}.`);
     try {
       await deleteDocument(documentId);
-      if (openHistory === documentId) setOpenHistory(null);
-      await refresh();
-      setConfirming(null);
-      toast.success(`Deleted ${source}.`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Delete failed.");
-    } finally {
-      setRemoving(false);
+      refresh();
     }
   };
 
   const loadHistory = async (documentId: string) => {
-    setVersions(await getVersions(documentId));
+    const list = await getVersions(documentId);
+    dispatch({ type: "SET_VERSIONS", payload: list });
   };
 
   const toggleHistory = async (documentId: string) => {
     if (openHistory === documentId) {
-      setOpenHistory(null);
+      dispatch({ type: "SET_OPEN_HISTORY", payload: { id: null } });
       return;
     }
-    setOpenHistory(documentId);
+    dispatch({ type: "SET_OPEN_HISTORY", payload: { id: documentId } });
     await loadHistory(documentId);
   };
 
   const onViewVersion = async (documentId: string, version: number) => {
-    setViewing(await getVersionContent(documentId, version));
+    const content = await getVersionContent(documentId, version);
+    dispatch({ type: "SET_VIEWING", payload: content });
   };
 
   const totalChunks = docs.reduce((acc, d) => acc + (d.chunks || 0), 0);
@@ -134,34 +187,47 @@ export const DocumentsView: React.FC = () => {
           {/* Header section */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <div>
-              <h2
-                className="text-2xl font-bold tracking-tight bg-gradient-to-r from-[var(--text)] to-[var(--accent)] bg-clip-text text-transparent"
-              >
+              <h2 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-[var(--text)] to-[var(--accent)] bg-clip-text text-transparent">
                 Knowledge Base (RAG)
               </h2>
               <p
                 className="mt-1 text-xs leading-relaxed"
                 style={{ color: "var(--text-secondary)" }}
               >
-                Upload documents to empower J.A.R.V.I.S. vector search capabilities.
+                Upload documents to empower J.A.R.V.I.S. vector search
+                capabilities.
               </p>
             </div>
 
             {/* Metrics cards */}
             <div className="flex items-center gap-3">
-              <div 
+              <div
                 className="rounded-2xl border px-4 py-2 text-center backdrop-blur-md"
-                style={{ backgroundColor: "var(--bg-raised)", borderColor: "var(--border)" }}
+                style={{
+                  backgroundColor: "var(--bg-raised)",
+                  borderColor: "var(--border)",
+                }}
               >
-                <p className="text-[10px] font-mono uppercase text-[var(--text-tertiary)]">Documents</p>
-                <p className="text-lg font-bold font-mono text-[var(--accent)]">{docs.length}</p>
+                <p className="text-[10px] font-mono uppercase text-[var(--text-tertiary)]">
+                  Documents
+                </p>
+                <p className="text-lg font-bold font-mono text-[var(--accent)]">
+                  {docs.length}
+                </p>
               </div>
-              <div 
+              <div
                 className="rounded-2xl border px-4 py-2 text-center backdrop-blur-md"
-                style={{ backgroundColor: "var(--bg-raised)", borderColor: "var(--border)" }}
+                style={{
+                  backgroundColor: "var(--bg-raised)",
+                  borderColor: "var(--border)",
+                }}
               >
-                <p className="text-[10px] font-mono uppercase text-[var(--text-tertiary)]">Total Chunks</p>
-                <p className="text-lg font-bold font-mono text-[var(--accent-violet)]">{totalChunks}</p>
+                <p className="text-[10px] font-mono uppercase text-[var(--text-tertiary)]">
+                  Total Chunks
+                </p>
+                <p className="text-lg font-bold font-mono text-[var(--accent-violet)]">
+                  {totalChunks}
+                </p>
               </div>
             </div>
           </div>
@@ -190,7 +256,8 @@ export const DocumentsView: React.FC = () => {
             <div
               className="flex h-14 w-14 items-center justify-center rounded-2xl shadow-lg transition-transform duration-300 group-hover:scale-110"
               style={{
-                background: "linear-gradient(135deg, rgba(0,240,255,0.2) 0%, rgba(139,92,246,0.2) 100%)",
+                background:
+                  "linear-gradient(135deg, rgba(0,240,255,0.2) 0%, rgba(139,92,246,0.2) 100%)",
                 border: "1px solid rgba(0, 240, 255, 0.3)",
                 color: "var(--accent)",
               }}
@@ -206,10 +273,18 @@ export const DocumentsView: React.FC = () => {
                   ? "Embedding & vectorizing documents..."
                   : "Click or drag & drop files to upload"}
               </span>
-              <p
-                className="mt-1 text-[11px] text-[var(--text-tertiary)] font-mono"
-              >
-                Supported extensions: <code className="text-[var(--accent)] bg-[var(--accent-bg)] px-1.5 py-0.5 rounded">.txt</code> <code className="text-[var(--accent)] bg-[var(--accent-bg)] px-1.5 py-0.5 rounded">.md</code> <code className="text-[var(--accent)] bg-[var(--accent-bg)] px-1.5 py-0.5 rounded">.pdf</code> (max 7 files per batch)
+              <p className="mt-1 text-[11px] text-[var(--text-tertiary)] font-mono">
+                Supported extensions:{" "}
+                <code className="text-[var(--accent)] bg-[var(--accent-bg)] px-1.5 py-0.5 rounded">
+                  .txt
+                </code>{" "}
+                <code className="text-[var(--accent)] bg-[var(--accent-bg)] px-1.5 py-0.5 rounded">
+                  .md
+                </code>{" "}
+                <code className="text-[var(--accent)] bg-[var(--accent-bg)] px-1.5 py-0.5 rounded">
+                  .pdf
+                </code>{" "}
+                (max 7 files per batch)
               </p>
             </div>
           </label>
@@ -234,7 +309,8 @@ export const DocumentsView: React.FC = () => {
                   border: "1px solid var(--border)",
                 }}
               >
-                No documents uploaded yet. Upload your first text or PDF document above.
+                No documents uploaded yet. Upload your first text or PDF
+                document above.
               </div>
             ) : (
               <ul className="space-y-2.5">
@@ -290,7 +366,10 @@ export const DocumentsView: React.FC = () => {
                               ? "pointer-events-none opacity-60"
                               : ""
                           }`}
-                          style={{ color: "var(--text-secondary)", borderColor: "var(--border)" }}
+                          style={{
+                            color: "var(--text-secondary)",
+                            borderColor: "var(--border)",
+                          }}
                         >
                           <input
                             type="file"
@@ -302,21 +381,26 @@ export const DocumentsView: React.FC = () => {
                               e.target.value = "";
                             }}
                           />
-                          {updatingId === d.documentId ? "Updating..." : "Update"}
+                          {updatingId === d.documentId
+                            ? "Updating..."
+                            : "Update"}
                         </label>
 
                         <button
                           type="button"
                           onClick={() => toggleHistory(d.documentId)}
                           className="rounded-xl border px-3 py-1.5 text-[11px] font-medium transition hover:bg-[var(--bg-raised)] hover:border-[var(--accent)]"
-                          style={{ color: "var(--text-secondary)", borderColor: "var(--border)" }}
+                          style={{
+                            color: "var(--text-secondary)",
+                            borderColor: "var(--border)",
+                          }}
                         >
                           History
                         </button>
 
                         <button
                           type="button"
-                          onClick={() => setConfirming(d)}
+                          onClick={() => dispatch({ type: "SET_CONFIRMING", payload: d })}
                           aria-label={`Delete ${d.source}`}
                           className="rounded-xl p-2 transition hover:bg-[var(--danger-bg)] hover:text-[var(--danger)] text-[var(--text-tertiary)]"
                         >
@@ -393,7 +477,7 @@ export const DocumentsView: React.FC = () => {
       {viewing && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4 animate-fade-in"
-          onClick={() => setViewing(null)}
+          onClick={() => dispatch({ type: "SET_VIEWING", payload: null })}
         >
           <div
             className="flex max-h-[80vh] w-full max-w-3xl flex-col rounded-3xl p-6 shadow-2xl backdrop-blur-xl"
@@ -403,7 +487,10 @@ export const DocumentsView: React.FC = () => {
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="mb-4 flex items-center gap-3 border-b pb-4" style={{ borderColor: "var(--border)" }}>
+            <div
+              className="mb-4 flex items-center gap-3 border-b pb-4"
+              style={{ borderColor: "var(--border)" }}
+            >
               <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--accent-bg)] text-[var(--accent)]">
                 <DocIcon width={16} height={16} />
               </div>
@@ -418,7 +505,7 @@ export const DocumentsView: React.FC = () => {
               </h3>
               <button
                 type="button"
-                onClick={() => setViewing(null)}
+                onClick={() => dispatch({ type: "SET_VIEWING", payload: null })}
                 aria-label="Close"
                 className="rounded-xl p-2 transition hover:bg-[var(--bg-raised)] text-[var(--text-tertiary)]"
               >
@@ -447,10 +534,10 @@ export const DocumentsView: React.FC = () => {
             ? `All versions of "${confirming.source}" will be permanently deleted. This action cannot be undone.`
             : undefined
         }
-        confirmLabel={removing ? "Deleting..." : "Delete"}
+        confirmLabel="Delete"
         danger
         onConfirm={onRemove}
-        onCancel={() => !removing && setConfirming(null)}
+        onCancel={() => dispatch({ type: "SET_CONFIRMING", payload: null })}
       />
     </main>
   );

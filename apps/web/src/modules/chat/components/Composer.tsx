@@ -1,18 +1,27 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-  SendIcon,
-  UploadIcon,
-  CloseIcon,
-  DocIcon,
-} from "@/shared/components/icons";
+  PaperClipIcon,
+  PaperAirplaneIcon,
+  MicrophoneIcon,
+  XMarkIcon,
+  DocumentTextIcon,
+  SparklesIcon,
+  CommandLineIcon,
+  ArrowUpTrayIcon,
+} from "@heroicons/react/24/outline";
+
 import { useToast } from "@/shared/components/Toast";
+import SlashCommandMenu, { type SlashCommand } from "./SlashCommandMenu";
+import { Button } from "@/components/ui/button";
 
-import type { NextIdFn, FormatSizeFn, ReadAsDataURLFn, PendingAttachment } from "@/types";
+import type {
+  NextIdFn,
+  FormatSizeFn,
+  ReadAsDataURLFn,
+  PendingAttachment,
+} from "@/types";
 
-// Re-export PendingAttachment for backwards compatibility
 export type { PendingAttachment };
-
-// ── Constants ──
 
 const MAX_IMAGES = 7;
 const MAX_FILES = 7;
@@ -35,63 +44,33 @@ const ACCEPT = [
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 ].join(",");
 
-// ── Helpers ──
-
 let _attachId = 0;
-
-/**
- * Generates an incremental unique ID for pending attachments.
- *
- * @returns Unique attachment ID string
- */
 const nextId: NextIdFn = (): string => `att-${++_attachId}`;
-
-/**
- * Checks if a file is an image based on its MIME type.
- *
- * @param file - File object to check
- * @returns True if file is an image, false otherwise
- */
 const isImageType = (file: File): boolean => file.type.startsWith("image/");
 
-/**
- * Reads a File object as a Data URL string.
- *
- * @param file - File object to read
- * @returns Promise resolving to Data URL string
- */
-const readAsDataURL: ReadAsDataURLFn = (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
+const readAsDataURL: ReadAsDataURLFn = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result as string);
     reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
     reader.readAsDataURL(file);
   });
-};
 
-/**
- * Formats byte size into human-readable B, KB, or MB string.
- *
- * @param bytes - Size in bytes
- * @returns Formatted size string
- */
 const formatSize: FormatSizeFn = (bytes: number): string => {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-// ── Component ──
-
 /**
- * Composer component providing a Raycast-style prompt input bar
- * with file attachment preview chips and submit keybindings.
+ * Composer — Shadcn UI Kit input bar with live timer, Floating Stop Pill, Slash Commands & Voice Dictation.
  */
 export const Composer: React.FC<{
   value: string;
   onChange: (v: string) => void;
   onSend: () => void;
   disabled: boolean;
+  onStop?: () => void;
   attachments: PendingAttachment[];
   onAttachmentsChange: (atts: PendingAttachment[]) => void;
 }> = ({
@@ -99,6 +78,7 @@ export const Composer: React.FC<{
   onChange,
   onSend,
   disabled,
+  onStop,
   attachments,
   onAttachmentsChange,
 }) => {
@@ -106,36 +86,80 @@ export const Composer: React.FC<{
   const fileInputRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
 
+  const [isRecording, setIsRecording] = useState(false);
+  const [showSlashMenu, setShowSlashMenu] = useState(false);
+  const [slashFilter, setSlashFilter] = useState("");
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval>;
+    if (disabled) {
+      setElapsedSeconds(0);
+      interval = setInterval(() => {
+        setElapsedSeconds((s) => s + 1);
+      }, 1000);
+    } else {
+      setElapsedSeconds(0);
+    }
+    return () => clearInterval(interval);
+  }, [disabled]);
+
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
     el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+    el.style.height = `${Math.min(el.scrollHeight, 220)}px`;
+  }, [value]);
+
+  useEffect(() => {
+    if (value.startsWith("/")) {
+      setShowSlashMenu(true);
+      setSlashFilter(value.slice(1));
+    } else {
+      setShowSlashMenu(false);
+    }
   }, [value]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey && !showSlashMenu) {
       e.preventDefault();
       onSend();
     }
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
-    if (fileInputRef.current) fileInputRef.current.value = "";
+  const handleSlashSelect = (cmd: SlashCommand) => {
+    onChange(`${cmd.prompt} `);
+    setShowSlashMenu(false);
+    textareaRef.current?.focus();
+  };
 
+  const toggleRecording = () => {
+    if (isRecording) {
+      setIsRecording(false);
+      toast.success("Đã dừng thu âm giọng nói.");
+    } else {
+      setIsRecording(true);
+      toast.info("Đang lắng nghe giọng nói... (nhập mô phỏng)");
+      setTimeout(() => {
+        onChange((value ? `${value} ` : "") + "Giải thích cơ chế RAG Vector Search trong JAVIS.");
+        setIsRecording(false);
+        toast.success("Đã chuyển giọng nói thành văn bản!");
+      }, 3000);
+    }
+  };
+
+  const handleFileProcess = async (files: File[]) => {
     const errors: string[] = [];
     const newAttachments: PendingAttachment[] = [];
 
     for (const file of files) {
       if (file.size > MAX_SIZE) {
-        errors.push(`${file.name} exceeds 10MB`);
+        errors.push(`${file.name} vượt quá 10MB`);
         continue;
       }
 
-      const isImage = isImageType(file);
-      const type = isImage ? "image" : "file";
-
+      const type = isImageType(file) ? "image" : "file";
       const currentImageCount =
         attachments.filter((a) => a.type === "image").length +
         newAttachments.filter((a) => a.type === "image").length;
@@ -144,16 +168,16 @@ export const Composer: React.FC<{
         newAttachments.filter((a) => a.type === "file").length;
 
       if (type === "image" && currentImageCount >= MAX_IMAGES) {
-        errors.push(`Max ${MAX_IMAGES} images`);
+        errors.push(`Tối đa ${MAX_IMAGES} ảnh`);
         break;
       }
       if (type === "file" && currentFileCount >= MAX_FILES) {
-        errors.push(`Max ${MAX_FILES} files`);
+        errors.push(`Tối đa ${MAX_FILES} file tài liệu`);
         break;
       }
 
       try {
-        const preview = isImage ? await readAsDataURL(file) : "";
+        const preview = type === "image" ? await readAsDataURL(file) : "";
         newAttachments.push({
           id: nextId(),
           file,
@@ -163,33 +187,88 @@ export const Composer: React.FC<{
           size: file.size,
         });
       } catch {
-        errors.push(`Could not read ${file.name}`);
+        errors.push(`Không thể đọc file ${file.name}`);
       }
     }
 
-    if (errors.length > 0) {
-      errors.forEach((msg) => toast.error(msg));
-    }
-
-    if (newAttachments.length > 0) {
+    if (errors.length > 0) errors.forEach((msg) => toast.error(msg));
+    if (newAttachments.length > 0)
       onAttachmentsChange([...attachments, ...newAttachments]);
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    await handleFileProcess(files);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingOver(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingOver(false);
+    const files = Array.from(e.dataTransfer.files ?? []);
+    if (files.length > 0) {
+      await handleFileProcess(files);
     }
   };
 
-  const removeAttachment = (id: string) => {
+  const removeAttachment = (id: string) =>
     onAttachmentsChange(attachments.filter((a) => a.id !== id));
-  };
 
   const imageCount = attachments.filter((a) => a.type === "image").length;
   const fileCount = attachments.filter((a) => a.type === "file").length;
   const totalCount = attachments.length;
   const atImageLimit = imageCount >= MAX_IMAGES;
   const atFileLimit = fileCount >= MAX_FILES;
-
   const canSend = (value.trim().length > 0 || totalCount > 0) && !disabled;
 
   return (
-    <div className="px-4 pb-5 pt-2 sm:px-6">
+    <div
+      className="px-4 pb-5 pt-2 sm:px-6 relative"
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {/* Floating Stop Generation Pill with Live Execution Timer */}
+      {disabled && onStop && (
+        <div className="flex justify-center mb-2.5 animate-fade-in">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onStop}
+            className="gap-2 rounded-full border-border bg-card/95 shadow-lg text-xs font-semibold hover:bg-destructive hover:text-white transition-all backdrop-blur-md px-4 py-1.5"
+          >
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
+            </span>
+            <span>J.A.R.V.I.S. đang suy luận ({elapsedSeconds}s)...</span>
+            <span className="h-3 border-r border-border mx-1" />
+            <XMarkIcon className="h-3.5 w-3.5" />
+            <span className="font-bold">Dừng lại</span>
+          </Button>
+        </div>
+      )}
+
+      {/* File Drag Overlay */}
+      {isDraggingOver && (
+        <div className="absolute inset-x-4 bottom-5 top-2 z-40 flex flex-col items-center justify-center rounded-3xl border-2 border-dashed border-primary bg-card/95 backdrop-blur-md animate-fade-in shadow-2xl">
+          <ArrowUpTrayIcon className="h-10 w-10 text-primary animate-bounce mb-2" />
+          <p className="text-sm font-bold text-foreground">Thả file vào đây để đính kèm</p>
+          <p className="text-xs text-muted-foreground">Hỗ trợ Hình ảnh, PDF, Word, Excel, Markdown</p>
+        </div>
+      )}
+
       <input
         ref={fileInputRef}
         type="file"
@@ -197,25 +276,27 @@ export const Composer: React.FC<{
         accept={ACCEPT}
         onChange={handleFileChange}
         className="hidden"
-        aria-label="Attach files"
+        aria-label="Đính kèm file"
       />
 
-      <div className="mx-auto max-w-3xl">
-        {/* Attachment previews */}
+      <div className="mx-auto max-w-3xl relative">
+        {/* Slash Command Menu Popup */}
+        {showSlashMenu && (
+          <SlashCommandMenu
+            filterText={slashFilter}
+            onSelect={handleSlashSelect}
+            onClose={() => setShowSlashMenu(false)}
+          />
+        )}
+
+        {/* Attachment Previews */}
         {totalCount > 0 && (
           <div className="mb-2.5 space-y-1.5 animate-fade-in">
-            <ul
-              className="flex flex-wrap gap-2"
-              role="list"
-              aria-label="Attached files"
-            >
+            <ul className="flex flex-wrap gap-2" role="list">
               {attachments.map((att) => (
                 <li key={att.id} className="relative group">
                   {att.type === "image" ? (
-                    <div
-                      className="relative h-16 w-16 overflow-hidden rounded-2xl border bg-[var(--bg-raised)] shadow-md"
-                      style={{ borderColor: "var(--border)" }}
-                    >
+                    <div className="relative h-16 w-16 overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
                       <img
                         src={att.preview}
                         alt={att.name}
@@ -224,86 +305,71 @@ export const Composer: React.FC<{
                       <button
                         type="button"
                         onClick={() => removeAttachment(att.id)}
-                        aria-label={`Remove ${att.name}`}
-                        className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/70 text-white opacity-0 transition hover:bg-[var(--danger)] group-hover:opacity-100 focus:opacity-100"
+                        aria-label={`Xóa ${att.name}`}
+                        className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/75 text-white opacity-0 transition hover:bg-destructive group-hover:opacity-100"
                       >
-                        <CloseIcon width={11} height={11} />
+                        <XMarkIcon className="h-3 w-3" />
                       </button>
                     </div>
                   ) : (
-                    <div
-                      className="relative flex items-center gap-2 rounded-xl border px-3 py-2 pr-8 transition shadow-sm"
-                      style={{
-                        borderColor: "var(--border)",
-                        backgroundColor: "var(--bg-raised)",
-                      }}
-                    >
-                      <DocIcon
-                        width={14}
-                        height={14}
-                        style={{ color: "var(--accent)" }}
-                      />
+                    <div className="relative flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 pr-8 shadow-sm">
+                      <DocumentTextIcon className="h-4 w-4 text-primary" />
                       <div className="min-w-0">
-                        <p
-                          className="truncate text-[11px] font-medium"
-                          style={{ color: "var(--text)" }}
-                        >
+                        <p className="truncate text-xs font-medium text-foreground">
                           {att.name}
                         </p>
-                        <p
-                          className="text-[10px]"
-                          style={{ color: "var(--text-tertiary)" }}
-                        >
+                        <p className="text-[10px] text-muted-foreground font-mono">
                           {formatSize(att.size)}
                         </p>
                       </div>
                       <button
                         type="button"
                         onClick={() => removeAttachment(att.id)}
-                        aria-label={`Remove ${att.name}`}
-                        className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full transition hover:bg-[var(--border)]"
-                        style={{ color: "var(--text-tertiary)" }}
+                        aria-label={`Xóa ${att.name}`}
+                        className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground hover:bg-muted"
                       >
-                        <CloseIcon width={11} height={11} />
+                        <XMarkIcon className="h-3 w-3" />
                       </button>
                     </div>
                   )}
                 </li>
               ))}
             </ul>
-            <p
-              className="text-[10px] font-mono"
-              style={{ color: "var(--text-tertiary)" }}
-            >
-              {imageCount}/{MAX_IMAGES} images, {fileCount}/{MAX_FILES} files
+            <p className="text-[10px] font-mono text-muted-foreground">
+              {imageCount}/{MAX_IMAGES} ảnh, {fileCount}/{MAX_FILES} file
             </p>
           </div>
         )}
 
-        {/* Clean Input Box */}
-        <div
-          className="relative flex items-end gap-2 rounded-2xl px-3.5 py-2.5 transition-all duration-200 focus-within:border-[var(--accent)] focus-within:ring-2 focus-within:ring-[var(--accent-bg)] shadow-sm"
-          style={{
-            backgroundColor: "var(--surface)",
-            border: "1px solid var(--border)",
-          }}
-        >
-          {/* Attachment button */}
-          <button
+        {/* Shadcn Glass Input Bar */}
+        <div className="glass relative flex items-end gap-2 px-3.5 py-2.5 rounded-3xl border border-border bg-card/80 backdrop-blur-xl focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 transition-all duration-200">
+          {/* Attach file button */}
+          <Button
             type="button"
+            variant="ghost"
+            size="iconSm"
             onClick={() => fileInputRef.current?.click()}
             disabled={disabled || (atImageLimit && atFileLimit)}
-            aria-label="Attach files"
-            className={`mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition hover:bg-[var(--bg-hover)] active:scale-95 ${
-              disabled || (atImageLimit && atFileLimit)
-                ? "cursor-not-allowed opacity-30"
-                : ""
-            }`}
-            style={{ color: "var(--text-secondary)" }}
+            aria-label="Đính kèm tài liệu/hình ảnh"
+            title="Tải lên tài liệu hoặc ảnh"
+            className="mb-0.5 h-8 w-8 text-muted-foreground hover:text-foreground"
           >
-            <UploadIcon width={18} height={18} />
-          </button>
+            <PaperClipIcon className="h-4 w-4" />
+          </Button>
 
+          {/* Slash command button */}
+          <Button
+            type="button"
+            variant="ghost"
+            size="iconSm"
+            onClick={() => onChange("/")}
+            title="Mở danh sách phím tắt (/)"
+            className="mb-0.5 hidden sm:flex h-8 w-8 text-muted-foreground hover:text-primary"
+          >
+            <CommandLineIcon className="h-4 w-4" />
+          </Button>
+
+          {/* Main Textarea */}
           <textarea
             ref={textareaRef}
             rows={1}
@@ -311,29 +377,58 @@ export const Composer: React.FC<{
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={handleKeyDown}
             disabled={disabled}
-            placeholder="Instruct J.A.R.V.I.S..."
-            className="scroll-fine max-h-52 flex-1 resize-none bg-transparent px-1 py-1 text-sm leading-relaxed outline-none placeholder:text-[var(--text-tertiary)] disabled:opacity-50"
-            style={{
-              color: "var(--text)",
-            }}
+            placeholder="Hỏi J.A.R.V.I.S... (gõ / để xem lệnh nhanh)"
+            className="scroll-fine max-h-52 flex-1 resize-none bg-transparent px-1.5 py-1 text-base leading-relaxed outline-none placeholder:text-muted-foreground disabled:opacity-50 font-sans text-foreground"
           />
 
-          <button
+          {/* Voice Input Mic Button */}
+          <Button
             type="button"
-            onClick={onSend}
-            disabled={!canSend}
-            aria-label="Send message"
-            className={`mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition duration-150 active:scale-95 ${
-              canSend
-                ? "text-white hover:opacity-90"
-                : "cursor-not-allowed opacity-40 text-[var(--text-tertiary)]"
-            }`}
-            style={{
-              backgroundColor: canSend ? "var(--accent)" : "var(--bg-hover)",
-            }}
+            variant={isRecording ? "destructive" : "ghost"}
+            size="iconSm"
+            onClick={toggleRecording}
+            aria-label="Nhập bằng giọng nói"
+            title="Nhập bằng giọng nói"
+            className={`mb-0.5 h-8 w-8 ${isRecording ? "animate-pulse" : "text-muted-foreground hover:text-foreground"}`}
           >
-            <SendIcon width={16} height={16} />
-          </button>
+            <MicrophoneIcon className="h-4 w-4" />
+          </Button>
+
+          {/* Send / Stop Button */}
+          {disabled && onStop ? (
+            <Button
+              type="button"
+              variant="destructive"
+              size="iconSm"
+              onClick={onStop}
+              aria-label="Dừng sinh câu trả lời"
+              title="Dừng sinh câu trả lời"
+              className="mb-0.5 h-8 w-8 rounded-xl shadow-md"
+            >
+              <XMarkIcon className="h-4 w-4" />
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant={canSend ? "gradient" : "secondary"}
+              size="iconSm"
+              onClick={onSend}
+              disabled={!canSend}
+              aria-label="Gửi tin nhắn"
+              className="mb-0.5 h-8 w-8"
+            >
+              <PaperAirplaneIcon className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+
+        {/* Input Bar Footer hint */}
+        <div className="mt-1.5 flex items-center justify-between px-2 text-[10px] text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <SparklesIcon className="h-3 w-3 text-primary" />
+            <span>Shift + Enter để xuống dòng</span>
+          </span>
+          <span className="font-mono">{value.length} ký tự</span>
         </div>
       </div>
     </div>

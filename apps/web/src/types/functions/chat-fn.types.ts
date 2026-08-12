@@ -8,7 +8,9 @@ export type FileToBase64Fn = (file: File) => Promise<string>;
 export type OptimizeImageFn = (file: File) => Promise<string>;
 
 /** Function signature to convert PendingAttachment to AttachmentPayload for API. */
-export type PendingToPayloadFn = (pa: PendingAttachment) => Promise<AttachmentPayload>;
+export type PendingToPayloadFn = (
+  pa: PendingAttachment,
+) => Promise<AttachmentPayload>;
 
 /** Function signature to convert PendingAttachment to AttachmentMeta for local display. */
 export type PendingToMetaFn = (pa: PendingAttachment) => AttachmentMeta;

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate, useOutletContext, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   createConversation,
   getMessages,
@@ -12,12 +12,11 @@ import {
   type AttachmentPayload,
   type AttachmentMeta,
 } from "@/modules/chat/chat.api";
-import type { OutletCtx } from "@/shared/components/AppLayout";
 import type { PendingAttachment } from "./Composer";
 import MessageBubble from "./MessageBubble";
 import Composer from "./Composer";
 import EmptyState from "./EmptyState";
-import { StopIcon } from "@/shared/components/icons";
+import ChatSkeleton from "@/shared/components/ChatSkeleton";
 import { useToast } from "@/shared/components/Toast";
 import { validateComposerInput } from "@/lib/validation";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
@@ -31,41 +30,29 @@ export type MessageMeta = {
 
 // ── Helpers ──
 
-import type { FileToBase64Fn, OptimizeImageFn, PendingToPayloadFn, PendingToMetaFn } from "@/types";
+import type {
+  FileToBase64Fn,
+  OptimizeImageFn,
+  PendingToPayloadFn,
+  PendingToMetaFn,
+} from "@/types";
 
-// Image optimization constants — LLMs don't need full-resolution images.
-// Gemini vision works well with 800px images at JPEG quality 75%.
 const MAX_IMAGE_WIDTH = 800;
 const MAX_IMAGE_HEIGHT = 800;
 const JPEG_QUALITY = 0.75;
 
-/**
- * Reads a File object and converts it to a Base64 encoded string.
- * Automatically optimizes raster images to reduce token usage.
- *
- * @param file - File object to read
- * @returns Promise resolving to raw Base64 string
- */
 const fileToBase64: FileToBase64Fn = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
-    // Always optimize images before sending to LLM
     if (file.type.startsWith("image/") && file.type !== "image/svg+xml") {
       optimizeImage(file)
         .then(resolve)
         .catch(() => fallbackRead(file).then(resolve).catch(reject));
       return;
     }
-    // SVG and non-image files: read as-is
     fallbackRead(file).then(resolve).catch(reject);
   });
 };
 
-/**
- * Fallback file reader converting file to base64 via FileReader.
- *
- * @param file - File object to read
- * @returns Promise resolving to base64 string
- */
 const fallbackRead = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -79,20 +66,12 @@ const fallbackRead = (file: File): Promise<string> => {
   });
 };
 
-/**
- * Resizes and compresses image files using Canvas.
- *
- * @param file - Image file to optimize
- * @returns Promise resolving to compressed JPEG base64 string
- */
 const optimizeImage: OptimizeImageFn = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
       URL.revokeObjectURL(url);
-
-      // Calculate dimensions: fit within MAX_WIDTH x MAX_HEIGHT, maintain aspect ratio
       let w = img.width;
       let h = img.height;
       if (w > MAX_IMAGE_WIDTH || h > MAX_IMAGE_HEIGHT) {
@@ -105,12 +84,10 @@ const optimizeImage: OptimizeImageFn = (file: File): Promise<string> => {
       canvas.width = w;
       canvas.height = h;
       const ctx = canvas.getContext("2d")!;
-      // White background for transparent PNGs
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, w, h);
       ctx.drawImage(img, 0, 0, w, h);
 
-      // Convert to JPEG for maximum compression (strips alpha, smaller)
       const dataUrl = canvas.toDataURL("image/jpeg", JPEG_QUALITY);
       const comma = dataUrl.indexOf(",");
       const base64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
@@ -125,12 +102,6 @@ const optimizeImage: OptimizeImageFn = (file: File): Promise<string> => {
   });
 };
 
-/**
- * Converts client-side PendingAttachment to API AttachmentPayload.
- *
- * @param pa - PendingAttachment object
- * @returns Promise resolving to AttachmentPayload
- */
 const pendingToPayload: PendingToPayloadFn = async (
   pa: PendingAttachment,
 ): Promise<AttachmentPayload> => {
@@ -139,7 +110,6 @@ const pendingToPayload: PendingToPayloadFn = async (
     type: pa.type,
     name: pa.name,
     data,
-    // All images are converted to JPEG during optimization
     mimeType:
       pa.type === "image"
         ? "image/jpeg"
@@ -148,13 +118,9 @@ const pendingToPayload: PendingToPayloadFn = async (
   };
 };
 
-/**
- * Converts client-side PendingAttachment to display AttachmentMeta.
- *
- * @param pa - PendingAttachment object
- * @returns AttachmentMeta display object
- */
-const pendingToMeta: PendingToMetaFn = (pa: PendingAttachment): AttachmentMeta => {
+const pendingToMeta: PendingToMetaFn = (
+  pa: PendingAttachment,
+): AttachmentMeta => {
   return {
     type: pa.type,
     name: pa.name,
@@ -166,23 +132,26 @@ const pendingToMeta: PendingToMetaFn = (pa: PendingAttachment): AttachmentMeta =
   };
 };
 
+import { useConversation } from "@/context/ConversationContext";
+
 /**
- * ChatPage component for rendering active conversation, streaming SSE responses,
- * and handling message dispatch with multimodal file attachments.
+ * ChatPage component for rendering active conversation and streaming SSE responses.
  */
 export const ChatPage: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { reloadConversations } = useOutletContext<OutletCtx>();
+  const { reloadConversations } = useConversation();
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [meta, setMeta] = useState<Map<number, MessageMeta>>(new Map());
   const [input, setInput] = useState("");
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [streaming, setStreaming] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const loadedIdRef = useRef<string | null>(null);
+  const isCreatingNewConvRef = useRef<string | null>(null);
   const streamCtrlRef = useRef<AbortController | null>(null);
   const userScrolledUpRef = useRef(false);
   const toast = useToast();
@@ -246,16 +215,26 @@ export const ChatPage: React.FC = () => {
 
   useEffect(() => {
     if (!id) {
-      setMessages([]);
-      setMeta(new Map());
-      loadedIdRef.current = null;
+      if (!isCreatingNewConvRef.current) {
+        setMessages([]);
+        setMeta(new Map());
+        loadedIdRef.current = null;
+        setHistoryLoading(false);
+      }
       return;
     }
-    if (id === loadedIdRef.current) return;
+    if (id === loadedIdRef.current || id === isCreatingNewConvRef.current) {
+      loadedIdRef.current = id;
+      isCreatingNewConvRef.current = null;
+      return;
+    }
 
     streamCtrlRef.current?.abort();
     setStreaming(false);
     loadedIdRef.current = id;
+    setHistoryLoading(true);
+    setMessages([]);
+    setMeta(new Map());
 
     getMessages(id)
       .then((m) => {
@@ -263,6 +242,9 @@ export const ChatPage: React.FC = () => {
       })
       .catch(() => {
         if (loadedIdRef.current === id) setMessages([]);
+      })
+      .finally(() => {
+        if (loadedIdRef.current === id) setHistoryLoading(false);
       });
   }, [id]);
 
@@ -276,7 +258,6 @@ export const ChatPage: React.FC = () => {
     const rawContent = (text ?? input).trim();
     if ((!rawContent && attachments.length === 0) || streaming) return;
 
-    // Validate input chống XSS/script injection
     if (rawContent) {
       const validation = validateComposerInput(rawContent);
       if (!validation.valid) {
@@ -298,6 +279,7 @@ export const ChatPage: React.FC = () => {
         const title = content || snapAttachments[0]?.name || "Attachment";
         const conv = await createConversation(title);
         convId = conv._id;
+        isCreatingNewConvRef.current = convId;
         loadedIdRef.current = convId;
         navigate(`/messages/${convId}`);
         reloadConversations();
@@ -399,19 +381,15 @@ export const ChatPage: React.FC = () => {
                   copy[copy.length - 1] = {
                     ...copy[copy.length - 1],
                     content:
-                      copy[copy.length - 1].content +
-                      `\n\n⚠ ${e.message ?? "An error occurred."}`,
+                      copy[copy.length - 1].content,
                   };
                   return copy;
                 }
-                return [
-                  ...m,
-                  {
-                    role: "assistant",
-                    content: `⚠ ${e.message ?? "An error occurred."}`,
-                  },
-                ];
+                return m;
               });
+              toast.error(
+                "Đang có sự cố với dịch vụ AI, chúng tôi sẽ khắc phục trong giây lát. Vui lòng thử lại.",
+              );
               userScrolledUpRef.current = false;
               break;
             case "done":
@@ -464,50 +442,44 @@ export const ChatPage: React.FC = () => {
     streamCtrlRef.current?.abort();
   };
 
+  const handleRegenerate = useCallback(
+    (index: number) => {
+      if (streaming) return;
+      let userText = "";
+      for (let i = index; i >= 0; i--) {
+        if (messages[i]?.role === "user") {
+          userText = messages[i].content;
+          break;
+        }
+      }
+      if (userText) {
+        send(userText);
+      }
+    },
+    [messages, streaming],
+  );
+
+  const handleRetryUser = useCallback(
+    (userContent: string) => {
+      if (streaming) return;
+      send(userContent);
+    },
+    [streaming],
+  );
+
   const hasMessages = messages.length > 0;
 
   return (
     <main className="flex min-w-0 flex-1 flex-col" style={{ minHeight: 0 }}>
-      {/* Streaming indicator */}
-      {streaming && (
-        <div
-          className="flex shrink-0 items-center justify-between px-4 py-1.5 sm:px-6"
-          style={{
-            borderBottom: "1px solid var(--border)",
-            background:
-              "linear-gradient(90deg, rgba(0,240,255,0.05) 0%, transparent 50%, rgba(0,240,255,0.05) 100%)",
-          }}
-        >
-          <span
-            className="flex items-center gap-2 text-[11px]"
-            style={{ color: "var(--accent)" }}
-          >
-            <span
-              className="h-1.5 w-1.5 animate-pulse rounded-full"
-              style={{ backgroundColor: "var(--accent)" }}
-            />
-            Processing...
-          </span>
-          <button
-            type="button"
-            onClick={stopGeneration}
-            aria-label="Stop generating"
-            className="flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-medium transition hover:bg-[var(--bg-raised)]"
-            style={{ color: "var(--text-secondary)" }}
-          >
-            <StopIcon width={12} height={12} />
-            Stop
-          </button>
-        </div>
-      )}
-
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
         className="scroll-fine overflow-y-auto"
         style={{ flex: 1, minHeight: 0, backgroundColor: "var(--bg)" }}
       >
-        {hasMessages ? (
+        {historyLoading ? (
+          <ChatSkeleton />
+        ) : hasMessages ? (
           <div className="mx-auto max-w-3xl space-y-6 px-4 py-6 sm:px-6">
             {messages.map((m, i) => {
               const msgMeta = meta.get(i);
@@ -524,6 +496,8 @@ export const ChatPage: React.FC = () => {
                   citations={msgMeta?.citations ?? []}
                   agent={msgMeta?.agent ?? null}
                   usage={msgMeta?.usage ?? null}
+                  onRegenerate={() => handleRegenerate(i)}
+                  onRetryUser={(c) => handleRetryUser(c)}
                 />
               );
             })}
@@ -540,6 +514,7 @@ export const ChatPage: React.FC = () => {
           onChange={setInput}
           onSend={() => send()}
           disabled={streaming}
+          onStop={stopGeneration}
           attachments={attachments}
           onAttachmentsChange={setAttachments}
         />

@@ -79,7 +79,10 @@ export class ErrorBoundary extends Component<Props, State> {
               Đã xảy ra lỗi
             </h2>
 
-            <p className="mb-6 text-sm leading-relaxed" style={{ color: "#94a3b8" }}>
+            <p
+              className="mb-6 text-sm leading-relaxed"
+              style={{ color: "#94a3b8" }}
+            >
               Rất tiếc, có lỗi không mong muốn xảy ra. Vui lòng thử tải lại
               trang. Nếu lỗi vẫn tiếp diễn, hãy liên hệ đội ngũ hỗ trợ.
             </p>

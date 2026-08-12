@@ -16,35 +16,38 @@ interface AuthGuardProps {
 }
 
 export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
-  const { user, isLoading, init } = useAuthStore();
+  const { user, isLoading, initialized, init } = useAuthStore();
   const navigate = useNavigate();
 
-  // Gọi init() một lần khi component mount
+  // Khởi tạo session lần đầu
   useEffect(() => {
     init();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [init]);
 
-  // Chưa kiểm tra session xong → spinner
-  if (isLoading) {
+  // Redirect sang /login nếu đã kiểm tra xong mà không có user
+  useEffect(() => {
+    if (initialized && !isLoading && !user) {
+      navigate("/login", { replace: true });
+    }
+  }, [initialized, isLoading, user, navigate]);
+
+  // Lần đầu tải ứng dụng — hiển thị spinner trung tâm
+  if (!initialized || isLoading) {
     return (
       <div className="flex h-screen items-center justify-center bg-[var(--bg)]">
         <div
           className="h-10 w-10 animate-spin rounded-full"
           style={{
-            border: "3px solid rgba(245, 158, 11, 0.2)",
-            borderTopColor: "#f59e0b",
+            border: "3px solid rgba(0, 240, 255, 0.2)",
+            borderTopColor: "var(--accent)",
           }}
         />
       </div>
     );
   }
 
-  // Không có session → redirect
+  // Không có user → ẩn UI tạm thời cho đến khi redirect
   if (!user) {
-    useEffect(() => {
-      navigate("/login", { replace: true });
-    });
     return null;
   }
 
