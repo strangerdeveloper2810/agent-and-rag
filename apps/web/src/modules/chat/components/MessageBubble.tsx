@@ -65,6 +65,9 @@ function UsageFooter({ usage }: { usage: UsageData }) {
   );
 }
 
+/**
+ * AttachmentList component for rendering image previews and file chips attached to messages.
+ */
 const AttachmentList: React.FC<{ attachments: AttachmentMeta[] }> = ({
   attachments,
 }) => {
@@ -238,7 +241,6 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         <div className="max-w-[85%] sm:max-w-[75%] rounded-[22px] rounded-tr-md px-5 py-3.5 text-sm sm:text-base leading-relaxed bg-[#f4f4f5] dark:bg-[#27272a] text-[#09090b] dark:text-[#f4f4f5] shadow-xs">
           {hasText && (
             <p className="whitespace-pre-wrap font-sans tracking-normal">{message.content}</p>
-          )}
           {hasAttachments && (
             <AttachmentList attachments={message.attachments!} />
           )}

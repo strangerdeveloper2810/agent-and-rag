@@ -7,6 +7,7 @@ import {
 } from "../../../lib/collections";
 import { toObjectId } from "../../../lib/object-id";
 import type { MessageRole } from "../../../schemas/message";
+import { isMongoConnected } from "../../../lib/mongo";
 
 // Hàm thuần (không I/O) — giữ standalone để test dễ.
 export const buildConversationDocs = (firstMessage: string, now: Date) => {
@@ -29,11 +30,18 @@ export function createChatRepository(
       return { _id: response.insertedId, ...doc };
     },
 
-    listConversations: async () =>
-      conversations().find().sort({ updatedAt: -1 }).toArray(),
+    listConversations: async () => {
+      if (!isMongoConnected()) return [];
+      return conversations().find().sort({ updatedAt: -1 }).toArray();
+    },
 
-    getMessages: async (conversationId: string) =>
-      messages().find({ conversationId }).sort({ createdAt: 1 }).toArray(),
+    getMessages: async (conversationId: string) => {
+      if (!isMongoConnected()) return [];
+      return messages()
+        .find({ conversationId })
+        .sort({ createdAt: 1 })
+        .toArray();
+    },
 
     addMessage: async (
       conversationId: string,

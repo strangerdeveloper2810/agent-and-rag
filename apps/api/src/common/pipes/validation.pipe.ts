@@ -25,4 +25,4 @@ export const validate = <T>(schema: ZodSchema<T>, data: unknown): T => {
     throw new ValidationError(fieldErrors);
   }
   return result.data;
-}
+};

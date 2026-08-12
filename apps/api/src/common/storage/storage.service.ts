@@ -136,8 +136,10 @@ export const downloadFile = async (key: string): Promise<Buffer | null> => {
     }
     return Buffer.concat(chunks);
   } catch (err) {
-    if ((err as { $metadata?: { httpStatusCode?: number } }).$metadata
-      ?.httpStatusCode === 404) {
+    if (
+      (err as { $metadata?: { httpStatusCode?: number } }).$metadata
+        ?.httpStatusCode === 404
+    ) {
       return null;
     }
     throw err;
@@ -146,17 +148,13 @@ export const downloadFile = async (key: string): Promise<Buffer | null> => {
 
 /** Xoá file khỏi MinIO. */
 export const deleteFile = async (key: string): Promise<void> => {
-  await s3().send(
-    new DeleteObjectCommand({ Bucket: BUCKET, Key: key }),
-  );
+  await s3().send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
 };
 
 /** Kiểm tra file có tồn tại không. */
 export const fileExists = async (key: string): Promise<boolean> => {
   try {
-    await s3().send(
-      new HeadObjectCommand({ Bucket: BUCKET, Key: key }),
-    );
+    await s3().send(new HeadObjectCommand({ Bucket: BUCKET, Key: key }));
     return true;
   } catch {
     return false;

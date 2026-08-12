@@ -1,6 +1,10 @@
 package agent
 
-import "github.com/ai-agent-tut/agent-go/internal/provider"
+import (
+	"fmt"
+
+	"github.com/ai-agent-tut/agent-go/internal/provider"
+)
 
 // Event là 1 sự kiện phát ra trong lúc engine chạy (→ được transport ghi ra SSE).
 // Mỗi event có Type và các trường liên quan; client (UI) dựa vào Type để render.
@@ -61,4 +65,14 @@ func InterruptEvent(reason, tool string) Event {
 // MemoryEvent phát khi node memory (recall/extract/summarize) thực hiện thao tác.
 func MemoryEvent(detail string) Event {
 	return Event{Type: "memory", Message: detail}
+}
+
+// PlanEvent phát khi node plan tạo ra kế hoạch các bước.
+func PlanEvent(steps []string) Event {
+	return Event{Type: "plan", Text: fmt.Sprintf("plan: %d steps", len(steps)), Node: "plan"}
+}
+
+// ReflectEvent phát khi node reflect đánh giá tiến độ plan.
+func ReflectEvent(step, total int) Event {
+	return Event{Type: "reflect", Message: fmt.Sprintf("plan step %d of %d", step, total), Node: "reflect"}
 }

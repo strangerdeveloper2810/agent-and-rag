@@ -12,7 +12,7 @@ import {
 } from "@heroicons/react/24/outline";
 
 import { useAuthStore } from "@/stores/auth.store";
-import { useToast } from "@/shared/components/Toast";
+import { useToast } from "@/design-system/molecules/Toast";
 import { registerSchema, type RegisterFormValues } from "@/lib/validation";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import type { ApiError } from "@/lib/http";
@@ -265,7 +265,6 @@ export const RegisterPage: React.FC = () => {
               <h4 className="text-xs font-bold text-foreground mt-1">Bảo mật tuyệt đối</h4>
               <p className="text-[10px] text-muted-foreground">Mã hóa dữ liệu chuẩn enterprise</p>
             </Card>
-          </div>
         </div>
 
         {/* Bottom */}

@@ -202,9 +202,11 @@ func (c *Client) Generate(ctx context.Context, req provider.GenerateRequest) (<-
 	}
 	if tools := toGeminiTools(req.Tools); tools != nil {
 		config.Tools = tools
+	} else {
+		// Enable Google Search as built-in tool ONLY when there are no
+		// function calling tools — Gemini doesn't allow mixing both.
+		config.Tools = append(config.Tools, &genai.Tool{GoogleSearch: &genai.GoogleSearch{}})
 	}
-	// Enable Google Search as built-in Gemini tool (no API key needed).
-	config.Tools = append(config.Tools, &genai.Tool{GoogleSearch: &genai.GoogleSearch{}})
 
 	// Context cache: if a cached content name was set, use it for reduced costs.
 	if c.cacheName != "" {

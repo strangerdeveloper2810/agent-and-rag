@@ -21,6 +21,7 @@ import (
 	"github.com/ai-agent-tut/agent-go/internal/mongo"
 	"github.com/ai-agent-tut/agent-go/internal/orchestrator"
 	"github.com/ai-agent-tut/agent-go/internal/provider/factory"
+	"github.com/ai-agent-tut/agent-go/internal/provider/ollama"
 	"github.com/ai-agent-tut/agent-go/internal/skills"
 	"github.com/ai-agent-tut/agent-go/internal/tools"
 	agenthttp "github.com/ai-agent-tut/agent-go/internal/transport/http"
@@ -88,7 +89,7 @@ func main() {
 		}
 	}
 	// RAG search tool (register to all registries)
-	ragTool := tools.NewRAGSearchTool(mongoClient, cfg.MongoDB, cfg.VoyageKey)
+	ragTool := tools.NewRAGSearchTool(mongoClient, cfg.MongoDB, cfg.VoyageKey, cfg.EnableHybridSearch, cfg.EnableRerank)
 	codeRegistry.Register(ragTool)
 	researchRegistry.Register(ragTool)
 	generalRegistry.Register(ragTool)
@@ -98,6 +99,30 @@ func main() {
 
 	// --- Wire Memory Store ---
 	store := memory.NewStore()
+
+	// Wire embedding provider for semantic memory recall.
+	if cfg.OllamaURL != "" {
+		embedClient, err := ollama.New(cfg.OllamaURL, "nomic-embed-text")
+		if err != nil {
+			slog.Warn("memory: ollama embed client creation failed", "err", err)
+		} else {
+			store.SetEmbedder(memory.EmbedderFunc(func(ctx context.Context, texts []string) ([][]float64, error) {
+				vecs32, err := embedClient.Embed(ctx, texts)
+				if err != nil {
+					return nil, err
+				}
+				result := make([][]float64, len(vecs32))
+				for i, v := range vecs32 {
+					result[i] = make([]float64, len(v))
+					for j, val := range v {
+						result[i][j] = float64(val)
+					}
+				}
+				return result, nil
+			}))
+			slog.Info("memory: semantic embedding enabled", "url", cfg.OllamaURL)
+		}
+	}
 
 	// --- Wire Skills Loader ---
 	skillsDir := cfg.SkillsDir
@@ -119,6 +144,7 @@ func main() {
 	generalEngine.SetSystemPrompt(agent.BuildSystemPrompt(nil, skillSummaries))
 	generalEngine.SetDynamicThinking(dynThinking)
 	generalEngine.SetCircuitBreaker(cb)
+	generalEngine.SetSkillLoader(skillLoader)
 	generalEngine.SetMemoryNodes(
 		memory.RecallNode(store),
 		memory.ExtractNode(store),
@@ -129,6 +155,7 @@ func main() {
 	codeEngine.SetSystemPrompt(agent.BuildSystemPrompt(nil, skillSummaries))
 	codeEngine.SetDynamicThinking(dynThinking)
 	codeEngine.SetCircuitBreaker(cb)
+	codeEngine.SetSkillLoader(skillLoader)
 	codeEngine.SetMemoryNodes(
 		memory.RecallNode(store),
 		memory.ExtractNode(store),
@@ -139,6 +166,7 @@ func main() {
 	researchEngine.SetSystemPrompt(agent.BuildSystemPrompt(nil, skillSummaries))
 	researchEngine.SetDynamicThinking(dynThinking)
 	researchEngine.SetCircuitBreaker(cb)
+	researchEngine.SetSkillLoader(skillLoader)
 	researchEngine.SetMemoryNodes(
 		memory.RecallNode(store),
 		memory.ExtractNode(store),
@@ -222,7 +250,11 @@ Bạn là chuyên gia nghiên cứu internet của JARVIS. Nhiệm vụ của b�
 	mux.HandleFunc("POST /chat", agenthttp.NewChatHandler(orch).ServeHTTP)
 	mux.HandleFunc("GET /suggestions", agenthttp.NewSuggestionsHandler(orch).ServeHTTP)
 
-	srv := &http.Server{Addr: ":" + cfg.Port, Handler: middleware.TenantMiddleware(mux)}
+	// Chain middleware: CORS → Tenant → handler
+	var handler http.Handler = mux
+	handler = middleware.TenantMiddleware(handler)
+	handler = middleware.CORSMiddleware(handler)
+	srv := &http.Server{Addr: ":" + cfg.Port, Handler: handler}
 
 	// Start server
 	go func() {

@@ -36,7 +36,11 @@ export class AuthService {
 
     const tokens = await this.tokenService.issueTokens(user);
 
-    return { user, accessToken: tokens.accessToken, refreshToken: tokens.refreshToken };
+    return {
+      user,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+    };
   }
 
   // ── Email/Password Login ──
@@ -65,7 +69,11 @@ export class AuthService {
 
     const tokens = await this.tokenService.issueTokens(user);
 
-    return { user, accessToken: tokens.accessToken, refreshToken: tokens.refreshToken };
+    return {
+      user,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+    };
   }
 
   // ── Google OAuth ──
@@ -74,9 +82,12 @@ export class AuthService {
     return this.google.getAuthUrl();
   }
 
-  async googleLogin(
-    code: string,
-  ): Promise<{ user: UserRow; accessToken: string; refreshToken: string; isNew: boolean }> {
+  async googleLogin(code: string): Promise<{
+    user: UserRow;
+    accessToken: string;
+    refreshToken: string;
+    isNew: boolean;
+  }> {
     const tokens = await this.google.exchangeCode(code);
     const googleUser = await this.google.getUserInfo(tokens.access_token);
 
@@ -84,8 +95,9 @@ export class AuthService {
       throw new UnauthorizedError("Email Google chưa được xác minh.");
     }
 
-    const existingCred =
-      await this.repo.findCredentialByGoogleId(googleUser.sub);
+    const existingCred = await this.repo.findCredentialByGoogleId(
+      googleUser.sub,
+    );
 
     let user: UserRow;
     let isNew = false;
@@ -143,10 +155,7 @@ export class AuthService {
   async refreshAccessToken(
     refreshToken: string,
   ): Promise<{ user: UserRow; accessToken: string; refreshToken: string }> {
-    const hash = crypto
-      .createHash("sha256")
-      .update(refreshToken)
-      .digest("hex");
+    const hash = crypto.createHash("sha256").update(refreshToken).digest("hex");
     const stored = await this.repo.findRefreshToken(hash);
 
     if (!stored) {
@@ -180,10 +189,7 @@ export class AuthService {
   // ── Logout ──
 
   async logout(refreshToken: string): Promise<void> {
-    const hash = crypto
-      .createHash("sha256")
-      .update(refreshToken)
-      .digest("hex");
+    const hash = crypto.createHash("sha256").update(refreshToken).digest("hex");
     await this.repo.deleteRefreshToken(hash);
   }
 

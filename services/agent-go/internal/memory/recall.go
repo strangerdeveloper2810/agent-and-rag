@@ -10,8 +10,6 @@ import (
 	"github.com/ai-agent-tut/agent-go/internal/provider"
 )
 
-// keywordToKeys maps Vietnamese/English question words → store keys.
-// When user asks "tôi tên là gì", "tên" → lookup key "user_name".
 var keywordToKeys = map[string][]string{
 	"tên":           {"user_name"},
 	"name":          {"user_name"},
@@ -38,8 +36,6 @@ var keywordToKeys = map[string][]string{
 	"remember":      {"fact"},
 }
 
-// RecallNode returns an agent.Node that searches memory store
-// for relevant facts based on the user's last message.
 func RecallNode(store *Store) agent.Node {
 	return func(ctx context.Context, s *agent.State, emit agent.EmitFunc) (agent.NodeID, error) {
 		_ = ctx
@@ -49,8 +45,9 @@ func RecallNode(store *Store) agent.Node {
 			return agent.NodeModel, nil
 		}
 
-		// Step 1: Direct key lookup from keyword mapping
 		results := make(map[string]string)
+
+		// Step 1: Direct key lookup from keyword mapping (fast, accurate).
 		lower := strings.ToLower(query)
 		for keyword, keys := range keywordToKeys {
 			if strings.Contains(lower, keyword) {
@@ -62,10 +59,21 @@ func RecallNode(store *Store) agent.Node {
 			}
 		}
 
-		// Step 2: Full-text search as fallback
+		// Step 2: Full-text substring search as fallback.
 		fullResults := store.Search(query)
 		for k, v := range fullResults {
 			results[k] = v
+		}
+
+		// Step 3: Embedding-based semantic search (optional).
+		semResults, err := store.SemanticSearch(query, 5)
+		if err != nil {
+			slog.Warn("memory: semantic search failed, continuing with keyword results", "err", err)
+		}
+		for _, item := range semResults {
+			if _, exists := results[item.Key]; !exists {
+				results[item.Key] = item.Value
+			}
 		}
 
 		if len(results) == 0 {

@@ -16,7 +16,7 @@ import {
 } from "@heroicons/react/24/outline";
 
 import { useAuthStore } from "@/stores/auth.store";
-import { useToast } from "@/shared/components/Toast";
+import { useToast } from "@/design-system/molecules/Toast";
 import { loginSchema, type LoginFormValues } from "@/lib/validation";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import type { ApiError } from "@/lib/http";
@@ -199,7 +199,6 @@ export const LoginPage: React.FC = () => {
             <span className="font-display text-lg font-bold text-foreground">
               J.A.R.V.I.S.
             </span>
-          </div>
 
           <Card className="border-border bg-card/80 shadow-2xl">
             <CardHeader className="space-y-1 pb-4">
