@@ -89,7 +89,9 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
         aria-label="Chọn chế độ AI"
       >
         <ActiveIcon className="h-4 w-4 text-primary" />
-        <span className="font-bold tracking-tight text-foreground">{activeOption.label}</span>
+        <span className="font-bold tracking-tight text-foreground">
+          {activeOption.label}
+        </span>
         <ChevronDownIcon
           className={`h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 ${
             open ? "rotate-180" : ""
@@ -123,21 +125,30 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
                       : "hover:bg-muted/70 border-transparent text-foreground"
                   }`}
                 >
-                  <div className={`p-1.5 rounded-lg shrink-0 mt-0.5 ${isSelected ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"}`}>
+                  <div
+                    className={`p-1.5 rounded-lg shrink-0 mt-0.5 ${isSelected ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"}`}
+                  >
                     <Icon className="h-4 w-4" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-1.5">
-                      <span className={`text-sm font-bold truncate ${isSelected ? "text-primary" : "text-foreground"}`}>
+                      <span
+                        className={`text-sm font-bold truncate ${isSelected ? "text-primary" : "text-foreground"}`}
+                      >
                         {opt.label}
                       </span>
                       {opt.badge && (
-                        <Badge variant="secondary" className="text-[9.5px] px-2 py-0.5 shrink-0 bg-primary/15 text-primary border-primary/20 font-bold">
+                        <Badge
+                          variant="secondary"
+                          className="text-[9.5px] px-2 py-0.5 shrink-0 bg-primary/15 text-primary border-primary/20 font-bold"
+                        >
                           {opt.badge}
                         </Badge>
                       )}
                     </div>
-                    <p className={`text-xs leading-relaxed mt-0.5 ${isSelected ? "text-primary/90 font-medium" : "text-muted-foreground"}`}>
+                    <p
+                      className={`text-xs leading-relaxed mt-0.5 ${isSelected ? "text-primary/90 font-medium" : "text-muted-foreground"}`}
+                    >
                       {opt.desc}
                     </p>
                   </div>

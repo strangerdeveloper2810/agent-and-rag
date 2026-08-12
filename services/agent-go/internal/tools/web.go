@@ -255,8 +255,6 @@ func parseGoogleResults(html string) []map[string]string {
 	return results
 }
 
-
-
 // searchDDGJSON fallback: original DuckDuckGo JSON API for instant answers.
 func searchDDGJSON(ctx context.Context, client *http.Client, query string) []map[string]string {
 	reqURL := fmt.Sprintf("https://api.duckduckgo.com/?q=%s&format=json&no_html=1", url.QueryEscape(query))

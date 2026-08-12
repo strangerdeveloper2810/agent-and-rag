@@ -14,12 +14,12 @@ type Config struct {
 	Port string // default: 3002
 
 	// Provider (LLM)
-	Provider       string // "gemini" | "anthropic" | "ollama" | "deepseek"
-	GeminiKey      string
-	GeminiModel    string
-	ThinkingLevel  string // OFF|LOW|MEDIUM|HIGH (Gemini 3.x)
-	AnthropicKey   string
-	AnthropicModel string
+	Provider           string // "gemini" | "anthropic" | "ollama" | "deepseek"
+	GeminiKey          string
+	GeminiModel        string
+	ThinkingLevel      string // OFF|LOW|MEDIUM|HIGH (Gemini 3.x)
+	AnthropicKey       string
+	AnthropicModel     string
 	DeepSeekKey        string
 	DeepSeekFlashModel string // cho task đơn giản, rẻ + nhanh
 	DeepSeekProModel   string // cho task cần reasoning nhiều

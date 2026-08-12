@@ -240,7 +240,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         )}
         <div className="max-w-[85%] sm:max-w-[75%] rounded-[22px] rounded-tr-md px-5 py-3.5 text-sm sm:text-base leading-relaxed bg-[#f4f4f5] dark:bg-[#27272a] text-[#09090b] dark:text-[#f4f4f5] shadow-xs">
           {hasText && (
-            <p className="whitespace-pre-wrap font-sans tracking-normal">{message.content}</p>
+            <p className="whitespace-pre-wrap font-sans tracking-normal">
+              {message.content}
+            </p>
           )}
           {hasAttachments && (
             <AttachmentList attachments={message.attachments!} />
@@ -280,9 +282,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         )}
 
         {/* Tool Call Group */}
-        {toolCalls.length > 0 && (
-          <ToolCallGroup tools={toolCalls} />
-        )}
+        {toolCalls.length > 0 && <ToolCallGroup tools={toolCalls} />}
 
         {/* Message Content */}
         {hasContent ? (
@@ -301,7 +301,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           <div className="mt-3.5 flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 rounded-2xl border border-destructive/30 bg-destructive/10 p-3.5 text-xs text-destructive backdrop-blur-md">
             <div className="flex items-center gap-2.5 font-semibold min-w-0">
               <ExclamationTriangleIcon className="h-5 w-5 shrink-0 text-destructive" />
-              <span className="leading-snug">Phản hồi gặp sự cố hoặc quá trình xử lý bị gián đoạn.</span>
+              <span className="leading-snug">
+                Phản hồi gặp sự cố hoặc quá trình xử lý bị gián đoạn.
+              </span>
             </div>
             {onRegenerate && (
               <Button
@@ -325,11 +327,22 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
             </span>
-            <span className="font-semibold tracking-wide">J.A.R.V.I.S. đang suy luận & xử lý dữ liệu...</span>
+            <span className="font-semibold tracking-wide">
+              J.A.R.V.I.S. đang suy luận & xử lý dữ liệu...
+            </span>
             <span className="inline-flex gap-1 ml-1">
-              <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: '0s' }} />
-              <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: '0.15s' }} />
-              <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: '0.3s' }} />
+              <span
+                className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce"
+                style={{ animationDelay: "0s" }}
+              />
+              <span
+                className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce"
+                style={{ animationDelay: "0.15s" }}
+              />
+              <span
+                className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce"
+                style={{ animationDelay: "0.3s" }}
+              />
             </span>
           </div>
         )}
@@ -419,7 +432,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 type="button"
                 variant="ghost"
                 size="iconSm"
-                onClick={() => setFeedback((f) => (f === "down" ? null : "down"))}
+                onClick={() =>
+                  setFeedback((f) => (f === "down" ? null : "down"))
+                }
                 aria-label="Chưa hài lòng"
                 title="Đánh giá cần cải thiện"
                 className={`h-7 w-7 ${feedback === "down" ? "text-rose-400 bg-rose-500/10" : "text-muted-foreground"}`}

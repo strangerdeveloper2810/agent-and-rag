@@ -85,7 +85,10 @@ export const LoginPage: React.FC = () => {
       navigate("/", { replace: true });
     } catch (err) {
       const apiErr = err as ApiError;
-      toast.error(apiErr?.message ?? "Đăng nhập thất bại. Vui lòng kiểm tra lại email/mật khẩu.");
+      toast.error(
+        apiErr?.message ??
+          "Đăng nhập thất bại. Vui lòng kiểm tra lại email/mật khẩu.",
+      );
     }
   };
 
@@ -97,7 +100,9 @@ export const LoginPage: React.FC = () => {
       toast.success("Đăng nhập tài khoản Demo thành công!");
       navigate("/", { replace: true });
     } catch {
-      toast.error("Không thể tự động đăng nhập demo. Vui lòng thử nhập thủ công.");
+      toast.error(
+        "Không thể tự động đăng nhập demo. Vui lòng thử nhập thủ công.",
+      );
     }
   };
 
@@ -138,7 +143,8 @@ export const LoginPage: React.FC = () => {
             </span>
           </h2>
           <p className="mt-3.5 max-w-md text-xs leading-relaxed text-muted-foreground">
-            Hợp nhất đa mô hình trí tuệ nhân tạo, tra cứu dữ liệu doanh nghiệp và tự động hóa quy trình làm việc thông qua hội thoại tự nhiên.
+            Hợp nhất đa mô hình trí tuệ nhân tạo, tra cứu dữ liệu doanh nghiệp
+            và tự động hóa quy trình làm việc thông qua hội thoại tự nhiên.
           </p>
 
           {/* Feature Spotlight Cards */}
@@ -161,7 +167,9 @@ export const LoginPage: React.FC = () => {
                       <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-background border border-border text-primary">
                         <Icon className="h-4 w-4" />
                       </div>
-                      <h4 className="text-xs font-bold text-foreground">{feat.title}</h4>
+                      <h4 className="text-xs font-bold text-foreground">
+                        {feat.title}
+                      </h4>
                     </div>
                     <Badge variant="outline" className="text-[9px] font-mono">
                       {feat.badge}
@@ -203,7 +211,9 @@ export const LoginPage: React.FC = () => {
 
           <Card className="border-border bg-card/80 shadow-2xl">
             <CardHeader className="space-y-1 pb-4">
-              <CardTitle className="text-2xl font-bold">Đăng nhập tài khoản</CardTitle>
+              <CardTitle className="text-2xl font-bold">
+                Đăng nhập tài khoản
+              </CardTitle>
               <CardDescription>
                 Nhập email và mật khẩu của bạn để truy cập không gian làm việc
               </CardDescription>
@@ -229,9 +239,16 @@ export const LoginPage: React.FC = () => {
                 </span>
               </div>
 
-              <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+              <form
+                onSubmit={handleSubmit(onSubmit)}
+                className="space-y-4"
+                noValidate
+              >
                 <div>
-                  <label htmlFor="login-email" className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                  <label
+                    htmlFor="login-email"
+                    className="mb-1.5 block text-xs font-medium text-muted-foreground"
+                  >
                     Địa chỉ Email
                   </label>
                   <Input
@@ -249,7 +266,10 @@ export const LoginPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label htmlFor="login-password" className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                  <label
+                    htmlFor="login-password"
+                    className="mb-1.5 block text-xs font-medium text-muted-foreground"
+                  >
                     Mật khẩu
                   </label>
                   <div className="relative">
@@ -264,7 +284,9 @@ export const LoginPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setShowPassword((p) => !p)}
-                      aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                      aria-label={
+                        showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"
+                      }
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition"
                     >
                       {showPassword ? (

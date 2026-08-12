@@ -283,9 +283,9 @@ func (c *Client) streamSSE(ctx context.Context, body io.ReadCloser, out chan pro
 	scanner := bufio.NewScanner(body)
 	scanner.Buffer(nil, 64*1024)
 
-var toolCalls []pendingTool
+	var toolCalls []pendingTool
 
-for scanner.Scan() {
+	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
 			continue

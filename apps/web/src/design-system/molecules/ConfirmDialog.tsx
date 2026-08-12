@@ -48,9 +48,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
         className="w-full max-w-sm rounded-2xl p-6 shadow-2xl bg-card border border-border text-card-foreground"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-base font-bold text-foreground">
-          {title}
-        </h2>
+        <h2 className="text-base font-bold text-foreground">{title}</h2>
         {message && (
           <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
             {message}
