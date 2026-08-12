@@ -13,8 +13,8 @@ import {
 } from "@heroicons/react/24/outline";
 
 import { useAuthStore } from "@/stores/auth.store";
-import { useToast } from "@/shared/components/Toast";
-import ConfirmDialog from "@/shared/components/ConfirmDialog";
+import { useToast } from "@/design-system/molecules/Toast";
+import ConfirmDialog from "@/design-system/molecules/ConfirmDialog";
 import type { Conversation } from "@/modules/chat/chat.api";
 import { useConversation } from "@/context/ConversationContext";
 import { useNavigate } from "react-router-dom";
@@ -247,6 +247,7 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
                 </div>
                 <p className="text-[11px] leading-relaxed text-muted-foreground">
                   Tài liệu tải lên được tự động phân tách & vectorized cho AI truy vấn.
+                </p>
               </div>
             </div>
           )}
@@ -278,6 +279,7 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
                 {searchQuery
                   ? "Không tìm thấy hội thoại phù hợp."
                   : "Chưa có cuộc trò chuyện nào."}
+              </p>
             ) : (
               grouped.map((group) => (
                 <div key={group.label} className="space-y-0.5">

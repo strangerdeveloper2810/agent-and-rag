@@ -265,6 +265,7 @@ export const RegisterPage: React.FC = () => {
               <h4 className="text-xs font-bold text-foreground mt-1">Bảo mật tuyệt đối</h4>
               <p className="text-[10px] text-muted-foreground">Mã hóa dữ liệu chuẩn enterprise</p>
             </Card>
+          </div>
         </div>
 
         {/* Bottom */}
