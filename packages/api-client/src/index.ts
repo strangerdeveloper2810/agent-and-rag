@@ -117,63 +117,29 @@ export const streamChat = async (
 };
 
 function normalizeEvent(raw: Record<string, unknown>): ChatEvent | null {
-  const validTypes = [
-    "step",
-    "text",
-    "tool_start",
-    "tool_end",
-    "citation",
-    "memory",
-    "agent",
-    "interrupt",
-    "error",
-    "done",
-  ];
-  if (typeof raw.type === "string" && validTypes.includes(raw.type)) {
-    return {
-      type: raw.type as ChatEvent["type"],
-      node: typeof raw.node === "string" ? raw.node : undefined,
-      text: typeof raw.text === "string" ? raw.text : undefined,
-      name: typeof raw.name === "string" ? raw.name : undefined,
-      message: typeof raw.message === "string" ? raw.message : undefined,
-      usage: isUsageData(raw.usage) ? raw.usage : undefined,
-    };
-  }
+  const str = (k: string) => (typeof raw[k] === "string" ? raw[k] : undefined) as string | undefined;
+  const num = (k: string) => (typeof raw[k] === "number" ? raw[k] : undefined) as number | undefined;
+  const usage = isUsageData(raw.usage) ? raw.usage : undefined;
+  const totalTokens = num("totalTokens");
+  const type = typeof raw.type === "string" ? raw.type : undefined;
 
-  if (raw.done === true) {
-    return {
-      type: "done",
-      usage: isUsageData(raw.usage) ? raw.usage : undefined,
-    };
-  }
-  if (typeof raw.type === "string") {
-    if (raw.type === "tool_start") {
-      return {
-        type: "tool_start",
-        name: typeof raw.name === "string" ? raw.name : "unknown",
-      };
-    }
-    if (raw.type === "tool_end") {
-      return {
-        type: "tool_end",
-        name: typeof raw.name === "string" ? raw.name : "unknown",
-        message: typeof raw.message === "string" ? raw.message : undefined,
-      };
-    }
-    if (raw.type === "error") {
-      return {
-        type: "error",
-        message:
-          typeof raw.message === "string" ? raw.message : "An error occurred",
-      };
-    }
-    if (raw.type === "text" && typeof raw.text === "string") {
-      return { type: "text", text: raw.text };
-    }
-  }
-  if (typeof raw.token === "string") {
-    return { type: "text", text: raw.token };
-  }
+  if (type === "step") return { type: "step", node: str("node") };
+  if (type === "text") return { type: "text", text: str("text") ?? "" };
+  if (type === "tool_start") return { type: "tool_start", name: str("name") ?? "unknown" };
+  if (type === "tool_end") return { type: "tool_end", name: str("name") ?? "unknown", message: str("message") };
+  if (type === "citation") return { type: "citation", text: str("text") };
+  if (type === "memory") return { type: "memory", message: str("message") };
+  if (type === "agent") return { type: "agent", name: str("name"), message: str("message") };
+  if (type === "interrupt") return { type: "interrupt", name: str("name"), message: str("message") };
+  if (type === "error") return { type: "error", message: str("message") };
+  if (type === "usage") return { type: "usage", usage, totalTokens };
+  if (type === "done") return { type: "done", usage, totalTokens };
+
+  // Legacy: done flag without explicit type
+  if (raw.done === true) return { type: "done", usage, totalTokens };
+
+  // Legacy: flat { token } → text event
+  if (typeof raw.token === "string") return { type: "text", text: raw.token };
 
   return null;
 }

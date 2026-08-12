@@ -10,7 +10,7 @@ import {
   ArrowUpTrayIcon,
 } from "@heroicons/react/24/outline";
 
-import { useToast } from "@/shared/components/Toast";
+import { useToast } from "@/design-system/molecules/Toast";
 import SlashCommandMenu, { type SlashCommand } from "./SlashCommandMenu";
 import { Button } from "@/components/ui/button";
 

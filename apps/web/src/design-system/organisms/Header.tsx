@@ -5,7 +5,7 @@ import {
   ArrowDownTrayIcon,
   TrashIcon,
 } from "@heroicons/react/24/outline";
-import ThemeToggle from "@/shared/components/ThemeToggle";
+import ThemeToggle from "../atoms/ThemeToggle";
 import ModeSelector, { type AIMode } from "@/modules/chat/components/ModeSelector";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";

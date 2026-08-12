@@ -16,8 +16,8 @@ import type { PendingAttachment } from "./Composer";
 import MessageBubble from "./MessageBubble";
 import Composer from "./Composer";
 import EmptyState from "./EmptyState";
-import ChatSkeleton from "@/shared/components/ChatSkeleton";
-import { useToast } from "@/shared/components/Toast";
+import ChatSkeleton from "@/design-system/molecules/ChatSkeleton";
+import { useToast } from "@/design-system/molecules/Toast";
 import { validateComposerInput } from "@/lib/validation";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
@@ -118,6 +118,12 @@ const pendingToPayload: PendingToPayloadFn = async (
   };
 };
 
+/**
+ * Converts client-side PendingAttachment to display AttachmentMeta.
+ *
+ * @param pa - PendingAttachment object
+ * @returns AttachmentMeta display object
+ */
 const pendingToMeta: PendingToMetaFn = (
   pa: PendingAttachment,
 ): AttachmentMeta => {

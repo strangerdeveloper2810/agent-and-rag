@@ -31,9 +31,11 @@ import (
 	"github.com/ai-agent-tut/agent-go/internal/agent"
 	"github.com/ai-agent-tut/agent-go/internal/config"
 	"github.com/ai-agent-tut/agent-go/internal/memory"
+	"github.com/ai-agent-tut/agent-go/internal/middleware"
 	"github.com/ai-agent-tut/agent-go/internal/orchestrator"
 	"github.com/ai-agent-tut/agent-go/internal/provider"
 	"github.com/ai-agent-tut/agent-go/internal/provider/factory"
+	"github.com/ai-agent-tut/agent-go/internal/provider/ollama"
 	"github.com/ai-agent-tut/agent-go/internal/skills"
 	"github.com/ai-agent-tut/agent-go/internal/tools"
 	agenthttp "github.com/ai-agent-tut/agent-go/internal/transport/http"
@@ -87,7 +89,7 @@ func runServe() {
 	mux.HandleFunc("GET /healthz", agenthttp.Healthz)
 	mux.HandleFunc("POST /chat", agenthttp.NewChatHandler(orch).ServeHTTP)
 
-	srv := &http.Server{Addr: ":" + cfg.Port, Handler: mux}
+	srv := &http.Server{Addr: ":" + cfg.Port, Handler: middleware.CORSMiddleware(mux)}
 
 	go func() {
 		slog.Info("jarvis listening", "addr", srv.Addr)
@@ -225,9 +227,35 @@ func setup() (config.Config, provider.Provider, *orchestrator.Orchestrator) {
 
 	store := memory.NewStore()
 
+	// Wire embedding provider for semantic memory recall.
+	if cfg.OllamaURL != "" {
+		embedClient, err := ollama.New(cfg.OllamaURL, "nomic-embed-text")
+		if err != nil {
+			slog.Warn("memory: ollama embed client creation failed", "err", err)
+		} else {
+			store.SetEmbedder(memory.EmbedderFunc(func(ctx context.Context, texts []string) ([][]float64, error) {
+				vecs32, err := embedClient.Embed(ctx, texts)
+				if err != nil {
+					return nil, err
+				}
+				result := make([][]float64, len(vecs32))
+				for i, v := range vecs32 {
+					result[i] = make([]float64, len(v))
+					for j, val := range v {
+						result[i][j] = float64(val)
+					}
+				}
+				return result, nil
+			}))
+			slog.Info("memory: semantic embedding enabled", "url", cfg.OllamaURL)
+		}
+	}
+
 	// Load skills for progressive disclosure in system prompt.
 	var skillSummaries []skills.SkillSummary
+	var skillLoader *skills.Loader
 	if loader, err := skills.NewLoader(cfg.SkillsDir); err == nil {
+		skillLoader = loader
 		skillSummaries = loader.ListSkills()
 		slog.Info("skills loaded", "count", len(skillSummaries), "dir", cfg.SkillsDir)
 	} else {
@@ -236,6 +264,7 @@ func setup() (config.Config, provider.Provider, *orchestrator.Orchestrator) {
 
 	// General agent.
 	generalEngine := agent.NewEngine(prov, registry)
+	generalEngine.SetSkillLoader(skillLoader)
 	generalEngine.SetMemoryNodes(
 		memory.RecallNode(store),
 		memory.ExtractNode(store),
@@ -244,6 +273,7 @@ func setup() (config.Config, provider.Provider, *orchestrator.Orchestrator) {
 
 	// Code agent.
 	codeEngine := agent.NewEngine(prov, registry)
+	codeEngine.SetSkillLoader(skillLoader)
 	codeEngine.SetMemoryNodes(
 		memory.RecallNode(store),
 		memory.ExtractNode(store),

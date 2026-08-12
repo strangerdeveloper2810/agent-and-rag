@@ -247,7 +247,6 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
                 </div>
                 <p className="text-[11px] leading-relaxed text-muted-foreground">
                   Tài liệu tải lên được tự động phân tách & vectorized cho AI truy vấn.
-                </p>
               </div>
             </div>
           )}
@@ -279,7 +278,6 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
                 {searchQuery
                   ? "Không tìm thấy hội thoại phù hợp."
                   : "Chưa có cuộc trò chuyện nào."}
-              </p>
             ) : (
               grouped.map((group) => (
                 <div key={group.label} className="space-y-0.5">

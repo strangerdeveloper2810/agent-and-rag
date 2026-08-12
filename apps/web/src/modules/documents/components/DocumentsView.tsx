@@ -10,14 +10,9 @@ import {
   type DocumentVersion,
   type VersionContent,
 } from "@/modules/documents/documents.api";
-import {
-  UploadIcon,
-  DocIcon,
-  TrashIcon,
-  CloseIcon,
-} from "@/shared/components/icons";
-import ConfirmDialog from "@/shared/components/ConfirmDialog";
-import { useToast } from "@/shared/components/Toast";
+import { UploadIcon, DocIcon, TrashIcon, CloseIcon } from "@app/ui";
+import ConfirmDialog from "@/design-system/molecules/ConfirmDialog";
+import { useToast } from "@/design-system/molecules/Toast";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
 interface State {

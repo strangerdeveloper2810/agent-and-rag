@@ -6,7 +6,7 @@ import rateLimit from "@fastify/rate-limit";
 import { chatRoutes } from "./modules/chat";
 import { documentsRoutes } from "./modules/documents";
 import { tasksRoutes } from "./modules/tasks";
-import { uploadRoutes } from "./modules/upload/upload.routes";
+import { uploadModule } from "./modules/upload/upload.module";
 import { authModule } from "./modules/auth/auth.module";
 import { usersModule } from "./modules/users/users.module";
 import { getPgPool } from "./database/index.js";
@@ -112,7 +112,7 @@ export function buildApp(): FastifyInstance {
   app.register(chatRoutes, { prefix: "/api" });
   app.register(documentsRoutes, { prefix: "/api" });
   app.register(tasksRoutes, { prefix: "/api" });
-  app.register(uploadRoutes);
+  app.register(uploadModule);
 
   return app;
 }
