@@ -1,13 +1,21 @@
 import { useCallback, useState } from "react";
-import Markdown from "./Markdown";
 import {
-  CopyIcon,
+  ClipboardDocumentIcon,
   CheckIcon,
-  CloseIcon,
-  DocIcon,
-} from "@/shared/components/icons";
+  SpeakerWaveIcon,
+  SpeakerXMarkIcon,
+  ArrowPathIcon,
+  HandThumbUpIcon,
+  HandThumbDownIcon,
+  CpuChipIcon,
+  DocumentTextIcon,
+  XMarkIcon,
+  ExclamationTriangleIcon,
+} from "@heroicons/react/24/outline";
+
+import Markdown from "./Markdown";
 import AgentBadge from "@/shared/components/AgentBadge";
-import ToolCallCard from "@/shared/components/ToolCallCard";
+import { ToolCallGroup } from "@/shared/components/ToolCallCard";
 import CitationList from "@/shared/components/CitationList";
 import type { Message, AttachmentMeta } from "@/modules/chat/chat.api";
 import type {
@@ -15,6 +23,9 @@ import type {
   CitationData,
   UsageData,
 } from "@/modules/chat/chat.api";
+
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 // ── Helpers ──
 
@@ -24,17 +35,14 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-// ── Sub-components ──
-
 function TypingDots() {
   return (
-    <span className="inline-flex items-center gap-1 py-1">
+    <span className="inline-flex items-center gap-1.5 py-1.5 px-1">
       {[0, 1, 2].map((i) => (
         <span
           key={i}
-          className="h-2 w-2 rounded-full animate-dot-bounce"
+          className="h-2 w-2 rounded-full bg-primary animate-bounce"
           style={{
-            backgroundColor: "var(--accent)",
             animationDelay: `${i * 0.16}s`,
           }}
         />
@@ -45,31 +53,21 @@ function TypingDots() {
 
 function UsageFooter({ usage }: { usage: UsageData }) {
   return (
-    <div
-      className="mt-3 border-t pt-2"
-      style={{ borderColor: "var(--border)" }}
-    >
-      <p className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>
-        <span title="Input tokens">
-          {usage.inputTokens.toLocaleString()} in
-        </span>
-        {" · "}
-        <span title="Output tokens">
-          {usage.outputTokens.toLocaleString()} out
-        </span>
-        {" · "}
-        <span title="Total tokens">
-          {(usage.inputTokens + usage.outputTokens).toLocaleString()} total
-        </span>
-      </p>
+    <div className="mt-3 border-t border-border pt-2 flex items-center gap-3 text-[10px] text-muted-foreground font-mono">
+      <span>Input: {usage.inputTokens.toLocaleString()} tokens</span>
+      <span>·</span>
+      <span>Output: {usage.outputTokens.toLocaleString()} tokens</span>
+      <span>·</span>
+      <span className="text-primary font-semibold">
+        Tổng: {(usage.inputTokens + usage.outputTokens).toLocaleString()} tokens
+      </span>
     </div>
   );
 }
 
-/**
- * AttachmentList component for rendering image previews and file chips attached to messages.
- */
-const AttachmentList: React.FC<{ attachments: AttachmentMeta[] }> = ({ attachments }) => {
+const AttachmentList: React.FC<{ attachments: AttachmentMeta[] }> = ({
+  attachments,
+}) => {
   const [expandedUrl, setExpandedUrl] = useState<string | null>(null);
 
   const images = attachments.filter((a) => a.type === "image");
@@ -77,9 +75,9 @@ const AttachmentList: React.FC<{ attachments: AttachmentMeta[] }> = ({ attachmen
 
   return (
     <>
-      <div className="mt-2 space-y-2">
+      <div className="mt-2.5 space-y-2">
         {images.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-2">
             {images.map((img, i) => {
               const anyImg = img as any;
               const imgSrc =
@@ -98,12 +96,8 @@ const AttachmentList: React.FC<{ attachments: AttachmentMeta[] }> = ({ attachmen
                   key={`img-${i}`}
                   type="button"
                   onClick={() => setExpandedUrl(imgSrc)}
-                  aria-label={`View ${img.name}`}
-                  className="h-16 w-16 overflow-hidden rounded-xl border transition hover:opacity-80 shadow-sm"
-                  style={{
-                    borderColor: "var(--border)",
-                    backgroundColor: "var(--bg-raised)",
-                  }}
+                  aria-label={`Xem ${img.name}`}
+                  className="h-20 w-20 overflow-hidden rounded-2xl border border-border bg-card transition hover:opacity-80 shadow-sm"
                 >
                   <img
                     src={imgSrc}
@@ -117,32 +111,18 @@ const AttachmentList: React.FC<{ attachments: AttachmentMeta[] }> = ({ attachmen
         )}
 
         {files.length > 0 && (
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             {files.map((f, i) => (
               <div
                 key={`file-${i}`}
-                className="flex items-center gap-2 rounded-lg border px-3 py-1.5"
-                style={{
-                  borderColor: "var(--border)",
-                  backgroundColor: "var(--bg-raised)",
-                }}
+                className="flex items-center gap-2.5 rounded-xl border border-border bg-card px-3 py-2"
               >
-                <DocIcon
-                  width={14}
-                  height={14}
-                  style={{ color: "var(--text-tertiary)" }}
-                />
+                <DocumentTextIcon className="h-4 w-4 text-primary" />
                 <div className="min-w-0 flex-1">
-                  <p
-                    className="truncate text-[11px] font-medium"
-                    style={{ color: "var(--text)" }}
-                  >
+                  <p className="truncate text-xs font-semibold text-foreground">
                     {f.name}
                   </p>
-                  <p
-                    className="text-[10px]"
-                    style={{ color: "var(--text-tertiary)" }}
-                  >
+                  <p className="text-[10px] text-muted-foreground font-mono">
                     {formatSize(f.size)}
                   </p>
                 </div>
@@ -154,30 +134,30 @@ const AttachmentList: React.FC<{ attachments: AttachmentMeta[] }> = ({ attachmen
 
       {expandedUrl && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 animate-fade-in"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 animate-fade-in backdrop-blur-sm"
           onClick={() => setExpandedUrl(null)}
-          role="dialog"
-          aria-label="View enlarged image"
         >
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             onClick={() => setExpandedUrl(null)}
-            aria-label="Close image"
-            className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
+            aria-label="Đóng ảnh"
+            className="absolute right-4 top-4 text-white hover:bg-white/20 rounded-full"
           >
-            <CloseIcon width={18} height={18} />
-          </button>
+            <XMarkIcon className="h-5 w-5" />
+          </Button>
           <img
             src={expandedUrl}
             alt="Enlarged"
-            className="max-h-[85vh] max-w-[90vw] rounded-xl object-contain shadow-2xl"
+            className="max-h-[85vh] max-w-[90vw] rounded-2xl object-contain shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           />
         </div>
       )}
     </>
   );
-}
+};
 
 // ── Main Component ──
 
@@ -188,11 +168,12 @@ interface MessageBubbleProps {
   citations?: CitationData[];
   agent?: string | null;
   usage?: UsageData | null;
+  onRegenerate?: () => void;
+  onRetryUser?: (content: string) => void;
 }
 
 /**
- * MessageBubble component for rendering user chat bubbles & assistant responses
- * with streaming indicators, markdown formatting, tool executions, and citations.
+ * MessageBubble component — ChatGPT & Gemini style with Retry / Run Again actions.
  */
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
   message,
@@ -201,8 +182,13 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   citations = [],
   agent = null,
   usage = null,
+  onRegenerate,
+  onRetryUser,
 }) => {
   const [copied, setCopied] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
+
   const isUser = message.role === "user";
 
   const copyMessage = useCallback(async () => {
@@ -211,23 +197,48 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     setTimeout(() => setCopied(false), 1600);
   }, [message.content]);
 
-  // --- User bubble ---
+  const toggleSpeech = useCallback(() => {
+    if (!("speechSynthesis" in window)) return;
+    if (isSpeaking) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+    } else {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(message.content);
+      utterance.lang = "vi-VN";
+      utterance.onend = () => setIsSpeaking(false);
+      utterance.onerror = () => setIsSpeaking(false);
+      setIsSpeaking(true);
+      window.speechSynthesis.speak(utterance);
+    }
+  }, [isSpeaking, message.content]);
+
+  // --- User bubble (with hover Retry action) ---
   if (isUser) {
     const hasAttachments =
       message.attachments && message.attachments.length > 0;
     const hasText = message.content.length > 0;
 
     return (
-      <div className="flex justify-end animate-fade-in">
-        <div
-          className="max-w-[85%] sm:max-w-[78%] rounded-2xl rounded-tr-xs px-4 py-3 text-xs sm:text-sm leading-relaxed border shadow-sm"
-          style={{
-            backgroundColor: "var(--user-bubble-bg)",
-            color: "var(--user-bubble-text)",
-            borderColor: "var(--user-bubble-border)",
-          }}
-        >
-          {hasText && <p className="whitespace-pre-wrap font-sans">{message.content}</p>}
+      <div className="group/user flex items-center justify-end gap-2 animate-fade-in my-1">
+        {onRetryUser && hasText && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => onRetryUser(message.content)}
+            aria-label="Thử lại tin nhắn này"
+            title="Gửi lại yêu cầu này cho Agent"
+            className="opacity-0 group-hover/user:opacity-100 transition-opacity duration-150 h-8 px-2.5 text-xs text-muted-foreground hover:text-primary hover:bg-primary/10 gap-1.5 rounded-xl border border-transparent hover:border-primary/20"
+          >
+            <ArrowPathIcon className="h-3.5 w-3.5" />
+            <span>Thử lại</span>
+          </Button>
+        )}
+        <div className="max-w-[85%] sm:max-w-[75%] rounded-[22px] rounded-tr-md px-5 py-3.5 text-sm sm:text-base leading-relaxed bg-[#f4f4f5] dark:bg-[#27272a] text-[#09090b] dark:text-[#f4f4f5] shadow-xs">
+          {hasText && (
+            <p className="whitespace-pre-wrap font-sans tracking-normal">{message.content}</p>
+          )}
           {hasAttachments && (
             <AttachmentList attachments={message.attachments!} />
           )}
@@ -238,63 +249,86 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   // --- Assistant bubble ---
   const hasContent = message.content.length > 0;
+  const hasError =
+    message.content.includes("Could not send message") ||
+    message.content.includes("circuit breaker") ||
+    message.content.includes("AI agent không phản hồi") ||
+    message.content.includes("AI agent tạm thời không khả dụng");
   const showTyping = streaming && !hasContent && toolCalls.length === 0;
-  const showCaret = streaming && hasContent;
 
   return (
     <div className="group flex gap-3.5 animate-fade-in">
-      {/* Avatar */}
-      <div
-        className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border shadow-sm"
-        style={{
-          borderColor: "var(--border)",
-          backgroundColor: "var(--surface)",
-        }}
-      >
-        <svg
-          width={16}
-          height={16}
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="var(--accent)"
-          strokeWidth={1.8}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M12 3.5c.6 3.7 1.8 4.9 5.5 5.5-3.7.6-4.9 1.8-5.5 5.5-.6-3.7-1.8-4.9-5.5-5.5 3.7-.6 4.9-1.8 5.5-5.5Z" />
-        </svg>
-      </div>
+      {/* Bot Avatar */}
+      <Avatar className="h-9 w-9 mt-0.5 border border-primary/30 shadow-md relative shrink-0">
+        <AvatarFallback className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
+          <CpuChipIcon className="h-5 w-5" />
+        </AvatarFallback>
+        {streaming && (
+          <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-primary animate-ping" />
+        )}
+      </Avatar>
 
       <div className="min-w-0 flex-1">
-        {/* Agent badge */}
+        {/* Agent Identity Badge */}
         {agent && (
           <div className="mb-2">
             <AgentBadge agent={agent} />
           </div>
         )}
 
-        {/* Tool call cards */}
+        {/* Tool Call Group */}
         {toolCalls.length > 0 && (
-          <div className="mb-3 space-y-1.5">
-            {toolCalls.map((tc, i) => (
-              <ToolCallCard key={`${tc.name}-${i}`} tool={tc} />
-            ))}
-          </div>
+          <ToolCallGroup tools={toolCalls} />
         )}
 
-        {/* Message content */}
+        {/* Message Content */}
         {hasContent ? (
-          <Markdown content={message.content} />
+          <div className="prose-slate dark:prose-invert relative">
+            <Markdown content={message.content} />
+            {streaming && (
+              <span className="inline-block w-2 h-4.5 bg-primary ml-1 animate-pulse align-middle" />
+            )}
+          </div>
         ) : showTyping ? (
           <TypingDots />
         ) : null}
 
-        {/* Streaming caret */}
-        {showCaret && (
-          <span
-            className="ml-0.5 inline-block h-[1em] w-[2px] translate-y-0.5 align-middle animate-terminal-blink"
-            style={{ backgroundColor: "var(--accent)" }}
-          />
+        {/* Error Banner with Prominent Retry Action */}
+        {hasError && !streaming && (
+          <div className="mt-3.5 flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 rounded-2xl border border-destructive/30 bg-destructive/10 p-3.5 text-xs text-destructive backdrop-blur-md">
+            <div className="flex items-center gap-2.5 font-semibold min-w-0">
+              <ExclamationTriangleIcon className="h-5 w-5 shrink-0 text-destructive" />
+              <span className="leading-snug">Phản hồi gặp sự cố hoặc quá trình xử lý bị gián đoạn.</span>
+            </div>
+            {onRegenerate && (
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={onRegenerate}
+                className="gap-1.5 font-bold shadow-sm shrink-0"
+              >
+                <ArrowPathIcon className="h-3.5 w-3.5" />
+                <span>Thử lại ngay</span>
+              </Button>
+            )}
+          </div>
+        )}
+
+        {/* Active Streaming Indicator when LLM is thinking/processing tool calls */}
+        {streaming && (hasContent || toolCalls.length > 0) && (
+          <div className="mt-3 flex items-center gap-2 rounded-xl bg-primary/10 border border-primary/20 px-3.5 py-2 text-xs text-primary shadow-xs">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
+            </span>
+            <span className="font-semibold tracking-wide">J.A.R.V.I.S. đang suy luận & xử lý dữ liệu...</span>
+            <span className="inline-flex gap-1 ml-1">
+              <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: '0s' }} />
+              <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: '0.15s' }} />
+              <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: '0.3s' }} />
+            </span>
+          </div>
         )}
 
         {/* Citations */}
@@ -302,37 +336,95 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           <CitationList citations={citations} />
         )}
 
-        {/* Token usage */}
+        {/* Token Usage Footer */}
         {usage && !streaming && <UsageFooter usage={usage} />}
 
-        {/* Copy button */}
+        {/* Smart Action Bar */}
         {!streaming && hasContent && (
-          <button
-            type="button"
-            onClick={copyMessage}
-            aria-label="Copy response"
-            className="mt-2.5 inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[10px] font-medium opacity-0 transition duration-150 hover:bg-[var(--bg-raised)] hover:border-[var(--accent)] focus:opacity-100 group-hover:opacity-100"
-            style={{ 
-              color: "var(--text-tertiary)",
-              borderColor: "var(--border)",
-            }}
-          >
-            {copied ? (
-              <>
-                <CheckIcon
-                  width={12}
-                  height={12}
-                  style={{ color: "var(--success)" }}
-                />
-                Copied
-              </>
-            ) : (
-              <>
-                <CopyIcon width={12} height={12} />
-                Copy message
-              </>
+          <div className="mt-3 flex flex-wrap items-center gap-1.5 opacity-80 group-hover:opacity-100 transition duration-150">
+            {/* Copy button */}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={copyMessage}
+              aria-label="Sao chép nội dung"
+              title="Sao chép câu trả lời"
+              className="gap-1 h-7 text-[11px]"
+            >
+              {copied ? (
+                <>
+                  <CheckIcon className="h-3.5 w-3.5 text-emerald-400" />
+                  <span className="text-emerald-400">Đã chép</span>
+                </>
+              ) : (
+                <>
+                  <ClipboardDocumentIcon className="h-3.5 w-3.5" />
+                  <span>Sao chép</span>
+                </>
+              )}
+            </Button>
+
+            {/* Read Aloud (TTS) */}
+            <Button
+              type="button"
+              variant={isSpeaking ? "secondary" : "outline"}
+              size="sm"
+              onClick={toggleSpeech}
+              aria-label="Đọc câu trả lời"
+              title="Đọc văn bản bằng giọng nói"
+              className={`gap-1 h-7 text-[11px] ${isSpeaking ? "border-primary text-primary animate-pulse" : ""}`}
+            >
+              {isSpeaking ? (
+                <SpeakerXMarkIcon className="h-3.5 w-3.5" />
+              ) : (
+                <SpeakerWaveIcon className="h-3.5 w-3.5" />
+              )}
+              <span>{isSpeaking ? "Dừng đọc" : "Đọc tiếng"}</span>
+            </Button>
+
+            {/* Regenerate button */}
+            {onRegenerate && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onRegenerate}
+                aria-label="Tạo lại câu trả lời"
+                title="Yêu cầu AI trả lời lại"
+                className="gap-1 h-7 text-[11px]"
+              >
+                <ArrowPathIcon className="h-3.5 w-3.5" />
+                <span>Tạo lại</span>
+              </Button>
             )}
-          </button>
+
+            {/* Thumbs Up / Down Feedback */}
+            <div className="ml-1 flex items-center gap-1 border-l border-border pl-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="iconSm"
+                onClick={() => setFeedback((f) => (f === "up" ? null : "up"))}
+                aria-label="Hài lòng"
+                title="Đánh giá tốt"
+                className={`h-7 w-7 ${feedback === "up" ? "text-emerald-400 bg-emerald-500/10" : "text-muted-foreground"}`}
+              >
+                <HandThumbUpIcon className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="iconSm"
+                onClick={() => setFeedback((f) => (f === "down" ? null : "down"))}
+                aria-label="Chưa hài lòng"
+                title="Đánh giá cần cải thiện"
+                className={`h-7 w-7 ${feedback === "down" ? "text-rose-400 bg-rose-500/10" : "text-muted-foreground"}`}
+              >
+                <HandThumbDownIcon className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
         )}
       </div>
     </div>

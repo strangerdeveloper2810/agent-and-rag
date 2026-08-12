@@ -1,1 +1,1 @@
-export { AppLayout as default, type OutletCtx } from "@/design-system/templates/AppLayout";
+export { AppLayout as default } from "@/design-system/templates/AppLayout";

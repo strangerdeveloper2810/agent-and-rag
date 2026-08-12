@@ -14,12 +14,15 @@ type Config struct {
 	Port string // default: 3002
 
 	// Provider (LLM)
-	Provider       string // "gemini" | "anthropic" | "ollama"
+	Provider       string // "gemini" | "anthropic" | "ollama" | "deepseek"
 	GeminiKey      string
 	GeminiModel    string
 	ThinkingLevel  string // OFF|LOW|MEDIUM|HIGH (Gemini 3.x)
 	AnthropicKey   string
 	AnthropicModel string
+	DeepSeekKey        string
+	DeepSeekFlashModel string // cho task đơn giản, rẻ + nhanh
+	DeepSeekProModel   string // cho task cần reasoning nhiều
 
 	// Ollama (local LLM)
 	OllamaURL   string // default: http://localhost:11434
@@ -63,6 +66,9 @@ func Load() (Config, error) {
 		AnthropicModel:        envOr("CLAUDE_MODEL", "claude-haiku-4-5-20251001"),
 		OllamaURL:             envOr("OLLAMA_URL", "http://localhost:11434"),
 		OllamaModel:           envOr("OLLAMA_MODEL", "llama3.1:8b"),
+		DeepSeekKey:           os.Getenv("DEEPSEEK_API_KEY"),
+		DeepSeekFlashModel:    envOr("DEEPSEEK_FLASH_MODEL", "deepseek-v4-flash"),
+		DeepSeekProModel:      envOr("DEEPSEEK_PRO_MODEL", "deepseek-v4-pro"),
 		DBPath:                envOr("JARVIS_DB_PATH", "jarvis.db"),
 		SkillsDir:             envOr("JARVIS_SKILLS_DIR", "./skills"),
 		AllowedPaths:          []string{".", os.Getenv("HOME")},
@@ -85,12 +91,14 @@ func Load() (Config, error) {
 		hasProvider = c.GeminiKey != ""
 	case "anthropic":
 		hasProvider = c.AnthropicKey != ""
+	case "deepseek":
+		hasProvider = c.DeepSeekKey != ""
 	case "ollama":
 		hasProvider = true // local, no key needed
 	case "auto":
-		hasProvider = c.GeminiKey != "" || c.AnthropicKey != "" // cần ít nhất 1 key
+		hasProvider = c.GeminiKey != "" || c.AnthropicKey != "" || c.DeepSeekKey != "" // cần ít nhất 1 key
 	default:
-		return Config{}, fmt.Errorf("unknown LLM_PROVIDER: %q (use gemini, anthropic, ollama, or auto)", c.Provider)
+		return Config{}, fmt.Errorf("unknown LLM_PROVIDER: %q (use gemini, anthropic, deepseek, ollama, or auto)", c.Provider)
 	}
 	if !hasProvider {
 		return Config{}, fmt.Errorf("%s requires API key (set GEMINI_API_KEY or ANTHROPIC_API_KEY)", c.Provider)

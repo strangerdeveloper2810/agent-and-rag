@@ -1,4 +1,8 @@
-import type { DocumentInfo, DocumentVersion, VersionContent } from "@app/api-client";
+import type {
+  DocumentInfo,
+  DocumentVersion,
+  VersionContent,
+} from "@app/api-client";
 
 /** Props for DocumentsView page component. */
 export interface DocumentsViewProps {
