@@ -82,12 +82,13 @@ export const streamChat = async (
       const { done, value } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n\n");
+      const lines = buffer.split("\n");
       buffer = lines.pop() ?? "";
       for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
+        const trimmed = line.trim();
+        if (!trimmed.startsWith("data: ")) continue;
         try {
-          const parsed = JSON.parse(line.slice(6)) as Record<string, unknown>;
+          const parsed = JSON.parse(trimmed.slice(6)) as Record<string, unknown>;
           const event = normalizeEvent(parsed);
           if (event) onEvent(event);
         } catch {
@@ -96,6 +97,20 @@ export const streamChat = async (
       }
     }
     buffer += decoder.decode();
+    if (buffer.trim()) {
+      const remainingLines = buffer.split("\n");
+      for (const line of remainingLines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith("data: ")) continue;
+        try {
+          const parsed = JSON.parse(trimmed.slice(6)) as Record<string, unknown>;
+          const event = normalizeEvent(parsed);
+          if (event) onEvent(event);
+        } catch {
+          // Ignore malformed SSE lines
+        }
+      }
+    }
   } finally {
     reader.releaseLock();
   }

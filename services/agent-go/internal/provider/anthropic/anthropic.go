@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"strings"
 
 	sdk "github.com/anthropics/anthropic-sdk-go"
@@ -193,6 +194,12 @@ func (c *Client) buildParams(req provider.GenerateRequest) sdk.MessageNewParams 
 // Tôn trọng ctx (cancel/timeout) và luôn đóng channel khi xong.
 func (c *Client) Generate(ctx context.Context, req provider.GenerateRequest) (<-chan provider.StreamChunk, error) {
 	params := c.buildParams(req)
+
+	slog.Info("anthropic: calling API",
+		"model", string(params.Model),
+		"reasoning_enabled", false,
+		"tools_count", len(params.Tools),
+	)
 
 	out := make(chan provider.StreamChunk)
 	go func() {

@@ -30,6 +30,7 @@ export interface AuthUser {
 interface AuthState {
   user: AuthUser | null;
   isLoading: boolean;
+  initialized: boolean;
 
   init: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
@@ -39,21 +40,23 @@ interface AuthState {
 
 // ── Store ──
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   isLoading: false,
+  initialized: false,
 
   /**
    * Khởi tạo session — gọi khi app mount.
    * Gọi GET /api/auth/me để kiểm tra cookie session còn hợp lệ không.
    */
   init: async () => {
+    if (get().initialized) return;
     set({ isLoading: true });
     try {
       const data = await api.get<{ user: AuthUser }>("/api/auth/me");
-      set({ user: data.user, isLoading: false });
+      set({ user: data.user, isLoading: false, initialized: true });
     } catch {
-      set({ user: null, isLoading: false });
+      set({ user: null, isLoading: false, initialized: true });
     }
   },
 
@@ -99,13 +102,11 @@ export const useAuthStore = create<AuthState>((set) => ({
    * Luôn xóa user khỏi store, kể cả khi request lỗi.
    */
   logout: async () => {
-    set({ isLoading: true });
+    set({ user: null, isLoading: false });
     try {
       await api.post("/api/auth/logout");
     } catch {
-      // Bỏ qua lỗi — vẫn xóa user khỏi store
-    } finally {
-      set({ user: null, isLoading: false });
+      // Ignore
     }
   },
 }));

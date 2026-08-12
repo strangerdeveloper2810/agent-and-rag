@@ -41,36 +41,38 @@ func main() {
 		os.Exit(1)
 	}
 
-	// --- Wire Tool Registry ---
-	registry := tools.NewRegistry()
-	// System tools
-	registry.Register(tools.NewEchoTool())
-	registry.Register(tools.NewFileSearchTool(cfg.AllowedPaths))
-	registry.Register(tools.NewFileReadTool(cfg.AllowedPaths))
-	registry.Register(tools.NewFileWriteTool(cfg.AllowedPaths))
-	registry.Register(tools.NewShellTool(nil)) // allow all commands
-	// Web tools
-	registry.Register(tools.NewWebSearchTool(nil))
-	registry.Register(tools.NewWebFetchTool(nil))
-	// Dev tools
-	registry.Register(tools.NewGitTool("."))
-	registry.Register(tools.NewVersionTool())
-	// Personal tools
-	registry.Register(tools.NewNotesSearchTool("."))
-	registry.Register(tools.NewNotesCreateTool("."))
-	registry.Register(tools.NewCalendarTool(""))
-	registry.Register(tools.NewWeatherTool(nil))
-	registry.Register(tools.NewTranslateTool(nil))
-	registry.Register(tools.NewTimerTool())
-	registry.Register(tools.NewHTTPTool(nil))
-	// Utility tools
-	registry.Register(tools.NewCalculatorTool())
-	registry.Register(tools.NewDateTimeTool())
-	registry.Register(tools.NewJSONTool())
-	// Memory tools
-	registry.Register(tools.NewSaveMemoryTool())
-	registry.Register(tools.NewRecallMemoryTool())
-	registry.Register(tools.NewListMemoriesTool())
+	// --- Wire Scoped Tool Registries per Agent Specialty ---
+	codeRegistry := tools.NewRegistry()
+	codeRegistry.Register(tools.NewFileSearchTool(cfg.AllowedPaths))
+	codeRegistry.Register(tools.NewFileReadTool(cfg.AllowedPaths))
+	codeRegistry.Register(tools.NewFileWriteTool(cfg.AllowedPaths))
+	codeRegistry.Register(tools.NewShellTool(nil))
+	codeRegistry.Register(tools.NewGitTool("."))
+	codeRegistry.Register(tools.NewVersionTool())
+	codeRegistry.Register(tools.NewSaveMemoryTool())
+	codeRegistry.Register(tools.NewRecallMemoryTool())
+
+	researchRegistry := tools.NewRegistry()
+	researchRegistry.Register(tools.NewWebSearchTool(nil))
+	researchRegistry.Register(tools.NewWebFetchTool(nil))
+	researchRegistry.Register(tools.NewNotesSearchTool("."))
+	researchRegistry.Register(tools.NewNotesCreateTool("."))
+	researchRegistry.Register(tools.NewSaveMemoryTool())
+	researchRegistry.Register(tools.NewRecallMemoryTool())
+
+	generalRegistry := tools.NewRegistry()
+	generalRegistry.Register(tools.NewEchoTool())
+	generalRegistry.Register(tools.NewFileSearchTool(cfg.AllowedPaths))
+	generalRegistry.Register(tools.NewFileReadTool(cfg.AllowedPaths))
+	generalRegistry.Register(tools.NewFileWriteTool(cfg.AllowedPaths))
+	generalRegistry.Register(tools.NewShellTool(nil))
+	generalRegistry.Register(tools.NewWebSearchTool(nil))
+	generalRegistry.Register(tools.NewWebFetchTool(nil))
+	generalRegistry.Register(tools.NewTranslateTool(nil))
+	generalRegistry.Register(tools.NewCalculatorTool())
+	generalRegistry.Register(tools.NewDateTimeTool())
+	generalRegistry.Register(tools.NewSaveMemoryTool())
+	generalRegistry.Register(tools.NewRecallMemoryTool())
 
 	// --- Wire MongoDB (optional — for RAG document search) ---
 	var mongoClient *mongo.Client
@@ -86,8 +88,11 @@ func main() {
 			}()
 		}
 	}
-	// RAG search tool (graceful if mongo not configured)
-	registry.Register(tools.NewRAGSearchTool(mongoClient, cfg.MongoDB, cfg.VoyageKey, cfg.EnableHybridSearch, cfg.EnableRerank))
+	// RAG search tool (register to all registries)
+	ragTool := tools.NewRAGSearchTool(mongoClient, cfg.MongoDB, cfg.VoyageKey, cfg.EnableHybridSearch, cfg.EnableRerank)
+	codeRegistry.Register(ragTool)
+	researchRegistry.Register(ragTool)
+	generalRegistry.Register(ragTool)
 
 	// --- Wire Circuit Breaker ---
 	cb := guardrails.NewCircuitBreaker(3)
@@ -135,7 +140,7 @@ func main() {
 	// --- Wire Orchestrator (multi-agent) ---
 	dynThinking := agent.DynamicThinkingConfig{Enabled: cfg.EnableDynamicThinking, DefaultOff: true}
 
-	generalEngine := agent.NewEngine(prov, registry)
+	generalEngine := agent.NewEngine(prov, generalRegistry)
 	generalEngine.SetSystemPrompt(agent.BuildSystemPrompt(nil, skillSummaries))
 	generalEngine.SetDynamicThinking(dynThinking)
 	generalEngine.SetCircuitBreaker(cb)
@@ -146,7 +151,7 @@ func main() {
 		memory.SummarizeNode(),
 	)
 
-	codeEngine := agent.NewEngine(prov, registry)
+	codeEngine := agent.NewEngine(prov, codeRegistry)
 	codeEngine.SetSystemPrompt(agent.BuildSystemPrompt(nil, skillSummaries))
 	codeEngine.SetDynamicThinking(dynThinking)
 	codeEngine.SetCircuitBreaker(cb)
@@ -157,7 +162,7 @@ func main() {
 		memory.SummarizeNode(),
 	)
 
-	researchEngine := agent.NewEngine(prov, registry)
+	researchEngine := agent.NewEngine(prov, researchRegistry)
 	researchEngine.SetSystemPrompt(agent.BuildSystemPrompt(nil, skillSummaries))
 	researchEngine.SetDynamicThinking(dynThinking)
 	researchEngine.SetCircuitBreaker(cb)

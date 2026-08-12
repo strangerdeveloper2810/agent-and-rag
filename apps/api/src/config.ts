@@ -62,7 +62,7 @@ const envSchema = z
     /** URL gốc của Go agent runtime (dùng khi AGENT_BACKEND=go). */
     AGENT_GO_URL: z.string().default("http://localhost:3002"),
     /** Timeout (ms) cho mỗi HTTP request sang Go agent (chat + health check). */
-    AGENT_GO_TIMEOUT: z.coerce.number().int().positive().default(120_000),
+    AGENT_GO_TIMEOUT: z.coerce.number().int().positive().default(300_000),
 
     // ----- Vận hành -----
     /** Danh sách origin cho CORS, phân tách bằng dấu phẩy. Rỗng = cho mọi origin (dev). */
