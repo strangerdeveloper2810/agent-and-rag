@@ -4,15 +4,20 @@ import { SunIcon, MoonIcon } from "@app/ui";
 const KEY = "jarvis-theme";
 
 /**
- * Initializes HTML root data-theme attribute on app load.
+ * Initializes HTML root data-theme attribute & dark class on app load.
  */
 export const initTheme = (): void => {
   const saved = localStorage.getItem(KEY) || "dark";
   document.documentElement.setAttribute("data-theme", saved);
+  if (saved === "dark") {
+    document.documentElement.classList.add("dark");
+  } else {
+    document.documentElement.classList.remove("dark");
+  }
 };
 
 /**
- * ThemeToggle component for switching between Dark Cyber Console & Light modes.
+ * ThemeToggle component for switching between Dark & Light modes.
  */
 export const ThemeToggle: React.FC = () => {
   const [theme, setTheme] = useState<"dark" | "light">(() => {
@@ -21,6 +26,11 @@ export const ThemeToggle: React.FC = () => {
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
+    if (theme === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
     localStorage.setItem(KEY, theme);
   }, [theme]);
 
@@ -30,8 +40,7 @@ export const ThemeToggle: React.FC = () => {
     <button
       onClick={toggle}
       aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-      className="flex items-center gap-2 rounded-full px-3 py-1.5 text-xs transition hover:bg-[var(--border)]"
-      style={{ color: "var(--text-secondary)" }}
+      className="flex items-center gap-2 rounded-full px-3 py-1.5 text-xs transition hover:bg-muted text-muted-foreground hover:text-foreground"
     >
       {theme === "dark" ? <SunIcon /> : <MoonIcon />}
       <span className="hidden sm:inline tracking-wider uppercase text-[10px]">

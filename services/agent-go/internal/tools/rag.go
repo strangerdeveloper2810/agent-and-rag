@@ -151,11 +151,12 @@ func (t *ragSearchTool) vectorSearch(ctx context.Context, queryVector []float64,
 		},
 		{
 			{Key: "$project", Value: bson.D{
-				{Key: "documentId", Value: bson.D{{Key: "$toString", Value: "$_id"}}},
+				{Key: "_id", Value: 0},
+				{Key: "documentId", Value: 1},
 				{Key: "source", Value: 1},
 				{Key: "content", Value: 1},
 				{Key: "snippet", Value: bson.D{
-					{Key: "$substrCP", Value: bson.A{"$content", 0, 300}},
+					{Key: "$substrCP", Value: bson.A{"$text", 0, 500}},
 				}},
 				{Key: "score", Value: bson.D{
 					{Key: "$meta", Value: "vectorSearchScore"},

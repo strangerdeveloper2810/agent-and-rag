@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { Button } from "@/components/ui/button";
 
 export interface ConfirmDialogProps {
   open: boolean;
@@ -38,51 +39,40 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 animate-fade-in backdrop-blur-sm"
       onClick={onCancel}
       role="dialog"
       aria-modal="true"
     >
       <div
-        className="w-full max-w-sm rounded-2xl p-6 shadow-2xl"
-        style={{
-          backgroundColor: "var(--surface)",
-          border: "1px solid var(--border)",
-          boxShadow: "0 0 30px rgba(0,0,0,0.5), 0 0 10px rgba(0,240,255,0.05)",
-        }}
+        className="w-full max-w-sm rounded-2xl p-6 shadow-2xl bg-card border border-border text-card-foreground"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-base font-medium" style={{ color: "var(--text)" }}>
-          {title}
-        </h2>
+        <h2 className="text-base font-bold text-foreground">{title}</h2>
         {message && (
-          <p
-            className="mt-2 text-xs leading-relaxed"
-            style={{ color: "var(--text-secondary)" }}
-          >
+          <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
             {message}
           </p>
         )}
-        <div className="mt-6 flex justify-end gap-2">
-          <button
+        <div className="mt-6 flex justify-end gap-2.5">
+          <Button
             type="button"
+            variant="outline"
+            size="sm"
             onClick={onCancel}
-            className="rounded-lg px-4 py-2 text-xs font-medium transition hover:bg-[var(--bg-raised)]"
-            style={{ color: "var(--text-secondary)" }}
+            className="text-xs"
           >
             {cancelLabel}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant={danger ? "destructive" : "default"}
+            size="sm"
             onClick={onConfirm}
-            className="rounded-lg px-4 py-2 text-xs font-medium transition"
-            style={{
-              backgroundColor: danger ? "var(--danger)" : "var(--accent)",
-              color: "#0a0a0f",
-            }}
+            className="text-xs font-bold shadow-md"
           >
             {confirmLabel}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

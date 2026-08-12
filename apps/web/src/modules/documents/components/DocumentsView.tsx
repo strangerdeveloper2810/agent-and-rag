@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useReducer, useRef } from "react";
 import {
   listDocuments,
   uploadDocuments,
@@ -15,6 +15,74 @@ import ConfirmDialog from "@/design-system/molecules/ConfirmDialog";
 import { useToast } from "@/design-system/molecules/Toast";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
+interface State {
+  docs: DocumentInfo[];
+  uploading: boolean;
+  updatingId: string | null;
+  openHistory: string | null;
+  versions: DocumentVersion[];
+  viewing: VersionContent | null;
+  confirming: DocumentInfo | null;
+}
+
+type Action =
+  | { type: "SET_DOCS"; payload: DocumentInfo[] }
+  | { type: "REMOVE_DOC"; payload: string }
+  | { type: "SET_UPLOADING"; payload: boolean }
+  | { type: "SET_UPDATING_ID"; payload: string | null }
+  | {
+      type: "SET_OPEN_HISTORY";
+      payload: { id: string | null; versions?: DocumentVersion[] };
+    }
+  | { type: "SET_VERSIONS"; payload: DocumentVersion[] }
+  | { type: "SET_VIEWING"; payload: VersionContent | null }
+  | { type: "SET_CONFIRMING"; payload: DocumentInfo | null };
+
+const initialState: State = {
+  docs: [],
+  uploading: false,
+  updatingId: null,
+  openHistory: null,
+  versions: [],
+  viewing: null,
+  confirming: null,
+};
+
+function reducer(state: State, action: Action): State {
+  switch (action.type) {
+    case "SET_DOCS":
+      return { ...state, docs: action.payload };
+    case "REMOVE_DOC":
+      return {
+        ...state,
+        docs: state.docs.filter((d) => d.documentId !== action.payload),
+        confirming: null,
+        openHistory:
+          state.openHistory === action.payload ? null : state.openHistory,
+      };
+    case "SET_UPLOADING":
+      return { ...state, uploading: action.payload };
+    case "SET_UPDATING_ID":
+      return { ...state, updatingId: action.payload };
+    case "SET_OPEN_HISTORY":
+      return {
+        ...state,
+        openHistory: action.payload.id,
+        versions:
+          action.payload.versions ??
+          (action.payload.id === null ? [] : state.versions),
+      };
+    case "SET_VERSIONS":
+      return { ...state, versions: action.payload };
+    case "SET_VIEWING":
+      return { ...state, viewing: action.payload };
+    case "SET_CONFIRMING":
+      return { ...state, confirming: action.payload };
+    default:
+      return state;
+  }
+}
+
 /**
  * DocumentsView component for managing RAG knowledge base documents,
  * multi-file upload dropzone, version history, and content inspection.
@@ -22,18 +90,22 @@ import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 export const DocumentsView: React.FC = () => {
   const toast = useToast();
   useDocumentTitle("Documents");
-  const [docs, setDocs] = useState<DocumentInfo[]>([]);
-  const [uploading, setUploading] = useState(false);
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [state, dispatch] = useReducer(reducer, initialState);
+  const {
+    docs,
+    uploading,
+    updatingId,
+    openHistory,
+    versions,
+    viewing,
+    confirming,
+  } = state;
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const [openHistory, setOpenHistory] = useState<string | null>(null);
-  const [versions, setVersions] = useState<DocumentVersion[]>([]);
-  const [viewing, setViewing] = useState<VersionContent | null>(null);
-  const [confirming, setConfirming] = useState<DocumentInfo | null>(null);
-  const [removing, setRemoving] = useState(false);
-
-  const refresh = () => listDocuments().then(setDocs);
+  const refresh = () =>
+    listDocuments().then((docs) =>
+      dispatch({ type: "SET_DOCS", payload: docs }),
+    );
   useEffect(() => {
     refresh();
   }, []);
@@ -45,7 +117,7 @@ export const DocumentsView: React.FC = () => {
       if (fileRef.current) fileRef.current.value = "";
       return;
     }
-    setUploading(true);
+    dispatch({ type: "SET_UPLOADING", payload: true });
     try {
       const { results } = await uploadDocuments(files);
       await refresh();
@@ -64,13 +136,13 @@ export const DocumentsView: React.FC = () => {
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Upload failed.");
     } finally {
-      setUploading(false);
+      dispatch({ type: "SET_UPLOADING", payload: false });
       if (fileRef.current) fileRef.current.value = "";
     }
   };
 
   const onUpdate = async (documentId: string, file: File) => {
-    setUpdatingId(documentId);
+    dispatch({ type: "SET_UPDATING_ID", payload: documentId });
     try {
       const res = await updateDocument(documentId, file);
       await refresh();
@@ -79,42 +151,40 @@ export const DocumentsView: React.FC = () => {
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Update failed.");
     } finally {
-      setUpdatingId(null);
+      dispatch({ type: "SET_UPDATING_ID", payload: null });
     }
   };
 
   const onRemove = async () => {
     if (!confirming) return;
     const { documentId, source } = confirming;
-    setRemoving(true);
+    dispatch({ type: "REMOVE_DOC", payload: documentId });
+    toast.success(`Deleted ${source}.`);
     try {
       await deleteDocument(documentId);
-      if (openHistory === documentId) setOpenHistory(null);
-      await refresh();
-      setConfirming(null);
-      toast.success(`Deleted ${source}.`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Delete failed.");
-    } finally {
-      setRemoving(false);
+      refresh();
     }
   };
 
   const loadHistory = async (documentId: string) => {
-    setVersions(await getVersions(documentId));
+    const list = await getVersions(documentId);
+    dispatch({ type: "SET_VERSIONS", payload: list });
   };
 
   const toggleHistory = async (documentId: string) => {
     if (openHistory === documentId) {
-      setOpenHistory(null);
+      dispatch({ type: "SET_OPEN_HISTORY", payload: { id: null } });
       return;
     }
-    setOpenHistory(documentId);
+    dispatch({ type: "SET_OPEN_HISTORY", payload: { id: documentId } });
     await loadHistory(documentId);
   };
 
   const onViewVersion = async (documentId: string, version: number) => {
-    setViewing(await getVersionContent(documentId, version));
+    const content = await getVersionContent(documentId, version);
+    dispatch({ type: "SET_VIEWING", payload: content });
   };
 
   const totalChunks = docs.reduce((acc, d) => acc + (d.chunks || 0), 0);
@@ -342,7 +412,9 @@ export const DocumentsView: React.FC = () => {
 
                         <button
                           type="button"
-                          onClick={() => setConfirming(d)}
+                          onClick={() =>
+                            dispatch({ type: "SET_CONFIRMING", payload: d })
+                          }
                           aria-label={`Delete ${d.source}`}
                           className="rounded-xl p-2 transition hover:bg-[var(--danger-bg)] hover:text-[var(--danger)] text-[var(--text-tertiary)]"
                         >
@@ -419,7 +491,7 @@ export const DocumentsView: React.FC = () => {
       {viewing && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4 animate-fade-in"
-          onClick={() => setViewing(null)}
+          onClick={() => dispatch({ type: "SET_VIEWING", payload: null })}
         >
           <div
             className="flex max-h-[80vh] w-full max-w-3xl flex-col rounded-3xl p-6 shadow-2xl backdrop-blur-xl"
@@ -447,7 +519,7 @@ export const DocumentsView: React.FC = () => {
               </h3>
               <button
                 type="button"
-                onClick={() => setViewing(null)}
+                onClick={() => dispatch({ type: "SET_VIEWING", payload: null })}
                 aria-label="Close"
                 className="rounded-xl p-2 transition hover:bg-[var(--bg-raised)] text-[var(--text-tertiary)]"
               >
@@ -476,10 +548,10 @@ export const DocumentsView: React.FC = () => {
             ? `All versions of "${confirming.source}" will be permanently deleted. This action cannot be undone.`
             : undefined
         }
-        confirmLabel={removing ? "Deleting..." : "Delete"}
+        confirmLabel="Delete"
         danger
         onConfirm={onRemove}
-        onCancel={() => !removing && setConfirming(null)}
+        onCancel={() => dispatch({ type: "SET_CONFIRMING", payload: null })}
       />
     </main>
   );

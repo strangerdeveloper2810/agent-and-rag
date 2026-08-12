@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/ai-agent-tut/agent-go/internal/provider"
 	"google.golang.org/genai"
@@ -219,6 +220,14 @@ func (c *Client) Generate(ctx context.Context, req provider.GenerateRequest) (<-
 	if tc := mapThinkingLevel(level); tc != nil {
 		config.ThinkingConfig = tc
 	}
+	reasoningEnabled := level != "" && level != provider.ThinkingOff
+
+	slog.Info("gemini: calling API",
+		"model", model,
+		"reasoning_enabled", reasoningEnabled,
+		"thinking_level", string(level),
+		"tools_count", len(req.Tools),
+	)
 
 	contents := toGeminiContents(req.Messages)
 

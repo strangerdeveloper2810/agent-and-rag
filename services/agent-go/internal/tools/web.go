@@ -44,7 +44,7 @@ func NewWebSearchTool(client *http.Client) Tool {
 func (t *webSearchTool) Name() string { return "web.search" }
 
 func (t *webSearchTool) Description() string {
-	return "Tìm kiếm web qua DuckDuckGo HTML. Trả về danh sách kết quả: title, snippet, URL. Dùng để research thông tin mới nhất."
+	return "Tìm kiếm trực tiếp qua Google Web Search. Trả về danh sách kết quả mới nhất từ Google: tiêu đề (title), trích dẫn (snippet), và đường dẫn trực tiếp (URL). Dùng để tra cứu thông tin, báo cáo, tin tức thực tế."
 }
 
 func (t *webSearchTool) Schema() json.RawMessage {
@@ -74,44 +74,23 @@ func (t *webSearchTool) Execute(ctx context.Context, rawArgs json.RawMessage) (R
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
-	// DuckDuckGo HTML search (lite version, returns clean HTML with results)
-	reqURL := fmt.Sprintf("https://lite.duckduckgo.com/lite/?q=%s", url.QueryEscape(args.Query))
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
-	if err != nil {
-		return Result{}, fmt.Errorf("web.search: create request: %w", err)
-	}
-	req.Header.Set("User-Agent", randomUA())
+	// 1. Primary: Google Web Search
+	results := searchGoogleWeb(ctx, t.httpClient, args.Query)
 
-	resp, err := t.httpClient.Do(req)
-	if err != nil {
-		return Result{}, fmt.Errorf("web.search: request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	if err != nil {
-		return Result{}, fmt.Errorf("web.search: read body: %w", err)
-	}
-
-	// Search chain: Wikipedia → Brave (if key) → DDG HTML → DDG JSON → Google → fallback
-	results := searchWikipedia(ctx, t.httpClient, args.Query)
+	// 2. Secondary fallback: DuckDuckGo Lite HTML Search
 	if len(results) == 0 {
-		results = searchGoogleWeb(ctx, t.httpClient, args.Query)
+		results = fetchDDGLite(ctx, t.httpClient, args.Query)
 	}
-	if len(results) == 0 {
-		results = parseDDGLite(string(body), args.Query)
-	}
+
+	// 3. Tertiary fallback: DuckDuckGo JSON API
 	if len(results) == 0 {
 		results = searchDDGJSON(ctx, t.httpClient, args.Query)
 	}
-	if len(results) == 0 {
-		// Last resort: try Wikipedia with simpler query
-		results = searchWikipedia(ctx, t.httpClient, simplifyQuery(args.Query))
-	}
+
 	if len(results) == 0 {
 		results = append(results, map[string]string{
-			"title":   "⚠️ All search engines unavailable",
-			"snippet": fmt.Sprintf("Wikipedia, Google Web, and DuckDuckGo all returned no results for '%s'. Try: (1) a simpler query, (2) different keywords, or (3) ask me to use Google Search directly.", args.Query),
+			"title":   "⚠️ Google Search unavailable",
+			"snippet": fmt.Sprintf("Google Web Search and DuckDuckGo returned no results for '%s'. Try a simpler query or different keywords.", args.Query),
 			"url":     "",
 		})
 	}
@@ -124,8 +103,30 @@ func (t *webSearchTool) Execute(ctx context.Context, rawArgs json.RawMessage) (R
 	return Result{Content: string(out)}, nil
 }
 
+// fetchDDGLite fetches and parses DuckDuckGo Lite HTML results (fallback).
+func fetchDDGLite(ctx context.Context, client *http.Client, query string) []map[string]string {
+	reqURL := fmt.Sprintf("https://lite.duckduckgo.com/lite/?q=%s", url.QueryEscape(query))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+	if err != nil {
+		return nil
+	}
+	req.Header.Set("User-Agent", randomUA())
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return nil
+	}
+	return parseDDGLite(string(body))
+}
+
 // parseDDGLite parses DuckDuckGo Lite HTML results.
-func parseDDGLite(html, query string) []map[string]string {
+func parseDDGLite(html string) []map[string]string {
 	// DDG Lite returns results in this format:
 	// <a rel="nofollow" href="URL">Title</a><span>Snippet</span>
 	linkRe := regexp.MustCompile(`<a[^>]*href="([^"]*)"[^>]*>([^<]*)</a>`)
@@ -149,8 +150,8 @@ func parseDDGLite(html, query string) []map[string]string {
 		href := cleanURL(linkMatches[1])
 		title := cleanHTML(linkMatches[2])
 
-		// Skip DuckDuckGo internal links
-		if strings.Contains(href, "duckduckgo.com") || title == "" {
+		// Skip DuckDuckGo internal links & Wikipedia
+		if strings.Contains(href, "duckduckgo.com") || strings.Contains(href, "wikipedia.org") || title == "" {
 			continue
 		}
 
@@ -193,54 +194,15 @@ type DDGResponse struct {
 	} `json:"RelatedTopics"`
 }
 
-// searchWikipedia queries Wikipedia API (free, no rate limit, reliable).
-func searchWikipedia(ctx context.Context, client *http.Client, query string) []map[string]string {
-	reqURL := fmt.Sprintf("https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=%s&format=json&srlimit=5", url.QueryEscape(query))
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
-	if err != nil {
-		return nil
-	}
-	req.Header.Set("User-Agent", randomUA())
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil
-	}
-	defer resp.Body.Close()
-
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	var result struct {
-		Query struct {
-			Search []struct {
-				Title   string `json:"title"`
-				Snippet string `json:"snippet"`
-				PageID  int    `json:"pageid"`
-			} `json:"search"`
-		} `json:"query"`
-	}
-	if err := json.Unmarshal(body, &result); err != nil {
-		return nil
-	}
-
-	results := make([]map[string]string, 0, len(result.Query.Search))
-	for _, r := range result.Query.Search {
-		results = append(results, map[string]string{
-			"title":   r.Title,
-			"snippet": cleanHTML(r.Snippet),
-			"url":     fmt.Sprintf("https://en.wikipedia.org/wiki/%s", url.PathEscape(strings.ReplaceAll(r.Title, " ", "_"))),
-		})
-	}
-	return results
-}
-
-// searchGoogleWeb tries Google search via HTML scraping (last resort fallback).
+// searchGoogleWeb tries Google search via HTML scraping.
 func searchGoogleWeb(ctx context.Context, client *http.Client, query string) []map[string]string {
-	reqURL := fmt.Sprintf("https://www.google.com/search?q=%s&hl=en", url.QueryEscape(query))
+	reqURL := fmt.Sprintf("https://www.google.com/search?q=%s&hl=vi", url.QueryEscape(query))
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
 		return nil
 	}
 	req.Header.Set("User-Agent", randomUA())
+	req.Header.Set("Accept-Language", "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7")
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -254,32 +216,43 @@ func searchGoogleWeb(ctx context.Context, client *http.Client, query string) []m
 
 // parseGoogleResults extracts search results from Google HTML (best-effort).
 func parseGoogleResults(html string) []map[string]string {
-	// Google results have: <h3>Title</h3> and <a href="URL"
-	titleRe := regexp.MustCompile(`<h3[^>]*>([^<]*)</h3>`)
-	urlRe := regexp.MustCompile(`<a[^>]*href="(/url\?q=)?(https?://[^"&]*)`)
+	// Extract Google HTML result links and titles
+	linkTitleRe := regexp.MustCompile(`<a[^>]*href="(/url\?q=)?(https?://[^"&]+)"[^>]*>[\s\S]*?<h3[^>]*>([\s\S]*?)</h3>`)
+	snippetRe := regexp.MustCompile(`<div[^>]*class="[^"]*(?:VwiC3b|yXMpt|s3tnU|BNeawe|r05eec)[^"]*"[^>]*>([\s\S]*?)</div>`)
 
-	titles := titleRe.FindAllStringSubmatch(html, -1)
-	urls := urlRe.FindAllStringSubmatch(html, -1)
+	matches := linkTitleRe.FindAllStringSubmatch(html, 12)
+	snippets := snippetRe.FindAllStringSubmatch(html, 12)
 
 	results := make([]map[string]string, 0)
-	for i := 0; i < len(titles) && i < len(urls) && i < 5; i++ {
-		url := urls[i][2]
-		if strings.Contains(url, "google.com") {
+	for i, m := range matches {
+		if len(m) < 4 {
 			continue
 		}
-		results = append(results, map[string]string{
-			"title":   cleanHTML(titles[i][1]),
-			"snippet": "",
-			"url":     url,
-		})
-	}
-	return results
-}
+		rawURL := cleanURL(m[2])
+		rawTitle := cleanHTML(m[3])
 
-// simplifyQuery removes special chars and keeps only key terms for broader search.
-func simplifyQuery(q string) string {
-	q = regexp.MustCompile(`[^a-zA-Z0-9\sÀ-ỹ]`).ReplaceAllString(q, " ")
-	return strings.Join(strings.Fields(q), " ")
+		// Skip internal google links and wikipedia
+		if strings.Contains(rawURL, "google.com") || strings.Contains(rawURL, "wikipedia.org") || rawTitle == "" {
+			continue
+		}
+
+		snip := ""
+		if i < len(snippets) && len(snippets[i]) >= 2 {
+			snip = cleanHTML(snippets[i][1])
+		}
+
+		results = append(results, map[string]string{
+			"title":   rawTitle,
+			"snippet": truncateStr(snip, 300),
+			"url":     rawURL,
+		})
+
+		if len(results) >= 8 {
+			break
+		}
+	}
+
+	return results
 }
 
 // searchDDGJSON fallback: original DuckDuckGo JSON API for instant answers.

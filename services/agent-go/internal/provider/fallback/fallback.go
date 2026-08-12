@@ -33,12 +33,12 @@ type namedProvider struct {
 }
 
 // New creates a fallback provider chain. Providers are tried in order.
-// cooldown: how long to wait before retrying a failed provider (default: 30s).
+// cooldown: how long to wait before retrying a failed provider (0 = no cooldown, immediate retry).
 func New(cooldown time.Duration, providers ...provider.Provider) (*Provider, error) {
 	if len(providers) < 2 {
 		return nil, fmt.Errorf("fallback: need at least 2 providers, got %d", len(providers))
 	}
-	if cooldown <= 0 {
+	if cooldown < 0 {
 		cooldown = 30 * time.Second
 	}
 	chain := make([]namedProvider, len(providers))
@@ -81,8 +81,10 @@ func (p *Provider) Generate(ctx context.Context, req provider.GenerateRequest) (
 			}
 			lastErr = err
 			fails := np.failures.Add(1)
-			cd := p.cooldown * (1 << min(int(fails)-1, 4))
-			np.coolUntil.Store(time.Now().Add(cd).UnixNano())
+			if p.cooldown > 0 {
+				cd := p.cooldown * (1 << min(int(fails)-1, 4))
+				np.coolUntil.Store(time.Now().Add(cd).UnixNano())
+			}
 			continue
 		}
 
@@ -111,8 +113,10 @@ func (p *Provider) Generate(ctx context.Context, req provider.GenerateRequest) (
 		if firstChunk.Kind == provider.ChunkError && isRetryable(firstChunk.Err) {
 			lastErr = firstChunk.Err
 			fails := np.failures.Add(1)
-			cd := p.cooldown * (1 << min(int(fails)-1, 4))
-			np.coolUntil.Store(time.Now().Add(cd).UnixNano())
+			if p.cooldown > 0 {
+				cd := p.cooldown * (1 << min(int(fails)-1, 4))
+				np.coolUntil.Store(time.Now().Add(cd).UnixNano())
+			}
 			// Drain the wrapper goroutine
 			for range wrapped {
 			}
