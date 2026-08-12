@@ -199,6 +199,7 @@ export const LoginPage: React.FC = () => {
             <span className="font-display text-lg font-bold text-foreground">
               J.A.R.V.I.S.
             </span>
+          </div>
 
           <Card className="border-border bg-card/80 shadow-2xl">
             <CardHeader className="space-y-1 pb-4">

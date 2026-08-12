@@ -14,9 +14,9 @@ import {
 } from "@heroicons/react/24/outline";
 
 import Markdown from "./Markdown";
-import AgentBadge from "@/shared/components/AgentBadge";
-import { ToolCallGroup } from "@/shared/components/ToolCallCard";
-import CitationList from "@/shared/components/CitationList";
+import AgentBadge from "@/design-system/atoms/AgentBadge";
+import { ToolCallGroup } from "@/design-system/molecules/ToolCallCard";
+import CitationList from "@/design-system/molecules/CitationList";
 import type { Message, AttachmentMeta } from "@/modules/chat/chat.api";
 import type {
   ToolCallState,
@@ -241,6 +241,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         <div className="max-w-[85%] sm:max-w-[75%] rounded-[22px] rounded-tr-md px-5 py-3.5 text-sm sm:text-base leading-relaxed bg-[#f4f4f5] dark:bg-[#27272a] text-[#09090b] dark:text-[#f4f4f5] shadow-xs">
           {hasText && (
             <p className="whitespace-pre-wrap font-sans tracking-normal">{message.content}</p>
+          )}
           {hasAttachments && (
             <AttachmentList attachments={message.attachments!} />
           )}
