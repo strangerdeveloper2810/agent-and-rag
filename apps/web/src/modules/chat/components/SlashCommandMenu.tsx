@@ -84,7 +84,9 @@ export const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
         setSelectedIndex((prev) => (prev + 1) % filtered.length);
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
-        setSelectedIndex((prev) => (prev - 1 + filtered.length) % filtered.length);
+        setSelectedIndex(
+          (prev) => (prev - 1 + filtered.length) % filtered.length,
+        );
       } else if (e.key === "Enter" || e.key === "Tab") {
         e.preventDefault();
         if (filtered[selectedIndex]) {
@@ -106,7 +108,9 @@ export const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
         <span className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground">
           SMART COMMANDS (PHÍM TẮT `/`)
         </span>
-        <span className="text-[9.5px] text-muted-foreground font-mono font-medium">↑↓ chọn · Enter dùng</span>
+        <span className="text-[9.5px] text-muted-foreground font-mono font-medium">
+          ↑↓ chọn · Enter dùng
+        </span>
       </div>
 
       <div className="space-y-1 max-h-60 overflow-y-auto scroll-fine">
@@ -125,7 +129,9 @@ export const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
                   : "hover:bg-muted/70 border-transparent text-foreground"
               }`}
             >
-              <div className={`p-1.5 rounded-lg shrink-0 ${isSelected ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"}`}>
+              <div
+                className={`p-1.5 rounded-lg shrink-0 ${isSelected ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"}`}
+              >
                 <Icon className="h-4 w-4" />
               </div>
               <div className="min-w-0 flex-1">
@@ -133,11 +139,15 @@ export const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
                   <span className="font-mono text-xs font-bold text-primary">
                     {item.cmd}
                   </span>
-                  <span className={`text-xs font-bold truncate ${isSelected ? "text-primary" : "text-foreground"}`}>
+                  <span
+                    className={`text-xs font-bold truncate ${isSelected ? "text-primary" : "text-foreground"}`}
+                  >
                     {item.label}
                   </span>
                 </div>
-                <p className={`text-xs leading-tight truncate mt-0.5 ${isSelected ? "text-primary/90 font-medium" : "text-muted-foreground"}`}>
+                <p
+                  className={`text-xs leading-tight truncate mt-0.5 ${isSelected ? "text-primary/90 font-medium" : "text-muted-foreground"}`}
+                >
                   {item.desc}
                 </p>
               </div>

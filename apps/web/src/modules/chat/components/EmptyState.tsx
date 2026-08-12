@@ -98,14 +98,17 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ onPick }) => {
       <div className="mb-6 flex flex-col items-center text-center relative z-10">
         <div className="relative mb-4 flex h-18 w-18 items-center justify-center rounded-2xl bg-card border border-primary/30 shadow-xl transition-all duration-300 hover:scale-105 group p-3">
           <div className="absolute -inset-1 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 opacity-20 blur-md group-hover:opacity-40 transition duration-500" />
-          
+
           <div className="relative flex items-center justify-center h-full w-full bg-card rounded-2xl border border-border">
             <CpuChipIcon className="h-9 w-9 text-primary animate-float-slow" />
             <SparklesIcon className="absolute -top-1 -right-1 h-5 w-5 text-amber-400 animate-pulse" />
           </div>
         </div>
 
-        <Badge variant="accent" className="mb-2.5 gap-1.5 py-1 px-3 text-xs font-bold">
+        <Badge
+          variant="accent"
+          className="mb-2.5 gap-1.5 py-1 px-3 text-xs font-bold"
+        >
           <SparklesIcon className="h-3.5 w-3.5" />
           <span>J.A.R.V.I.S. Core Intelligence</span>
         </Badge>
@@ -114,7 +117,8 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ onPick }) => {
           Tôi có thể giúp gì cho bạn hôm nay?
         </h1>
         <p className="mt-2 text-xs sm:text-sm max-w-lg leading-relaxed text-muted-foreground">
-          Bắt đầu trò chuyện, yêu cầu tra cứu tài liệu doanh nghiệp hoặc thực thi quy trình làm việc thông minh.
+          Bắt đầu trò chuyện, yêu cầu tra cứu tài liệu doanh nghiệp hoặc thực
+          thi quy trình làm việc thông minh.
         </p>
       </div>
 
@@ -151,7 +155,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ onPick }) => {
               key={promptText}
               onClick={() => handlePick(promptText)}
               className={`group cursor-pointer flex items-center justify-between p-4 sm:p-4.5 transition-all duration-200 hover:border-primary hover:bg-primary/5 hover:shadow-md ${
-                pickedPrompt === promptText ? "opacity-60 border-primary bg-primary/10 pointer-events-none" : ""
+                pickedPrompt === promptText
+                  ? "opacity-60 border-primary bg-primary/10 pointer-events-none"
+                  : ""
               }`}
             >
               <div className="min-w-0 flex-1 pr-3">
@@ -179,7 +185,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ onPick }) => {
                   variant="outline"
                   onClick={() => handlePick(sug)}
                   className={`cursor-pointer hover:border-primary hover:text-primary py-1 px-3 text-xs font-semibold transition shadow-sm bg-card/60 backdrop-blur-md ${
-                    pickedPrompt === sug ? "opacity-60 border-primary pointer-events-none" : ""
+                    pickedPrompt === sug
+                      ? "opacity-60 border-primary pointer-events-none"
+                      : ""
                   }`}
                 >
                   ✨ {sug}

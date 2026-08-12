@@ -51,7 +51,11 @@ const ConversationSkeleton: React.FC = () => (
 
 function groupConversationsByDate(convs: Conversation[]) {
   const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const todayStart = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  ).getTime();
   const yesterdayStart = todayStart - 86400000;
   const weekStart = todayStart - 6 * 86400000;
 
@@ -92,10 +96,25 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
   const collapsed = props.collapsed ?? ctx.collapsed;
   const view = props.view ?? ctx.view;
 
-  const onSelect = props.onSelect ?? ((id) => { navigate(`/messages/${id}`); ctx.setSidebarOpen(false); });
-  const onNew = props.onNew ?? (() => { navigate("/"); ctx.setSidebarOpen(false); });
+  const onSelect =
+    props.onSelect ??
+    ((id) => {
+      navigate(`/messages/${id}`);
+      ctx.setSidebarOpen(false);
+    });
+  const onNew =
+    props.onNew ??
+    (() => {
+      navigate("/");
+      ctx.setSidebarOpen(false);
+    });
   const onClose = props.onClose ?? (() => ctx.setSidebarOpen(false));
-  const onViewChange = props.onViewChange ?? ((v) => { navigate(v === "documents" ? "/documents" : "/"); ctx.setSidebarOpen(false); });
+  const onViewChange =
+    props.onViewChange ??
+    ((v) => {
+      navigate(v === "documents" ? "/documents" : "/");
+      ctx.setSidebarOpen(false);
+    });
   const onDelete = props.onDelete ?? ctx.deleteConv;
   const onRename = props.onRename ?? ctx.renameConv;
 
@@ -246,7 +265,8 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
                   <span>RAG Knowledge Base</span>
                 </div>
                 <p className="text-[11px] leading-relaxed text-muted-foreground">
-                  Tài liệu tải lên được tự động phân tách & vectorized cho AI truy vấn.
+                  Tài liệu tải lên được tự động phân tách & vectorized cho AI
+                  truy vấn.
                 </p>
               </div>
             </div>
@@ -287,7 +307,10 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
                     <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                       {group.label}
                     </span>
-                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 font-mono">
+                    <Badge
+                      variant="outline"
+                      className="text-[9px] px-1.5 py-0 font-mono"
+                    >
                       {group.items.length}
                     </Badge>
                   </div>

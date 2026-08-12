@@ -142,7 +142,10 @@ export const Composer: React.FC<{
       setIsRecording(true);
       toast.info("Đang lắng nghe giọng nói... (nhập mô phỏng)");
       setTimeout(() => {
-        onChange((value ? `${value} ` : "") + "Giải thích cơ chế RAG Vector Search trong JAVIS.");
+        onChange(
+          (value ? `${value} ` : "") +
+            "Giải thích cơ chế RAG Vector Search trong JAVIS.",
+        );
         setIsRecording(false);
         toast.success("Đã chuyển giọng nói thành văn bản!");
       }, 3000);
@@ -264,8 +267,12 @@ export const Composer: React.FC<{
       {isDraggingOver && (
         <div className="absolute inset-x-4 bottom-5 top-2 z-40 flex flex-col items-center justify-center rounded-3xl border-2 border-dashed border-primary bg-card/95 backdrop-blur-md animate-fade-in shadow-2xl">
           <ArrowUpTrayIcon className="h-10 w-10 text-primary animate-bounce mb-2" />
-          <p className="text-sm font-bold text-foreground">Thả file vào đây để đính kèm</p>
-          <p className="text-xs text-muted-foreground">Hỗ trợ Hình ảnh, PDF, Word, Excel, Markdown</p>
+          <p className="text-sm font-bold text-foreground">
+            Thả file vào đây để đính kèm
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Hỗ trợ Hình ảnh, PDF, Word, Excel, Markdown
+          </p>
         </div>
       )}
 

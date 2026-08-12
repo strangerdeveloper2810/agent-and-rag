@@ -69,7 +69,9 @@ export const RegisterPage: React.FC = () => {
       navigate("/", { replace: true });
     } catch (err) {
       const apiErr = err as ApiError;
-      toast.error(apiErr?.message ?? "Đăng ký thất bại. Email có thể đã tồn tại.");
+      toast.error(
+        apiErr?.message ?? "Đăng ký thất bại. Email có thể đã tồn tại.",
+      );
     }
   };
 
@@ -90,16 +92,25 @@ export const RegisterPage: React.FC = () => {
 
           <Card className="border-border bg-card/80 shadow-2xl">
             <CardHeader className="space-y-1 pb-4">
-              <CardTitle className="text-2xl font-bold">Tạo tài khoản mới</CardTitle>
+              <CardTitle className="text-2xl font-bold">
+                Tạo tài khoản mới
+              </CardTitle>
               <CardDescription>
                 Bắt đầu trải nghiệm sức mạnh trợ lý AI cá nhân hóa ngay hôm nay
               </CardDescription>
             </CardHeader>
 
             <CardContent>
-              <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+              <form
+                onSubmit={handleSubmit(onSubmit)}
+                className="space-y-4"
+                noValidate
+              >
                 <div>
-                  <label htmlFor="register-name" className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                  <label
+                    htmlFor="register-name"
+                    className="mb-1.5 block text-xs font-medium text-muted-foreground"
+                  >
                     Họ và tên
                   </label>
                   <Input
@@ -117,7 +128,10 @@ export const RegisterPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label htmlFor="register-email" className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                  <label
+                    htmlFor="register-email"
+                    className="mb-1.5 block text-xs font-medium text-muted-foreground"
+                  >
                     Địa chỉ Email
                   </label>
                   <Input
@@ -135,7 +149,10 @@ export const RegisterPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label htmlFor="register-password" className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                  <label
+                    htmlFor="register-password"
+                    className="mb-1.5 block text-xs font-medium text-muted-foreground"
+                  >
                     Mật khẩu
                   </label>
                   <div className="relative">
@@ -150,7 +167,9 @@ export const RegisterPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setShowPassword((p) => !p)}
-                      aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                      aria-label={
+                        showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"
+                      }
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition"
                     >
                       {showPassword ? (
@@ -165,8 +184,13 @@ export const RegisterPage: React.FC = () => {
                   {passwordValue && (
                     <div className="mt-2.5 space-y-1">
                       <div className="flex justify-between items-center text-[10px]">
-                        <span className="text-muted-foreground font-medium">Độ mạnh mật khẩu:</span>
-                        <span className="font-bold" style={{ color: pwdStrength.color }}>
+                        <span className="text-muted-foreground font-medium">
+                          Độ mạnh mật khẩu:
+                        </span>
+                        <span
+                          className="font-bold"
+                          style={{ color: pwdStrength.color }}
+                        >
                           {pwdStrength.label}
                         </span>
                       </div>
@@ -174,7 +198,12 @@ export const RegisterPage: React.FC = () => {
                         <div
                           className="h-full transition-all duration-300 rounded-full"
                           style={{
-                            width: pwdStrength.score === 1 ? "33%" : pwdStrength.score === 2 ? "66%" : "100%",
+                            width:
+                              pwdStrength.score === 1
+                                ? "33%"
+                                : pwdStrength.score === 2
+                                  ? "66%"
+                                  : "100%",
                             backgroundColor: pwdStrength.color,
                           }}
                         />
@@ -250,20 +279,30 @@ export const RegisterPage: React.FC = () => {
             </span>
           </h2>
           <p className="ml-auto mt-4 max-w-md text-xs leading-relaxed text-muted-foreground">
-            Chỉ với một tài khoản, bạn mở khóa toàn bộ tiềm năng trí tuệ nhân tạo. Tải lên tài liệu, kích hoạt AI Agent và nâng cao hiệu suất làm việc gấp 10 lần.
+            Chỉ với một tài khoản, bạn mở khóa toàn bộ tiềm năng trí tuệ nhân
+            tạo. Tải lên tài liệu, kích hoạt AI Agent và nâng cao hiệu suất làm
+            việc gấp 10 lần.
           </p>
 
           {/* Highlights */}
           <div className="mt-8 grid grid-cols-2 gap-3 max-w-sm ml-auto text-left">
             <Card className="p-3 bg-background/50 border-border">
               <BoltIcon className="h-5 w-5 text-indigo-400" />
-              <h4 className="text-xs font-bold text-foreground mt-1">Phản hồi siêu tốc</h4>
-              <p className="text-[10px] text-muted-foreground">SSE Streaming thời gian thực</p>
+              <h4 className="text-xs font-bold text-foreground mt-1">
+                Phản hồi siêu tốc
+              </h4>
+              <p className="text-[10px] text-muted-foreground">
+                SSE Streaming thời gian thực
+              </p>
             </Card>
             <Card className="p-3 bg-background/50 border-border">
               <ShieldCheckIcon className="h-5 w-5 text-emerald-400" />
-              <h4 className="text-xs font-bold text-foreground mt-1">Bảo mật tuyệt đối</h4>
-              <p className="text-[10px] text-muted-foreground">Mã hóa dữ liệu chuẩn enterprise</p>
+              <h4 className="text-xs font-bold text-foreground mt-1">
+                Bảo mật tuyệt đối
+              </h4>
+              <p className="text-[10px] text-muted-foreground">
+                Mã hóa dữ liệu chuẩn enterprise
+              </p>
             </Card>
           </div>
         </div>

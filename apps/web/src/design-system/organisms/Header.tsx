@@ -6,7 +6,9 @@ import {
   TrashIcon,
 } from "@heroicons/react/24/outline";
 import ThemeToggle from "../atoms/ThemeToggle";
-import ModeSelector, { type AIMode } from "@/modules/chat/components/ModeSelector";
+import ModeSelector, {
+  type AIMode,
+} from "@/modules/chat/components/ModeSelector";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
@@ -49,7 +51,10 @@ export const Header: React.FC<HeaderProps> = ({
           <span className="font-display text-sm font-bold tracking-tight text-foreground">
             {title}
           </span>
-          <Badge variant="success" className="hidden sm:flex items-center gap-1.5 font-mono text-[10px]">
+          <Badge
+            variant="success"
+            className="hidden sm:flex items-center gap-1.5 font-mono text-[10px]"
+          >
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
             ONLINE
           </Badge>

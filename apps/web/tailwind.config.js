@@ -47,9 +47,27 @@ export default {
         sm: "calc(var(--radius) - 4px)",
       },
       fontFamily: {
-        display: ['"Inter"', '"Roboto"', "ui-sans-serif", "system-ui", "sans-serif"],
-        sans: ['"Inter"', '"Roboto"', "ui-sans-serif", "system-ui", "sans-serif"],
-        mono: ['"JetBrains Mono"', "ui-monospace", "SF Mono", "Consolas", "monospace"],
+        display: [
+          '"Inter"',
+          '"Roboto"',
+          "ui-sans-serif",
+          "system-ui",
+          "sans-serif",
+        ],
+        sans: [
+          '"Inter"',
+          '"Roboto"',
+          "ui-sans-serif",
+          "system-ui",
+          "sans-serif",
+        ],
+        mono: [
+          '"JetBrains Mono"',
+          "ui-monospace",
+          "SF Mono",
+          "Consolas",
+          "monospace",
+        ],
       },
       keyframes: {
         "accordion-down": {

@@ -16,7 +16,11 @@ import { Badge } from "@/components/ui/badge";
 
 const TOOL_META: Record<
   string,
-  { title: string; desc: string; icon: React.ComponentType<{ className?: string }> }
+  {
+    title: string;
+    desc: string;
+    icon: React.ComponentType<{ className?: string }>;
+  }
 > = {
   "rag.search": {
     title: "Tra cứu tài liệu RAG",
@@ -135,7 +139,13 @@ export const ToolCallGroup: React.FC<ToolCallGroupProps> = ({ tools }) => {
                 {headerStatusText}
               </span>
               <Badge
-                variant={isAnyRunning ? "secondary" : isAnyError ? "destructive" : "outline"}
+                variant={
+                  isAnyRunning
+                    ? "secondary"
+                    : isAnyError
+                      ? "destructive"
+                      : "outline"
+                }
                 className={`text-[9.5px] px-2 py-0.2 font-mono font-bold uppercase ${
                   isAnyRunning
                     ? "bg-primary/15 text-primary animate-pulse border-primary/20"

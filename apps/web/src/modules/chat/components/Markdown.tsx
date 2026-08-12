@@ -6,16 +6,30 @@ import { ClipboardDocumentIcon, CheckIcon } from "@heroicons/react/24/outline";
 function detectLanguage(code: string, givenLang?: string): string {
   if (givenLang && givenLang !== "code") return givenLang;
   const trimmed = code.trim();
-  if (trimmed.startsWith("#!") || trimmed.includes("cat <<") || trimmed.includes("chmod +x") || trimmed.includes("mkdir -p")) {
+  if (
+    trimmed.startsWith("#!") ||
+    trimmed.includes("cat <<") ||
+    trimmed.includes("chmod +x") ||
+    trimmed.includes("mkdir -p")
+  ) {
     return "bash";
   }
-  if (trimmed.includes("package main") || trimmed.includes("func main()") || trimmed.includes("import (")) {
+  if (
+    trimmed.includes("package main") ||
+    trimmed.includes("func main()") ||
+    trimmed.includes("import (")
+  ) {
     return "go";
   }
   if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
     return "json";
   }
-  if (trimmed.includes("import React") || trimmed.includes("export default") || trimmed.includes("const ") || trimmed.includes("interface ")) {
+  if (
+    trimmed.includes("import React") ||
+    trimmed.includes("export default") ||
+    trimmed.includes("const ") ||
+    trimmed.includes("interface ")
+  ) {
     return "typescript";
   }
   return givenLang || "code";
@@ -126,18 +140,11 @@ const components: Components = {
         </code>
       );
     }
-    return (
-      <CodeBlock
-        language={match?.[1]}
-        code={codeStr}
-      />
-    );
+    return <CodeBlock language={match?.[1]} code={codeStr} />;
   },
   pre: ({ children }) => <>{children}</>,
   h1: ({ children }) => (
-    <h1 className="mt-6 mb-3 text-xl font-bold text-foreground">
-      {children}
-    </h1>
+    <h1 className="mt-6 mb-3 text-xl font-bold text-foreground">{children}</h1>
   ),
   h2: ({ children }) => (
     <h2 className="mt-5 mb-2.5 text-lg font-semibold pb-1.5 text-foreground border-b border-border">
@@ -184,20 +191,12 @@ const components: Components = {
     <hr className="my-5 border-0 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
   ),
   p: ({ children }) => (
-    <p className="my-2 leading-relaxed text-foreground">
-      {children}
-    </p>
+    <p className="my-2 leading-relaxed text-foreground">{children}</p>
   ),
   strong: ({ children }) => (
-    <strong className="font-bold text-foreground">
-      {children}
-    </strong>
+    <strong className="font-bold text-foreground">{children}</strong>
   ),
-  em: ({ children }) => (
-    <em className="italic text-foreground">
-      {children}
-    </em>
-  ),
+  em: ({ children }) => <em className="italic text-foreground">{children}</em>,
   img: ({ src, alt }) => (
     <img
       src={src}
@@ -233,9 +232,7 @@ function normalizeMarkdown(text: string): string {
   if (s.includes("|")) {
     // 2a. Replace Unicode em-dash (—, U+2014) and en-dash (–, U+2013) with ASCII hyphen
     //     in contexts that look like table separators: |——|, |—— |, |——— etc.
-    s = s.replace(/\|[\s]*[—–][-—–]*[\s]*/g, (m) =>
-      m.replace(/[—–]/g, "-")
-    );
+    s = s.replace(/\|[\s]*[—–][-—–]*[\s]*/g, (m) => m.replace(/[—–]/g, "-"));
 
     // 2b. Split concatenated double-pipes: `||` -> `|\n|`
     //     But skip if inside a code block (lines starting with spaces/tabs for indented code)
@@ -265,7 +262,13 @@ function normalizeMarkdown(text: string): string {
         const sepPattern = /\|\s*:?-{2,}:?\s*(?=\|)/g;
         const hasSep = sepPattern.test(trimmed);
 
-        if (hasSep && trimmed.replace(/\|\s*:?-{2,}:?\s*/g, "").replace(/\|/g, "").trim().length > 0) {
+        if (
+          hasSep &&
+          trimmed
+            .replace(/\|\s*:?-{2,}:?\s*/g, "")
+            .replace(/\|/g, "")
+            .trim().length > 0
+        ) {
           // This line has both separator dashes AND text content -> needs splitting
           // Strategy: find the separator segment and split around it
           const parts = splitTableLine(trimmed);
@@ -292,14 +295,11 @@ function normalizeMarkdown(text: string): string {
     s = insertMissingSeparators(s);
 
     // 2e. Fix bare `---` right after a table header row -> convert to proper separator
-    s = s.replace(
-      /^(\|(?:[^|\n]+\|)+)\s*\n---+\s*$/gm,
-      (_, headerRow) => {
-        const colCount = (headerRow.match(/\|/g) || []).length - 1;
-        const sep = "|" + " --- |".repeat(Math.max(colCount, 1));
-        return headerRow + "\n" + sep;
-      }
-    );
+    s = s.replace(/^(\|(?:[^|\n]+\|)+)\s*\n---+\s*$/gm, (_, headerRow) => {
+      const colCount = (headerRow.match(/\|/g) || []).length - 1;
+      const sep = "|" + " --- |".repeat(Math.max(colCount, 1));
+      return headerRow + "\n" + sep;
+    });
 
     // 2f. Fix table header starting directly on prose: "text| Header |" -> "text\n\n| Header |"
     s = s.replace(/([^\n|])(\s*\|(?:\s*[^|\n]+\s*\|)+)/g, "$1\n\n$2");
@@ -340,7 +340,6 @@ function splitTableLine(line: string): string[] {
         // Flush separator row
         rows.push("| " + currentRow.join(" | ") + " |");
         currentRow = [];
-        inSeparator = false;
       }
       currentRow.push(cell);
       inSeparator = false;
@@ -370,7 +369,8 @@ function insertMissingSeparators(text: string): string {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const trimmed = line.trim();
-    const isTableRow = trimmed.startsWith("|") && trimmed.endsWith("|") && trimmed.length > 1;
+    const isTableRow =
+      trimmed.startsWith("|") && trimmed.endsWith("|") && trimmed.length > 1;
     const isSepRow = isTableRow && /^\|(\s*:?-{2,}:?\s*\|)+$/.test(trimmed);
 
     if (isTableRow) {
@@ -393,7 +393,10 @@ function insertMissingSeparators(text: string): string {
         // No separator seen yet -> insert one before this row
         const prevLine = result[result.length - 1]?.trim() || "";
         if (prevLine.startsWith("|") && prevLine.endsWith("|")) {
-          const colCount = Math.max((prevLine.match(/\|/g) || []).length - 1, 1);
+          const colCount = Math.max(
+            (prevLine.match(/\|/g) || []).length - 1,
+            1,
+          );
           result.push("|" + " --- |".repeat(colCount));
           tableHasSep = true;
         }
@@ -418,7 +421,7 @@ function insertMissingSeparators(text: string): string {
 export const Markdown: React.FC<{ content: string }> = ({ content }) => {
   const normalizedContent = useMemo(
     () => normalizeMarkdown(content),
-    [content]
+    [content],
   );
 
   return (

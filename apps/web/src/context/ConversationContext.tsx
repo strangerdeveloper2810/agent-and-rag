@@ -1,4 +1,12 @@
-import { createContext, useContext, useState, useCallback, useEffect, type FC, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useEffect,
+  type FC,
+  type ReactNode,
+} from "react";
 import {
   listConversations,
   deleteConversation,
@@ -23,7 +31,9 @@ interface ConversationContextType {
 
 const ConversationContext = createContext<ConversationContextType | null>(null);
 
-export const ConversationProvider: FC<{ children: ReactNode }> = ({ children }) => {
+export const ConversationProvider: FC<{ children: ReactNode }> = ({
+  children,
+}) => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loadingConversations, setLoadingConversations] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -63,7 +73,9 @@ export const ConversationProvider: FC<{ children: ReactNode }> = ({ children }) 
     ? (location.pathname.split("/")[2] ?? null)
     : null;
 
-  const view = location.pathname.startsWith("/documents") ? "documents" : "chat";
+  const view = location.pathname.startsWith("/documents")
+    ? "documents"
+    : "chat";
 
   const deleteConv = useCallback(
     async (id: string) => {
@@ -122,7 +134,9 @@ export const ConversationProvider: FC<{ children: ReactNode }> = ({ children }) 
 export const useConversation = () => {
   const ctx = useContext(ConversationContext);
   if (!ctx) {
-    throw new Error("useConversation must be used within a ConversationProvider");
+    throw new Error(
+      "useConversation must be used within a ConversationProvider",
+    );
   }
   return ctx;
 };

@@ -9,7 +9,7 @@ const Avatar = React.forwardRef<
     ref={ref}
     className={cn(
       "relative flex h-9 w-9 shrink-0 overflow-hidden rounded-full border border-border shadow-sm",
-      className
+      className,
     )}
     {...props}
   />
@@ -36,7 +36,7 @@ const AvatarFallback = React.forwardRef<
     ref={ref}
     className={cn(
       "flex h-full w-full items-center justify-center rounded-full bg-primary/10 font-bold text-primary text-xs",
-      className
+      className,
     )}
     {...props}
   />

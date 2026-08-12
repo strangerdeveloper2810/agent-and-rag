@@ -2,7 +2,10 @@ import { Suspense, type FC } from "react";
 import { Outlet } from "react-router-dom";
 import { Sidebar } from "../organisms/Sidebar";
 import { Header } from "../organisms/Header";
-import { ConversationProvider, useConversation } from "@/context/ConversationContext";
+import {
+  ConversationProvider,
+  useConversation,
+} from "@/context/ConversationContext";
 
 const LayoutContent: FC = () => {
   const { toggleSidebar } = useConversation();

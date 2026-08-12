@@ -386,8 +386,7 @@ export const ChatPage: React.FC = () => {
                   const copy = [...m];
                   copy[copy.length - 1] = {
                     ...copy[copy.length - 1],
-                    content:
-                      copy[copy.length - 1].content,
+                    content: copy[copy.length - 1].content,
                   };
                   return copy;
                 }

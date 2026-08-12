@@ -30,7 +30,10 @@ type Action =
   | { type: "REMOVE_DOC"; payload: string }
   | { type: "SET_UPLOADING"; payload: boolean }
   | { type: "SET_UPDATING_ID"; payload: string | null }
-  | { type: "SET_OPEN_HISTORY"; payload: { id: string | null; versions?: DocumentVersion[] } }
+  | {
+      type: "SET_OPEN_HISTORY";
+      payload: { id: string | null; versions?: DocumentVersion[] };
+    }
   | { type: "SET_VERSIONS"; payload: DocumentVersion[] }
   | { type: "SET_VIEWING"; payload: VersionContent | null }
   | { type: "SET_CONFIRMING"; payload: DocumentInfo | null };
@@ -54,7 +57,8 @@ function reducer(state: State, action: Action): State {
         ...state,
         docs: state.docs.filter((d) => d.documentId !== action.payload),
         confirming: null,
-        openHistory: state.openHistory === action.payload ? null : state.openHistory,
+        openHistory:
+          state.openHistory === action.payload ? null : state.openHistory,
       };
     case "SET_UPLOADING":
       return { ...state, uploading: action.payload };
@@ -64,7 +68,9 @@ function reducer(state: State, action: Action): State {
       return {
         ...state,
         openHistory: action.payload.id,
-        versions: action.payload.versions ?? (action.payload.id === null ? [] : state.versions),
+        versions:
+          action.payload.versions ??
+          (action.payload.id === null ? [] : state.versions),
       };
     case "SET_VERSIONS":
       return { ...state, versions: action.payload };
@@ -85,10 +91,21 @@ export const DocumentsView: React.FC = () => {
   const toast = useToast();
   useDocumentTitle("Documents");
   const [state, dispatch] = useReducer(reducer, initialState);
-  const { docs, uploading, updatingId, openHistory, versions, viewing, confirming } = state;
+  const {
+    docs,
+    uploading,
+    updatingId,
+    openHistory,
+    versions,
+    viewing,
+    confirming,
+  } = state;
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const refresh = () => listDocuments().then((docs) => dispatch({ type: "SET_DOCS", payload: docs }));
+  const refresh = () =>
+    listDocuments().then((docs) =>
+      dispatch({ type: "SET_DOCS", payload: docs }),
+    );
   useEffect(() => {
     refresh();
   }, []);
@@ -395,7 +412,9 @@ export const DocumentsView: React.FC = () => {
 
                         <button
                           type="button"
-                          onClick={() => dispatch({ type: "SET_CONFIRMING", payload: d })}
+                          onClick={() =>
+                            dispatch({ type: "SET_CONFIRMING", payload: d })
+                          }
                           aria-label={`Delete ${d.source}`}
                           className="rounded-xl p-2 transition hover:bg-[var(--danger-bg)] hover:text-[var(--danger)] text-[var(--text-tertiary)]"
                         >
