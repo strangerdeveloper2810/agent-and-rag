@@ -76,6 +76,22 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 		}
 	}
 
+	// Weave memories recalled by the recall node (memory.RecallNode) for this
+	// turn into the system prompt. The base systemPrompt returned by
+	// getSystemPrompt() is built once at startup via BuildSystemPrompt(nil, ...)
+	// so it can stay a stable, cacheable prefix (P6 prompt caching) — the
+	// per-request recall results are appended dynamically here instead,
+	// mirroring the "[BỘ NHỚ]" section BuildSystemPrompt would have produced
+	// had real memories been available at startup.
+	if len(s.RecalledMemories) > 0 {
+		var mb strings.Builder
+		mb.WriteString("\n\n[BỘ NHỚ] — Các quy ước, sở thích và kinh nghiệm kỹ thuật đã học từ người dùng (ưu tiên tuân thủ khi đưa ra giải pháp):\n")
+		for _, m := range s.RecalledMemories {
+			mb.WriteString("- " + m + "\n")
+		}
+		systemPrompt += mb.String()
+	}
+
 	// Register tool theo task: bước đầu (step 0) chỉ gửi tool liên quan
 	// intent người dùng (3-8 tool thay vì toàn bộ registry) — giảm token +
 	// latency + nhiễu tool-call. Từ bước 1 trở đi gửi toàn bộ để cho phép

@@ -86,6 +86,12 @@ func RecallNode(store *Store) agent.Node {
 		for k, v := range results {
 			items = append(items, fmt.Sprintf("%s: %s", k, v))
 		}
+
+		// Feed recalled memories into State so nodeModel can weave them into
+		// the system prompt for THIS request (previously only emitted for the
+		// SSE UI stream and never reached the LLM — see node_model.go).
+		s.RecalledMemories = items
+
 		emit(agent.MemoryEvent("recalled: " + strings.Join(items, " | ")))
 
 		return agent.NodeModel, nil

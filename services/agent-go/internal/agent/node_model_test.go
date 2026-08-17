@@ -127,6 +127,83 @@ func TestNodeModel_ProviderError(t *testing.T) {
 	}
 }
 
+// capturingProvider ghi lại GenerateRequest cuối cùng nhận được — dùng để
+// assert nội dung system prompt thực sự gửi cho LLM (provider.FakeProvider
+// không giữ lại request).
+type capturingProvider struct {
+	chunks      []provider.StreamChunk
+	LastRequest provider.GenerateRequest
+}
+
+func newCapturingProvider(chunks ...provider.StreamChunk) *capturingProvider {
+	return &capturingProvider{chunks: chunks}
+}
+
+func (p *capturingProvider) Name() string { return "capturing" }
+
+func (p *capturingProvider) Generate(ctx context.Context, req provider.GenerateRequest) (<-chan provider.StreamChunk, error) {
+	p.LastRequest = req
+	ch := make(chan provider.StreamChunk, len(p.chunks))
+	for _, c := range p.chunks {
+		ch <- c
+	}
+	close(ch)
+	return ch, nil
+}
+
+// TestNodeModel_InjectsRecalledMemoriesIntoSystemPrompt xác nhận fix P1:
+// memory.RecallNode ghi kết quả recall vào s.RecalledMemories, và nodeModel
+// PHẢI ghép nó vào system prompt thực sự gửi cho LLM — trước fix, RecallNode
+// chỉ emit SSE MemoryEvent cho UI còn LLM luôn nhận BuildSystemPrompt(nil, ...)
+// nên không bao giờ "nhớ" được gì khi trả lời.
+func TestNodeModel_InjectsRecalledMemoriesIntoSystemPrompt(t *testing.T) {
+	fake := newCapturingProvider(
+		provider.StreamChunk{Kind: provider.ChunkText, Text: "OK"},
+		provider.StreamChunk{Kind: provider.ChunkDone},
+	)
+
+	eng := &fakeEngine{prov: fake, registry: tools.NewRegistry()}
+	s := newState(RunInput{UserMessage: "tên tôi là gì?", MaxSteps: 12})
+	s.RecalledMemories = []string{"user_name: Linh", "user_job: engineer"}
+
+	_, err := nodeModel(context.Background(), eng, s, nilEmit)
+	if err != nil {
+		t.Fatalf("nodeModel error: %v", err)
+	}
+
+	sysPrompt := fake.LastRequest.System
+	if !strings.Contains(sysPrompt, "user_name: Linh") {
+		t.Errorf("system prompt = %q, want chứa user_name: Linh", sysPrompt)
+	}
+	if !strings.Contains(sysPrompt, "user_job: engineer") {
+		t.Errorf("system prompt = %q, want chứa user_job: engineer", sysPrompt)
+	}
+	if !strings.Contains(sysPrompt, "[BỘ NHỚ]") {
+		t.Errorf("system prompt = %q, want chứa section [BỘ NHỚ]", sysPrompt)
+	}
+}
+
+// Không có memory nào được recall (RecalledMemories rỗng) → system prompt
+// không được thêm section [BỘ NHỚ] (tránh noise/token thừa).
+func TestNodeModel_NoRecalledMemories_NoMemorySection(t *testing.T) {
+	fake := newCapturingProvider(
+		provider.StreamChunk{Kind: provider.ChunkText, Text: "OK"},
+		provider.StreamChunk{Kind: provider.ChunkDone},
+	)
+
+	eng := &fakeEngine{prov: fake, registry: tools.NewRegistry()}
+	s := newState(RunInput{UserMessage: "hello", MaxSteps: 12})
+
+	_, err := nodeModel(context.Background(), eng, s, nilEmit)
+	if err != nil {
+		t.Fatalf("nodeModel error: %v", err)
+	}
+
+	if strings.Contains(fake.LastRequest.System, "[BỘ NHỚ]") {
+		t.Errorf("system prompt = %q, không được chứa [BỘ NHỚ] khi không có memory nào", fake.LastRequest.System)
+	}
+}
+
 // --- helpers cho test ---
 
 var nilEmit EmitFunc = func(Event) {}
