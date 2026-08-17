@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/ai-agent-tut/agent-go/internal/middleware"
 	"github.com/ai-agent-tut/agent-go/internal/mongo"
@@ -95,14 +97,17 @@ type ragSearchArgs struct {
 
 // ragSearchResult represents a single search result.
 type ragSearchResult struct {
-	DocumentID string  `json:"documentId"`
-	Source     string  `json:"source"`
-	Score      float64 `json:"score"`
-	Snippet    string  `json:"snippet"`
-	Content    string  `json:"content,omitempty"`
+	DocumentID string  `bson:"documentId" json:"documentId"`
+	Source     string  `bson:"source" json:"source"`
+	Score      float64 `bson:"score" json:"score"`
+	Snippet    string  `bson:"snippet" json:"snippet"`
+	Content    string  `bson:"content" json:"content,omitempty"`
 	// ChunkIndex dùng nội bộ cho Parent Document Retrieval (tìm chunk liền kề
-	// cùng tài liệu) — không hữu ích với model nên không xuất ra JSON.
-	ChunkIndex int `json:"-"`
+	// cùng tài liệu) — không hữu ích với model nên không xuất ra JSON. Bson
+	// tag tường minh (thay vì dựa vào case-insensitive fallback mặc định của
+	// driver) vì field này giờ LÀ TRỌNG YẾU cho PDR — sai lệch tên field sẽ
+	// khiến PDR mở rộng sai vị trí mà không có lỗi nào báo ra.
+	ChunkIndex int `bson:"chunkIndex" json:"-"`
 }
 
 // --- RAG Read Tool ---
@@ -281,8 +286,21 @@ func (t *ragSearchTool) Execute(ctx context.Context, args json.RawMessage) (Resu
 
 	// 3. Rerank: LLM rerank (nếu bật + có provider/model) ưu tiên hơn keyword
 	// rerank miễn phí — 2 cơ chế loại trừ nhau, không chạy cả hai.
+	// LLM rerank chỉ áp dụng cho tối đa maxLLMRerankCandidates đầu (đã sắp
+	// theo điểm hybrid/vector) — candidates có thể lên tới 40 (hybridSearch
+	// lấy top-20 mỗi phía), gửi hết cho LLM vừa tốn token vừa khiến
+	// parseRerankOrder gần như luôn thất bại (đòi hoán vị ĐÚNG n phần tử,
+	// n càng lớn LLM càng khó trả đúng) — hậu quả là "bật rerank" nhưng âm
+	// thầm không rerank được gì. Phần còn lại giữ nguyên thứ tự, nối vào sau.
+	const maxLLMRerankCandidates = 10
 	if t.cfg.EnableLLMRerank && t.prov != nil && t.model != "" && len(candidates) > 1 {
-		candidates = t.rerankLLM(ctx, parsed.Query, candidates)
+		head := candidates
+		var tail []ragSearchResult
+		if len(head) > maxLLMRerankCandidates {
+			head, tail = candidates[:maxLLMRerankCandidates], candidates[maxLLMRerankCandidates:]
+		}
+		reranked := t.rerankLLM(ctx, parsed.Query, head)
+		candidates = append(reranked, tail...)
 	} else if t.cfg.EnableRerank && len(candidates) > 0 {
 		candidates = t.rerankKeyword(parsed.Query, candidates)
 	}
@@ -439,8 +457,12 @@ func (t *ragSearchTool) hybridSearch(ctx context.Context, query string, queryVec
 	}
 
 	// If text search returned nothing (no text index or no matches), fall back to vector-only.
+	// Dedup theo documentId (giữ chunk rank cao nhất — vecResults đã sắp theo
+	// điểm) giống hệt nhánh merge RRF bên dưới: nếu không dedup, top-K có thể
+	// toàn chunk của CÙNG 1 tài liệu, khiến Parent Document Retrieval tạo
+	// nhiều window trùng lặp/chồng lấn, gửi lặp nội dung cho LLM.
 	if len(textResults) == 0 {
-		return vecResults, nil
+		return dedupeByDocument(vecResults), nil
 	}
 
 	// Merge using RRF: compute score = 1/(k+rank_vec) + 1/(k+rank_text).
@@ -488,6 +510,22 @@ func (t *ragSearchTool) hybridSearch(ctx context.Context, query string, queryVec
 	})
 
 	return merged, nil
+}
+
+// dedupeByDocument giữ CHUNK ĐẦU TIÊN (rank cao nhất, do input đã sắp theo
+// điểm giảm dần) cho mỗi documentId — tránh top-K toàn chunk của cùng 1 tài
+// liệu, khiến Parent Document Retrieval tạo nhiều window trùng lặp/chồng lấn.
+func dedupeByDocument(results []ragSearchResult) []ragSearchResult {
+	seen := make(map[string]bool, len(results))
+	out := make([]ragSearchResult, 0, len(results))
+	for _, r := range results {
+		if seen[r.DocumentID] {
+			continue
+		}
+		seen[r.DocumentID] = true
+		out = append(out, r)
+	}
+	return out
 }
 
 // rankOf returns the 1-based rank of a documentID in results, or 0 if not found.
@@ -562,7 +600,6 @@ func buildParentWindowFilter(documentID string, chunkIndex, radius int, tenantID
 // còn lại.
 func (t *ragSearchTool) expandParentWindow(ctx context.Context, results []ragSearchResult, tenantID string) []ragSearchResult {
 	const windowRadius = 1 // lấy thêm chunkIndex-1 và chunkIndex+1
-	const maxSnippetRunes = 500
 
 	coll := t.mongoClient.Collection("documents")
 	for i := range results {
@@ -578,6 +615,7 @@ func (t *ragSearchTool) expandParentWindow(ctx context.Context, results []ragSea
 
 		cursor, err := coll.Aggregate(ctx, pipeline)
 		if err != nil {
+			slog.Warn("rag.search: PDR aggregate lỗi, giữ nguyên content gốc", "documentId", r.DocumentID, "err", err)
 			continue
 		}
 
@@ -586,7 +624,11 @@ func (t *ragSearchTool) expandParentWindow(ctx context.Context, results []ragSea
 		}
 		decodeErr := cursor.All(ctx, &neighbors)
 		cursor.Close(ctx)
-		if decodeErr != nil || len(neighbors) == 0 {
+		if decodeErr != nil {
+			slog.Warn("rag.search: PDR decode lỗi, giữ nguyên content gốc", "documentId", r.DocumentID, "err", decodeErr)
+			continue
+		}
+		if len(neighbors) == 0 {
 			continue
 		}
 
@@ -594,10 +636,12 @@ func (t *ragSearchTool) expandParentWindow(ctx context.Context, results []ragSea
 		for _, n := range neighbors {
 			parts = append(parts, n.Text)
 		}
-		windowed := strings.Join(parts, "\n\n")
-
-		r.Content = windowed
-		r.Snippet = truncateRunes(windowed, maxSnippetRunes)
+		// CHỈ mở rộng Content (ngữ cảnh đầy đủ cho LLM) — KHÔNG đụng Snippet.
+		// Snippet là bản xem trước NGẮN của đúng đoạn khớp gốc; nếu cắt 500
+		// rune đầu của "windowed" (prev+match+next nối lại, mỗi chunk ~800
+		// ký tự) thì gần như luôn chỉ còn chunk TRƯỚC đoạn khớp — Snippet sẽ
+		// không còn thể hiện đúng nội dung đã khớp truy vấn.
+		r.Content = strings.Join(parts, "\n\n")
 	}
 	return results
 }
@@ -619,26 +663,44 @@ func truncateRunes(s string, maxRunes int) string {
 // bước tối ưu tuỳ chọn: lỗi bất kỳ đâu (Generate lỗi, response rỗng) trả về
 // "" để Execute() tự fallback dùng câu hỏi gốc, không chặn luồng chính.
 func (t *ragSearchTool) generateHypotheticalAnswer(ctx context.Context, query string) string {
+	// Timeout RIÊNG, ngắn (8s) và ĐỘC LẬP với việc ctx cha còn dư bao nhiêu
+	// thời gian: nếu không giới hạn, HyDE cộng thêm 1 round-trip tuần tự
+	// TRƯỚC bước embed+search — lúc ctx cha hết hạn giữa chừng HyDE thì
+	// voyageClient.Embed() ngay sau đó cũng chết theo, biến 1 request đáng
+	// ra thành công thành hard-fail toàn bộ rag.search (mất luôn khả năng
+	// fallback dùng câu hỏi gốc). context.WithTimeout lấy deadline SỚM HƠN
+	// giữa 2 giá trị nên vẫn tôn trọng ctx cha nếu nó ngắn hơn 8s.
+	hydeCtx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+
 	req := provider.GenerateRequest{
 		System: "Viết 1 đoạn văn NGẮN (2-4 câu) trả lời giả định cho câu hỏi, " +
 			"như thể trích từ 1 tài liệu kỹ thuật thật. KHÔNG giải thích, " +
 			"KHÔNG hỏi lại, CHỈ trả về đoạn văn.",
 		Messages: []provider.Message{{Role: provider.RoleUser, Content: query}},
 		Options: provider.ProviderOptions{
-			Model:     t.model,
-			MaxTokens: 200,
+			Model:         t.model,
+			MaxTokens:     200,
+			ThinkingLevel: provider.ThinkingOff, // MaxTokens nhỏ — thinking bật có thể ăn hết token, để lại text rỗng
 		},
 	}
 
-	chunkChan, err := t.prov.Generate(ctx, req)
+	chunkChan, err := t.prov.Generate(hydeCtx, req)
 	if err != nil {
+		slog.Warn("rag.search: HyDE generate lỗi, fallback dùng câu hỏi gốc", "err", err)
 		return ""
 	}
 
 	var raw strings.Builder
 	for chunk := range chunkChan {
-		if chunk.Kind == provider.ChunkText {
+		switch chunk.Kind {
+		case provider.ChunkText:
 			raw.WriteString(chunk.Text)
+		case provider.ChunkError:
+			// Trước fix: lỗi provider (vd model không hợp lệ) chỉ khiến raw
+			// rỗng, generateHypotheticalAnswer trả "" như thành công bình
+			// thường — HyDE tắt CÂM LẶNG mỗi request, không log gì.
+			slog.Warn("rag.search: HyDE nhận ChunkError từ provider", "err", chunk.Err)
 		}
 	}
 	return strings.TrimSpace(raw.String())
@@ -660,30 +722,37 @@ func (t *ragSearchTool) rerankLLM(ctx context.Context, query string, results []r
 
 	req := provider.GenerateRequest{
 		System: "Bạn là bộ xếp hạng độ liên quan. CHỈ trả về 1 mảng JSON các " +
-			"số index (0-based) theo thứ tự liên quan nhất -> ít liên quan " +
-			"nhất, ví dụ: [2,0,3,1]. KHÔNG kèm text giải thích, KHÔNG " +
-			"markdown code block, KHÔNG có ký tự nào khác ngoài mảng JSON.",
+			"số index 0-based (index ĐẦU TIÊN là 0, không phải 1) theo thứ tự " +
+			"liên quan nhất -> ít liên quan nhất, ví dụ: [2,0,3,1]. KHÔNG kèm " +
+			"text giải thích, KHÔNG markdown code block, KHÔNG có ký tự nào " +
+			"khác ngoài mảng JSON.",
 		Messages: []provider.Message{{Role: provider.RoleUser, Content: b.String()}},
 		Options: provider.ProviderOptions{
-			Model:     t.model,
-			MaxTokens: 200,
+			Model:         t.model,
+			MaxTokens:     200,
+			ThinkingLevel: provider.ThinkingOff,
 		},
 	}
 
 	chunkChan, err := t.prov.Generate(ctx, req)
 	if err != nil {
+		slog.Warn("rag.search: LLM rerank generate lỗi, giữ nguyên thứ tự gốc", "err", err)
 		return results
 	}
 
 	var raw strings.Builder
 	for chunk := range chunkChan {
-		if chunk.Kind == provider.ChunkText {
+		switch chunk.Kind {
+		case provider.ChunkText:
 			raw.WriteString(chunk.Text)
+		case provider.ChunkError:
+			slog.Warn("rag.search: LLM rerank nhận ChunkError từ provider", "err", chunk.Err)
 		}
 	}
 
 	order, ok := parseRerankOrder(raw.String(), len(results))
 	if !ok {
+		slog.Warn("rag.search: LLM rerank response không parse được thành hoán vị hợp lệ, giữ nguyên thứ tự gốc", "raw", truncateRunes(raw.String(), 300))
 		return results
 	}
 
@@ -698,6 +767,11 @@ func (t *ragSearchTool) rerankLLM(ctx context.Context, query string, results []r
 // đúng n phần tử, mỗi index trong khoảng [0,n) xuất hiện ĐÚNG 1 LẦN. Trả
 // ok=false với BẤT KỲ sai lệch nào (thiếu/thừa/trùng/ngoài phạm vi index) —
 // an toàn hơn chấp nhận 1 phần rồi âm thầm làm rơi rụng hoặc lặp kết quả.
+//
+// Chấp nhận thêm dạng 1-based (index đầu = 1, không phải 0) — dù prompt đã
+// yêu cầu rõ 0-based, LLM (đặc biệt model nhỏ/rẻ) rất hay mặc định đánh số
+// từ 1. Không xử lý case này thì rerank coi như KHÔNG BAO GIỜ hoạt động với
+// những model có thói quen đó, dù response về mặt logic hoàn toàn đúng.
 func parseRerankOrder(raw string, n int) ([]int, bool) {
 	raw = strings.TrimSpace(raw)
 	raw = strings.TrimPrefix(raw, "```json")
@@ -709,17 +783,35 @@ func parseRerankOrder(raw string, n int) ([]int, bool) {
 	if err := json.Unmarshal([]byte(raw), &order); err != nil {
 		return nil, false
 	}
+	if isValidPermutation(order, n) {
+		return order, true
+	}
+
+	shifted := make([]int, len(order))
+	for i, idx := range order {
+		shifted[i] = idx - 1
+	}
+	if isValidPermutation(shifted, n) {
+		return shifted, true
+	}
+
+	return nil, false
+}
+
+// isValidPermutation kiểm tra order có đúng là 1 hoán vị của [0,n) không:
+// đúng n phần tử, mỗi index xuất hiện ĐÚNG 1 LẦN, không âm/vượt phạm vi.
+func isValidPermutation(order []int, n int) bool {
 	if len(order) != n {
-		return nil, false
+		return false
 	}
 	seen := make([]bool, n)
 	for _, idx := range order {
 		if idx < 0 || idx >= n || seen[idx] {
-			return nil, false
+			return false
 		}
 		seen[idx] = true
 	}
-	return order, true
+	return true
 }
 
 // tokenizeKeywords splits text into lowercase alphanumeric tokens for keyword matching.

@@ -28,6 +28,47 @@ func (m *mockLLMProvider) Generate(ctx context.Context, req provider.GenerateReq
 
 func (m *mockLLMProvider) Name() string { return "mock-llm" }
 
+// --- dedupeByDocument ---
+
+func TestDedupeByDocument_KeepsFirstOccurrence(t *testing.T) {
+	results := []ragSearchResult{
+		{DocumentID: "a", ChunkIndex: 5, Score: 0.9},
+		{DocumentID: "b", ChunkIndex: 1, Score: 0.8},
+		{DocumentID: "a", ChunkIndex: 9, Score: 0.7}, // cùng doc "a", rank thấp hơn -> phải bị loại
+		{DocumentID: "c", ChunkIndex: 2, Score: 0.6},
+	}
+
+	got := dedupeByDocument(results)
+
+	if len(got) != 3 {
+		t.Fatalf("expected 3 kết quả (mỗi document 1 chunk), got %d: %+v", len(got), got)
+	}
+	for _, wantDoc := range []string{"a", "b", "c"} {
+		found := false
+		for _, r := range got {
+			if r.DocumentID == wantDoc {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("thiếu documentId=%q trong kết quả dedup: %+v", wantDoc, got)
+		}
+	}
+	// "a" phải giữ chunk RANK CAO NHẤT (ChunkIndex=5, xuất hiện trước), không phải chunk 9.
+	for _, r := range got {
+		if r.DocumentID == "a" && r.ChunkIndex != 5 {
+			t.Errorf("document 'a' phải giữ chunk rank cao nhất (ChunkIndex=5), got ChunkIndex=%d", r.ChunkIndex)
+		}
+	}
+}
+
+func TestDedupeByDocument_EmptyInput(t *testing.T) {
+	got := dedupeByDocument(nil)
+	if len(got) != 0 {
+		t.Errorf("expected rỗng, got %v", got)
+	}
+}
+
 // --- buildParentWindowFilter (Parent Document Retrieval) ---
 
 func TestBuildParentWindowFilter_ScopesToTenant(t *testing.T) {
@@ -100,6 +141,23 @@ func TestParseRerankOrder_StripsMarkdownFence(t *testing.T) {
 	_, ok := parseRerankOrder("```json\n[1,0]\n```", 2)
 	if !ok {
 		t.Fatal("expected ok=true khi output bọc trong ```json fence")
+	}
+}
+
+// TestParseRerankOrder_Accepts1Based xác nhận fix: LLM (đặc biệt model
+// nhỏ/rẻ) rất hay đánh số từ 1 dù prompt yêu cầu 0-based — trước fix, output
+// hoàn toàn hợp lý về logic nhưng luôn bị coi là "không hợp lệ", khiến rerank
+// coi như không bao giờ hoạt động với những model có thói quen đó.
+func TestParseRerankOrder_Accepts1Based(t *testing.T) {
+	order, ok := parseRerankOrder(`[3,1,4,2]`, 4) // 1-based, tương đương [2,0,3,1] 0-based
+	if !ok {
+		t.Fatal("expected ok=true — phải tự nhận diện và quy đổi dạng 1-based")
+	}
+	want := []int{2, 0, 3, 1}
+	for i := range want {
+		if order[i] != want[i] {
+			t.Errorf("order[%d] = %d, want %d (order đầy đủ: %v)", i, order[i], want[i], order)
+		}
 	}
 }
 
