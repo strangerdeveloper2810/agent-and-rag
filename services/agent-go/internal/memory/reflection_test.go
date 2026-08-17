@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -22,6 +23,32 @@ func (m *mockReflectionProvider) Generate(ctx context.Context, req provider.Gene
 }
 
 func (m *mockReflectionProvider) Name() string { return "mock" }
+
+// chunkErrorThenTextProvider trả ChunkError ở(các) lần gọi ĐẦU, rồi trả text
+// hợp lệ từ 1 mốc nào đó — mô phỏng đúng case thấy trong log dev thật: lỗi
+// provider thoáng qua GIỮA stream (không phải lỗi ngay khi gọi Generate()),
+// khiến channel không có ChunkText nào, fullResp rỗng.
+type chunkErrorThenTextProvider struct {
+	calls         int
+	errorForCalls int // trả ChunkError cho `errorForCalls` lần gọi đầu tiên
+	err           error
+	successResp   string
+}
+
+func (m *chunkErrorThenTextProvider) Generate(ctx context.Context, req provider.GenerateRequest) (<-chan provider.StreamChunk, error) {
+	m.calls++
+	ch := make(chan provider.StreamChunk, 2)
+	if m.calls <= m.errorForCalls {
+		ch <- provider.StreamChunk{Kind: provider.ChunkError, Err: m.err}
+	} else {
+		ch <- provider.StreamChunk{Kind: provider.ChunkText, Text: m.successResp}
+	}
+	ch <- provider.StreamChunk{Kind: provider.ChunkDone}
+	close(ch)
+	return ch, nil
+}
+
+func (m *chunkErrorThenTextProvider) Name() string { return "mock-chunkerror" }
 
 // sequenceReflectionProvider trả về response KHÁC NHAU cho mỗi lần Generate()
 // được gọi liên tiếp — dùng để test hành vi retry của ReflectAndExtract khi
@@ -193,6 +220,61 @@ func TestReflectAndExtract_UnescapedQuote_RetriesAndRecovers(t *testing.T) {
 func TestReflectAndExtract_AlwaysMalformed_GivesUpGracefully(t *testing.T) {
 	malformed := `{"user_facts": [], "knowledge_items": [{"content": "broken "quote" here"}]}`
 	mockP := &sequenceReflectionProvider{responses: []string{malformed, malformed, malformed}}
+	messages := []provider.Message{
+		{Role: provider.RoleUser, Content: "test"},
+		{Role: provider.RoleAssistant, Content: "test"},
+	}
+
+	res, err := ReflectAndExtract(context.Background(), mockP, "mock-model", messages)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if mockP.calls != maxReflectionAttempts {
+		t.Fatalf("expected đúng %d lần gọi (hết retry budget), got %d", maxReflectionAttempts, mockP.calls)
+	}
+	if len(res.UserFacts) != 0 || len(res.KnowledgeItems) != 0 {
+		t.Fatalf("expected empty result sau khi hết retry, got %+v", res)
+	}
+}
+
+// TestReflectAndExtract_ChunkError_RetriesAndRecovers tái hiện đúng case từ
+// log dev thật: lần gọi đầu provider trả ChunkError giữa stream (không có
+// ChunkText nào) khiến fullResp rỗng — trước fix, lỗi hiển thị mơ hồ là
+// "unexpected end of JSON input (raw=\"\")"; sau fix, ChunkError được nhận
+// diện rõ ràng VÀ vẫn retry được (như log dev cho thấy retry thực tế đã cứu
+// được lượt học này).
+func TestReflectAndExtract_ChunkError_RetriesAndRecovers(t *testing.T) {
+	validResp := `{"user_facts": [], "knowledge_items": [{"title": "So sánh flagship LLM", "summary": "tóm tắt", "tags": ["llm"], "content": "nội dung"}]}`
+	mockP := &chunkErrorThenTextProvider{
+		errorForCalls: 1,
+		err:           errors.New("rate limit exceeded"),
+		successResp:   validResp,
+	}
+	messages := []provider.Message{
+		{Role: provider.RoleUser, Content: "test"},
+		{Role: provider.RoleAssistant, Content: "test"},
+	}
+
+	res, err := ReflectAndExtract(context.Background(), mockP, "mock-model", messages)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if mockP.calls != 2 {
+		t.Fatalf("expected 2 lần gọi (1 ChunkError + 1 retry thành công), got %d", mockP.calls)
+	}
+	if len(res.KnowledgeItems) != 1 || res.KnowledgeItems[0].Title != "So sánh flagship LLM" {
+		t.Fatalf("expected khôi phục từ lần retry, got %+v", res)
+	}
+}
+
+// TestReflectAndExtract_ChunkError_AlwaysFails_GivesUpGracefully xác nhận khi
+// MỌI lần thử (kể cả retry) đều gặp ChunkError, hàm trả rỗng êm thay vì
+// panic/leak lỗi provider ra ngoài — giữ đúng hợp đồng cũ với Learner.
+func TestReflectAndExtract_ChunkError_AlwaysFails_GivesUpGracefully(t *testing.T) {
+	mockP := &chunkErrorThenTextProvider{
+		errorForCalls: maxReflectionAttempts,
+		err:           errors.New("provider tạm thời không khả dụng"),
+	}
 	messages := []provider.Message{
 		{Role: provider.RoleUser, Content: "test"},
 		{Role: provider.RoleAssistant, Content: "test"},
