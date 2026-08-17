@@ -43,7 +43,24 @@ type Config struct {
 
 	// RAG
 	EnableHybridSearch bool
-	EnableRerank       bool
+	EnableRerank       bool // rerank MIỄN PHÍ (keyword overlap, không gọi LLM). default: true
+
+	// Parent Document Retrieval: mở rộng mỗi kết quả rag.search bằng các chunk
+	// liền kề (chunkIndex ±1) cùng tài liệu để LLM có thêm ngữ cảnh xung quanh
+	// đoạn khớp. Chỉ tốn thêm 1 Mongo query, KHÔNG gọi LLM — an toàn để bật
+	// mặc định.
+	EnableParentRetrieval bool
+
+	// LLM Rerank: chấm điểm lại thứ tự kết quả rag.search bằng 1 lời gọi LLM
+	// (khác rerankKeyword miễn phí ở trên). TẮT mặc định vì tốn thêm 1 LLM
+	// call mỗi lần rag.search — khi bật, ưu tiên hơn EnableRerank (keyword).
+	EnableLLMRerank bool
+
+	// HyDE (Hypothetical Document Embeddings): trước khi embed câu hỏi, gọi
+	// LLM sinh 1 đoạn trả lời giả định rồi embed đoạn đó thay vì câu hỏi thô
+	// (thường gần nghĩa với đoạn văn thật hơn). TẮT mặc định vì tốn thêm 1
+	// LLM call mỗi lần rag.search.
+	EnableHyDE bool
 
 	// Limits
 	MaxSteps              int  // default: 12
@@ -90,6 +107,9 @@ func Load() (Config, error) {
 		EmbedModel:            envOr("EMBED_MODEL", "nomic-embed-text"),
 		EnableHybridSearch:    envOr("ENABLE_HYBRID_SEARCH", "true") == "true",
 		EnableRerank:          envOr("ENABLE_RERANK", "true") == "true",
+		EnableParentRetrieval: envOr("ENABLE_PARENT_RETRIEVAL", "true") == "true",
+		EnableLLMRerank:       envOr("ENABLE_LLM_RERANK", "false") == "true",
+		EnableHyDE:            envOr("ENABLE_HYDE", "false") == "true",
 		MaxSteps:              12,
 		MaxTokens:             0,
 		MaxContextTokens:      100000,

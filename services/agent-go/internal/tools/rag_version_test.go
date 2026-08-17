@@ -12,7 +12,7 @@ import (
 // --- rag.search: metadata + degrade khi chưa cấu hình ---
 
 func TestRAGSearchTool_Metadata(t *testing.T) {
-	tool := NewRAGSearchTool(nil, "db", "", false, false)
+	tool := NewRAGSearchTool(nil, "db", "", nil, RAGSearchConfig{})
 
 	if tool.Name() != "rag.search" {
 		t.Errorf("Name() = %q, want rag.search", tool.Name())
@@ -35,7 +35,7 @@ func TestRAGSearchTool_Metadata(t *testing.T) {
 
 // Chưa có Mongo/Voyage → trả thông báo hướng dẫn, KHÔNG lỗi (degrade êm).
 func TestRAGSearchTool_NotConfigured(t *testing.T) {
-	tool := NewRAGSearchTool(nil, "db", "", false, false)
+	tool := NewRAGSearchTool(nil, "db", "", nil, RAGSearchConfig{})
 
 	res, err := tool.Execute(context.Background(), json.RawMessage(`{"query":"x"}`))
 	if err != nil {
