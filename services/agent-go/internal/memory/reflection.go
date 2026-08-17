@@ -3,12 +3,23 @@ package memory
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
 
 	"github.com/ai-agent-tut/agent-go/internal/provider"
 )
+
+// errReflectionParseFailed đánh dấu lỗi parse JSON (khác lỗi gọi LLM thật sự
+// như network/API) để ReflectAndExtract biết khi nào nên retry.
+var errReflectionParseFailed = errors.New("reflection: không parse được JSON trả về")
+
+// maxReflectionAttempts: LLM đôi khi sinh JSON sai cú pháp (vd quên escape
+// dấu ngoặc kép bên trong 1 string value — xem repairTruncatedJSON cho case
+// bị cắt cụt riêng). Đây là lỗi xác suất, thử lại 1 lần thường ra kết quả
+// hợp lệ thay vì mất trắng lượt học đó.
+const maxReflectionAttempts = 2
 
 // UserFact represents a learned preference, technology choice, or biographical fact about the user.
 type UserFact struct {
@@ -57,9 +68,19 @@ BẮT BUỘC trả về định dạng JSON thuần túy (không kèm markdown c
   ]
 }
 Nếu không có thông tin hay bài học nào mới đáng nhớ, hãy trả về:
-{"user_facts": [], "knowledge_items": []}`
+{"user_facts": [], "knowledge_items": []}
+
+QUAN TRỌNG về escaping JSON: mọi dấu ngoặc kép (") xuất hiện BÊN TRONG một
+giá trị chuỗi (vd trong "content") BẮT BUỘC phải escape thành \". Khi cần
+trích dẫn giá trị dạng chuỗi/config (ví dụ similarity: "cosine"), ưu tiên
+dùng dấu nháy đơn ' thay vì nháy kép để tránh phá vỡ cấu trúc JSON. Toàn bộ
+output phải là JSON hợp lệ, parse được bằng json.Unmarshal ngay lần đầu.`
 
 // ReflectAndExtract runs a fast LLM pass over conversation messages to extract user facts and knowledge items.
+// Lỗi parse JSON (khác lỗi Generate() thật sự) được retry tối đa
+// maxReflectionAttempts lần trước khi bỏ cuộc — đây là lỗi xác suất phụ
+// thuộc vào output cụ thể của model, không phải lỗi hệ thống, nên thử lại
+// thường cứu được lượt học thay vì mất trắng.
 func ReflectAndExtract(ctx context.Context, p provider.Provider, model string, messages []provider.Message) (*ReflectionResult, error) {
 	if len(messages) == 0 || p == nil {
 		return &ReflectionResult{}, nil
@@ -79,6 +100,29 @@ func ReflectAndExtract(ctx context.Context, p provider.Provider, model string, m
 		trimmedConv = trimmedConv[len(trimmedConv)-8000:]
 	}
 
+	var lastErr error
+	for attempt := 1; attempt <= maxReflectionAttempts; attempt++ {
+		res, err := reflectOnce(ctx, p, model, trimmedConv)
+		if err == nil {
+			return res, nil
+		}
+		if !errors.Is(err, errReflectionParseFailed) {
+			// Lỗi Generate() thật sự (network/API) — không phải lỗi xác
+			// suất của 1 lần sinh, retry không giúp ích, trả lỗi luôn.
+			return nil, err
+		}
+		lastErr = err
+		slog.Warn("memory: reflection JSON parse thất bại, thử lại", "attempt", attempt, "max_attempts", maxReflectionAttempts, "err", err)
+	}
+
+	slog.Warn("memory: reflection JSON vẫn không parse được sau khi thử lại — bỏ qua lượt học này", "err", lastErr)
+	return &ReflectionResult{}, nil
+}
+
+// reflectOnce chạy đúng 1 lượt Generate() + parse JSON. Trả về
+// errReflectionParseFailed (wrap) khi lỗi là do JSON sai cú pháp — caller
+// (ReflectAndExtract) dựa vào đây để quyết định retry.
+func reflectOnce(ctx context.Context, p provider.Provider, model, trimmedConv string) (*ReflectionResult, error) {
 	req := provider.GenerateRequest{
 		System: reflectionSystemPrompt,
 		Messages: []provider.Message{
@@ -126,8 +170,7 @@ func ReflectAndExtract(ctx context.Context, p provider.Provider, model string, m
 				return &res, nil
 			}
 		}
-		slog.Warn("memory: failed to parse reflection json", "err", err, "raw", raw)
-		return &ReflectionResult{}, nil
+		return nil, fmt.Errorf("%w: %v (raw=%q)", errReflectionParseFailed, err, raw)
 	}
 
 	return &res, nil
