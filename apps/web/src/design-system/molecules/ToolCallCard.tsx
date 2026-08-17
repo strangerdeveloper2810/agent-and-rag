@@ -121,7 +121,7 @@ export const ToolCallGroup: React.FC<ToolCallGroupProps> = ({ tools }) => {
                 ? "bg-primary/15 text-primary border border-primary/30"
                 : isAnyError
                   ? "bg-destructive/15 text-destructive border border-destructive/30"
-                  : "bg-emerald-500/15 text-emerald-500 border border-emerald-500/30"
+                  : "bg-[var(--success-bg)] text-[var(--success)] border border-[var(--success)]"
             }`}
           >
             {isAnyRunning ? (
@@ -150,7 +150,7 @@ export const ToolCallGroup: React.FC<ToolCallGroupProps> = ({ tools }) => {
                   isAnyRunning
                     ? "bg-primary/15 text-primary animate-pulse border-primary/20"
                     : !isAnyError
-                      ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+                      ? "bg-[var(--success-bg)] text-[var(--success)] border-[var(--success)]"
                       : ""
                 }`}
               >
@@ -226,7 +226,7 @@ export const ToolCallGroup: React.FC<ToolCallGroupProps> = ({ tools }) => {
                           ? "text-primary animate-pulse"
                           : isError
                             ? "text-destructive"
-                            : "text-emerald-500"
+                            : "text-[var(--success)]"
                       }`}
                     >
                       <span
@@ -235,7 +235,7 @@ export const ToolCallGroup: React.FC<ToolCallGroupProps> = ({ tools }) => {
                             ? "bg-primary animate-ping"
                             : isError
                               ? "bg-destructive"
-                              : "bg-emerald-500"
+                              : "bg-[var(--success)]"
                         }`}
                       />
                       {isRunning ? "Running" : isError ? "Error" : "Success"}
@@ -261,7 +261,7 @@ export const ToolCallGroup: React.FC<ToolCallGroupProps> = ({ tools }) => {
                         <span className="text-[9px] font-mono font-bold text-primary uppercase tracking-wider block mb-1">
                           // Kết quả thực thi
                         </span>
-                        <pre className="scroll-fine max-h-48 overflow-auto rounded-lg bg-black/90 p-2.5 text-[10.5px] font-mono text-emerald-400 leading-relaxed border border-border/40">
+                        <pre className="scroll-fine max-h-48 overflow-auto rounded-lg bg-black/90 p-2.5 text-[10.5px] font-mono text-[var(--success)] leading-relaxed border border-border/40">
                           {t.result}
                         </pre>
                       </div>

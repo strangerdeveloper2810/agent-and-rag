@@ -70,7 +70,8 @@ func NewRAGSearchTool(mongoClient *mongo.Client, dbName string, voyageKey string
 func (t *ragSearchTool) Name() string { return "rag.search" }
 func (t *ragSearchTool) Kind() Kind   { return KindRead }
 func (t *ragSearchTool) Description() string {
-	return "Search documents in RAG knowledge base. " +
+	return "Search documents in the user's own uploaded RAG knowledge base (internal/business-specific documents only, e.g. company conventions, project docs the user uploaded). " +
+		"Use ONLY when the question relates to specialized/business knowledge the user has actually uploaded — NOT for generic programming or general-knowledge questions (use web.search for those instead). " +
 		"Returns top matching documents with scores, snippets, and relevant chunk content. " +
 		"Note: RAG documents are stored in database, NOT local filesystem paths; do NOT use file.read for RAG documents."
 }
