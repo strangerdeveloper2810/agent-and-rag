@@ -17,9 +17,23 @@ var codeKeywords = []string{
 
 var searchKeywords = []string{
 	"search", "research", "tìm kiếm", "tra cứu", "tin tức", "news", "web", "fetch",
-	"url", "online", "báo", "thông tin", "rag", "document", "tài liệu", "wikipedia",
+	"url", "online", "báo", "thông tin", "wikipedia",
 	"best practice", "best practices", "claude", "gpt", "llm", "ai", "cách", "hướng dẫn",
 	"mới nhất", "kinh nghiệm", "nào", "gì", "là gì", "thế nào",
+}
+
+// documentKeywords nhận diện câu hỏi thực sự nhắm vào TÀI LIỆU RIÊNG người
+// dùng đã upload (cơ sở tri thức RAG), tách khỏi searchKeywords vốn quá phổ
+// thông ("cách", "nào", "gì", "thế nào"... khớp gần như mọi câu tiếng Việt).
+//
+// Vì sao phải tách: trước đây "rag"/"document"/"tài liệu" nằm CHUNG trong
+// searchKeywords, nên chỉ cần câu hỏi chứa "cách" hay "gì" là rag.search được
+// cấp — biến nó thành tool mặc định cho mọi câu hỏi. Người dùng chỉ muốn dùng
+// RAG khi hỏi về nghiệp vụ/tài liệu chuyên dụng của họ.
+var documentKeywords = []string{
+	"rag", "document", "tài liệu", "tài liệu của tôi", "upload", "đã upload",
+	"knowledge base", "cơ sở tri thức", "tri thức", "nội bộ", "quy chuẩn",
+	"quy trình", "convention", "nghiệp vụ", ".md", ".pdf", ".docx",
 }
 
 var utilityKeywords = []string{
@@ -31,6 +45,17 @@ var utilityKeywords = []string{
 // FilterToolDefs filters the registered tools dynamically based on user query intent and current execution step.
 // For multi-step execution (step > 0), all tools in the registry are kept to allow complex tool chains.
 // For initial step (step 0), tools are pruned down to 3-8 relevant tools to minimize token usage and latency.
+//
+// LƯU Ý về rag.search/rag.read: ở step 0 chúng CHỈ được cấp khi câu hỏi khớp
+// documentKeywords (nhắm vào tài liệu người dùng đã upload). Câu hỏi lập trình
+// hay tra cứu chung chung không được cấp — trước đây chúng nằm trong cả nhánh
+// no-intent, code và search, nên rag.search là 2/5 tool được cấp cho MỌI câu
+// hỏi, khiến model coi đó là tool mặc định phải dùng. Từ step 1 trở đi vẫn trả
+// toàn bộ registry nên RAG vẫn dùng được như phương án dự phòng khi web search
+// không cho kết quả.
+//
+// userQuery PHẢI là câu hỏi mới nhất của người dùng (agent.State.LastUserContent);
+// truyền câu cũ vào đây từng là nguyên nhân lọc tool sai suốt cả cuộc hội thoại.
 func (r *Registry) FilterToolDefs(userQuery string, step int) []provider.ToolDef {
 	allDefs := r.ToolDefs()
 	if len(allDefs) <= 6 || step > 0 {
@@ -43,11 +68,16 @@ func (r *Registry) FilterToolDefs(userQuery string, step int) []provider.ToolDef
 	hasCodeIntent := containsAny(queryLower, codeKeywords)
 	hasSearchIntent := containsAny(queryLower, searchKeywords)
 	hasUtilityIntent := containsAny(queryLower, utilityKeywords)
+	// hasDocIntent là CỬA DUY NHẤT cấp rag.search/rag.read ở step 0. Câu hỏi
+	// lập trình hay tra cứu chung chung không còn được cấp RAG nữa — nếu web
+	// search không đủ, model vẫn lấy được RAG từ step 1 trở đi (xem nhánh
+	// step > 0 phía trên) đúng như ý "chỉ khi web search không ra mới dùng rag".
+	hasDocIntent := containsAny(queryLower, documentKeywords)
 
 	// If no specific intent detected (e.g. casual chat/greetings), return minimal core tools
-	if !hasCodeIntent && !hasSearchIntent && !hasUtilityIntent {
+	if !hasCodeIntent && !hasSearchIntent && !hasUtilityIntent && !hasDocIntent {
 		return filterByName(allDefs, []string{
-			"rag.search", "rag.read", "web.search", "memory.recall", "echo",
+			"web.search", "memory.recall", "echo",
 		})
 	}
 
@@ -58,13 +88,19 @@ func (r *Registry) FilterToolDefs(userQuery string, step int) []provider.ToolDef
 	selectedNames["memory.save"] = true
 
 	if hasCodeIntent {
-		for _, name := range []string{"file.search", "file.read", "file.write", "shell.exec", "git", "version", "rag.search", "rag.read", "web.search", "web.fetch"} {
+		for _, name := range []string{"file.search", "file.read", "file.write", "shell.exec", "git", "version", "web.search", "web.fetch"} {
 			selectedNames[name] = true
 		}
 	}
 
 	if hasSearchIntent {
-		for _, name := range []string{"rag.search", "rag.read", "web.search", "web.fetch", "notes.search", "notes.create"} {
+		for _, name := range []string{"web.search", "web.fetch", "notes.search", "notes.create"} {
+			selectedNames[name] = true
+		}
+	}
+
+	if hasDocIntent {
+		for _, name := range []string{"rag.search", "rag.read", "web.search", "web.fetch"} {
 			selectedNames[name] = true
 		}
 	}
@@ -107,10 +143,13 @@ var asciiWordRe = regexp.MustCompile(`^[a-z0-9]+$`)
 // khớp "good"/"category"; "ai" không khớp "hai"/"email".
 var asciiWordRegex = func() map[string]*regexp.Regexp {
 	m := make(map[string]*regexp.Regexp)
-	all := make([]string, 0, len(codeKeywords)+len(searchKeywords)+len(utilityKeywords))
+	all := make([]string, 0, len(codeKeywords)+len(searchKeywords)+len(utilityKeywords)+len(documentKeywords))
 	all = append(all, codeKeywords...)
 	all = append(all, searchKeywords...)
 	all = append(all, utilityKeywords...)
+	// documentKeywords cũng cần word boundary: "rag" không được khớp
+	// "storage"/"fragment", "upload" không khớp "uploaded_at"...
+	all = append(all, documentKeywords...)
 	for _, kw := range all {
 		if asciiWordRe.MatchString(kw) {
 			m[kw] = regexp.MustCompile(`(?i)\b` + regexp.QuoteMeta(kw) + `\b`)

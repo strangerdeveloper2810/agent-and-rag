@@ -237,8 +237,8 @@ func TestLastUserContent(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := lastUserContent(&agent.State{Messages: tc.messages}); got != tc.want {
-				t.Fatalf("lastUserContent = %q, want %q", got, tc.want)
+			if got := (&agent.State{Messages: tc.messages}).LastUserContent(); got != tc.want {
+				t.Fatalf("LastUserContent = %q, want %q", got, tc.want)
 			}
 		})
 	}

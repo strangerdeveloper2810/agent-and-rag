@@ -7,7 +7,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/ai-agent-tut/agent-go/internal/agent"
 	"github.com/ai-agent-tut/agent-go/internal/provider"
@@ -19,7 +21,11 @@ type AgentSpec struct {
 	Description     string        // Mô tả cho intent classification
 	Engine          *agent.Engine // Engine ReAct (GIỮ NGUYÊN từ P2)
 	TriggerKeywords []string      // Keyword để router chọn agent này (không cần LLM)
-	SystemPrompt    string        // Prompt RIÊNG cho agent này (merge với base)
+	// SystemPrompt là prompt RIÊNG của agent này, được áp vào Engine trong
+	// Register(). Caller tự quyết định có nối với base prompt hay không (vd
+	// cmd/server/main.go truyền BuildSystemPrompt(...) + phần riêng). Để rỗng
+	// nếu muốn giữ prompt đã set sẵn trên Engine.
+	SystemPrompt string
 }
 
 // defaultMaxDelegationDepth chặn handoff đệ quy vô hạn (A→B→A→B→...) khi chưa
@@ -53,12 +59,23 @@ func (o *Orchestrator) SetMaxDelegationDepth(n int) {
 
 // Register thêm một agent vào orchestrator.
 // Agent đăng ký trước có độ ưu tiên cao hơn trong keyword matching.
+//
+// Nếu spec.SystemPrompt khác rỗng, nó được áp vào engine NGAY TẠI ĐÂY. Trước
+// đây field này là dead code: nó được gán ở cmd/server/main.go nhưng không
+// hàm nào trong orchestrator đọc tới, nên toàn bộ prompt riêng của agent
+// (vd 39 dòng hướng dẫn quy trình của research agent) chưa bao giờ tới LLM —
+// agent research chạy y hệt prompt chung. Áp ở Register (một lần, lúc wiring)
+// thay vì trong Run: Engine được chia sẻ giữa các request đồng thời, gọi
+// SetSystemPrompt mỗi request sẽ là data race.
 func (o *Orchestrator) Register(spec *AgentSpec) {
 	name := spec.Name
 	if _, exists := o.agents[name]; !exists {
 		o.order = append(o.order, name)
 	}
 	o.agents[name] = spec
+	if spec.SystemPrompt != "" && spec.Engine != nil {
+		spec.Engine.SetSystemPrompt(spec.SystemPrompt)
+	}
 	if o.defaultAgent == "" {
 		o.defaultAgent = name // agent đầu tiên là default
 	}
@@ -100,13 +117,50 @@ func (o *Orchestrator) route(input string) *AgentSpec {
 	for _, name := range o.order {
 		spec := o.agents[name]
 		for _, kw := range spec.TriggerKeywords {
-			if strings.Contains(lower, kw) {
+			if matchTrigger(lower, kw) {
 				return spec
 			}
 		}
 	}
 
 	return o.agents[o.defaultAgent]
+}
+
+// asciiWordRe nhận diện keyword ASCII đơn từ (chữ cái/số, không khoảng trắng).
+var asciiWordRe = regexp.MustCompile(`^[a-z0-9]+$`)
+
+// triggerRegexCache cache regex word-boundary theo keyword, tạo lazy khi gặp
+// lần đầu (TriggerKeywords do caller cung cấp lúc Register nên không biết
+// trước ở package init như internal/tools/filter.go).
+var (
+	triggerRegexMu    sync.RWMutex
+	triggerRegexCache = map[string]*regexp.Regexp{}
+)
+
+// matchTrigger khớp trigger keyword với input: keyword ASCII đơn từ dùng word
+// boundary, còn lại (tiếng Việt có dấu, cụm nhiều từ) dùng substring.
+//
+// Trước fix, route() dùng strings.Contains thô cho MỌI keyword nên keyword "go"
+// của agent code khớp cả "golang", "goroutine", "mongo", "django", "google",
+// "algorithm"; "test" khớp "latest" (khiến mọi câu hỏi có "latest" bị agent
+// code cướp trước research); "bug" khớp "debug". internal/tools/filter.go đã
+// fix đúng lớp lỗi này từ trước nhưng orchestrator thì chưa — đây là chỗ đồng
+// bộ lại hai nơi.
+func matchTrigger(s, kw string) bool {
+	if !asciiWordRe.MatchString(kw) {
+		return strings.Contains(s, kw)
+	}
+
+	triggerRegexMu.RLock()
+	re, ok := triggerRegexCache[kw]
+	triggerRegexMu.RUnlock()
+	if !ok {
+		re = regexp.MustCompile(`(?i)\b` + regexp.QuoteMeta(kw) + `\b`)
+		triggerRegexMu.Lock()
+		triggerRegexCache[kw] = re
+		triggerRegexMu.Unlock()
+	}
+	return re.MatchString(s)
 }
 
 // GetAgent trả về agent spec theo tên.

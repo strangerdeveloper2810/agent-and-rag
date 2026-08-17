@@ -72,6 +72,124 @@ func TestOrchestrator_RouteByKeyword(t *testing.T) {
 	}
 }
 
+// TestOrchestrator_RouteWordBoundary khoá lỗi false-positive của matching thô:
+// trước fix route() dùng strings.Contains nên keyword "go" của agent code khớp
+// cả "golang", "mongo", "django", "google", "ngoài"; "test" khớp "latest" nên
+// mọi câu hỏi có "latest" bị agent code cướp trước agent research.
+func TestOrchestrator_RouteWordBoundary(t *testing.T) {
+	orch := New()
+
+	orch.Register(&AgentSpec{
+		Name:            "general",
+		Engine:          newFakeEngine("general"),
+		TriggerKeywords: []string{},
+	})
+	orch.Register(&AgentSpec{
+		Name:            "code",
+		Engine:          newFakeEngine("code"),
+		TriggerKeywords: []string{"code", "go", "test", "bug"},
+	})
+	orch.Register(&AgentSpec{
+		Name:            "research",
+		Engine:          newFakeEngine("research"),
+		TriggerKeywords: []string{"latest", "tin tức", "giải thích"},
+	})
+
+	tests := []struct {
+		name      string
+		input     string
+		wantAgent string
+	}{
+		{"'go' riêng vẫn khớp code", "viết cho tôi hàm go", "code"},
+		{"'mongo' KHÔNG khớp 'go'", "cấu hình mongo replica set thế nào", "general"},
+		{"'django' KHÔNG khớp 'go'", "django có gì hay", "general"},
+		{"'google' KHÔNG khớp 'go'", "google vừa ra mắt gì", "general"},
+		{"'ngoài' KHÔNG khớp 'go'", "ngoài ra còn cách nào khác", "general"},
+		{"'latest' về research, không bị 'test' cướp", "latest AI news", "research"},
+		{"'contest' KHÔNG khớp 'test'", "contest tuần này có gì", "general"},
+		{"'debug' KHÔNG khớp 'bug' (word riêng)", "debug hộ tôi", "general"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			spec := orch.route(tt.input)
+			if spec == nil {
+				t.Fatal("route returned nil")
+			}
+			if spec.Name != tt.wantAgent {
+				t.Errorf("route(%q) = %q, want %q", tt.input, spec.Name, tt.wantAgent)
+			}
+		})
+	}
+}
+
+// capturingProvider ghi lại GenerateRequest để assert system prompt THỰC SỰ
+// được gửi tới LLM (không chỉ được gán vào struct).
+type capturingProvider struct {
+	LastRequest provider.GenerateRequest
+}
+
+func (p *capturingProvider) Name() string { return "capturing" }
+
+func (p *capturingProvider) Generate(ctx context.Context, req provider.GenerateRequest) (<-chan provider.StreamChunk, error) {
+	p.LastRequest = req
+	ch := make(chan provider.StreamChunk, 2)
+	ch <- provider.StreamChunk{Kind: provider.ChunkText, Text: "ok"}
+	ch <- provider.StreamChunk{Kind: provider.ChunkDone}
+	close(ch)
+	return ch, nil
+}
+
+func newCapturingEngine() (*agent.Engine, *capturingProvider) {
+	p := &capturingProvider{}
+	reg := tools.NewRegistry()
+	reg.Register(tools.NewEchoTool())
+	return agent.NewEngine(p, reg), p
+}
+
+// TestOrchestrator_RegisterAppliesSystemPrompt khoá bug dead code: field
+// AgentSpec.SystemPrompt được gán ở cmd/server/main.go nhưng orchestrator
+// không hàm nào đọc tới, nên prompt riêng của agent (vd 39 dòng quy trình của
+// research agent) chưa bao giờ tới LLM. Test chạy qua Orchestrator.Run và
+// kiểm chính request gửi cho provider.
+func TestOrchestrator_RegisterAppliesSystemPrompt(t *testing.T) {
+	orch := New()
+	eng, cap := newCapturingEngine()
+
+	const want = "[BẠN LÀ RESEARCH AGENT] quy trình nghiên cứu riêng"
+	orch.Register(&AgentSpec{
+		Name:         "research",
+		Engine:       eng,
+		SystemPrompt: want,
+	})
+
+	if _, err := orch.Run(context.Background(), agent.RunInput{UserMessage: "hi", MaxSteps: 2}, func(agent.Event) {}); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if got := cap.LastRequest.System; got != want {
+		t.Errorf("system prompt gửi cho LLM = %q, want %q", got, want)
+	}
+}
+
+// SystemPrompt rỗng không được xoá prompt đã set sẵn trên engine (cmd/jarvis và
+// một số nơi set trực tiếp qua Engine.SetSystemPrompt).
+func TestOrchestrator_RegisterEmptySystemPromptKeepsExisting(t *testing.T) {
+	orch := New()
+	eng, cap := newCapturingEngine()
+	eng.SetSystemPrompt("prompt đã set sẵn")
+
+	orch.Register(&AgentSpec{Name: "general", Engine: eng})
+
+	if _, err := orch.Run(context.Background(), agent.RunInput{UserMessage: "hi", MaxSteps: 2}, func(agent.Event) {}); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if got := cap.LastRequest.System; got != "prompt đã set sẵn" {
+		t.Errorf("system prompt gửi cho LLM = %q, want giữ nguyên prompt đã set sẵn", got)
+	}
+}
+
 func TestOrchestrator_Run(t *testing.T) {
 	orch := New()
 

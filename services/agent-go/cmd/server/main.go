@@ -182,8 +182,22 @@ func main() {
 		Name:        "code",
 		Description: "Code and programming specialist for development tasks",
 		Engine:      codeEngine,
-		TriggerKeywords: []string{"code", "programming", "function", "bug", "debug",
-			"go", "python", "typescript", "javascript", "rust", "refactor", "test"},
+		// Trigger keyword khớp theo word boundary (xem orchestrator.matchTrigger)
+		// nên "go" không còn kéo theo "golang"/"mongo"/"django". Danh sách cũ chỉ
+		// có 12 từ tiếng Anh, thiếu toàn bộ thuật ngữ FE và tiếng Việt, nên câu
+		// hỏi kiểu "Viết custom hook useMemo với useSelector" rơi hết về agent
+		// general (registry không có git/version).
+		TriggerKeywords: []string{
+			"code", "coding", "programming", "function", "func", "bug", "debug",
+			"go", "golang", "python", "typescript", "javascript", "rust", "java",
+			"refactor", "test", "unit test", "compile", "build", "deploy",
+			"react", "hook", "hooks", "component", "redux", "vue", "angular",
+			"nestjs", "nodejs", "node", "express", "fastify", "css", "tailwind",
+			"html", "sql", "query", "api", "endpoint", "struct", "interface",
+			"class", "method", "regex", "docker", "kubernetes",
+			"viết hàm", "viết code", "sửa lỗi", "lỗi", "hàm", "biến", "thư viện",
+			"triển khai", "tối ưu", "mã nguồn",
+		},
 		SystemPrompt: agent.BuildSystemPrompt(nil, skillSummaries),
 	})
 	orch.Register(&orchestrator.AgentSpec{
