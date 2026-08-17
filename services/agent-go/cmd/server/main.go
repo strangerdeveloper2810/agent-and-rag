@@ -63,12 +63,7 @@ func main() {
 	// RAG tools (register to all registries)
 	ragTool := tools.NewRAGSearchTool(mongoClient, cfg.MongoDB, cfg.VoyageKey, cfg.EnableHybridSearch, cfg.EnableRerank)
 	ragReadTool := tools.NewRAGReadTool(mongoClient, cfg.MongoDB)
-	codeRegistry.Register(ragTool)
-	codeRegistry.Register(ragReadTool)
-	researchRegistry.Register(ragTool)
-	researchRegistry.Register(ragReadTool)
-	generalRegistry.Register(ragTool)
-	generalRegistry.Register(ragReadTool)
+	registerRAGAndCodeExtras(codeRegistry, researchRegistry, generalRegistry, ragTool, ragReadTool)
 
 	// --- Wire Circuit Breaker ---
 	cb := guardrails.NewCircuitBreaker(3)
@@ -311,6 +306,24 @@ func buildRegistries(cfg config.Config) (code, research, general *tools.Registry
 	general.Register(tools.NewRecallMemoryTool())
 
 	return code, research, general
+}
+
+// registerRAGAndCodeExtras wires rag.search/rag.read vào cả 3 registry, và cấp
+// thêm web.search/web.fetch cho codeRegistry.
+// Tách khỏi main để test được: filter.go's FilterToolDefs hứa web.search/web.fetch
+// cho query có hasCodeIntent (vd từ khoá "search" nằm trong codeKeywords), nên
+// codeRegistry PHẢI thật sự có 2 tool này, nếu không agent code sẽ gặp lỗi
+// runtime "tool not found: web.search".
+func registerRAGAndCodeExtras(codeRegistry, researchRegistry, generalRegistry *tools.Registry, ragTool, ragReadTool tools.Tool) {
+	codeRegistry.Register(ragTool)
+	codeRegistry.Register(ragReadTool)
+	researchRegistry.Register(ragTool)
+	researchRegistry.Register(ragReadTool)
+	generalRegistry.Register(ragTool)
+	generalRegistry.Register(ragReadTool)
+
+	codeRegistry.Register(tools.NewWebSearchTool(nil))
+	codeRegistry.Register(tools.NewWebFetchTool(nil))
 }
 
 // newHTTPHandler dựng router + chuỗi middleware (CORS → Tenant → mux).
