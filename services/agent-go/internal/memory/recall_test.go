@@ -37,8 +37,8 @@ func TestRecallNode_NoUserMessage(t *testing.T) {
 
 func TestRecallNode_KeywordCascade(t *testing.T) {
 	store := NewStore()
-	store.Set("user_name", "Linh")
-	store.Set("email", "linh@example.com")
+	store.Set("default", "user_name", "Linh")
+	store.Set("default", "email", "linh@example.com")
 
 	emit, events := collectEmit()
 	next, err := RecallNode(store)(context.Background(), &agent.State{
@@ -61,8 +61,8 @@ func TestRecallNode_KeywordCascade(t *testing.T) {
 
 func TestRecallNode_KeywordEnglish(t *testing.T) {
 	store := NewStore()
-	store.Set("user_name", "Alex")
-	store.Set("user_job", "engineer")
+	store.Set("default", "user_name", "Alex")
+	store.Set("default", "user_job", "engineer")
 
 	emit, events := collectEmit()
 	_, err := RecallNode(store)(context.Background(), &agent.State{
@@ -85,7 +85,7 @@ func TestRecallNode_KeywordEnglish(t *testing.T) {
 
 func TestRecallNode_FullTextFallback(t *testing.T) {
 	store := NewStore()
-	store.Set("random_key", "banana smoothie")
+	store.Set("default", "random_key", "banana smoothie")
 
 	emit, events := collectEmit()
 	_, err := RecallNode(store)(context.Background(), &agent.State{
@@ -108,7 +108,7 @@ func TestRecallNode_SemanticSearch(t *testing.T) {
 		"pizza margherita": {1, 0},
 		"món ăn Ý":         {1, 0},
 	}})
-	store.Set("food", "pizza margherita")
+	store.Set("default", "food", "pizza margherita")
 
 	// Query không khớp keyword map lẫn substring — chỉ semantic tìm được.
 	emit, events := collectEmit()
@@ -129,7 +129,7 @@ func TestRecallNode_SemanticSearch(t *testing.T) {
 func TestRecallNode_SemanticErrorFallsBackToKeyword(t *testing.T) {
 	store := NewStore()
 	store.SetEmbedder(&stubEmbedder{err: errors.New("embed down")})
-	store.Set("user_name", "Linh")
+	store.Set("default", "user_name", "Linh")
 
 	emit, events := collectEmit()
 	next, err := RecallNode(store)(context.Background(), &agent.State{
@@ -153,7 +153,7 @@ func TestRecallNode_SemanticDoesNotOverrideKeyword(t *testing.T) {
 		"Linh":        {1, 0},
 		"tên là Linh": {1, 0},
 	}})
-	store.Set("user_name", "Linh")
+	store.Set("default", "user_name", "Linh")
 
 	// Keyword ("tên") + fulltext ("linh") + semantic đều trả user_name —
 	// chỉ 1 lần trong kết quả, không ghi đè.
@@ -174,7 +174,7 @@ func TestRecallNode_SemanticDoesNotOverrideKeyword(t *testing.T) {
 
 func TestRecallNode_NoResults(t *testing.T) {
 	store := NewStore()
-	store.Set("user_name", "Linh")
+	store.Set("default", "user_name", "Linh")
 
 	emit, events := collectEmit()
 	next, err := RecallNode(store)(context.Background(), &agent.State{

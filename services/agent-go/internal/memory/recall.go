@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/ai-agent-tut/agent-go/internal/agent"
+	"github.com/ai-agent-tut/agent-go/internal/middleware"
 	"github.com/ai-agent-tut/agent-go/internal/provider"
 )
 
@@ -38,7 +39,7 @@ var keywordToKeys = map[string][]string{
 
 func RecallNode(store *Store) agent.Node {
 	return func(ctx context.Context, s *agent.State, emit agent.EmitFunc) (agent.NodeID, error) {
-		_ = ctx
+		tenantID := middleware.GetTenantID(ctx)
 
 		query := lastUserContent(s)
 		if query == "" {
@@ -52,7 +53,7 @@ func RecallNode(store *Store) agent.Node {
 		for keyword, keys := range keywordToKeys {
 			if strings.Contains(lower, keyword) {
 				for _, k := range keys {
-					if v, ok := store.Get(k); ok {
+					if v, ok := store.Get(tenantID, k); ok {
 						results[k] = v
 					}
 				}
@@ -60,13 +61,13 @@ func RecallNode(store *Store) agent.Node {
 		}
 
 		// Step 2: Full-text substring search as fallback.
-		fullResults := store.Search(query)
+		fullResults := store.Search(tenantID, query)
 		for k, v := range fullResults {
 			results[k] = v
 		}
 
 		// Step 3: Embedding-based semantic search (optional).
-		semResults, err := store.SemanticSearch(query, 5)
+		semResults, err := store.SemanticSearch(tenantID, query, 5)
 		if err != nil {
 			slog.Warn("memory: semantic search failed, continuing with keyword results", "err", err)
 		}
@@ -80,7 +81,7 @@ func RecallNode(store *Store) agent.Node {
 			return agent.NodeModel, nil
 		}
 
-		slog.Info("memory: recalled", "count", len(results))
+		slog.Info("memory: recalled", "count", len(results), "tenant", tenantID)
 		items := make([]string, 0, len(results))
 		for k, v := range results {
 			items = append(items, fmt.Sprintf("%s: %s", k, v))

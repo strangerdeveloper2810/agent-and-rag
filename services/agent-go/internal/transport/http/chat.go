@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -14,8 +15,14 @@ import (
 )
 
 // ConversationLearner extracts and persists knowledge in the background.
+//
+// ctx MUST be the original request context (r.Context()) — it carries the
+// tenant ID set by middleware.TenantMiddleware, which the learner needs to
+// scope every write (in-memory Store + Mongo) to the right tenant. See
+// memory.Learner.LearnFromConversation for how it snapshots the tenant ID
+// before detaching into a background goroutine.
 type ConversationLearner interface {
-	LearnFromConversation(messages []provider.Message, conversationID string)
+	LearnFromConversation(ctx context.Context, messages []provider.Message, conversationID string)
 }
 
 // ChatHandler xử lý POST /chat — nhận JSON, chạy engine hoặc orchestrator,
@@ -146,7 +153,7 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		fullMsgs = append(fullMsgs, history...)
 		fullMsgs = append(fullMsgs, provider.Message{Role: provider.RoleUser, Content: req.UserMessage})
 		fullMsgs = append(fullMsgs, provider.Message{Role: provider.RoleAssistant, Content: assistantContent.String()})
-		h.learner.LearnFromConversation(fullMsgs, req.ConversationID)
+		h.learner.LearnFromConversation(r.Context(), fullMsgs, req.ConversationID)
 	}
 }
 

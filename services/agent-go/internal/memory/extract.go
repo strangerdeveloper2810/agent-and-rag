@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/ai-agent-tut/agent-go/internal/agent"
+	"github.com/ai-agent-tut/agent-go/internal/middleware"
 	"github.com/ai-agent-tut/agent-go/internal/provider"
 )
 
@@ -41,7 +42,7 @@ var extractPatterns = []extractRule{
 // lưu vào Store với key có ý nghĩa, emit memory event, rồi trả về NodeEnd.
 func ExtractNode(store *Store) agent.Node {
 	return func(ctx context.Context, s *agent.State, emit agent.EmitFunc) (agent.NodeID, error) {
-		_ = ctx
+		tenantID := middleware.GetTenantID(ctx)
 
 		extracted := 0
 		seen := make(map[string]bool)
@@ -63,7 +64,7 @@ func ExtractNode(store *Store) agent.Node {
 					continue
 				}
 				seen[rule.key] = true
-				store.Set(rule.key, value)
+				store.Set(tenantID, rule.key, value)
 				extracted++
 				emit(agent.MemoryEvent(fmt.Sprintf("extracted: %s = %s", rule.key, value)))
 			}
