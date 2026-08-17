@@ -73,6 +73,50 @@ describe("chunkText", () => {
     expect(chunks[1]).toBe("[doc.md › Phần 1]\nNội dung phần 1.");
   });
 
+  it("KHÔNG coi dòng '#' bên trong code fence là heading (bash comment, không bị cắt vụn/xoá mất)", async () => {
+    const text = [
+      "# Cài đặt",
+      "Chạy lệnh sau:",
+      "",
+      "```bash",
+      "# comment giải thích lệnh",
+      "npm install",
+      "# comment khác",
+      "npm run build",
+      "```",
+      "",
+      "## Bước tiếp theo",
+      "Xong phần cài đặt.",
+    ].join("\n");
+
+    const chunks = await chunkText(text, "guide.md");
+
+    // Vẫn chỉ 2 section thật (Cài đặt, Bước tiếp theo) — code fence không tạo section riêng.
+    expect(chunks).toHaveLength(2);
+    // Toàn bộ nội dung bash (kể cả 2 dòng "#") phải còn nguyên trong section "Cài đặt".
+    expect(chunks[0]).toBe(
+      [
+        "[guide.md › Cài đặt]",
+        "Chạy lệnh sau:",
+        "",
+        "```bash",
+        "# comment giải thích lệnh",
+        "npm install",
+        "# comment khác",
+        "npm run build",
+        "```",
+      ].join("\n"),
+    );
+    expect(chunks[1]).toBe("[guide.md › Cài đặt › Bước tiếp theo]\nXong phần cài đặt.");
+  });
+
+  it("code fence dùng ~~~ cũng được nhận diện như ```", async () => {
+    const text = ["# Tiêu đề", "~~~python", "# python comment", "~~~"].join("\n");
+    const chunks = await chunkText(text, "doc.md");
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0]).toBe("[doc.md › Tiêu đề]\n~~~python\n# python comment\n~~~");
+  });
+
   it("chunk dài trong 1 section vẫn được cắt tiếp bởi splitter, mỗi mảnh đều có breadcrumb", async () => {
     const longSection = "câu dài. ".repeat(200);
     const text = `# Section dài\n${longSection}`;

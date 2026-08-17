@@ -8,6 +8,7 @@ const splitter = new RecursiveCharacterTextSplitter({
 });
 
 const HEADING_RE = /^(#{1,6})\s+(.+)$/;
+const CODE_FENCE_RE = /^\s*(```|~~~)/;
 
 interface Section {
   /** Chuỗi heading tổ tiên dẫn tới section này (không kể văn bản trước heading đầu tiên). */
@@ -19,12 +20,20 @@ interface Section {
  * Tách văn bản Markdown thành các section theo heading (#, ##, ...), giữ lại
  * breadcrumb (chuỗi heading cha) cho mỗi section. Văn bản không có heading
  * nào (PDF/text thuần) trả về đúng 1 section với breadcrumb rỗng.
+ *
+ * QUAN TRỌNG: bỏ qua dòng bắt đầu bằng "#" khi đang ở TRONG code fence
+ * (``` hoặc ~~~) — tài liệu kỹ thuật (go-language.md, docker.md,
+ * nestjs.md...) thường có block bash/YAML/Dockerfile chứa dòng
+ * "# comment" hay "# npm install", nếu coi đó là heading Markdown thật sẽ
+ * cắt vụn + XOÁ HẲN dòng đó khỏi nội dung (dòng heading không được đưa vào
+ * body, xem nhánh `continue` bên dưới) — hỏng dữ liệu đã ingest.
  */
 function splitByHeadings(text: string): Section[] {
   const lines = text.split("\n");
   const sections: Section[] = [];
   const stack: { level: number; text: string }[] = [];
   let currentLines: string[] = [];
+  let inCodeFence = false;
 
   const flush = () => {
     const body = currentLines.join("\n").trim();
@@ -35,17 +44,26 @@ function splitByHeadings(text: string): Section[] {
   };
 
   for (const line of lines) {
-    const m = HEADING_RE.exec(line);
-    if (m) {
-      flush();
-      const level = m[1].length;
-      const headingText = m[2].trim();
-      while (stack.length > 0 && stack[stack.length - 1].level >= level) {
-        stack.pop();
-      }
-      stack.push({ level, text: headingText });
-      continue; // dòng heading không đưa vào nội dung — đã nằm trong breadcrumb
+    if (CODE_FENCE_RE.test(line)) {
+      inCodeFence = !inCodeFence;
+      currentLines.push(line);
+      continue;
     }
+
+    if (!inCodeFence) {
+      const m = HEADING_RE.exec(line);
+      if (m) {
+        flush();
+        const level = m[1].length;
+        const headingText = m[2].trim();
+        while (stack.length > 0 && stack[stack.length - 1].level >= level) {
+          stack.pop();
+        }
+        stack.push({ level, text: headingText });
+        continue; // dòng heading không đưa vào nội dung — đã nằm trong breadcrumb
+      }
+    }
+
     currentLines.push(line);
   }
   flush();
