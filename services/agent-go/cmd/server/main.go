@@ -70,7 +70,8 @@ func main() {
 		Model:                 fastModel(cfg),
 	})
 	ragReadTool := tools.NewRAGReadTool(mongoClient, cfg.MongoDB)
-	registerRAGAndCodeExtras(codeRegistry, researchRegistry, generalRegistry, ragTool, ragReadTool)
+	ragListTool := tools.NewRAGListTool(mongoClient, cfg.MongoDB)
+	registerRAGAndCodeExtras(codeRegistry, researchRegistry, generalRegistry, ragTool, ragReadTool, ragListTool)
 
 	// --- Wire Circuit Breaker ---
 	cb := guardrails.NewCircuitBreaker(3)
@@ -345,13 +346,12 @@ func buildRegistries(cfg config.Config) (code, research, general *tools.Registry
 // cho query có hasCodeIntent (vd từ khoá "search" nằm trong codeKeywords), nên
 // codeRegistry PHẢI thật sự có 2 tool này, nếu không agent code sẽ gặp lỗi
 // runtime "tool not found: web.search".
-func registerRAGAndCodeExtras(codeRegistry, researchRegistry, generalRegistry *tools.Registry, ragTool, ragReadTool tools.Tool) {
-	codeRegistry.Register(ragTool)
-	codeRegistry.Register(ragReadTool)
-	researchRegistry.Register(ragTool)
-	researchRegistry.Register(ragReadTool)
-	generalRegistry.Register(ragTool)
-	generalRegistry.Register(ragReadTool)
+func registerRAGAndCodeExtras(codeRegistry, researchRegistry, generalRegistry *tools.Registry, ragTool, ragReadTool, ragListTool tools.Tool) {
+	for _, reg := range []*tools.Registry{codeRegistry, researchRegistry, generalRegistry} {
+		reg.Register(ragTool)
+		reg.Register(ragReadTool)
+		reg.Register(ragListTool)
+	}
 
 	codeRegistry.Register(tools.NewWebSearchTool(nil))
 	codeRegistry.Register(tools.NewWebFetchTool(nil))

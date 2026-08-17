@@ -87,10 +87,11 @@ func TestRegisterRAGAndCodeExtras_CodeGetsWebTools(t *testing.T) {
 
 	ragTool := tools.NewRAGSearchTool(nil, "db", "", nil, tools.RAGSearchConfig{})
 	ragReadTool := tools.NewRAGReadTool(nil, "db")
-	registerRAGAndCodeExtras(code, research, general, ragTool, ragReadTool)
+	ragListTool := tools.NewRAGListTool(nil, "db")
+	registerRAGAndCodeExtras(code, research, general, ragTool, ragReadTool, ragListTool)
 
 	codeTools := toolNames(t, code.ToolDefs())
-	for _, want := range []string{"web.search", "web.fetch", "rag.search", "rag.read"} {
+	for _, want := range []string{"web.search", "web.fetch", "rag.search", "rag.read", "rag.list"} {
 		if !codeTools[want] {
 			t.Errorf("code registry thiếu %q sau registerRAGAndCodeExtras (có: %v)", want, codeTools)
 		}
@@ -101,7 +102,9 @@ func TestRegisterRAGAndCodeExtras_CodeGetsWebTools(t *testing.T) {
 	for name, names := range map[string]map[string]bool{
 		"research": researchTools, "general": generalTools,
 	} {
-		for _, want := range []string{"rag.search", "rag.read"} {
+		// rag.list phải có ở CẢ 3 agent: câu hỏi "tôi có tài liệu gì" có thể tới
+		// bất kỳ agent nào tuỳ routing.
+		for _, want := range []string{"rag.search", "rag.read", "rag.list"} {
 			if !names[want] {
 				t.Errorf("%s registry thiếu %q sau registerRAGAndCodeExtras (có: %v)", name, want, names)
 			}
