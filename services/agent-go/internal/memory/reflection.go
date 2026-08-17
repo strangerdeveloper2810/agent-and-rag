@@ -143,10 +143,23 @@ func reflectOnce(ctx context.Context, p provider.Provider, model, trimmedConv st
 	}
 
 	var fullResp strings.Builder
+	var streamErr error
 	for chunk := range chunkChan {
-		if chunk.Kind == provider.ChunkText {
+		switch chunk.Kind {
+		case provider.ChunkText:
 			fullResp.WriteString(chunk.Text)
+		case provider.ChunkError:
+			// Trước fix: ChunkError bị bỏ qua hoàn toàn, fullResp rỗng khiến
+			// lỗi hiển thị mơ hồ là "unexpected end of JSON input (raw=\"\")"
+			// thay vì lỗi provider thật (vd rate limit, timeout giữa
+			// stream). Coi như lỗi xác suất (giống parse JSON sai cú pháp)
+			// để ReflectAndExtract retry — thực tế đã thấy retry cứu được
+			// case ChunkError thoáng qua này trong log dev.
+			streamErr = chunk.Err
 		}
+	}
+	if streamErr != nil {
+		return nil, fmt.Errorf("%w: provider trả ChunkError giữa stream: %v", errReflectionParseFailed, streamErr)
 	}
 
 	raw := strings.TrimSpace(fullResp.String())
