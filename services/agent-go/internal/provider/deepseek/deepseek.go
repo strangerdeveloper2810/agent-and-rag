@@ -501,17 +501,28 @@ func mapFinishReason(raw string) provider.FinishReason {
 
 func flushToolCalls(toolCalls *[]pendingTool, emit func(provider.StreamChunk) bool) {
 	for _, tc := range *toolCalls {
-		if tc.name != "" && tc.args.Len() > 0 {
-			if !emit(provider.StreamChunk{
-				Kind: provider.ChunkToolCall,
-				ToolCall: &provider.ToolCall{
-					ID:   tc.id,
-					Name: unsanitizeName(tc.name),
-					Args: json.RawMessage(tc.args.String()),
-				},
-			}) {
-				return
-			}
+		// Chỉ cần có TÊN là hợp lệ. Trước đây còn đòi args.Len() > 0 nên tool
+		// call KHÔNG có argument bị bỏ ÂM THẦM — API tương thích OpenAI gửi
+		// arguments: "" cho tool mà mọi tham số đều optional. Hệ quả: tool
+		// không chạy, và nếu lượt đó cũng không có text thì caller báo lỗi mơ
+		// hồ "empty response". Adapter Anthropic đã xử lý đúng case này bằng
+		// cách mặc định "{}" — nay đồng bộ.
+		if tc.name == "" {
+			continue
+		}
+		args := tc.args.String()
+		if args == "" {
+			args = "{}"
+		}
+		if !emit(provider.StreamChunk{
+			Kind: provider.ChunkToolCall,
+			ToolCall: &provider.ToolCall{
+				ID:   tc.id,
+				Name: unsanitizeName(tc.name),
+				Args: json.RawMessage(args),
+			},
+		}) {
+			return
 		}
 	}
 	*toolCalls = nil

@@ -147,6 +147,16 @@ func (e *Engine) Run(ctx context.Context, in RunInput, emit EmitFunc) (provider.
 	s := newState(in)
 	node := NodeRecall
 
+	// Breaker RIÊNG cho lượt chạy này. Trước đây engine dùng thẳng
+	// e.circuitBreaker — MỘT instance chia sẻ cho cả 3 agent và toàn bộ
+	// process, và Reset() không được gọi ở đâu trong production. Hệ quả: 2
+	// request khác nhau (khác user) gọi cùng tool + cùng args thì request thứ 3
+	// bị chặn "stuck loop" oan, tool không chạy và câu trả lời rỗng; ngược lại
+	// 2 run song song ghi đè state của nhau nên loop thật lại không bị phát hiện.
+	if e.circuitBreaker != nil {
+		s.loopBreaker = guardrails.NewCircuitBreaker(e.circuitBreaker.MaxRepeats())
+	}
+
 	slog.Info("engine: run started", "provider", e.prov.Name(), "maxSteps", s.MaxSteps)
 
 	for {
@@ -206,11 +216,13 @@ func (e *Engine) dispatch(ctx context.Context, node NodeID, s *State, emit EmitF
 		return nodeModel(ctx, e, s, emit)
 	case NodeTools:
 		// Circuit breaker: detect stuck loops (same tool+args called consecutively).
-		if e.circuitBreaker != nil {
+		// Dùng breaker của LƯỢT CHẠY NÀY (s.loopBreaker), không phải instance
+		// chia sẻ toàn process — xem comment trong Engine.Run.
+		if s.loopBreaker != nil {
 			last := s.LastAssistant()
 			if last != nil {
 				for _, tc := range last.ToolCalls {
-					if err := e.circuitBreaker.Record(tc.Name, tc.Args); err != nil {
+					if err := s.loopBreaker.Record(tc.Name, tc.Args); err != nil {
 						emit(ErrorEvent(err.Error()))
 						return NodeEnd, nil
 					}

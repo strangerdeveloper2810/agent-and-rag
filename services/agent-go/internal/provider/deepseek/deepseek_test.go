@@ -591,6 +591,33 @@ data: [DONE]
 }
 
 // Tool call thiếu tên hoặc thiếu args thì không được phát ra.
+// TestFlushToolCalls_EmptyArgsBecomesEmptyObject: tool call CÓ tên nhưng
+// arguments rỗng phải được emit với "{}" chứ không bị bỏ. API tương thích
+// OpenAI gửi arguments: "" cho tool mà mọi tham số đều optional — code cũ đòi
+// args.Len() > 0 nên bỏ ÂM THẦM: tool không chạy, và nếu lượt đó cũng không có
+// text thì caller báo lỗi mơ hồ "empty response". Adapter Anthropic đã xử lý
+// đúng case này từ trước.
+func TestFlushToolCalls_EmptyArgsBecomesEmptyObject(t *testing.T) {
+	var emitted []provider.StreamChunk
+	emit := func(c provider.StreamChunk) bool {
+		emitted = append(emitted, c)
+		return true
+	}
+
+	calls := []pendingTool{{id: "1", name: "datetime"}} // name có, args rỗng
+	flushToolCalls(&calls, emit)
+
+	if len(emitted) != 1 {
+		t.Fatalf("emit %d chunk, want 1 — tool call không có args vẫn phải chạy", len(emitted))
+	}
+	if got := string(emitted[0].ToolCall.Args); got != "{}" {
+		t.Errorf("args = %q, want %q", got, "{}")
+	}
+	if emitted[0].ToolCall.Name != "datetime" {
+		t.Errorf("tool = %q, want datetime", emitted[0].ToolCall.Name)
+	}
+}
+
 func TestFlushToolCalls_SkipsIncomplete(t *testing.T) {
 	var emitted []provider.StreamChunk
 	emit := func(c provider.StreamChunk) bool {
