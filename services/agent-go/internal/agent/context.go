@@ -73,6 +73,7 @@ func BuildSystemPrompt(memories []string, skillSummaries []skills.SkillSummary) 
 	// 3. Tool reminders — cacheable section
 	b.WriteString("[CÔNG CỤ]\n")
 	b.WriteString("- rag.search: CHỈ dùng cho câu hỏi về nghiệp vụ/tài liệu riêng đã upload (KHÔNG dùng cho kiến thức lập trình/chung chung)\n")
+	b.WriteString("- rag.list: liệt kê ĐẦY ĐỦ danh sách tài liệu đã upload (dùng khi user hỏi 'có những tài liệu gì', 'trong knowledge base có gì')\n")
 	b.WriteString("- rag.read: đọc toàn bộ nội dung tài liệu từ cơ sở tri thức RAG\n")
 	b.WriteString("- web.search: tìm kiếm thông tin, kiến thức mới nhất trên Google / Web\n")
 	b.WriteString("- web.fetch: đọc nội dung chi tiết từ một đường dẫn URL cụ thể\n")

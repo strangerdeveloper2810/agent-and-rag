@@ -111,6 +111,139 @@ type ragSearchResult struct {
 	ChunkIndex int `bson:"chunkIndex" json:"-"`
 }
 
+// --- RAG List Tool ---
+
+// ragListTool liệt kê TOÀN BỘ tài liệu trong knowledge base của tenant.
+//
+// Vì sao cần tool riêng thay vì để model tự xoay bằng rag.search: rag.search là
+// tìm kiếm theo NGỮ NGHĨA, luôn trả về top-K theo điểm nên không bao giờ bảo đảm
+// liệt kê đủ. Log dev thật cho thấy khi người dùng hỏi "trong knowledge base có
+// những gì", agent phải gọi `echo` với "list all rag documents" (vô nghĩa) rồi
+// brute-force 4 lần rag.search với các từ khoá khác nhau mà VẪN thiếu tài liệu —
+// chính learner đã tự ghi lại bài học "không được liệt kê hết tài liệu ở lần
+// đầu, phải quét sâu nhiều từ khoá". Đó là dấu hiệu thiếu capability, không phải
+// lỗi của model.
+type ragListTool struct {
+	mongoClient *mongo.Client
+	dbName      string
+}
+
+// NewRAGListTool tạo tool liệt kê tài liệu RAG (metadata, không trả nội dung).
+func NewRAGListTool(mongoClient *mongo.Client, dbName string) Tool {
+	return &ragListTool{mongoClient: mongoClient, dbName: dbName}
+}
+
+func (t *ragListTool) Name() string { return "rag.list" }
+func (t *ragListTool) Kind() Kind   { return KindRead }
+func (t *ragListTool) Description() string {
+	return "List ALL documents in the user's RAG knowledge base (filenames + size), without their content. " +
+		"Use this when the user asks what documents/knowledge they have, or asks to enumerate the knowledge base — " +
+		"rag.search only returns top semantic matches and can NEVER guarantee a complete list."
+}
+
+func (t *ragListTool) Schema() json.RawMessage {
+	// Không có tham số: luôn liệt kê toàn bộ tài liệu của tenant hiện tại.
+	schema := map[string]any{
+		"type":                 "object",
+		"properties":           map[string]any{},
+		"additionalProperties": false,
+	}
+	b, _ := json.Marshal(schema)
+	return b
+}
+
+// ragListItem là 1 tài liệu trong kết quả rag.list.
+type ragListItem struct {
+	DocumentID string `bson:"documentId" json:"documentId"`
+	Source     string `bson:"source"     json:"source"`
+	Chunks     int    `bson:"chunks"     json:"chunks"`
+	Chars      int    `bson:"chars"      json:"chars"`
+}
+
+// maxRAGListItems chặn output khổng lồ khi knowledge base rất lớn.
+const maxRAGListItems = 200
+
+// buildRAGListPipeline dựng aggregation pipeline cho rag.list, scoped theo
+// tenantID giống buildRAGReadFilter. Tách thành hàm thuần để test được việc lọc
+// tenant mà không cần Mongo thật — thiếu clause tenantId ở đây nghĩa là mọi user
+// đều liệt kê được tài liệu của user khác.
+func buildRAGListPipeline(tenantID string) []bson.D {
+	match := bson.D{}
+	if tenantID != "" && tenantID != "default" {
+		match = append(match, bson.E{Key: "tenantId", Value: tenantID})
+	}
+
+	// Collection lưu theo CHUNK, nên phải gom theo documentId để ra danh sách
+	// TÀI LIỆU.
+	return []bson.D{
+		{{Key: "$match", Value: match}},
+		{{Key: "$group", Value: bson.D{
+			{Key: "_id", Value: "$documentId"},
+			{Key: "source", Value: bson.D{{Key: "$first", Value: "$source"}}},
+			{Key: "chunks", Value: bson.D{{Key: "$sum", Value: 1}}},
+			{Key: "chars", Value: bson.D{{Key: "$sum", Value: bson.D{
+				{Key: "$strLenCP", Value: bson.D{{Key: "$ifNull", Value: bson.A{"$text", ""}}}},
+			}}}},
+		}}},
+		{{Key: "$project", Value: bson.D{
+			{Key: "_id", Value: 0},
+			{Key: "documentId", Value: "$_id"},
+			{Key: "source", Value: 1},
+			{Key: "chunks", Value: 1},
+			{Key: "chars", Value: 1},
+		}}},
+		{{Key: "$sort", Value: bson.D{{Key: "source", Value: 1}}}},
+		{{Key: "$limit", Value: maxRAGListItems + 1}},
+	}
+}
+
+func (t *ragListTool) Execute(ctx context.Context, _ json.RawMessage) (Result, error) {
+	if t.mongoClient == nil {
+		return Result{Content: "RAG not configured. Set MONGODB_URI to enable the knowledge base."}, nil
+	}
+
+	coll := t.mongoClient.Collection("documents")
+	pipeline := buildRAGListPipeline(middleware.GetTenantID(ctx))
+
+	cursor, err := coll.Aggregate(ctx, pipeline)
+	if err != nil {
+		return Result{}, fmt.Errorf("rag.list: aggregate: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var items []ragListItem
+	if err := cursor.All(ctx, &items); err != nil {
+		return Result{}, fmt.Errorf("rag.list: cursor decode: %w", err)
+	}
+
+	truncated := false
+	if len(items) > maxRAGListItems {
+		items = items[:maxRAGListItems]
+		truncated = true
+	}
+
+	if len(items) == 0 {
+		return Result{Content: `{"count":0,"documents":[],"note":"Knowledge base rỗng — người dùng chưa upload tài liệu nào."}`}, nil
+	}
+
+	out := map[string]any{
+		"count":     len(items),
+		"documents": items,
+		// Nói rõ đây là danh sách ĐẦY ĐỦ để model không đi brute-force rag.search
+		// nữa (hành vi đã thấy trong log khi chưa có tool này).
+		"complete": !truncated,
+	}
+	if truncated {
+		out["note"] = fmt.Sprintf("Chỉ hiển thị %d tài liệu đầu (sắp theo tên); knowledge base còn nhiều hơn.", maxRAGListItems)
+	}
+
+	b, err := json.Marshal(out)
+	if err != nil {
+		return Result{}, fmt.Errorf("rag.list: marshal: %w", err)
+	}
+	return Result{Content: string(b)}, nil
+}
+
 // --- RAG Read Tool ---
 
 // ragReadTool reads full content of a RAG document from MongoDB.

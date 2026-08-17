@@ -100,7 +100,7 @@ func (r *Registry) FilterToolDefs(userQuery string, step int) []provider.ToolDef
 	}
 
 	if hasDocIntent {
-		for _, name := range []string{"rag.search", "rag.read", "web.search", "web.fetch"} {
+		for _, name := range []string{"rag.search", "rag.read", "rag.list", "web.search", "web.fetch"} {
 			selectedNames[name] = true
 		}
 	}
