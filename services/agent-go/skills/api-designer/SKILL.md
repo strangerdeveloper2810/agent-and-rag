@@ -1,7 +1,7 @@
 ---
 name: api-designer
 description: API design — RESTful principles, GraphQL schema, endpoint design, error handling, rate limiting, versioning, OpenAPI specs
-when_to_use: When Tony needs to design a new API, review an existing API design, or create specifications for endpoints and data contracts
+when_to_use: When the user needs to design a new API, review an existing API design, or create specifications for endpoints and data contracts
 triggers: [thiết kế api, thiet ke api, design api, api design, rest api, graphql schema, openapi, swagger, thiết kế endpoint, thiet ke endpoint]
 tools: [file.read, file.write]
 ---
@@ -101,7 +101,7 @@ POST   /suits/:id/self-destruct — Self-destruct (with confirmation!)
 // GET /users/123 — Good
 {
   "id": "usr_abc123",
-  "name": "Tony Stark",
+  "name": "the user",
   "email": "tony@stark-industries.com",
   "role": "admin",
   "created_at": "2026-01-15T09:00:00Z",
@@ -271,7 +271,7 @@ type Mutation {
 
 ## OpenAPI Specification
 
-When Tony asks for an API spec, produce an OpenAPI 3.1 document. Start with:
+When the user asks for an API spec, produce an OpenAPI 3.1 document. Start with:
 
 ```yaml
 openapi: "3.1.0"

@@ -94,6 +94,17 @@ type Config struct {
 	// hướng dẫn (xem node_tools.destructiveBlockedMessage) thay vì câu trả lời
 	// rỗng như trước. Chỉ bật trên máy cá nhân, khi người dùng chủ động muốn.
 	AllowDestructiveTools bool
+
+	// OwnerTenantIDs là danh sách tenant được coi là CHỦ HỆ THỐNG, tức được dùng
+	// nhóm tool đặc quyền (file.read/write/search, shell.exec, git) — xem
+	// tools.IsPrivilegedTool. Đọc từ OWNER_TENANT_IDS, phân tách bằng dấu phẩy.
+	//
+	// Vì sao cần: nhóm tool này tác động lên MÁY CHẠY AGENT chứ không phải máy
+	// người dùng, và không scope theo tenant. Với 1 người trên máy cá nhân thì
+	// vô hại; khi mở cho nhiều người dùng thì bất kỳ ai cũng đọc được .env chứa
+	// API key của server. Để rỗng = chỉ tenant "default" (chạy local không auth)
+	// có đặc quyền (fail closed).
+	OwnerTenantIDs []string
 }
 
 // defaultMaxOutputTokens là trần output token mặc định cho luồng chat chính.
@@ -145,6 +156,7 @@ func Load() (Config, error) {
 		EnableDynamicThinking: envOr("ENABLE_DYNAMIC_THINKING", "false") == "true",
 		EnablePlanning:        envOr("ENABLE_PLANNING", "false") == "true",
 		AllowDestructiveTools: envOr("ALLOW_DESTRUCTIVE_TOOLS", "false") == "true",
+		OwnerTenantIDs:        splitCSV(os.Getenv("OWNER_TENANT_IDS")),
 		EnableLearner:         envOr("ENABLE_LEARNER", "false") == "true",
 	}
 
@@ -176,6 +188,21 @@ func envOr(k, def string) string {
 		return v
 	}
 	return def
+}
+
+// splitCSV tách chuỗi phân tách bằng dấu phẩy, bỏ khoảng trắng và phần tử rỗng.
+func splitCSV(v string) []string {
+	if strings.TrimSpace(v) == "" {
+		return nil
+	}
+	parts := strings.Split(v, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // intEnvOr đọc biến môi trường dạng số nguyên. Giá trị không parse được hoặc âm

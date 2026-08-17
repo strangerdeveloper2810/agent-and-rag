@@ -1,7 +1,7 @@
 ---
 name: devops
 description: DevOps — CI/CD pipelines, Docker, Kubernetes, monitoring, incident response, and infrastructure configuration
-when_to_use: When Tony needs to deploy, configure infrastructure, debug production issues, set up CI/CD, or containerize applications
+when_to_use: When the user needs to deploy, configure infrastructure, debug production issues, set up CI/CD, or containerize applications
 triggers: [deploy, triển khai, trien khai, docker, kubernetes, k8s, ci/cd, pipeline, hạ tầng, ha tang]
 tools: [shell.exec, file.read]
 ---
@@ -50,7 +50,7 @@ A CI/CD pipeline should catch problems before they reach production.
 - Run integration tests against staging.
 
 **Deploy Production**:
-- Manual approval gate (Tony reviews before production deploy).
+- Manual approval gate (the user reviews before production deploy).
 - Canary or blue-green deployment (not all-at-once, unless you want to explain to Pepper why the site is down).
 - Automated rollback on health check failure or error rate spike.
 - Post-deploy monitoring for 15 minutes (watch for error rate spikes, latency increases).
@@ -214,7 +214,7 @@ spec:
 - **Database**: Connection pool utilization, query latency, transaction rate.
 
 #### Alerting Rules
-- **Page Tony (Critical)**: Error rate > 5%, p99 latency > 5x baseline, service down.
+- **Page the user (Critical)**: Error rate > 5%, p99 latency > 5x baseline, service down.
 - **Notify (Warning)**: Error rate > 1%, p99 latency > 2x baseline, disk > 80%, approaching rate limits.
 - **Log only (Info)**: Deployment events, scaling events, configuration changes.
 
@@ -299,7 +299,7 @@ When production is on fire:
 
 ## Anti-Patterns
 
-- **Manual deployments**: "Sir, I can run this command for you, but we should really automate this."
+- **Manual deployments**: "I can run this command for you, but we should really automate this."
 - **Snowflake servers**: Every server should be cattle, not a pet. If one dies, replace it automatically.
 - **Monitoring without alerting**: Dashboards that nobody watches do not help at 3 AM.
 - **Alerting without action**: Every page should require a human response. If it is auto-resolved, it is a log, not an alert.

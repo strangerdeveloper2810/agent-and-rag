@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ai-agent-tut/agent-go/internal/guardrails"
+	"github.com/ai-agent-tut/agent-go/internal/middleware"
 	"github.com/ai-agent-tut/agent-go/internal/provider"
 	"github.com/ai-agent-tut/agent-go/internal/tools"
 )
@@ -17,6 +18,7 @@ type toolsEngine interface {
 	getRegistry() *tools.Registry
 	getMaxToolOutput() int
 	getAllowDestructiveTools() bool
+	getOwnerTenants() []string
 }
 
 // defaultMaxToolOutput khớp cfg.MaxToolOutput (24000) — giá trị mặc định khi
@@ -42,8 +44,24 @@ func nodeTools(ctx context.Context, eng toolsEngine, s *State, emit EmitFunc) (N
 	var safeCalls []provider.ToolCall
 	var destructiveCalls []provider.ToolCall
 	allowDestructive := eng.getAllowDestructiveTools()
+	// LỚP CHẶN THỨ HAI cho tool đặc quyền. node_model đã ẩn chúng khỏi tool list,
+	// nhưng vẫn cần chặn ở đây vì: (a) từ step 1 trở đi FilterToolDefs trả TOÀN
+	// BỘ registry, (b) model có thể tự bịa tên tool, (c) đây là ranh giới bảo mật
+	// nên không được phụ thuộc vào việc model "không biết" tool tồn tại.
+	isOwner := tools.IsOwnerTenant(middleware.GetTenantID(ctx), eng.getOwnerTenants())
 
 	for _, tc := range last.ToolCalls {
+		if !isOwner && tools.IsPrivilegedTool(tc.Name) {
+			slog.Warn("tools: chặn tool đặc quyền với tenant không phải chủ", "tool", tc.Name)
+			emit(ToolEndEvent(tc.Name, false, privilegedDeniedMessage(tc.Name)))
+			// Đưa lỗi vào messages để LLM biết mà chuyển hướng, thay vì lặp lại.
+			s.AppendObservation(Observation{
+				CallID: tc.ID,
+				Name:   tc.Name,
+				Error:  privilegedDeniedMessage(tc.Name),
+			})
+			continue
+		}
 		t, ok := reg.Get(tc.Name)
 		if !ok {
 			safeCalls = append(safeCalls, tc)
@@ -134,6 +152,15 @@ func nodeTools(ctx context.Context, eng toolsEngine, s *State, emit EmitFunc) (N
 	return NodeModel, nil
 }
 
+// privilegedDeniedMessage là thông báo trả cho LLM khi tool đặc quyền bị chặn.
+// Nói rõ lý do và gợi ý hướng khác để model không lặp lại cùng một call.
+func privilegedDeniedMessage(tool string) string {
+	return fmt.Sprintf("Công cụ %q không khả dụng cho người dùng này (chỉ chủ hệ thống được truy cập "+
+		"tệp tin và terminal của máy chủ). Hãy hoàn thành yêu cầu bằng cách khác — "+
+		"ví dụ dùng rag.search/rag.list cho tài liệu người dùng đã upload, hoặc web.search cho thông tin công khai. "+
+		"ĐỪNG gọi lại công cụ này.", tool)
+}
+
 // destructiveArgsPreviewMax giới hạn độ dài args hiện trong thông báo chặn.
 const destructiveArgsPreviewMax = 200
 
@@ -157,9 +184,9 @@ func destructiveBlockedMessage(calls []provider.ToolCall) string {
 	b.WriteString("\nĐây là công cụ được xếp loại `destructive` (có thể sửa/xoá dữ liệu trên máy), " +
 		"nên mặc định hệ thống KHÔNG tự chạy.\n\n" +
 		"Cách xử lý:\n" +
-		"- Tự chạy lệnh đó trong terminal của sir rồi dán kết quả lại cho tôi, hoặc\n" +
+		"- Tự chạy lệnh đó trong terminal của bạn rồi dán kết quả lại cho tôi, hoặc\n" +
 		"- Bật `ALLOW_DESTRUCTIVE_TOOLS=true` trong file `.env` của agent rồi khởi động lại " +
-		"nếu sir muốn tôi được phép tự chạy (chỉ nên bật trên máy cá nhân), hoặc\n" +
+		"nếu bạn muốn tôi được phép tự chạy (chỉ nên bật trên máy cá nhân), hoặc\n" +
 		"- Nhờ tôi làm cách khác không cần công cụ này.")
 	return b.String()
 }

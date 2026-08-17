@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ai-agent-tut/agent-go/internal/middleware"
 	"github.com/ai-agent-tut/agent-go/internal/provider"
 	"github.com/ai-agent-tut/agent-go/internal/skills"
 	"github.com/ai-agent-tut/agent-go/internal/tools"
@@ -20,6 +21,7 @@ type modelEngine interface {
 	getSystemPrompt() string
 	getMaxContextTokens() int
 	getMaxOutputTokens() int
+	getOwnerTenants() []string
 	getDynamicThinking() DynamicThinkingConfig
 	getSkillLoader() *skills.Loader
 }
@@ -121,6 +123,20 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 	// liệt kê, làm agent yếu đi mỗi khi có skill kích hoạt.
 	if len(skillTools) > 0 {
 		toolDefs = reg.UnionToolDefs(toolDefs, skillTools)
+	}
+
+	// Tenant không phải chủ hệ thống KHÔNG được thấy nhóm tool đặc quyền
+	// (file.*, shell.exec, git) — chúng tác động lên máy chạy agent, không scope
+	// theo tenant, nên với nhiều người dùng thì bất kỳ ai cũng đọc được .env
+	// chứa API key của server. Ẩn khỏi tool list (thay vì chỉ chặn khi thực thi)
+	// để model không cố gọi rồi nhận lỗi và làm rối câu trả lời; node_tools chặn
+	// thêm một lớp nữa cho chắc.
+	if !tools.IsOwnerTenant(middleware.GetTenantID(ctx), eng.getOwnerTenants()) {
+		before := len(toolDefs)
+		toolDefs = tools.StripPrivilegedTools(toolDefs)
+		if removed := before - len(toolDefs); removed > 0 {
+			slog.Debug("model: ẩn tool đặc quyền với tenant không phải chủ", "removed", removed)
+		}
 	}
 
 	req := provider.GenerateRequest{

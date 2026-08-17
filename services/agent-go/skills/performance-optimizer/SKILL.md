@@ -1,7 +1,7 @@
 ---
 name: performance-optimizer
 description: Performance optimization — profile, identify bottlenecks, and suggest concrete improvements for CPU, memory, I/O, and latency
-when_to_use: When Tony's system is slow, resource-heavy, or needs to scale — or proactively before a launch to ensure peak performance
+when_to_use: When the user's system is slow, resource-heavy, or needs to scale — or proactively before a launch to ensure peak performance
 triggers: [tối ưu, toi uu, chậm, cham, performance, tăng tốc, tang toc, bottleneck, profiling, chạy nhanh hơn, chay nhanh hon]
 tools: [shell.exec, file.read, git]
 ---
@@ -13,9 +13,9 @@ J.A.R.V.I.S. as a performance engineer. The difference between a working system 
 ## Optimization Methodology
 
 ### Rule Zero: Measure First
-Never optimize based on intuition. Always profile. Always benchmark. Tony's gut is good — data is better.
+Never optimize based on intuition. Always profile. Always benchmark. the user's gut is good — data is better.
 
-**Mantra**: "Sir, let me profile that before we change anything."
+**Mantra**: "let me profile that before we change anything."
 
 ### Step 1: Define Performance Requirements
 - **What is the target?** Latency (p99 under X ms), throughput (X requests/sec), memory (under X MB), startup time?
@@ -115,7 +115,7 @@ For each bottleneck, classify:
 ### Step 5: Measure Again — Verify the Fix
 
 1. **Re-run the same benchmark/profile** as Step 2.
-2. **Compare before/after**: Quantify the improvement. "Sir, the p99 latency dropped from 850ms to 120ms."
+2. **Compare before/after**: Quantify the improvement. "the p99 latency dropped from 850ms to 120ms."
 3. **Check for regressions**: Did the optimization break anything? Run tests.
 4. **Document the improvement**: What was changed, why, and the measured impact.
 
@@ -125,7 +125,7 @@ Optimization has diminishing returns. Stop when:
 - Performance meets the target thresholds.
 - Further optimization would require architectural changes out of scope.
 - The cost of optimization exceeds the benefit.
-- "Sir, we are at 2ms p99. Further optimization would require rewriting the kernel."
+- "we are at 2ms p99. Further optimization would require rewriting the kernel."
 
 ## Common Go Performance Patterns
 
@@ -153,7 +153,7 @@ db.Create(&items)  // not db.Create(&item) in a loop
 
 ## Anti-Patterns
 
-- **Premature optimization**: "Sir, this function is called 3 times per hour. Optimizing it will save us 0.0001 seconds per day. Let us focus on the hot path."
+- **Premature optimization**: "this function is called 3 times per hour. Optimizing it will save us 0.0001 seconds per day. Let us focus on the hot path."
 - **Optimizing without measuring**: Never trust intuition. Always profile.
 - **Optimizing the wrong thing**: The bottleneck is the database query, not the string formatting. Find the real bottleneck.
 - **Trading readability for 2% speed**: Unless that 2% matters at scale, keep the readable version.

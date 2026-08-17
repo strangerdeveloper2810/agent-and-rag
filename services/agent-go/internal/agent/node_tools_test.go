@@ -9,6 +9,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"github.com/ai-agent-tut/agent-go/internal/middleware"
 	"github.com/ai-agent-tut/agent-go/internal/provider"
 	"github.com/ai-agent-tut/agent-go/internal/tools"
 )
@@ -34,6 +35,7 @@ func (s *stubTool) Execute(_ context.Context, _ json.RawMessage) (tools.Result, 
 
 // toolsOnlyEngine chỉ cần registry (interface toolsEngine).
 type toolsOnlyEngine struct {
+	ownerTenants     []string
 	registry         *tools.Registry
 	maxToolOutput    int
 	allowDestructive bool
@@ -42,6 +44,7 @@ type toolsOnlyEngine struct {
 func (e *toolsOnlyEngine) getRegistry() *tools.Registry   { return e.registry }
 func (e *toolsOnlyEngine) getMaxToolOutput() int          { return e.maxToolOutput }
 func (e *toolsOnlyEngine) getAllowDestructiveTools() bool { return e.allowDestructive }
+func (e *toolsOnlyEngine) getOwnerTenants() []string      { return e.ownerTenants }
 
 func regWith(ts ...tools.Tool) *tools.Registry {
 	r := tools.NewRegistry()
@@ -315,6 +318,107 @@ func TestNodeTools_ZeroMaxToolOutputMeansUnlimited(t *testing.T) {
 	}
 	if s.Scratchpad[0].Output != huge {
 		t.Errorf("output dài %d, want giữ nguyên %d khi maxToolOutput=0", len(s.Scratchpad[0].Output), len(huge))
+	}
+}
+
+// TestNodeTools_BlocksPrivilegedToolForNonOwner khoá RANH GIỚI BẢO MẬT: tool
+// đặc quyền (file.*, shell.exec, git) tác động lên MÁY CHẠY AGENT với
+// AllowedPaths mặc định gồm $HOME của server, và KHÔNG scope theo tenant. Khi mở
+// JARVIS cho nhiều người dùng, để lọt nghĩa là bất kỳ ai cũng đọc được .env
+// chứa toàn bộ API key của server.
+//
+// Đây là lớp chặn THỨ HAI (node_model đã ẩn khỏi tool list). Vẫn cần vì từ step
+// 1 trở đi FilterToolDefs trả TOÀN BỘ registry, và model có thể tự bịa tên tool.
+func TestNodeTools_BlocksPrivilegedToolForNonOwner(t *testing.T) {
+	eng := &toolsOnlyEngine{
+		registry: regWith(&stubTool{name: "file.read", kind: tools.KindRead, output: "NỘI DUNG BÍ MẬT CỦA SERVER"}),
+		// ownerTenants rỗng → chỉ tenant "default" là chủ (fail closed).
+	}
+	s := stateWithToolCalls("file.read")
+	ctx := context.WithValue(context.Background(), middleware.TenantIDKey, "nguoi-dung-la")
+
+	var events []Event
+	if _, err := nodeTools(ctx, eng, s, func(e Event) { events = append(events, e) }); err != nil {
+		t.Fatalf("nodeTools: %v", err)
+	}
+
+	// Tool KHÔNG được chạy.
+	for _, obs := range s.Scratchpad {
+		if strings.Contains(obs.Output, "BÍ MẬT") {
+			t.Fatalf("tool đặc quyền đã CHẠY với người dùng thường — rò rỉ dữ liệu server: %+v", obs)
+		}
+	}
+	if len(s.Scratchpad) != 1 || s.Scratchpad[0].Error == "" {
+		t.Fatalf("phải ghi observation lỗi để LLM biết mà chuyển hướng: %+v", s.Scratchpad)
+	}
+	end := hasEvent(events, "tool_end")
+	if end == nil || end.Message == "" {
+		t.Error("phải emit tool_end kèm lý do bị chặn")
+	}
+}
+
+// Chủ hệ thống thì vẫn chạy được bình thường.
+func TestNodeTools_AllowsPrivilegedToolForOwner(t *testing.T) {
+	eng := &toolsOnlyEngine{
+		registry:     regWith(&stubTool{name: "file.read", kind: tools.KindRead, output: "nội dung file"}),
+		ownerTenants: []string{"chu-he-thong"},
+	}
+	s := stateWithToolCalls("file.read")
+	ctx := context.WithValue(context.Background(), middleware.TenantIDKey, "chu-he-thong")
+
+	if _, err := nodeTools(ctx, eng, s, func(Event) {}); err != nil {
+		t.Fatalf("nodeTools: %v", err)
+	}
+	if len(s.Scratchpad) != 1 || s.Scratchpad[0].Output != "nội dung file" {
+		t.Errorf("chủ hệ thống phải chạy được tool đặc quyền: %+v", s.Scratchpad)
+	}
+}
+
+// Chế độ local (không header X-Tenant-ID → tenant "default") vẫn dùng được, để
+// không phá trải nghiệm chạy máy cá nhân.
+func TestNodeTools_LocalDefaultTenantIsOwner(t *testing.T) {
+	eng := &toolsOnlyEngine{
+		registry: regWith(&stubTool{name: "shell.exec", kind: tools.KindRead, output: "ok"}),
+	}
+	s := stateWithToolCalls("shell.exec")
+
+	if _, err := nodeTools(context.Background(), eng, s, func(Event) {}); err != nil {
+		t.Fatalf("nodeTools: %v", err)
+	}
+	if len(s.Scratchpad) != 1 || s.Scratchpad[0].Output != "ok" {
+		t.Errorf("chế độ local phải chạy được tool đặc quyền: %+v", s.Scratchpad)
+	}
+}
+
+// Tool an toàn vẫn chạy bình thường cho người dùng thường (không chặn oan).
+func TestNodeTools_NonOwnerKeepsSafeTools(t *testing.T) {
+	eng := &toolsOnlyEngine{
+		registry: regWith(
+			&stubTool{name: "file.read", kind: tools.KindRead, output: "bí mật"},
+			&stubTool{name: "rag.list", kind: tools.KindRead, output: `{"count":3}`},
+		),
+	}
+	s := stateWithToolCalls("file.read", "rag.list")
+	ctx := context.WithValue(context.Background(), middleware.TenantIDKey, "nguoi-dung-la")
+
+	if _, err := nodeTools(ctx, eng, s, func(Event) {}); err != nil {
+		t.Fatalf("nodeTools: %v", err)
+	}
+
+	var sawRagList, sawSecret bool
+	for _, obs := range s.Scratchpad {
+		if obs.Name == "rag.list" && strings.Contains(obs.Output, "count") {
+			sawRagList = true
+		}
+		if strings.Contains(obs.Output, "bí mật") {
+			sawSecret = true
+		}
+	}
+	if !sawRagList {
+		t.Errorf("tool an toàn rag.list bị chặn oan: %+v", s.Scratchpad)
+	}
+	if sawSecret {
+		t.Error("tool đặc quyền vẫn chạy dù người dùng không phải chủ")
 	}
 }
 
