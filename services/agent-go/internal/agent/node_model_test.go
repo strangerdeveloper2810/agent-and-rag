@@ -12,6 +12,7 @@ import (
 
 // fakeEngine là engine tối thiểu chỉ để test node model (có provider + registry).
 type fakeEngine struct {
+	ownerTenants    []string
 	prov            provider.Provider
 	registry        *tools.Registry
 	maxOutputTokens int
@@ -22,6 +23,7 @@ func (e *fakeEngine) getRegistry() *tools.Registry              { return e.regis
 func (e *fakeEngine) getSystemPrompt() string                   { return "" }
 func (e *fakeEngine) getMaxContextTokens() int                  { return 0 }
 func (e *fakeEngine) getMaxOutputTokens() int                   { return e.maxOutputTokens }
+func (e *fakeEngine) getOwnerTenants() []string                 { return e.ownerTenants }
 func (e *fakeEngine) getDynamicThinking() DynamicThinkingConfig { return DynamicThinkingConfig{} }
 func (e *fakeEngine) getSkillLoader() *skills.Loader            { return nil }
 

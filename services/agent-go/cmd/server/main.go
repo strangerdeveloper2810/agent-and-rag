@@ -73,6 +73,19 @@ func main() {
 	ragListTool := tools.NewRAGListTool(mongoClient, cfg.MongoDB)
 	registerRAGAndCodeExtras(codeRegistry, researchRegistry, generalRegistry, ragTool, ragReadTool, ragListTool)
 
+	// Nhóm tool đặc quyền (file.*, shell.exec, git) tác động lên MÁY CHẠY AGENT và
+	// không scope theo tenant → chỉ chủ hệ thống được dùng. Log rõ trạng thái để
+	// không ai vô tình mở nó cho người lạ.
+	if len(cfg.OwnerTenantIDs) == 0 {
+		slog.Warn("guardrails: OWNER_TENANT_IDS chưa cấu hình — tool đặc quyền CHỈ dùng được ở chế độ local (tenant \"default\")",
+			"privileged_tools", tools.PrivilegedToolNames(),
+			"hint", "đặt OWNER_TENANT_IDS=<tenant id của bạn> trong .env nếu muốn dùng nhóm tool này khi đã đăng nhập")
+	} else {
+		slog.Info("guardrails: tool đặc quyền giới hạn theo chủ hệ thống",
+			"owner_tenants", len(cfg.OwnerTenantIDs),
+			"privileged_tools", tools.PrivilegedToolNames())
+	}
+
 	// --- Wire Circuit Breaker ---
 	cb := guardrails.NewCircuitBreaker(3)
 
@@ -135,6 +148,7 @@ func main() {
 	generalEngine.SetCircuitBreaker(cb)
 	generalEngine.SetMaxToolOutput(cfg.MaxToolOutput)
 	generalEngine.SetMaxOutputTokens(cfg.MaxTokens)
+	generalEngine.SetOwnerTenants(cfg.OwnerTenantIDs)
 	generalEngine.SetAllowDestructiveTools(cfg.AllowDestructiveTools)
 	generalEngine.SetSkillLoader(skillLoader)
 	generalEngine.SetMemoryNodes(
@@ -152,6 +166,7 @@ func main() {
 	codeEngine.SetCircuitBreaker(cb)
 	codeEngine.SetMaxToolOutput(cfg.MaxToolOutput)
 	codeEngine.SetMaxOutputTokens(cfg.MaxTokens)
+	codeEngine.SetOwnerTenants(cfg.OwnerTenantIDs)
 	codeEngine.SetAllowDestructiveTools(cfg.AllowDestructiveTools)
 	codeEngine.SetSkillLoader(skillLoader)
 	codeEngine.SetMemoryNodes(
@@ -169,6 +184,7 @@ func main() {
 	researchEngine.SetCircuitBreaker(cb)
 	researchEngine.SetMaxToolOutput(cfg.MaxToolOutput)
 	researchEngine.SetMaxOutputTokens(cfg.MaxTokens)
+	researchEngine.SetOwnerTenants(cfg.OwnerTenantIDs)
 	researchEngine.SetAllowDestructiveTools(cfg.AllowDestructiveTools)
 	researchEngine.SetSkillLoader(skillLoader)
 	researchEngine.SetMemoryNodes(

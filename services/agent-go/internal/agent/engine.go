@@ -72,6 +72,10 @@ type Engine struct {
 	// hạn. Trước đây cfg.MaxTokens là config chết nên request luôn gửi
 	// max_tokens=0 và không có trần nào — xem cfg.MaxTokens.
 	maxOutputTokens int
+
+	// ownerTenantIDs: tenant được dùng nhóm tool đặc quyền. Rỗng = chỉ tenant
+	// "default" (local, không auth) — xem tools.IsOwnerTenant.
+	ownerTenantIDs []string
 }
 
 // SetMaxOutputTokens đặt trần output token cho mỗi lần gọi LLM. n <= 0 = không giới hạn.
@@ -80,6 +84,14 @@ func (e *Engine) SetMaxOutputTokens(n int) {
 }
 
 func (e *Engine) getMaxOutputTokens() int { return e.maxOutputTokens }
+
+// SetOwnerTenants khai báo các tenant được dùng nhóm tool đặc quyền (file.*,
+// shell.exec, git) — xem tools.IsOwnerTenant và cfg.OwnerTenantIDs.
+func (e *Engine) SetOwnerTenants(ids []string) {
+	e.ownerTenantIDs = ids
+}
+
+func (e *Engine) getOwnerTenants() []string { return e.ownerTenantIDs }
 
 // SetMaxToolOutput đặt giới hạn ký tự output mỗi tool đưa vào context.
 // n <= 0 → không giới hạn.

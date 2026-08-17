@@ -1,7 +1,7 @@
 ---
 name: data-analysis
 description: Analyze data — find patterns, trends, anomalies, calculate statistics, and suggest visualizations
-when_to_use: When Tony has data and needs insights: CSV files, logs, performance metrics, experiment results, or any structured data
+when_to_use: When the user has data and needs insights: CSV files, logs, performance metrics, experiment results, or any structured data
 triggers: [phân tích dữ liệu, phan tich du lieu, data analysis, thống kê, thong ke, biểu đồ, bieu do, dataset]
 tools: [file.read, shell.exec, calculator]
 ---
@@ -29,7 +29,7 @@ Load and inspect with `file.read` for small files or `shell.exec` with appropria
 - **Validate ranges**: Do values fall within expected bounds?
 - **Deduplicate**: Are there repeated rows?
 
-Report data quality issues to Tony BEFORE analysis. "Sir, 15% of the temperature readings are missing for the Tuesday run. Should I exclude that day or interpolate?"
+Report data quality issues to the user BEFORE analysis. "15% of the temperature readings are missing for the Tuesday run. Should I exclude that day or interpolate?"
 
 ### Step 3: Exploratory Analysis
 
@@ -45,11 +45,11 @@ For each numeric variable, compute and present:
 #### Distribution Analysis
 - Is the data normally distributed, skewed, bimodal, uniform?
 - Are there unexpected clusters or gaps?
-- Use histograms (describe shape if Tony cannot view charts).
+- Use histograms (describe shape if the user cannot view charts).
 
 #### Correlation Analysis
 - Compute pairwise correlations between numeric variables.
-- Flag strong correlations (|r| > 0.7): "Sir, thrust output and fuel consumption show a 0.92 correlation — nearly linear."
+- Flag strong correlations (|r| > 0.7): "thrust output and fuel consumption show a 0.92 correlation — nearly linear."
 - Caution: correlation is not causation. Always state this.
 
 #### Trend Analysis (Time Series)
@@ -61,12 +61,12 @@ For each numeric variable, compute and present:
 ### Step 4: Pattern Discovery
 
 - **Clusters / Segments**: Are there natural groupings in the data?
-- **Anomalies**: Data points that deviate from expected patterns. "Sir, reactor temperature spiked to 3400K for 0.3 seconds at 14:22. That is 3 standard deviations above normal."
+- **Anomalies**: Data points that deviate from expected patterns. "reactor temperature spiked to 3400K for 0.3 seconds at 14:22. That is 3 standard deviations above normal."
 - **Relationships**: Non-linear patterns, thresholds, interaction effects.
 - **Funnels / Sequences**: For process data, where do things drop off?
 
 ### Step 5: Hypothesis Testing
-If Tony has a specific hypothesis:
+If the user has a specific hypothesis:
 1. State the null hypothesis (H0) and alternative (H1).
 2. Choose the appropriate test: t-test (compare means), chi-squared (categorical), correlation test, etc.
 3. Set significance level (typically alpha = 0.05).
@@ -75,7 +75,7 @@ If Tony has a specific hypothesis:
 
 ### Step 6: Insight Synthesis
 
-Transform analysis into insights Tony can act on:
+Transform analysis into insights the user can act on:
 
 **Bad**: "The mean value is 42.3 with standard deviation 5.7."
 **Good**: "The new thruster design delivers 42.3 kN of thrust — that is a 23% improvement over the Mark VII, but with higher variance (the worst-performing unit still beats the old best by 8%)."
@@ -84,13 +84,13 @@ Transform analysis into insights Tony can act on:
 ```
 [Finding] — What the data shows.
 [Context] — Why it matters relative to the goal.
-[Action] — What Tony should do about it.
+[Action] — What the user should do about it.
 [Confidence] — How certain are we? (High / Medium / Low — with reason)
 ```
 
 ## Visualization Guidance
 
-Tony often benefits from visual representations. For each analysis, suggest:
+the user often benefits from visual representations. For each analysis, suggest:
 
 | Data Type | Best Visualization | Why |
 |---|---|---|
