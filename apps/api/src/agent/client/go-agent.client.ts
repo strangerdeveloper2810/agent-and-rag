@@ -192,9 +192,16 @@ export const goAgentClient: AgentClient = {
       opts?.signal?.addEventListener("abort", onAbort, { once: true });
 
       try {
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+        if (opts?.tenantId) {
+          headers["X-Tenant-ID"] = opts.tenantId;
+        }
+
         const res = await fetch(url, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body,
           signal: controller.signal,
         });

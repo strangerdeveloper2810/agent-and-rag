@@ -11,7 +11,10 @@
  * Actions:
  *   - init(): gọi khi app mount, kiểm tra session qua GET /api/auth/me
  *   - login(email, password): đăng nhập, lưu user vào store
- *   - register(email, password, name): đăng ký, tự động đăng nhập
+ *   - register(email, password, name): đăng ký — gửi OTP, CHƯA đăng nhập
+ *     (user phải verifyEmail() thành công mới có session)
+ *   - verifyEmail(email, otp): xác minh OTP, lưu user vào store (đăng nhập lần đầu)
+ *   - resendOtp(email): gửi lại OTP (tôn trọng cooldown 2 phút phía server)
  *   - logout(): đăng xuất, xóa user khỏi store
  */
 
@@ -35,6 +38,8 @@ interface AuthState {
   init: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string) => Promise<void>;
+  verifyEmail: (email: string, otp: string) => Promise<void>;
+  resendOtp: (email: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -79,22 +84,45 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   /**
-   * Đăng ký tài khoản mới — tự động đăng nhập sau khi tạo.
-   * BFF set httpOnly cookie + trả về user.
+   * Đăng ký tài khoản mới — gửi OTP về email, CHƯA đăng nhập.
+   * Không set user: phải verifyEmail() thành công mới có session.
    */
   register: async (email: string, password: string, name: string) => {
     set({ isLoading: true });
     try {
-      const data = await api.post<{ user: AuthUser }>("/api/auth/register", {
+      await api.post<{ email: string }>("/api/auth/register", {
         email,
         password,
         name,
       });
+      set({ isLoading: false });
+    } catch (err) {
+      set({ isLoading: false });
+      throw err;
+    }
+  },
+
+  /**
+   * Xác minh OTP — thành công thì BFF set httpOnly cookie + trả về user
+   * (đăng nhập lần đầu).
+   */
+  verifyEmail: async (email: string, otp: string) => {
+    set({ isLoading: true });
+    try {
+      const data = await api.post<{ user: AuthUser }>(
+        "/api/auth/verify-email",
+        { email, otp },
+      );
       set({ user: data.user, isLoading: false });
     } catch (err) {
       set({ isLoading: false });
       throw err;
     }
+  },
+
+  /** Gửi lại OTP — không đổi isLoading (dùng state riêng ở component page). */
+  resendOtp: async (email: string) => {
+    await api.post("/api/auth/resend-otp", { email });
   },
 
   /**

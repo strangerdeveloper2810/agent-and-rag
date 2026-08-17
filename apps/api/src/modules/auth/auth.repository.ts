@@ -9,6 +9,7 @@ export interface UserRow {
   avatar_url: string | null;
   role: "user" | "admin";
   status: "active" | "disabled" | "deleted";
+  email_verified: boolean;
   created_at: Date;
   updated_at: Date;
 }
@@ -73,6 +74,21 @@ export class AuthRepository {
     ]);
   }
 
+  async updateEmailVerified(userId: string): Promise<void> {
+    await this.pg.query("UPDATE users SET email_verified = true WHERE id = $1", [
+      userId,
+    ]);
+  }
+
+  /** Ghi đè name khi user register lại email chưa verify (giữ nguyên id/email cũ). */
+  async updateUserForReregister(userId: string, name: string): Promise<UserRow> {
+    const { rows } = await this.pg.query<UserRow>(
+      "UPDATE users SET name = $1 WHERE id = $2 RETURNING *",
+      [name, userId],
+    );
+    return rows[0];
+  }
+
   // ── Credentials ──
 
   async findCredential(
@@ -104,6 +120,17 @@ export class AuthRepository {
       `INSERT INTO credentials (user_id, method, password_hash)
        VALUES ($1, 'email', $2)`,
       [userId, passwordHash],
+    );
+  }
+
+  /** Ghi đè password khi user register lại email chưa verify. */
+  async updateEmailCredential(
+    userId: string,
+    passwordHash: string,
+  ): Promise<void> {
+    await this.pg.query(
+      "UPDATE credentials SET password_hash = $1 WHERE user_id = $2 AND method = 'email'",
+      [passwordHash, userId],
     );
   }
 

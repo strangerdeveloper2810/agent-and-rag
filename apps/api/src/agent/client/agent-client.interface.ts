@@ -14,6 +14,8 @@ export type AgentStreamOptions = {
     data: string;
     mimeType: string;
   }>;
+  /** req.tenantId (từ authGuard) — forward sang agent-go qua header X-Tenant-ID. */
+  tenantId?: string;
 };
 
 /**

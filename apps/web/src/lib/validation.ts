@@ -27,8 +27,16 @@ export const registerSchema = z.object({
   password: z.string().min(8, "Mật khẩu phải có ít nhất 8 ký tự."),
 });
 
+export const verifyEmailOtpSchema = z.object({
+  otp: z
+    .string()
+    .length(6, "Mã OTP phải gồm 6 chữ số.")
+    .regex(/^\d{6}$/, "Mã OTP chỉ gồm chữ số."),
+});
+
 export type LoginFormValues = z.infer<typeof loginSchema>;
 export type RegisterFormValues = z.infer<typeof registerSchema>;
+export type VerifyEmailOtpFormValues = z.infer<typeof verifyEmailOtpSchema>;
 
 // ── Composer / Chat input ──
 

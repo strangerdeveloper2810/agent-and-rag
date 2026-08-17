@@ -58,6 +58,17 @@ export class ConflictError extends AppError {
   }
 }
 
+/**
+ * 403 — Tài khoản tồn tại, mật khẩu đúng, nhưng email chưa xác minh OTP.
+ * Mang theo `email` để client redirect thẳng sang trang /verify-email.
+ */
+export class EmailNotVerifiedError extends AppError {
+  constructor(public readonly email: string) {
+    super("Email chưa được xác minh. Vui lòng kiểm tra hộp thư.", 403, "EMAIL_NOT_VERIFIED");
+    this.name = "EmailNotVerifiedError";
+  }
+}
+
 /** 503 — Dịch vụ ngoại vi không khả dụng (vd MongoDB, Redis down). */
 export class ServiceUnavailableError extends AppError {
   constructor(service: string, detail?: string) {

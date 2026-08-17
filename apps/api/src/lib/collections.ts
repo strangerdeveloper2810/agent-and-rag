@@ -46,6 +46,7 @@ export interface TaskDoc {
 /** Chunk tài liệu (bản mới nhất) trong collection `documents`. */
 export interface DocChunkDoc {
   _id?: ObjectId;
+  tenantId: string;
   documentId: string;
   source: string;
   version: number;
@@ -58,6 +59,7 @@ export interface DocChunkDoc {
 /** Bản đã archive trong `document_versions` (chỉ text, không embedding). */
 export interface DocVersionDoc {
   _id?: ObjectId;
+  tenantId: string;
   documentId: string;
   version: number;
   source: string;

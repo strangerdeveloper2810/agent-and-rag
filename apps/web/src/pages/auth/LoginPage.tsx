@@ -19,7 +19,7 @@ import { useAuthStore } from "@/stores/auth.store";
 import { useToast } from "@/design-system/molecules/Toast";
 import { loginSchema, type LoginFormValues } from "@/lib/validation";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
-import type { ApiError } from "@/lib/http";
+import { ApiError } from "@/lib/http";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -79,11 +79,17 @@ export const LoginPage: React.FC = () => {
   });
 
   const onSubmit = async (data: LoginFormValues) => {
+    const email = data.email.trim();
     try {
-      await login(data.email.trim(), data.password);
+      await login(email, data.password);
       toast.success("Đăng nhập thành công!");
       navigate("/", { replace: true });
     } catch (err) {
+      if (err instanceof ApiError && err.code === "EMAIL_NOT_VERIFIED") {
+        toast.error("Email chưa được xác minh. Đã gửi lại mã OTP.");
+        navigate(`/verify-email?email=${encodeURIComponent(email)}`);
+        return;
+      }
       const apiErr = err as ApiError;
       toast.error(
         apiErr?.message ??
