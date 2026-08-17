@@ -15,6 +15,8 @@ interface GoAgentEvent {
   name?: string;
   message?: string;
   usage?: { inputTokens: number; outputTokens: number };
+  /** cumulative total tokens (Go gửi kèm event usage/done). */
+  totalTokens?: number;
   /** true khi câu trả lời bị cắt vì chạm giới hạn output token. */
   truncated?: boolean;
 }
@@ -231,10 +233,10 @@ export const goAgentClient: AgentClient = {
           throw new AgentUnavailableError("Go agent trả về response rỗng.");
         }
 
-        // agentName: Go orchestrator chưa expose agent identity trong event.
-        // Hiện tại dùng "go" để phân biệt với "langgraph". Sẽ update khi
-        // orchestrator gửi event kèm agent name.
-        const agentName = "go";
+        // agentName mặc định "go" (phân biệt với "langgraph"), được ghi đè bằng
+        // tên agent thật ngay khi nhận event {type:"agent"} từ orchestrator Go
+        // (general/code/research) — xem case "agent" bên dưới.
+        let agentName = "go";
         let totalTokens = 0;
 
         for await (const raw of parseSSE(res.body)) {
@@ -278,6 +280,11 @@ export const goAgentClient: AgentClient = {
                 type: "done",
                 agent: agentName,
                 tokens: totalTokens,
+                // Forward cả usage + totalTokens: FE đọc `usage`/`totalTokens`
+                // (packages/api-client normalizeEvent) chứ không đọc `tokens`,
+                // nên trước đây meta token luôn undefined.
+                usage: raw.usage,
+                totalTokens: raw.totalTokens ?? totalTokens,
                 truncated: raw.truncated === true,
               } as AgentEvent;
               break;
@@ -286,6 +293,24 @@ export const goAgentClient: AgentClient = {
               yield {
                 type: "step",
                 node: raw.node,
+              } as AgentEvent;
+              break;
+            case "agent":
+              // Orchestrator Go phát {type:"agent", node:"<tên agent>"} khi
+              // route xong. Trước đây event này rơi vào default → bị skip, nên
+              // BFF phải hardcode agentName="go" và badge agent trên UI không
+              // bao giờ hiện tên thật (general/code/research).
+              // Go dùng field `node`, còn api-client đọc `name` → chuẩn hoá ở đây.
+              if (raw.node) agentName = raw.node;
+              yield { type: "agent", name: raw.node } as unknown as AgentEvent;
+              break;
+            case "usage":
+              // Per-step token usage. Trước đây bị skip nên đồng hồ token trên
+              // UI không có số dù Go tính đúng.
+              yield {
+                type: "usage",
+                usage: raw.usage,
+                totalTokens: raw.totalTokens,
               } as AgentEvent;
               break;
             case "citation":

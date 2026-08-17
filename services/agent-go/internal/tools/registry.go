@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/ai-agent-tut/agent-go/internal/provider"
 )
@@ -112,30 +113,51 @@ func (r *Registry) RunParallelStreaming(ctx context.Context, calls []provider.To
 	return results
 }
 
+// DefaultToolTimeout là deadline áp cho MỌI tool không tự khai báo TimeoutTool.
+//
+// Trước đây chỉ tool nào implement TimeoutTool mới có deadline (thực tế chỉ có
+// shell.exec), nên một tool treo (Mongo/HTTP không phản hồi) sẽ treo luôn cả
+// request: nodeTools chờ wg.Wait() vô hạn, client không bao giờ nhận tool_end
+// và UI đứng ở trạng thái "đang thực thi".
+//
+// Lưu ý giới hạn: deadline này là COOPERATIVE — nó huỷ ctx, nên chỉ hiệu quả
+// với tool có truyền ctx xuống I/O (tất cả tool hiện tại đều vậy: mongo driver,
+// http client, os/exec đều nhận ctx). Tool nào bỏ qua ctx vẫn có thể chạy tiếp
+// trong goroutine của nó.
+const DefaultToolTimeout = 60 * time.Second
+
 // runOne tra cứu & thực thi một tool_call, gói mọi lỗi vào giá trị trả về.
-// Nếu tool thoả TimeoutTool, ctx được bọc deadline riêng (cooperative — xem
-// doc TimeoutTool) trước khi gọi Execute.
+// Tool tự khai báo TimeoutTool dùng deadline riêng của nó; còn lại dùng
+// DefaultToolTimeout.
 func (r *Registry) runOne(ctx context.Context, call provider.ToolCall) (Result, error) {
 	t, ok := r.Get(call.Name)
 	if !ok {
 		return Result{}, &NotFoundError{Name: call.Name}
 	}
 
-	var ownDeadline bool
+	timeout := DefaultToolTimeout
 	if tt, ok := t.(TimeoutTool); ok {
 		if d := tt.Timeout(); d > 0 {
-			var cancel context.CancelFunc
-			ctx, cancel = context.WithTimeout(ctx, d)
-			defer cancel()
-			ownDeadline = true
+			timeout = d
 		}
 	}
 
+	// Giữ tham chiếu ctx CHA để phân biệt nguồn gốc deadline: nếu ctx cha chết
+	// trước (client disconnect, timeout của request) thì lỗi KHÔNG phải do
+	// deadline của tool — đừng gán nhãn TimeoutError sai chỗ.
+	parent := ctx
+	var ownDeadline bool
+	if timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(parent, timeout)
+		defer cancel()
+		ownDeadline = true
+	}
+
 	res, err := t.Execute(ctx, call.Args)
-	// Chỉ gói TimeoutError khi CHÍNH deadline vừa tạo ở trên là nguyên nhân —
-	// nếu ctx gốc (caller) tự huỷ, giữ nguyên lỗi gốc, đừng gán nhầm cho
-	// TimeoutTool của tool này.
-	if err != nil && ownDeadline && ctx.Err() == context.DeadlineExceeded {
+	// Chỉ gói TimeoutError khi CHÍNH deadline vừa tạo ở trên là nguyên nhân:
+	// ctx cha vẫn sống mà ctx con đã hết hạn.
+	if err != nil && ownDeadline && parent.Err() == nil && ctx.Err() == context.DeadlineExceeded {
 		return Result{}, &TimeoutError{Name: call.Name, Cause: err}
 	}
 	return res, err

@@ -77,6 +77,15 @@ type Config struct {
 	// khi cần tính năng "học liên tục"; để tắt trong dev/test nhằm tiết kiệm
 	// chi phí + tránh side-effect ghi Mongo ngoài ý muốn.
 	EnableLearner bool
+
+	// AllowDestructiveTools cho phép agent TỰ CHẠY tool xếp loại
+	// KindDestructive (hiện chỉ có shell.exec) mà không cần xác nhận.
+	//
+	// TẮT MẶC ĐỊNH vì đây là quyền chạy lệnh shell tuỳ ý trên máy người dùng.
+	// Khi tắt, guardrails chặn tool và agent trả về thông báo giải thích kèm
+	// hướng dẫn (xem node_tools.destructiveBlockedMessage) thay vì câu trả lời
+	// rỗng như trước. Chỉ bật trên máy cá nhân, khi người dùng chủ động muốn.
+	AllowDestructiveTools bool
 }
 
 // Load đọc .env (nếu có) rồi env → Config với defaults hợp lý.
@@ -117,6 +126,7 @@ func Load() (Config, error) {
 		ShellTimeout:          30,
 		EnableDynamicThinking: envOr("ENABLE_DYNAMIC_THINKING", "false") == "true",
 		EnablePlanning:        envOr("ENABLE_PLANNING", "false") == "true",
+		AllowDestructiveTools: envOr("ALLOW_DESTRUCTIVE_TOOLS", "false") == "true",
 		EnableLearner:         envOr("ENABLE_LEARNER", "false") == "true",
 	}
 

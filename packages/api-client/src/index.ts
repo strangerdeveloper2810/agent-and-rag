@@ -135,7 +135,10 @@ function normalizeEvent(raw: Record<string, unknown>): ChatEvent | null {
   const num = (k: string) =>
     (typeof raw[k] === "number" ? raw[k] : undefined) as number | undefined;
   const usage = isUsageData(raw.usage) ? raw.usage : undefined;
-  const totalTokens = num("totalTokens");
+  // `tokens` là alias BFF/controller đang dùng cho tổng token (chat.controller
+  // ghi {done:true, tokens}). Không nhận alias này thì đồng hồ token luôn
+  // undefined dù backend tính đúng.
+  const totalTokens = num("totalTokens") ?? num("tokens");
   const type = typeof raw.type === "string" ? raw.type : undefined;
 
   if (type === "step") return { type: "step", node: str("node") };

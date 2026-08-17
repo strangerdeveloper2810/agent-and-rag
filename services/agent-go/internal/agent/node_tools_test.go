@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/ai-agent-tut/agent-go/internal/provider"
 	"github.com/ai-agent-tut/agent-go/internal/tools"
@@ -32,9 +33,15 @@ func (s *stubTool) Execute(_ context.Context, _ json.RawMessage) (tools.Result, 
 }
 
 // toolsOnlyEngine chỉ cần registry (interface toolsEngine).
-type toolsOnlyEngine struct{ registry *tools.Registry }
+type toolsOnlyEngine struct {
+	registry         *tools.Registry
+	maxToolOutput    int
+	allowDestructive bool
+}
 
-func (e *toolsOnlyEngine) getRegistry() *tools.Registry { return e.registry }
+func (e *toolsOnlyEngine) getRegistry() *tools.Registry   { return e.registry }
+func (e *toolsOnlyEngine) getMaxToolOutput() int          { return e.maxToolOutput }
+func (e *toolsOnlyEngine) getAllowDestructiveTools() bool { return e.allowDestructive }
 
 func regWith(ts ...tools.Tool) *tools.Registry {
 	r := tools.NewRegistry()
@@ -208,6 +215,106 @@ func TestNodeTools_MixedSafeAndDestructive(t *testing.T) {
 	}
 	if len(s.Scratchpad) != 1 || s.Scratchpad[0].Name != "echo" {
 		t.Errorf("Scratchpad = %+v, want chỉ có echo", s.Scratchpad)
+	}
+}
+
+// TestNodeTools_DestructiveEmitsExplanation khoá bug UX: khi guardrails chặn
+// tool destructive, engine dừng ở NodeInterrupt và vẫn emit done bình thường
+// nhưng KHÔNG có text nào — user nhận một bubble RỖNG HOÀN TOÀN, không lỗi,
+// không lý do, không cách nào tiếp tục (FE cũng đang bỏ qua event interrupt).
+func TestNodeTools_DestructiveEmitsExplanation(t *testing.T) {
+	eng := &toolsOnlyEngine{registry: regWith(&stubTool{name: "shell.exec", kind: tools.KindDestructive})}
+	s := stateWithToolCalls("shell.exec")
+
+	var events []Event
+	if _, err := nodeTools(context.Background(), eng, s, func(e Event) { events = append(events, e) }); err != nil {
+		t.Fatalf("nodeTools: %v", err)
+	}
+
+	txt := hasEvent(events, "text")
+	if txt == nil {
+		t.Fatal("thiếu event text giải thích — user sẽ nhận bubble rỗng")
+	}
+	for _, want := range []string{"shell.exec", "ALLOW_DESTRUCTIVE_TOOLS"} {
+		if !strings.Contains(txt.Text, want) {
+			t.Errorf("text giải thích thiếu %q:\n%s", want, txt.Text)
+		}
+	}
+}
+
+// Khi người dùng chủ động bật ALLOW_DESTRUCTIVE_TOOLS, tool destructive được
+// chạy thẳng (không interrupt, không thông báo chặn).
+func TestNodeTools_AllowDestructiveRunsTool(t *testing.T) {
+	eng := &toolsOnlyEngine{
+		registry:         regWith(&stubTool{name: "shell.exec", kind: tools.KindDestructive, output: "hello"}),
+		allowDestructive: true,
+	}
+	s := stateWithToolCalls("shell.exec")
+
+	var events []Event
+	next, err := nodeTools(context.Background(), eng, s, func(e Event) { events = append(events, e) })
+	if err != nil {
+		t.Fatalf("nodeTools: %v", err)
+	}
+	if next != NodeModel {
+		t.Errorf("next = %q, want %q (không interrupt khi đã cho phép)", next, NodeModel)
+	}
+	if s.Interrupt != nil {
+		t.Errorf("Interrupt = %+v, want nil", s.Interrupt)
+	}
+	if hasEvent(events, "interrupt") != nil {
+		t.Error("không được emit interrupt khi ALLOW_DESTRUCTIVE_TOOLS=true")
+	}
+	if len(s.Scratchpad) != 1 || s.Scratchpad[0].Output != "hello" {
+		t.Errorf("Scratchpad = %+v, want tool đã chạy", s.Scratchpad)
+	}
+}
+
+// TestNodeTools_CapsToolOutput khoá chốt an toàn tập trung: cfg.MaxToolOutput
+// từng là config CHẾT (không nơi nào đọc), và file.search/rag.search không cắt
+// output gì cả → có thể đẩy hàng MB vào context.
+func TestNodeTools_CapsToolOutput(t *testing.T) {
+	huge := strings.Repeat("á", 5000) // ký tự multi-byte để bắt luôn lỗi cắt theo byte
+	eng := &toolsOnlyEngine{
+		registry:      regWith(&stubTool{name: "file.search", kind: tools.KindRead, output: huge}),
+		maxToolOutput: 1000,
+	}
+	s := stateWithToolCalls("file.search")
+
+	if _, err := nodeTools(context.Background(), eng, s, func(Event) {}); err != nil {
+		t.Fatalf("nodeTools: %v", err)
+	}
+
+	if len(s.Scratchpad) != 1 {
+		t.Fatalf("Scratchpad = %+v", s.Scratchpad)
+	}
+	got := s.Scratchpad[0].Output
+	if !utf8.ValidString(got) {
+		t.Error("output bị cắt giữa ký tự multi-byte (phải cắt theo rune)")
+	}
+	if !strings.Contains(got, "output bị cắt") {
+		t.Error("phải có ghi chú tường minh để LLM biết dữ liệu chưa đầy đủ")
+	}
+	// 1000 rune nội dung + ghi chú; chắc chắn phải ngắn hơn nhiều so với 5000.
+	if n := len([]rune(got)); n >= 5000 {
+		t.Errorf("output = %d rune, want bị cắt xuống quanh 1000", n)
+	}
+}
+
+// maxToolOutput = 0 → không giới hạn (giữ hành vi cũ cho caller không cấu hình).
+func TestNodeTools_ZeroMaxToolOutputMeansUnlimited(t *testing.T) {
+	huge := strings.Repeat("x", 3000)
+	eng := &toolsOnlyEngine{
+		registry:      regWith(&stubTool{name: "echo", kind: tools.KindRead, output: huge}),
+		maxToolOutput: 0,
+	}
+	s := stateWithToolCalls("echo")
+
+	if _, err := nodeTools(context.Background(), eng, s, func(Event) {}); err != nil {
+		t.Fatalf("nodeTools: %v", err)
+	}
+	if s.Scratchpad[0].Output != huge {
+		t.Errorf("output dài %d, want giữ nguyên %d khi maxToolOutput=0", len(s.Scratchpad[0].Output), len(huge))
 	}
 }
 

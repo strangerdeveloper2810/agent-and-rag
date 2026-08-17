@@ -172,6 +172,72 @@ func (b *blockingTool) Execute(ctx context.Context, _ json.RawMessage) (Result, 
 	return Result{}, ctx.Err()
 }
 
+// plainBlockingTool KHÔNG implement TimeoutTool — đại diện cho hầu hết tool
+// trong registry (rag.search, web.search, file.*...). Trước fix, những tool này
+// không có deadline nào: một tool treo sẽ treo luôn cả request vì
+// RunParallelStreaming chờ wg.Wait() vô hạn, client không bao giờ nhận tool_end.
+type plainBlockingTool struct{ name string }
+
+func (b *plainBlockingTool) Name() string            { return b.name }
+func (b *plainBlockingTool) Description() string     { return "blocks forever" }
+func (b *plainBlockingTool) Schema() json.RawMessage { return json.RawMessage(`{"type":"object"}`) }
+func (b *plainBlockingTool) Kind() Kind              { return KindRead }
+func (b *plainBlockingTool) Execute(ctx context.Context, _ json.RawMessage) (Result, error) {
+	<-ctx.Done()
+	return Result{}, ctx.Err()
+}
+
+// Xác nhận tool KHÔNG khai báo TimeoutTool vẫn được cấp deadline mặc định.
+func TestRunOne_AppliesDefaultTimeoutToPlainTool(t *testing.T) {
+	if DefaultToolTimeout <= 0 {
+		t.Fatal("DefaultToolTimeout phải > 0 để mọi tool đều có deadline")
+	}
+
+	r := NewRegistry()
+	r.Register(&plainBlockingTool{name: "hangs"})
+
+	// Compile-time: tool này không thoả TimeoutTool.
+	if _, ok := interface{}(&plainBlockingTool{}).(TimeoutTool); ok {
+		t.Fatal("plainBlockingTool không được implement TimeoutTool — test sẽ mất ý nghĩa")
+	}
+
+	// Không thể chờ hết 60s trong unit test, nên dùng ctx cha ngắn để chứng
+	// minh tool có nhận được ctx bị huỷ (cooperative) và lỗi trả về là của ctx
+	// cha, KHÔNG bị gán nhãn TimeoutError của tool.
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+
+	results := r.RunParallel(ctx, []provider.ToolCall{{ID: "c1", Name: "hangs"}})
+	if len(results) != 1 {
+		t.Fatalf("results = %d, want 1", len(results))
+	}
+	var timeoutErr *TimeoutError
+	if errors.As(results[0].Err, &timeoutErr) {
+		t.Error("ctx cha chết trước không được gán nhãn TimeoutError của tool")
+	}
+	if !errors.Is(results[0].Err, context.DeadlineExceeded) {
+		t.Errorf("Err = %v, want context.DeadlineExceeded", results[0].Err)
+	}
+}
+
+// Tool tự khai báo Timeout() ngắn hơn mặc định thì deadline của nó thắng.
+func TestRunOne_TimeoutToolOverridesDefault(t *testing.T) {
+	r := NewRegistry()
+	r.Register(&blockingTool{name: "slow", timeout: 20 * time.Millisecond})
+
+	start := time.Now()
+	results := r.RunParallel(context.Background(), []provider.ToolCall{{ID: "c1", Name: "slow"}})
+	elapsed := time.Since(start)
+
+	if elapsed > 5*time.Second {
+		t.Fatalf("elapsed = %s — deadline riêng của tool (20ms) phải thắng DefaultToolTimeout", elapsed)
+	}
+	var timeoutErr *TimeoutError
+	if !errors.As(results[0].Err, &timeoutErr) {
+		t.Errorf("Err = %v, want *TimeoutError", results[0].Err)
+	}
+}
+
 func TestRunOne_AppliesTimeoutToolDeadline(t *testing.T) {
 	r := NewRegistry()
 	r.Register(&blockingTool{name: "slow", timeout: 20 * time.Millisecond})

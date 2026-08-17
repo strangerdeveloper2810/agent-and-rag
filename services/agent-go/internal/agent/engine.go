@@ -51,7 +51,39 @@ type Engine struct {
 	// MaxContextTokens is the token budget before context trimming kicks in.
 	// 0 = unlimited (no trimming). Default: 100000.
 	maxContextTokens int
+
+	// maxToolOutput giới hạn số KÝ TỰ output của mỗi tool được đưa vào
+	// s.Messages. 0 = không giới hạn.
+	//
+	// Trước đây cfg.MaxToolOutput là CONFIG CHẾT (khai báo nhưng không nơi nào
+	// đọc), và việc cắt output nằm rời rạc trong từng tool với các ngưỡng khác
+	// nhau (8000 shell/git, 10000 http/json, 15000 web, 24000 files/rag) —
+	// trong khi file.search và rag.search KHÔNG cắt gì cả. Một
+	// file.search {"pattern":"*"} có thể đẩy hàng MB vào context, làm lượt LLM
+	// sau đắt đột biến, lỗi provider, hoặc bị trimContext cắt mất ngữ cảnh cũ.
+	// Đây là chốt an toàn TẬP TRUNG, áp cho mọi tool bất kể tool có tự cắt hay không.
+	maxToolOutput int
+
+	// allowDestructiveTools cho phép chạy tool KindDestructive không cần xác
+	// nhận. false (mặc định) → guardrails chặn và agent giải thích cho user.
+	allowDestructiveTools bool
 }
+
+// SetMaxToolOutput đặt giới hạn ký tự output mỗi tool đưa vào context.
+// n <= 0 → không giới hạn.
+func (e *Engine) SetMaxToolOutput(n int) {
+	e.maxToolOutput = n
+}
+
+func (e *Engine) getMaxToolOutput() int { return e.maxToolOutput }
+
+// SetAllowDestructiveTools cho phép agent tự chạy tool KindDestructive (shell.exec)
+// mà không cần xác nhận. MẶC ĐỊNH false — xem cfg.AllowDestructiveTools.
+func (e *Engine) SetAllowDestructiveTools(allow bool) {
+	e.allowDestructiveTools = allow
+}
+
+func (e *Engine) getAllowDestructiveTools() bool { return e.allowDestructiveTools }
 
 // SetDynamicThinking enables auto-adjusting thinking mode.
 func (e *Engine) SetDynamicThinking(cfg DynamicThinkingConfig) {
@@ -68,6 +100,7 @@ func NewEngine(prov provider.Provider, registry *tools.Registry) *Engine {
 		prov:             prov,
 		registry:         registry,
 		maxContextTokens: 100000,
+		maxToolOutput:    defaultMaxToolOutput,
 	}
 }
 

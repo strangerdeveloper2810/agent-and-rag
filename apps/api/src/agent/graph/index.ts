@@ -16,7 +16,15 @@ export type AgentEvent =
   | { type: "tool_end"; name: string; message?: string; text?: string }
   | { type: "step"; node?: string }
   | { type: "error"; message?: string }
-  | { type: "done"; agent?: string; tokens?: number; truncated?: boolean }
+  | {
+      type: "done";
+      agent?: string;
+      tokens?: number;
+      usage?: { inputTokens: number; outputTokens: number };
+      totalTokens?: number;
+      truncated?: boolean;
+    }
+  | { type: "agent"; name?: string }
   | { type: "truncated"; message?: string }
   | {
       type: "usage";
