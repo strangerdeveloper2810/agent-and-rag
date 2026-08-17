@@ -37,15 +37,16 @@ func TestRecallNode_NoUserMessage(t *testing.T) {
 
 func TestRecallNode_KeywordCascade(t *testing.T) {
 	store := NewStore()
-	store.Set("user_name", "Linh")
-	store.Set("email", "linh@example.com")
+	store.Set("default", "user_name", "Linh")
+	store.Set("default", "email", "linh@example.com")
 
 	emit, events := collectEmit()
-	next, err := RecallNode(store)(context.Background(), &agent.State{
+	state := &agent.State{
 		Messages: []provider.Message{
 			{Role: provider.RoleUser, Content: "tên của tôi là gì? và email của tôi?"},
 		},
-	}, emit)
+	}
+	next, err := RecallNode(store)(context.Background(), state, emit)
 
 	if err != nil || next != agent.NodeModel {
 		t.Fatalf("next/err = (%q, %v), want (NodeModel, nil)", next, err)
@@ -57,12 +58,22 @@ func TestRecallNode_KeywordCascade(t *testing.T) {
 	if !strings.Contains(msg, "user_name: Linh") || !strings.Contains(msg, "email: linh@example.com") {
 		t.Fatalf("event message = %q, want chứa user_name và email", msg)
 	}
+
+	// P1 fix: kết quả recall phải nằm trong State để nodeModel dùng được khi
+	// gọi LLM — không chỉ emit ra SSE cho UI xem.
+	if len(state.RecalledMemories) != 2 {
+		t.Fatalf("state.RecalledMemories = %v, want 2 mục", state.RecalledMemories)
+	}
+	joined := strings.Join(state.RecalledMemories, " | ")
+	if !strings.Contains(joined, "user_name: Linh") || !strings.Contains(joined, "email: linh@example.com") {
+		t.Fatalf("state.RecalledMemories = %v, want chứa user_name và email", state.RecalledMemories)
+	}
 }
 
 func TestRecallNode_KeywordEnglish(t *testing.T) {
 	store := NewStore()
-	store.Set("user_name", "Alex")
-	store.Set("user_job", "engineer")
+	store.Set("default", "user_name", "Alex")
+	store.Set("default", "user_job", "engineer")
 
 	emit, events := collectEmit()
 	_, err := RecallNode(store)(context.Background(), &agent.State{
@@ -85,7 +96,7 @@ func TestRecallNode_KeywordEnglish(t *testing.T) {
 
 func TestRecallNode_FullTextFallback(t *testing.T) {
 	store := NewStore()
-	store.Set("random_key", "banana smoothie")
+	store.Set("default", "random_key", "banana smoothie")
 
 	emit, events := collectEmit()
 	_, err := RecallNode(store)(context.Background(), &agent.State{
@@ -108,7 +119,7 @@ func TestRecallNode_SemanticSearch(t *testing.T) {
 		"pizza margherita": {1, 0},
 		"món ăn Ý":         {1, 0},
 	}})
-	store.Set("food", "pizza margherita")
+	store.Set("default", "food", "pizza margherita")
 
 	// Query không khớp keyword map lẫn substring — chỉ semantic tìm được.
 	emit, events := collectEmit()
@@ -129,7 +140,7 @@ func TestRecallNode_SemanticSearch(t *testing.T) {
 func TestRecallNode_SemanticErrorFallsBackToKeyword(t *testing.T) {
 	store := NewStore()
 	store.SetEmbedder(&stubEmbedder{err: errors.New("embed down")})
-	store.Set("user_name", "Linh")
+	store.Set("default", "user_name", "Linh")
 
 	emit, events := collectEmit()
 	next, err := RecallNode(store)(context.Background(), &agent.State{
@@ -153,7 +164,7 @@ func TestRecallNode_SemanticDoesNotOverrideKeyword(t *testing.T) {
 		"Linh":        {1, 0},
 		"tên là Linh": {1, 0},
 	}})
-	store.Set("user_name", "Linh")
+	store.Set("default", "user_name", "Linh")
 
 	// Keyword ("tên") + fulltext ("linh") + semantic đều trả user_name —
 	// chỉ 1 lần trong kết quả, không ghi đè.
@@ -174,20 +185,24 @@ func TestRecallNode_SemanticDoesNotOverrideKeyword(t *testing.T) {
 
 func TestRecallNode_NoResults(t *testing.T) {
 	store := NewStore()
-	store.Set("user_name", "Linh")
+	store.Set("default", "user_name", "Linh")
 
 	emit, events := collectEmit()
-	next, err := RecallNode(store)(context.Background(), &agent.State{
+	state := &agent.State{
 		Messages: []provider.Message{
 			{Role: provider.RoleUser, Content: "trời hôm nay đẹp nhỉ"},
 		},
-	}, emit)
+	}
+	next, err := RecallNode(store)(context.Background(), state, emit)
 
 	if err != nil || next != agent.NodeModel {
 		t.Fatalf("next/err = (%q, %v), want (NodeModel, nil)", next, err)
 	}
 	if len(*events) != 0 {
 		t.Fatalf("events = %v, want không emit khi không có kết quả", *events)
+	}
+	if len(state.RecalledMemories) != 0 {
+		t.Fatalf("state.RecalledMemories = %v, want rỗng khi không có kết quả", state.RecalledMemories)
 	}
 }
 

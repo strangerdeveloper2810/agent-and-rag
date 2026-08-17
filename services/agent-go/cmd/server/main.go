@@ -233,22 +233,27 @@ Bạn là chuyên gia nghiên cứu internet của JARVIS. Nhiệm vụ của b�
 		os.Exit(1)
 	}
 
-	// --- Wire Autonomous Learner ---
-	var embedder memory.Embedder
-	if cfg.VoyageKey != "" {
-		vc := rag.NewClient(cfg.VoyageKey)
-		embedder = memory.EmbedderFunc(func(ctx context.Context, texts []string) ([][]float64, error) {
-			return vc.Embed(ctx, texts, "document")
-		})
+	// --- Wire Autonomous Learner (opt-in via ENABLE_LEARNER — costs 1 extra
+	// LLM call per response, TẮT mặc định) ---
+	var learner *memory.Learner
+	if cfg.EnableLearner {
+		var embedder memory.Embedder
+		if cfg.VoyageKey != "" {
+			vc := rag.NewClient(cfg.VoyageKey)
+			embedder = memory.EmbedderFunc(func(ctx context.Context, texts []string) ([][]float64, error) {
+				return vc.Embed(ctx, texts, "document")
+			})
+		}
+		learnerModel := cfg.GeminiModel
+		if cfg.DeepSeekFlashModel != "" && cfg.DeepSeekKey != "" {
+			learnerModel = cfg.DeepSeekFlashModel
+		}
+		learner = memory.NewLearner(store, mongoClient, prov, learnerModel, embedder)
+		slog.Info("learner: autonomous continuous learning enabled")
 	}
-	learnerModel := cfg.GeminiModel
-	if cfg.DeepSeekFlashModel != "" && cfg.DeepSeekKey != "" {
-		learnerModel = cfg.DeepSeekFlashModel
-	}
-	learner := memory.NewLearner(store, mongoClient, prov, learnerModel, embedder)
 
 	// --- HTTP Routes ---
-	srv := &http.Server{Addr: ":" + cfg.Port, Handler: newHTTPHandler(prov, orch, mongoPinger(mongoClient), learner)}
+	srv := &http.Server{Addr: ":" + cfg.Port, Handler: newHTTPHandler(prov, orch, mongoPinger(mongoClient), learnerOrNil(learner))}
 
 	// Start server
 	go func() {
@@ -353,4 +358,15 @@ func mongoPinger(c *mongo.Client) agenthttp.MongoPinger {
 		return nil
 	}
 	return c
+}
+
+// learnerOrNil trả interface ConversationLearner, giữ nil ĐÚNG NGHĨA khi
+// Learner chưa được khởi tạo (ENABLE_LEARNER=false) — cùng lý do với
+// mongoPinger ở trên: gán thẳng *memory.Learner nil vào interface sẽ tạo
+// interface non-nil và làm ChatHandler tưởng learner đã bật.
+func learnerOrNil(l *memory.Learner) agenthttp.ConversationLearner {
+	if l == nil {
+		return nil
+	}
+	return l
 }
