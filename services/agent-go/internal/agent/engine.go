@@ -170,7 +170,7 @@ func (e *Engine) Run(ctx context.Context, in RunInput, emit EmitFunc) (provider.
 
 		slog.Info("engine: step done", "node", node, "next", next, "step", s.Step, "elapsed", elapsed.Round(time.Millisecond))
 
-		if next == NodeEnd {
+		if next == NodeEnd || next == NodeInterrupt {
 			break
 		}
 		node = next
@@ -227,6 +227,8 @@ func (e *Engine) dispatch(ctx context.Context, node NodeID, s *State, emit EmitF
 		if e.extractFn != nil {
 			return e.extractFn(ctx, s, emit)
 		}
+		return NodeEnd, nil
+	case NodeInterrupt:
 		return NodeEnd, nil
 	default:
 		return NodeEnd, fmt.Errorf("engine: unknown node %q", node)

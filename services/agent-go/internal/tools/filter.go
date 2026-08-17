@@ -47,7 +47,7 @@ func (r *Registry) FilterToolDefs(userQuery string, step int) []provider.ToolDef
 	// If no specific intent detected (e.g. casual chat/greetings), return minimal core tools
 	if !hasCodeIntent && !hasSearchIntent && !hasUtilityIntent {
 		return filterByName(allDefs, []string{
-			"rag.search", "web.search", "memory.recall", "echo",
+			"rag.search", "rag.read", "web.search", "memory.recall", "echo",
 		})
 	}
 
@@ -58,13 +58,13 @@ func (r *Registry) FilterToolDefs(userQuery string, step int) []provider.ToolDef
 	selectedNames["memory.save"] = true
 
 	if hasCodeIntent {
-		for _, name := range []string{"file.search", "file.read", "file.write", "shell.exec", "git", "version", "rag.search", "web.search", "web.fetch"} {
+		for _, name := range []string{"file.search", "file.read", "file.write", "shell.exec", "git", "version", "rag.search", "rag.read", "web.search", "web.fetch"} {
 			selectedNames[name] = true
 		}
 	}
 
 	if hasSearchIntent {
-		for _, name := range []string{"rag.search", "web.search", "web.fetch", "notes.search", "notes.create"} {
+		for _, name := range []string{"rag.search", "rag.read", "web.search", "web.fetch", "notes.search", "notes.create"} {
 			selectedNames[name] = true
 		}
 	}

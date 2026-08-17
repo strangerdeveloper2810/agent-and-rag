@@ -43,10 +43,9 @@ func NewRAGSearchTool(mongoClient *mongo.Client, dbName string, voyageKey string
 func (t *ragSearchTool) Name() string { return "rag.search" }
 func (t *ragSearchTool) Kind() Kind   { return KindRead }
 func (t *ragSearchTool) Description() string {
-	return "Search local documents using RAG (Retrieval-Augmented Generation). " +
-		"Returns top 5 matching documents with scores and snippets. " +
-		"Use this when you need to find information in the user's personal documents, " +
-		"notes, or knowledge base."
+	return "Search documents in RAG knowledge base. " +
+		"Returns top matching documents with scores, snippets, and relevant chunk content. " +
+		"Note: RAG documents are stored in database, NOT local filesystem paths; do NOT use file.read for RAG documents."
 }
 
 func (t *ragSearchTool) Schema() json.RawMessage {
@@ -75,6 +74,120 @@ type ragSearchResult struct {
 	Source     string  `json:"source"`
 	Score      float64 `json:"score"`
 	Snippet    string  `json:"snippet"`
+	Content    string  `json:"content,omitempty"`
+}
+
+// --- RAG Read Tool ---
+
+// ragReadTool reads full content of a RAG document from MongoDB.
+type ragReadTool struct {
+	mongoClient *mongo.Client
+	dbName      string
+}
+
+// NewRAGReadTool creates a tool that reads full document content from MongoDB documents collection.
+func NewRAGReadTool(mongoClient *mongo.Client, dbName string) Tool {
+	return &ragReadTool{
+		mongoClient: mongoClient,
+		dbName:      dbName,
+	}
+}
+
+func (t *ragReadTool) Name() string { return "rag.read" }
+func (t *ragReadTool) Kind() Kind   { return KindRead }
+func (t *ragReadTool) Description() string {
+	return "Read the full content of a document from the RAG knowledge base. " +
+		"Provide documentId or source filename (e.g. 'go-language.md', 'nestjs.md'). " +
+		"Use this instead of file.read when you need to read complete knowledge base documents."
+}
+
+func (t *ragReadTool) Schema() json.RawMessage {
+	schema := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"documentId": map[string]any{
+				"type":        "string",
+				"description": "ID of the document in RAG",
+			},
+			"source": map[string]any{
+				"type":        "string",
+				"description": "Source filename of the document (e.g. 'go-language.md')",
+			},
+		},
+	}
+	b, _ := json.Marshal(schema)
+	return b
+}
+
+type ragReadArgs struct {
+	DocumentID string `json:"documentId,omitempty"`
+	Source     string `json:"source,omitempty"`
+}
+
+func (t *ragReadTool) Execute(ctx context.Context, args json.RawMessage) (Result, error) {
+	if t.mongoClient == nil {
+		return Result{Content: "RAG not configured. Set MONGODB_URI to enable document reading."}, nil
+	}
+
+	var parsed ragReadArgs
+	if err := json.Unmarshal(args, &parsed); err != nil {
+		return Result{}, fmt.Errorf("rag.read: invalid args: %w", err)
+	}
+
+	if parsed.DocumentID == "" && parsed.Source == "" {
+		return Result{}, fmt.Errorf("rag.read: either documentId or source is required")
+	}
+
+	coll := t.mongoClient.Collection("documents")
+	matchDoc := bson.D{}
+	if parsed.DocumentID != "" {
+		matchDoc = append(matchDoc, bson.E{Key: "documentId", Value: parsed.DocumentID})
+	} else if parsed.Source != "" {
+		matchDoc = append(matchDoc, bson.E{Key: "source", Value: parsed.Source})
+	}
+
+	type chunkDoc struct {
+		Text       string `bson:"text"`
+		ChunkIndex int    `bson:"chunkIndex"`
+		Source     string `bson:"source"`
+	}
+
+	pipeline := []bson.D{
+		{{Key: "$match", Value: matchDoc}},
+		{{Key: "$sort", Value: bson.D{{Key: "chunkIndex", Value: 1}}}},
+		{{Key: "$project", Value: bson.D{
+			{Key: "text", Value: 1},
+			{Key: "chunkIndex", Value: 1},
+			{Key: "source", Value: 1},
+		}}},
+	}
+
+	cursor, err := coll.Aggregate(ctx, pipeline)
+	if err != nil {
+		return Result{}, fmt.Errorf("rag.read: aggregate: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var chunks []chunkDoc
+	if err := cursor.All(ctx, &chunks); err != nil {
+		return Result{}, fmt.Errorf("rag.read: cursor decode: %w", err)
+	}
+
+	if len(chunks) == 0 {
+		return Result{Content: "Document not found in RAG knowledge base."}, nil
+	}
+
+	var parts []string
+	for _, c := range chunks {
+		parts = append(parts, c.Text)
+	}
+	fullText := strings.Join(parts, "\n\n")
+	const maxChars = 24000
+	if len(fullText) > maxChars {
+		fullText = fullText[:maxChars] + "\n\n[... Nội dung đã được cắt bớt do vượt quá giới hạn ...]"
+	}
+
+	return Result{Content: fullText}, nil
 }
 
 func (t *ragSearchTool) Execute(ctx context.Context, args json.RawMessage) (Result, error) {
@@ -148,29 +261,28 @@ func (t *ragSearchTool) vectorSearch(ctx context.Context, queryVector []float64,
 				{Key: "limit", Value: limit},
 			}},
 		},
-		// Lọc tenant SAU $vectorSearch, không dùng filter trong-stage: filter
-		// trong $vectorSearch đòi hỏi field phải được khai báo type "filter"
-		// trong Atlas Search index — index "vector_index" hiện tại chưa có,
-		// nên dùng filter trong-stage sẽ lỗi "Path 'tenantId' needs to be
-		// indexed as filter".
-		{
-			{Key: "$match", Value: bson.D{{Key: "tenantId", Value: tenantID}}},
-		},
-		{
-			{Key: "$project", Value: bson.D{
-				{Key: "_id", Value: 0},
-				{Key: "documentId", Value: 1},
-				{Key: "source", Value: 1},
-				{Key: "content", Value: 1},
-				{Key: "snippet", Value: bson.D{
-					{Key: "$substrCP", Value: bson.A{"$text", 0, 500}},
-				}},
-				{Key: "score", Value: bson.D{
-					{Key: "$meta", Value: "vectorSearchScore"},
-				}},
-			}},
-		},
 	}
+
+	if tenantID != "" && tenantID != "default" {
+		pipeline = append(pipeline, bson.D{
+			{Key: "$match", Value: bson.D{{Key: "tenantId", Value: tenantID}}},
+		})
+	}
+
+	pipeline = append(pipeline, bson.D{
+		{Key: "$project", Value: bson.D{
+			{Key: "_id", Value: 0},
+			{Key: "documentId", Value: 1},
+			{Key: "source", Value: 1},
+			{Key: "content", Value: "$text"},
+			{Key: "snippet", Value: bson.D{
+				{Key: "$substrCP", Value: bson.A{"$text", 0, 500}},
+			}},
+			{Key: "score", Value: bson.D{
+				{Key: "$meta", Value: "vectorSearchScore"},
+			}},
+		}},
+	})
 
 	cursor, err := coll.Aggregate(ctx, pipeline)
 	if err != nil {
@@ -189,29 +301,43 @@ func (t *ragSearchTool) vectorSearch(ctx context.Context, queryVector []float64,
 // Falls back gracefully if no text index exists.
 func (t *ragSearchTool) textSearch(ctx context.Context, query string, tenantID string, limit int) ([]ragSearchResult, error) {
 	coll := t.mongoClient.Collection("documents")
-	pipeline := bson.D{
-		{Key: "$match", Value: bson.D{
-			{Key: "$text", Value: bson.D{
-				{Key: "$search", Value: query},
+	matchDoc := bson.D{
+		{Key: "$text", Value: bson.D{
+			{Key: "$search", Value: query},
+		}},
+	}
+	if tenantID != "" && tenantID != "default" {
+		matchDoc = append(matchDoc, bson.E{Key: "tenantId", Value: tenantID})
+	}
+
+	pipeline := []bson.D{
+		{
+			{Key: "$match", Value: matchDoc},
+		},
+		{
+			{Key: "$addFields", Value: bson.D{
+				{Key: "score", Value: bson.D{{Key: "$meta", Value: "textScore"}}},
 			}},
-			{Key: "tenantId", Value: tenantID},
-		}},
-		{Key: "$addFields", Value: bson.D{
-			{Key: "score", Value: bson.D{{Key: "$meta", Value: "textScore"}}},
-		}},
-		{Key: "$sort", Value: bson.D{
-			{Key: "score", Value: -1},
-		}},
-		{Key: "$limit", Value: limit},
-		{Key: "$project", Value: bson.D{
-			{Key: "documentId", Value: bson.D{{Key: "$toString", Value: "$_id"}}},
-			{Key: "source", Value: 1},
-			{Key: "content", Value: 1},
-			{Key: "snippet", Value: bson.D{
-				{Key: "$substrCP", Value: bson.A{"$content", 0, 300}},
+		},
+		{
+			{Key: "$sort", Value: bson.D{
+				{Key: "score", Value: -1},
 			}},
-			{Key: "score", Value: 1},
-		}},
+		},
+		{
+			{Key: "$limit", Value: limit},
+		},
+		{
+			{Key: "$project", Value: bson.D{
+				{Key: "documentId", Value: 1},
+				{Key: "source", Value: 1},
+				{Key: "content", Value: "$text"},
+				{Key: "snippet", Value: bson.D{
+					{Key: "$substrCP", Value: bson.A{"$text", 0, 500}},
+				}},
+				{Key: "score", Value: 1},
+			}},
+		},
 	}
 
 	cursor, err := coll.Aggregate(ctx, pipeline)

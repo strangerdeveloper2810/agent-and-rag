@@ -208,210 +208,159 @@ const components: Components = {
 };
 
 /**
- * Comprehensive markdown normalizer that fixes:
- * 1. Headings/code blocks glued to prose
- * 2. Em-dash (——) used instead of ASCII dash (---) in table separators
- * 3. All table rows concatenated on a single line
- * 4. Missing GFM separator row after table header
- * 5. Bare `---` used as table separator instead of `|---|---|`
- * 6. Double pipes `||` used as row boundaries
+ * Comprehensive Markdown Normalizer for LLM outputs:
+ * 1. Inserts line breaks before headings (#), lists (- / *), code blocks (```)
+ * 2. Unifies Unicode em/en dashes (— / –) to ASCII hyphens in tables
+ * 3. Reconstructs all tables into valid, clean GitHub Flavored Markdown (GFM) tables
+ * 4. Fixes unclosed code blocks
  */
 function normalizeMarkdown(text: string): string {
   if (!text) return text;
   let s = text;
 
-  // ── Phase 1: Structural breaks ──
-  // Fix headings attached to previous sentence: "word.## Heading" -> "word.\n\n## Heading"
+  // 1. Structural line breaks around Markdown blocks
+  // Headings attached to previous sentence: "word.## Heading" -> "word.\n\n## Heading"
   s = s.replace(/([^\n])(#{1,6}\s+)/g, "$1\n\n$2");
-  // Fix code blocks attached to previous text: "word.```bash" -> "word.\n\n```bash"
+  // Code blocks attached to text: "word.```bash" -> "word.\n\n```bash"
   s = s.replace(/([^\n])(```[a-zA-Z]*)/g, "$1\n\n$2");
-  // Fix bullet lists attached directly: "word.- item" -> "word.\n\n- item"
+  // Lists attached to text: "word.- item" -> "word.\n\n- item"
   s = s.replace(/([a-zA-Z0-9.?!:])([*-]\s+[A-Z0-9])/g, "$1\n\n$2");
 
-  // ── Phase 2: Table normalization ──
+  // 2. Table normalization
   if (s.includes("|")) {
-    // 2a. Replace Unicode em-dash (—, U+2014) and en-dash (–, U+2013) with ASCII hyphen
-    //     in contexts that look like table separators: |——|, |—— |, |——— etc.
-    s = s.replace(/\|[\s]*[—–][-—–]*[\s]*/g, (m) => m.replace(/[—–]/g, "-"));
-
-    // 2b. Split concatenated double-pipes: `||` -> `|\n|`
-    //     But skip if inside a code block (lines starting with spaces/tabs for indented code)
-    s = s.replace(/\|\|/g, "|\n|");
-
-    // 2c. Process line by line to fix table structure
-    const lines = s.split("\n");
-    const result: string[] = [];
-
-    for (let i = 0; i < lines.length; i++) {
-      let line = lines[i];
-
-      // Skip empty lines and non-table lines
-      if (!line.includes("|")) {
-        result.push(line);
-        continue;
-      }
-
-      // Trim the line for analysis
-      const trimmed = line.trim();
-
-      // If a line starts with `|` and contains mixed content + separator patterns,
-      // e.g. `| Header1 | Header2 |--- |---| Data1 | Data2 |`
-      // Split it into proper rows
-      if (trimmed.startsWith("|")) {
-        // Check if this single line contains a separator segment (|---|) mixed with data
-        const sepPattern = /\|\s*:?-{2,}:?\s*(?=\|)/g;
-        const hasSep = sepPattern.test(trimmed);
-
-        if (
-          hasSep &&
-          trimmed
-            .replace(/\|\s*:?-{2,}:?\s*/g, "")
-            .replace(/\|/g, "")
-            .trim().length > 0
-        ) {
-          // This line has both separator dashes AND text content -> needs splitting
-          // Strategy: find the separator segment and split around it
-          const parts = splitTableLine(trimmed);
-          for (const part of parts) {
-            if (part.trim()) result.push(part);
-          }
-          continue;
-        }
-
-        // Ensure the line ends with `|`
-        if (!trimmed.endsWith("|")) {
-          line = line.trimEnd() + " |";
-        }
-      }
-
-      result.push(line);
-    }
-
-    s = result.join("\n");
-
-    // 2d. After splitting, check for missing GFM separator rows
-    // If we see a line like `| Header1 | Header2 |` followed by a line that is NOT
-    // a separator (|---|---|) and IS another data row, insert a separator.
-    s = insertMissingSeparators(s);
-
-    // 2e. Fix bare `---` right after a table header row -> convert to proper separator
-    s = s.replace(/^(\|(?:[^|\n]+\|)+)\s*\n---+\s*$/gm, (_, headerRow) => {
-      const colCount = (headerRow.match(/\|/g) || []).length - 1;
-      const sep = "|" + " --- |".repeat(Math.max(colCount, 1));
-      return headerRow + "\n" + sep;
-    });
-
-    // 2f. Fix table header starting directly on prose: "text| Header |" -> "text\n\n| Header |"
-    s = s.replace(/([^\n|])(\s*\|(?:\s*[^|\n]+\s*\|)+)/g, "$1\n\n$2");
+    s = fixAllTablesInMarkdown(s);
   }
 
   return fixUnclosedCodeBlocks(s);
 }
 
 /**
- * Split a single concatenated table line into multiple rows.
- * E.g. `| A | B |---| C | D |` -> [`| A | B |`, `|---|`, `| C | D |`]
+ * Reconstructs all tables in the Markdown document into valid GFM tables.
+ * Handles single-line, multi-line, and double-spaced table rows seamlessly.
  */
-function splitTableLine(line: string): string[] {
-  const rows: string[] = [];
-  // Tokenize by `|`, keeping track of cell content
-  const cells = line.split("|").map((c) => c.trim());
-  // cells[0] is before first |, cells[last] is after last |
-  // Filter out empty leading/trailing
-  let currentRow: string[] = [];
-  let inSeparator = false;
+function fixAllTablesInMarkdown(text: string): string {
+  // Normalize unicode dashes (— / –) to ASCII hyphen
+  const s = text.replace(/\|[\s]*[—–][-—–]*[\s]*/g, (m) => m.replace(/[—–]/g, "-"));
 
-  for (let i = 1; i < cells.length - 1; i++) {
-    const cell = cells[i];
-    const isSepCell = /^:?-{2,}:?$/.test(cell.trim());
-
-    if (isSepCell && !inSeparator && currentRow.length > 0) {
-      // Flush current data row
-      rows.push("| " + currentRow.join(" | ") + " |");
-      currentRow = [];
-      inSeparator = true;
-    }
-
-    if (isSepCell) {
-      currentRow.push(cell);
-      inSeparator = true;
-    } else {
-      if (inSeparator && currentRow.length > 0) {
-        // Flush separator row
-        rows.push("| " + currentRow.join(" | ") + " |");
-        currentRow = [];
-      }
-      currentRow.push(cell);
-      inSeparator = false;
-    }
-  }
-
-  // Flush remaining
-  if (currentRow.length > 0) {
-    rows.push("| " + currentRow.join(" | ") + " |");
-  }
-
-  return rows;
-}
-
-/**
- * Insert missing GFM separator rows.
- * If a `| ... |` line is followed by another `| ... |` data line (not a separator),
- * and there's no separator before it, insert `|---|---|` between them.
- * Only does this for the FIRST pair (header + first data row).
- */
-function insertMissingSeparators(text: string): string {
-  const lines = text.split("\n");
+  const lines = s.split("\n");
   const result: string[] = [];
-  let inTable = false;
-  let tableHasSep = false;
+  let i = 0;
 
-  for (let i = 0; i < lines.length; i++) {
+  while (i < lines.length) {
     const line = lines[i];
-    const trimmed = line.trim();
-    const isTableRow =
-      trimmed.startsWith("|") && trimmed.endsWith("|") && trimmed.length > 1;
-    const isSepRow = isTableRow && /^\|(\s*:?-{2,}:?\s*\|)+$/.test(trimmed);
 
-    if (isTableRow) {
-      if (!inTable) {
-        // Starting a new table block
-        inTable = true;
-        tableHasSep = false;
-        result.push(line);
-        continue;
-      }
+    // Check if this line starts a table block
+    if (line.includes("|")) {
+      // Gather all lines belonging to this table region (allowing blank lines between table rows)
+      const tableLines: string[] = [];
+      let j = i;
 
-      if (isSepRow) {
-        tableHasSep = true;
-        result.push(line);
-        continue;
-      }
-
-      // It's a data row inside a table
-      if (!tableHasSep) {
-        // No separator seen yet -> insert one before this row
-        const prevLine = result[result.length - 1]?.trim() || "";
-        if (prevLine.startsWith("|") && prevLine.endsWith("|")) {
-          const colCount = Math.max(
-            (prevLine.match(/\|/g) || []).length - 1,
-            1,
-          );
-          result.push("|" + " --- |".repeat(colCount));
-          tableHasSep = true;
+      while (j < lines.length) {
+        const curLine = lines[j];
+        if (curLine.includes("|")) {
+          tableLines.push(curLine);
+          j++;
+        } else if (curLine.trim() === "") {
+          // Empty line: check if the next non-empty line still has `|` (table continuation)
+          let lookahead = j + 1;
+          while (lookahead < lines.length && lines[lookahead].trim() === "") {
+            lookahead++;
+          }
+          if (lookahead < lines.length && lines[lookahead].includes("|")) {
+            // Next non-empty line is still part of table -> advance to it
+            j = lookahead;
+          } else {
+            // End of table block
+            break;
+          }
+        } else {
+          // Non-table text line encountered -> end of table block
+          break;
         }
       }
 
-      result.push(line);
+      const tableBlock = tableLines.join("\n");
+      const reconstructed = formatSingleTableBlock(tableBlock);
+      if (reconstructed) {
+        result.push(reconstructed);
+      } else {
+        result.push(tableBlock);
+      }
+
+      i = j;
     } else {
-      // Not a table row -> reset table tracking
-      inTable = false;
-      tableHasSep = false;
       result.push(line);
+      i++;
     }
   }
 
   return result.join("\n");
+}
+
+function formatSingleTableBlock(tableBlock: string): string | null {
+  const firstPipe = tableBlock.indexOf("|");
+  const lastPipe = tableBlock.lastIndexOf("|");
+  if (firstPipe === -1 || lastPipe === -1 || firstPipe === lastPipe) return null;
+
+  const preText = tableBlock.slice(0, firstPipe).trim();
+  const postText = tableBlock.slice(lastPipe + 1).trim();
+  const tablePart = tableBlock.slice(firstPipe, lastPipe + 1);
+
+  // Extract all cell tokens strictly between pipes `|`
+  const rawTokens = tablePart
+    .split("|")
+    .map((t) => t.trim())
+    .filter((t) => t.length > 0);
+
+  if (rawTokens.length < 4) return null;
+
+  // Check if there is a separator cell (e.g. "---", "--", ":---:", ":---")
+  const isSepToken = (t: string) => /^:?-{2,}:?$/.test(t);
+  const firstSepIdx = rawTokens.findIndex(isSepToken);
+
+  if (firstSepIdx <= 0) {
+    return null;
+  }
+
+  // Find end of separator tokens
+  let sepEndIdx = firstSepIdx;
+  while (sepEndIdx < rawTokens.length && isSepToken(rawTokens[sepEndIdx])) {
+    sepEndIdx++;
+  }
+  const numSepCols = sepEndIdx - firstSepIdx;
+
+  // Header tokens are everything before the first separator
+  let headerTokens = rawTokens.slice(0, firstSepIdx);
+
+  // If separator has more columns than headers (e.g. empty first corner cell `| | Col1 | Col2 |`),
+  // pad headers at the beginning so column count matches separator!
+  if (headerTokens.length < numSepCols) {
+    while (headerTokens.length < numSepCols) {
+      headerTokens.unshift("");
+    }
+  }
+
+  const numCols = Math.max(headerTokens.length, numSepCols);
+  if (numCols < 2) return null;
+
+  // Data tokens are everything after separator
+  const dataTokens = rawTokens.slice(sepEndIdx);
+
+  // Build the clean GFM table
+  const headerRow = "| " + headerTokens.join(" | ") + " |";
+  const sepRow = "|" + " --- |".repeat(numCols);
+  const dataRows: string[] = [];
+
+  for (let i = 0; i < dataTokens.length; i += numCols) {
+    const chunk = dataTokens.slice(i, i + numCols);
+    while (chunk.length < numCols) {
+      chunk.push("");
+    }
+    dataRows.push("| " + chunk.join(" | ") + " |");
+  }
+
+  const tableStr = [headerRow, sepRow, ...dataRows].join("\n");
+  return [preText, tableStr, postText].filter(Boolean).join("\n\n");
 }
 
 /**
