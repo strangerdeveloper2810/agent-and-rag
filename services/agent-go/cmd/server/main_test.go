@@ -10,6 +10,7 @@ import (
 
 	"github.com/ai-agent-tut/agent-go/internal/agent"
 	"github.com/ai-agent-tut/agent-go/internal/config"
+	"github.com/ai-agent-tut/agent-go/internal/memory"
 	"github.com/ai-agent-tut/agent-go/internal/provider"
 )
 
@@ -145,5 +146,37 @@ func TestNewHTTPHandler_ReadyzWithoutMongo(t *testing.T) {
 	}
 	if body.Checks["mongodb"] != "not configured" {
 		t.Errorf("checks.mongodb = %q, want not configured", body.Checks["mongodb"])
+	}
+}
+
+// learnerOrNil phải trả về interface nil ĐÚNG NGHĨA khi Learner chưa được
+// khởi tạo (ENABLE_LEARNER=false) — cùng lớp bug với mongoPinger: gán thẳng
+// *memory.Learner nil vào interface ConversationLearner sẽ tạo ra 1 interface
+// non-nil (type != nil, value == nil), khiến `if learner != nil` trong
+// newHTTPHandler đánh giá sai và ChatHandler tưởng learner đã bật (P2 fix).
+func TestLearnerOrNil(t *testing.T) {
+	if got := learnerOrNil(nil); got != nil {
+		t.Fatalf("learnerOrNil(nil) = %#v, want interface nil đúng nghĩa", got)
+	}
+
+	l := memory.NewLearner(memory.NewStore(), nil, provider.NewFake(), "model", nil)
+	if got := learnerOrNil(l); got == nil {
+		t.Fatal("learnerOrNil(non-nil Learner) không được trả nil")
+	}
+}
+
+// Khi ENABLE_LEARNER=false (mặc định), newHTTPHandler phải nhận learner=nil
+// — ChatHandler không được gọi LearnFromConversation, tránh tốn 1 LLM call
+// ngoài ý muốn khi cờ tắt (P2 fix).
+func TestNewHTTPHandler_LearnerDisabledByDefault(t *testing.T) {
+	h := newHTTPHandler(provider.NewFake(), &stubRunner{text: "hi"}, nil, learnerOrNil(nil))
+
+	rec := httptest.NewRecorder()
+	body := strings.NewReader(`{"userMessage":"xin chào"}`)
+	req := httptest.NewRequest(http.MethodPost, "/chat", body)
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (chat vẫn chạy bình thường dù learner tắt)", rec.Code)
 	}
 }
