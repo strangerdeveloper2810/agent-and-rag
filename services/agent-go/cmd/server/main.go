@@ -20,6 +20,7 @@ import (
 	"github.com/ai-agent-tut/agent-go/internal/middleware"
 	"github.com/ai-agent-tut/agent-go/internal/mongo"
 	"github.com/ai-agent-tut/agent-go/internal/orchestrator"
+	"github.com/ai-agent-tut/agent-go/internal/provider"
 	"github.com/ai-agent-tut/agent-go/internal/provider/factory"
 	"github.com/ai-agent-tut/agent-go/internal/provider/ollama"
 	"github.com/ai-agent-tut/agent-go/internal/skills"
@@ -42,37 +43,7 @@ func main() {
 	}
 
 	// --- Wire Scoped Tool Registries per Agent Specialty ---
-	codeRegistry := tools.NewRegistry()
-	codeRegistry.Register(tools.NewFileSearchTool(cfg.AllowedPaths))
-	codeRegistry.Register(tools.NewFileReadTool(cfg.AllowedPaths))
-	codeRegistry.Register(tools.NewFileWriteTool(cfg.AllowedPaths))
-	codeRegistry.Register(tools.NewShellTool(nil))
-	codeRegistry.Register(tools.NewGitTool("."))
-	codeRegistry.Register(tools.NewVersionTool())
-	codeRegistry.Register(tools.NewSaveMemoryTool())
-	codeRegistry.Register(tools.NewRecallMemoryTool())
-
-	researchRegistry := tools.NewRegistry()
-	researchRegistry.Register(tools.NewWebSearchTool(nil))
-	researchRegistry.Register(tools.NewWebFetchTool(nil))
-	researchRegistry.Register(tools.NewNotesSearchTool("."))
-	researchRegistry.Register(tools.NewNotesCreateTool("."))
-	researchRegistry.Register(tools.NewSaveMemoryTool())
-	researchRegistry.Register(tools.NewRecallMemoryTool())
-
-	generalRegistry := tools.NewRegistry()
-	generalRegistry.Register(tools.NewEchoTool())
-	generalRegistry.Register(tools.NewFileSearchTool(cfg.AllowedPaths))
-	generalRegistry.Register(tools.NewFileReadTool(cfg.AllowedPaths))
-	generalRegistry.Register(tools.NewFileWriteTool(cfg.AllowedPaths))
-	generalRegistry.Register(tools.NewShellTool(nil))
-	generalRegistry.Register(tools.NewWebSearchTool(nil))
-	generalRegistry.Register(tools.NewWebFetchTool(nil))
-	generalRegistry.Register(tools.NewTranslateTool(nil))
-	generalRegistry.Register(tools.NewCalculatorTool())
-	generalRegistry.Register(tools.NewDateTimeTool())
-	generalRegistry.Register(tools.NewSaveMemoryTool())
-	generalRegistry.Register(tools.NewRecallMemoryTool())
+	codeRegistry, researchRegistry, generalRegistry := buildRegistries(cfg)
 
 	// --- Wire MongoDB (optional — for RAG document search) ---
 	var mongoClient *mongo.Client
@@ -140,6 +111,10 @@ func main() {
 	// --- Wire Orchestrator (multi-agent) ---
 	dynThinking := agent.DynamicThinkingConfig{Enabled: cfg.EnableDynamicThinking, DefaultOff: true}
 
+	// Planning (plan/reflect LLM nodes) TẮT mặc định — bật qua ENABLE_PLANNING=true.
+	// Khi bật, request phức tạp tốn thêm 1 LLM call trước token đầu tiên.
+	planningEnabled := cfg.EnablePlanning
+
 	generalEngine := agent.NewEngine(prov, generalRegistry)
 	generalEngine.SetSystemPrompt(agent.BuildSystemPrompt(nil, skillSummaries))
 	generalEngine.SetDynamicThinking(dynThinking)
@@ -150,6 +125,9 @@ func main() {
 		memory.ExtractNode(store),
 		memory.SummarizeNode(),
 	)
+	if planningEnabled {
+		generalEngine.EnablePlanning()
+	}
 
 	codeEngine := agent.NewEngine(prov, codeRegistry)
 	codeEngine.SetSystemPrompt(agent.BuildSystemPrompt(nil, skillSummaries))
@@ -161,6 +139,9 @@ func main() {
 		memory.ExtractNode(store),
 		memory.SummarizeNode(),
 	)
+	if planningEnabled {
+		codeEngine.EnablePlanning()
+	}
 
 	researchEngine := agent.NewEngine(prov, researchRegistry)
 	researchEngine.SetSystemPrompt(agent.BuildSystemPrompt(nil, skillSummaries))
@@ -172,6 +153,9 @@ func main() {
 		memory.ExtractNode(store),
 		memory.SummarizeNode(),
 	)
+	if planningEnabled {
+		researchEngine.EnablePlanning()
+	}
 
 	orch := orchestrator.New()
 	orch.Register(&orchestrator.AgentSpec{
@@ -244,17 +228,7 @@ Bạn là chuyên gia nghiên cứu internet của JARVIS. Nhiệm vụ của b�
 	}
 
 	// --- HTTP Routes ---
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", agenthttp.Healthz)
-	mux.HandleFunc("GET /readyz", agenthttp.NewReadyzHandler(prov, mongoClient))
-	mux.HandleFunc("POST /chat", agenthttp.NewChatHandler(orch).ServeHTTP)
-	mux.HandleFunc("GET /suggestions", agenthttp.NewSuggestionsHandler(orch).ServeHTTP)
-
-	// Chain middleware: CORS → Tenant → handler
-	var handler http.Handler = mux
-	handler = middleware.TenantMiddleware(handler)
-	handler = middleware.CORSMiddleware(handler)
-	srv := &http.Server{Addr: ":" + cfg.Port, Handler: handler}
+	srv := &http.Server{Addr: ":" + cfg.Port, Handler: newHTTPHandler(prov, orch, mongoPinger(mongoClient))}
 
 	// Start server
 	go func() {
@@ -274,4 +248,67 @@ Bạn là chuyên gia nghiên cứu internet của JARVIS. Nhiệm vụ của b�
 	defer cancel()
 	slog.Info("shutting down…")
 	_ = srv.Shutdown(ctx)
+}
+
+// buildRegistries dựng 3 registry tool theo chuyên môn agent (code, research,
+// general). Tách khỏi main để test được danh sách tool của từng agent.
+func buildRegistries(cfg config.Config) (code, research, general *tools.Registry) {
+	code = tools.NewRegistry()
+	code.Register(tools.NewFileSearchTool(cfg.AllowedPaths))
+	code.Register(tools.NewFileReadTool(cfg.AllowedPaths))
+	code.Register(tools.NewFileWriteTool(cfg.AllowedPaths))
+	code.Register(tools.NewShellTool(nil))
+	code.Register(tools.NewGitTool("."))
+	code.Register(tools.NewVersionTool())
+	code.Register(tools.NewSaveMemoryTool())
+	code.Register(tools.NewRecallMemoryTool())
+
+	research = tools.NewRegistry()
+	research.Register(tools.NewWebSearchTool(nil))
+	research.Register(tools.NewWebFetchTool(nil))
+	research.Register(tools.NewNotesSearchTool("."))
+	research.Register(tools.NewNotesCreateTool("."))
+	research.Register(tools.NewSaveMemoryTool())
+	research.Register(tools.NewRecallMemoryTool())
+
+	general = tools.NewRegistry()
+	general.Register(tools.NewEchoTool())
+	general.Register(tools.NewFileSearchTool(cfg.AllowedPaths))
+	general.Register(tools.NewFileReadTool(cfg.AllowedPaths))
+	general.Register(tools.NewFileWriteTool(cfg.AllowedPaths))
+	general.Register(tools.NewShellTool(nil))
+	general.Register(tools.NewWebSearchTool(nil))
+	general.Register(tools.NewWebFetchTool(nil))
+	general.Register(tools.NewTranslateTool(nil))
+	general.Register(tools.NewCalculatorTool())
+	general.Register(tools.NewDateTimeTool())
+	general.Register(tools.NewSaveMemoryTool())
+	general.Register(tools.NewRecallMemoryTool())
+
+	return code, research, general
+}
+
+// newHTTPHandler dựng router + chuỗi middleware (CORS → Tenant → mux).
+// Tách khỏi main để test được routing và middleware mà không cần chạy server.
+func newHTTPHandler(prov provider.Provider, runner agent.Runner, pinger agenthttp.MongoPinger) http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /healthz", agenthttp.Healthz)
+	mux.HandleFunc("GET /readyz", agenthttp.NewReadyzHandler(prov, pinger))
+	mux.HandleFunc("POST /chat", agenthttp.NewChatHandler(runner).ServeHTTP)
+	mux.HandleFunc("GET /suggestions", agenthttp.NewSuggestionsHandler(runner).ServeHTTP)
+
+	var handler http.Handler = mux
+	handler = middleware.TenantMiddleware(handler)
+	handler = middleware.CORSMiddleware(handler)
+	return handler
+}
+
+// mongoPinger trả interface MongoPinger, giữ nil ĐÚNG NGHĨA khi chưa nối Mongo
+// (gán thẳng *mongo.Client nil vào interface sẽ tạo interface non-nil và làm
+// readyz gọi Ping trên con trỏ nil).
+func mongoPinger(c *mongo.Client) agenthttp.MongoPinger {
+	if c == nil {
+		return nil
+	}
+	return c
 }

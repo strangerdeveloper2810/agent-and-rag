@@ -108,5 +108,45 @@ describe("streamReply", () => {
 
     expect(metadata.backend).toBe("general");
     expect(metadata.tokensUsed).toBe(42);
+    expect(metadata.truncated).toBe(false);
+  });
+
+  it("forward event truncated và đánh dấu metadata.truncated", async () => {
+    vi.mocked(repo.getMessages).mockResolvedValue([
+      { role: "user", content: "viết dài vào" },
+    ] as never);
+
+    const result = await streamReply(
+      "c1",
+      undefined,
+      fakeAgent([
+        { type: "text", text: "một phần" },
+        { type: "truncated", message: "Câu trả lời bị cắt" },
+        { type: "done", agent: "go", tokens: 10, truncated: true },
+      ]),
+    );
+
+    const { events, metadata } = await drain(result);
+
+    expect(events.map((e) => e.type)).toContain("truncated");
+    expect(metadata.truncated).toBe(true);
+    // Phần text đã sinh vẫn được lưu.
+    expect(repo.addMessage).toHaveBeenCalledWith("c1", "assistant", "một phần");
+  });
+
+  it("metadata.truncated = true khi chỉ có cờ trên event done", async () => {
+    vi.mocked(repo.getMessages).mockResolvedValue([] as never);
+
+    const result = await streamReply(
+      "c1",
+      undefined,
+      fakeAgent([
+        { type: "text", text: "cụt" },
+        { type: "done", agent: "go", tokens: 1, truncated: true },
+      ]),
+    );
+
+    const { metadata } = await drain(result);
+    expect(metadata.truncated).toBe(true);
   });
 });

@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -42,42 +43,45 @@ import (
 )
 
 func main() {
-	if len(os.Args) < 2 {
-		printUsage()
-		os.Exit(1)
+	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
+}
+
+// run điều phối subcommand và TRẢ VỀ exit code thay vì gọi os.Exit trực tiếp,
+// để test gọi được mọi nhánh (trừ serve/ask/chat vì chúng cần LLM thật).
+func run(args []string, stdout, stderr io.Writer) int {
+	if len(args) == 0 {
+		fmt.Fprintln(stdout, usageText)
+		return 1
 	}
 
-	cmd := os.Args[1]
-	switch cmd {
+	switch cmd := args[0]; cmd {
 	case "serve":
 		runServe()
 	case "ask":
-		if len(os.Args) < 3 {
-			fmt.Fprintln(os.Stderr, "usage: jarvis ask \"câu hỏi\"")
-			os.Exit(1)
+		if len(args) < 2 {
+			fmt.Fprintln(stderr, "usage: jarvis ask \"câu hỏi\"")
+			return 1
 		}
-		question := strings.Join(os.Args[2:], " ")
-		runAsk(question)
+		runAsk(strings.Join(args[1:], " "))
 	case "chat":
 		runChat()
 	case "help", "-h", "--help":
-		printUsage()
+		fmt.Fprintln(stdout, usageText)
 	default:
-		fmt.Fprintf(os.Stderr, "unknown command: %s\n", cmd)
-		printUsage()
-		os.Exit(1)
+		fmt.Fprintf(stderr, "unknown command: %s\n", cmd)
+		fmt.Fprintln(stdout, usageText)
+		return 1
 	}
+	return 0
 }
 
-func printUsage() {
-	fmt.Println(`JARVIS — AI assistant CLI
+const usageText = `JARVIS — AI assistant CLI
 
 usage:
   jarvis serve              start HTTP server
   jarvis ask "câu hỏi"      one-shot question
   jarvis chat               interactive chat (REPL)
-  jarvis help               show this help`)
-}
+  jarvis help               show this help`
 
 // --- serve ---
 
@@ -113,46 +117,56 @@ func runServe() {
 
 func runAsk(question string) {
 	_, _, orch := setup()
-	runner := agent.Runner(orch)
 
+	if err := askOnce(context.Background(), orch, question, os.Stdout, os.Stderr); err != nil {
+		fmt.Fprintf(os.Stderr, "\nengine: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+// askOnce chạy 1 lượt hỏi-đáp, in text ra stdout và event phụ ra stderr.
+// Tách khỏi runAsk để test được với runner giả (không cần LLM thật).
+func askOnce(ctx context.Context, runner agent.Runner, question string, stdout, stderr io.Writer) error {
 	input := agent.RunInput{
 		UserMessage: question,
 		MaxSteps:    12,
 	}
 
-	var output strings.Builder
 	emit := func(e agent.Event) {
 		switch e.Type {
 		case "text":
-			output.WriteString(e.Text)
-			fmt.Print(e.Text)
+			fmt.Fprint(stdout, e.Text)
 		case "error":
-			fmt.Fprintf(os.Stderr, "\n[error] %s\n", e.Message)
+			fmt.Fprintf(stderr, "\n[error] %s\n", e.Message)
 		case "memory":
-			fmt.Fprintf(os.Stderr, "[memory] %s\n", e.Message)
+			fmt.Fprintf(stderr, "[memory] %s\n", e.Message)
 		}
 	}
 
-	if _, err := runner.Run(context.Background(), input, emit); err != nil {
-		fmt.Fprintf(os.Stderr, "\nengine: %v\n", err)
-		os.Exit(1)
+	if _, err := runner.Run(ctx, input, emit); err != nil {
+		return err
 	}
-	fmt.Println()
+	fmt.Fprintln(stdout)
+	return nil
 }
 
 // --- chat ---
 
 func runChat() {
 	_, _, orch := setup()
-	runner := agent.Runner(orch)
 
 	fmt.Fprintf(os.Stderr, "JARVIS chat. go /exit de thoat.\n\n")
+	chatLoop(context.Background(), orch, os.Stdin, os.Stdout, os.Stderr)
+}
 
+// chatLoop đọc từng dòng từ in, chạy runner, giữ history qua các lượt.
+// Tách khỏi runChat để test được với stdin giả + runner giả.
+func chatLoop(ctx context.Context, runner agent.Runner, in io.Reader, stdout, stderr io.Writer) {
 	var history []provider.Message
-	scanner := bufio.NewScanner(os.Stdin)
+	scanner := bufio.NewScanner(in)
 
 	for {
-		fmt.Print("> ")
+		fmt.Fprint(stdout, "> ")
 		if !scanner.Scan() {
 			break
 		}
@@ -161,7 +175,7 @@ func runChat() {
 			continue
 		}
 		if line == "/exit" || line == "/quit" {
-			fmt.Println("tam biet!")
+			fmt.Fprintln(stdout, "tam biet!")
 			break
 		}
 
@@ -176,18 +190,18 @@ func runChat() {
 			switch e.Type {
 			case "text":
 				assistantContent.WriteString(e.Text)
-				fmt.Print(e.Text)
+				fmt.Fprint(stdout, e.Text)
 			case "error":
-				fmt.Fprintf(os.Stderr, "\n[error] %s\n", e.Message)
+				fmt.Fprintf(stderr, "\n[error] %s\n", e.Message)
 			case "memory":
-				fmt.Fprintf(os.Stderr, "[memory] %s\n", e.Message)
+				fmt.Fprintf(stderr, "[memory] %s\n", e.Message)
 			}
 		}
 
-		_, err := runner.Run(context.Background(), input, emit)
-		fmt.Println()
+		_, err := runner.Run(ctx, input, emit)
+		fmt.Fprintln(stdout)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "engine: %v\n", err)
+			fmt.Fprintf(stderr, "engine: %v\n", err)
 			continue
 		}
 

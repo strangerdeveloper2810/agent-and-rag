@@ -15,6 +15,8 @@ interface GoAgentEvent {
   name?: string;
   message?: string;
   usage?: { inputTokens: number; outputTokens: number };
+  /** true khi câu trả lời bị cắt vì chạm giới hạn output token. */
+  truncated?: boolean;
 }
 
 // ----- Circuit Breaker -----
@@ -148,26 +150,19 @@ async function* parseSSE(
  *
  * Flow mỗi request:
  *   1. Check circuit breaker (5 lỗi liên tiếp → từ chối trong 30s).
- *   2. Health check (GET /healthz, timeout 5s) → nếu fail → record failure + throw.
- *   3. POST /chat với history + userMessage (tách từ history input).
- *   4. Parse SSE → convert GoAgentEvent → AgentEvent, yield từng event.
- *   5. Record success/failure để cập nhật circuit breaker.
+ *   2. POST /chat với history + userMessage (tách từ history input).
+ *      Timeout AGENT_GO_TIMEOUT chỉ áp cho thời gian chờ response headers
+ *      (TTFB) — sau khi stream bắt đầu, không abort giữa chừng để tránh
+ *      retry chạy LẠI task LLM từ đầu (nhân đôi chi phí + latency).
+ *   3. Parse SSE → convert GoAgentEvent → AgentEvent, yield từng event.
+ *   4. Record success/failure để cập nhật circuit breaker.
  */
 export const goAgentClient: AgentClient = {
   async *stream(history, opts) {
     // 1. Circuit breaker
     checkCircuit();
 
-    // 2. Health check
-    const healthy = await checkGoAgentHealth();
-    if (!healthy) {
-      recordFailure();
-      throw new AgentUnavailableError(
-        "AI agent không phản hồi (health check thất bại). Vui lòng thử lại sau.",
-      );
-    }
-
-    // 3. Tách user message cuối khỏi history
+    // 2. Tách user message cuối khỏi history
     const userMessage = history[history.length - 1]?.content ?? "";
     const chatHistory = history.slice(0, -1).map((m) => ({
       role: m.role,
@@ -180,17 +175,19 @@ export const goAgentClient: AgentClient = {
       attachments: opts?.attachments ?? [],
     });
 
-    // 4. Gọi POST /chat với retry
+    // 3. Gọi POST /chat với retry (chỉ retry khi lỗi TRƯỚC khi có response).
     const url = `${config.AGENT_GO_URL}/chat`;
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       const controller = new AbortController();
+      let headersReceived = false;
       const timeoutId = setTimeout(
         () => controller.abort(),
         config.AGENT_GO_TIMEOUT,
       );
 
-      // Nếu client gốc có signal → propagate.
+      // Nếu client gốc có signal → propagate (user cancel giữa chừng vẫn
+      // được phép — client tự ngắt, không phải retry).
       const onAbort = () => controller.abort();
       opts?.signal?.addEventListener("abort", onAbort, { once: true });
 
@@ -201,6 +198,10 @@ export const goAgentClient: AgentClient = {
           body,
           signal: controller.signal,
         });
+
+        // Đã nhận response headers → hết giai đoạn TTFB, clear timeout để
+        // không abort task đang chạy (lỗi 4xx/5xx vẫn giữ nguyên logic retry).
+        clearTimeout(timeoutId);
 
         if (!res.ok) {
           // 4xx = lỗi client, không retry.
@@ -213,6 +214,9 @@ export const goAgentClient: AgentClient = {
           // 5xx = retry.
           throw new Error(`Go agent lỗi ${res.status}`);
         }
+
+        // Từ đây stream đã bắt đầu → lỗi giữa chừng KHÔNG retry nữa.
+        headersReceived = true;
 
         // Parse SSE stream → convert to AgentEvent.
         if (!res.body) {
@@ -241,12 +245,22 @@ export const goAgentClient: AgentClient = {
               yield {
                 type: "tool_end",
                 name: raw.name ?? "unknown",
+                message: raw.message,
+                text: raw.text,
               } as AgentEvent;
               break;
             case "error":
               yield {
                 type: "error",
                 message: raw.message ?? "Agent error",
+              } as AgentEvent;
+              break;
+            case "truncated":
+              // Model bị cắt vì chạm max output tokens → UI hiện chỉ báo +
+              // nút "Tiếp tục". Không phải lỗi: text đã stream vẫn giữ.
+              yield {
+                type: "truncated",
+                message: raw.message,
               } as AgentEvent;
               break;
             case "done":
@@ -257,6 +271,7 @@ export const goAgentClient: AgentClient = {
                 type: "done",
                 agent: agentName,
                 tokens: totalTokens,
+                truncated: raw.truncated === true,
               } as AgentEvent;
               break;
             case "step":
@@ -286,6 +301,13 @@ export const goAgentClient: AgentClient = {
         clearTimeout(timeoutId);
         opts?.signal?.removeEventListener("abort", onAbort);
 
+        if (headersReceived) {
+          // Stream đã bắt đầu: lỗi giữa chừng (mạng đứt, Go crash) KHÔNG
+          // retry — Go đã chạy LLM work, retry sẽ duplicate toàn bộ task.
+          recordFailure();
+          throw err;
+        }
+
         // Không retry nếu client abort hoặc circuit breaker đã mở.
         if (opts?.signal?.aborted) {
           return;
@@ -295,7 +317,7 @@ export const goAgentClient: AgentClient = {
         }
 
         if (controller.signal.aborted && !opts?.signal?.aborted) {
-          // Đây là AGENT_GO_TIMEOUT.
+          // Đây là AGENT_GO_TIMEOUT (TTFB quá lâu).
           if (attempt === MAX_RETRIES) {
             recordFailure();
             throw new AgentTimeoutError(

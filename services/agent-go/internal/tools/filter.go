@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"regexp"
 	"strings"
 
 	"github.com/ai-agent-tut/agent-go/internal/provider"
@@ -91,11 +92,40 @@ func (r *Registry) FilterToolDefs(userQuery string, step int) []provider.ToolDef
 
 func containsAny(s string, keywords []string) bool {
 	for _, kw := range keywords {
-		if strings.Contains(s, kw) {
+		if matchKeyword(s, kw) {
 			return true
 		}
 	}
 	return false
+}
+
+// asciiWordRe nhận diện keyword ASCII đơn từ (chữ cái/số, không khoảng trắng).
+var asciiWordRe = regexp.MustCompile(`^[a-z0-9]+$`)
+
+// asciiWordRegex cache regex word-boundary cho từng keyword ASCII đơn từ.
+// Word boundary tránh false positive: "go" chỉ khớp từ "go" riêng, không
+// khớp "good"/"category"; "ai" không khớp "hai"/"email".
+var asciiWordRegex = func() map[string]*regexp.Regexp {
+	m := make(map[string]*regexp.Regexp)
+	all := make([]string, 0, len(codeKeywords)+len(searchKeywords)+len(utilityKeywords))
+	all = append(all, codeKeywords...)
+	all = append(all, searchKeywords...)
+	all = append(all, utilityKeywords...)
+	for _, kw := range all {
+		if asciiWordRe.MatchString(kw) {
+			m[kw] = regexp.MustCompile(`(?i)\b` + regexp.QuoteMeta(kw) + `\b`)
+		}
+	}
+	return m
+}()
+
+// matchKeyword khớp keyword: từ ASCII đơn → word boundary; còn lại (tiếng
+// Việt, cụm nhiều từ) → substring như cũ.
+func matchKeyword(s, kw string) bool {
+	if re, ok := asciiWordRegex[kw]; ok {
+		return re.MatchString(s)
+	}
+	return strings.Contains(s, kw)
 }
 
 func filterByName(allDefs []provider.ToolDef, names []string) []provider.ToolDef {

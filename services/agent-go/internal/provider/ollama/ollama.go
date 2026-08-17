@@ -146,7 +146,8 @@ type ollamaChunk struct {
 		Content   string           `json:"content"`
 		ToolCalls []ollamaToolCall `json:"tool_calls,omitempty"`
 	} `json:"message"`
-	Done bool `json:"done"`
+	Done       bool   `json:"done"`
+	DoneReason string `json:"done_reason,omitempty"`
 }
 
 // --- Translation functions (PURE, testable) ---
@@ -215,7 +216,15 @@ func fromOllamaChunk(line []byte) (provider.StreamChunk, error) {
 	}
 
 	if c.Done {
-		return provider.StreamChunk{Kind: provider.ChunkDone}, nil
+		// done_reason "length" = bị cắt vì chạm num_predict.
+		var finish provider.FinishReason
+		switch c.DoneReason {
+		case "length":
+			finish = provider.FinishLength
+		case "stop":
+			finish = provider.FinishStop
+		}
+		return provider.StreamChunk{Kind: provider.ChunkDone, FinishReason: finish}, nil
 	}
 
 	if len(c.Message.ToolCalls) > 0 {

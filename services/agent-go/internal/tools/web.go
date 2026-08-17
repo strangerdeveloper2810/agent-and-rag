@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/net/html"
@@ -27,11 +28,38 @@ func randomUA() string {
 }
 
 // ---------------------------------------------------------------------------
-// WebSearchTool — Brave Search (primary) or DuckDuckGo HTML (fallback)
+// WebSearchTool — Google scrape (không dùng DuckDuckGo)
 // ---------------------------------------------------------------------------
+
+const (
+	// webSearchTimeout là ngân sách thời gian TỔNG cho một lần tìm kiếm.
+	webSearchTimeout = 10 * time.Second
+	// webSearchCacheTTL là thời gian sống của kết quả cache. Research thường
+	// lặp lại query giữa các vòng — cache tránh gọi lại mạng.
+	webSearchCacheTTL = 5 * time.Minute
+	// webSearchCacheSize là số query tối đa được cache; khi đầy thì xoá sạch.
+	webSearchCacheSize = 256
+)
+
+// webSearchProvider là một backend tìm kiếm.
+// Trả về nil/empty khi không có kết quả hoặc lỗi — race sẽ thử backend khác.
+type webSearchProvider func(context.Context, *http.Client, string) []map[string]string
+
+// webSearchProviders là danh sách backend được chạy song song, lấy kết quả
+// của backend đầu tiên trả về non-empty. Hiện chỉ có Google; giữ cấu trúc
+// race để dễ thêm backend khác và để test inject được fake provider.
+var webSearchProviders = []webSearchProvider{searchGoogleWeb}
+
+type webSearchCacheEntry struct {
+	expires time.Time
+	results []map[string]string
+}
 
 type webSearchTool struct {
 	httpClient *http.Client
+
+	cacheMu sync.Mutex
+	cache   map[string]webSearchCacheEntry // lazy init, key = query đã normalize
 }
 
 func NewWebSearchTool(client *http.Client) Tool {
@@ -44,7 +72,7 @@ func NewWebSearchTool(client *http.Client) Tool {
 func (t *webSearchTool) Name() string { return "web.search" }
 
 func (t *webSearchTool) Description() string {
-	return "Tìm kiếm trực tiếp qua Google Web Search. Trả về danh sách kết quả mới nhất từ Google: tiêu đề (title), trích dẫn (snippet), và đường dẫn trực tiếp (URL). Dùng để tra cứu thông tin, báo cáo, tin tức thực tế."
+	return "Tìm kiếm web qua Google (cache 5 phút, bỏ qua Wikipedia). Trả về tiêu đề (title), trích dẫn (snippet), và URL trực tiếp. Dùng để tra cứu thông tin, báo cáo, tin tức thực tế."
 }
 
 func (t *webSearchTool) Schema() json.RawMessage {
@@ -71,127 +99,108 @@ func (t *webSearchTool) Execute(ctx context.Context, rawArgs json.RawMessage) (R
 		return Result{}, fmt.Errorf("web.search: query is required")
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	key := strings.ToLower(strings.TrimSpace(args.Query))
+	if results, ok := t.cacheGet(key); ok {
+		return Result{Content: buildWebSearchOutput(args.Query, results)}, nil
+	}
+
+	searchCtx, cancel := context.WithTimeout(ctx, webSearchTimeout)
 	defer cancel()
-
-	// 1. Primary: Google Web Search
-	results := searchGoogleWeb(ctx, t.httpClient, args.Query)
-
-	// 2. Secondary fallback: DuckDuckGo Lite HTML Search
-	if len(results) == 0 {
-		results = fetchDDGLite(ctx, t.httpClient, args.Query)
-	}
-
-	// 3. Tertiary fallback: DuckDuckGo JSON API
-	if len(results) == 0 {
-		results = searchDDGJSON(ctx, t.httpClient, args.Query)
-	}
+	results := raceWebSearch(searchCtx, cancel, t.httpClient, args.Query)
 
 	if len(results) == 0 {
 		results = append(results, map[string]string{
-			"title":   "⚠️ Google Search unavailable",
-			"snippet": fmt.Sprintf("Google Web Search and DuckDuckGo returned no results for '%s'. Try a simpler query or different keywords.", args.Query),
+			"title":   "⚠️ Search unavailable",
+			"snippet": fmt.Sprintf("Google không trả kết quả cho '%s'. Thử query đơn giản hơn hoặc từ khoá khác.", args.Query),
 			"url":     "",
 		})
+	} else {
+		t.cacheSet(key, results)
 	}
 
+	return Result{Content: buildWebSearchOutput(args.Query, results)}, nil
+}
+
+// raceWebSearch chạy mọi backend SONG SONG, trả về kết quả của backend đầu
+// tiên có kết quả (sau khi lọc Wikipedia) và cancel các backend còn lại
+// (qua cancel của searchCtx).
+func raceWebSearch(ctx context.Context, cancel context.CancelFunc, client *http.Client, query string) []map[string]string {
+	out := make(chan []map[string]string, len(webSearchProviders))
+	for _, provider := range webSearchProviders {
+		provider := provider
+		go func() {
+			out <- filterWikipedia(provider(ctx, client, query))
+		}()
+	}
+
+	first := []map[string]string(nil)
+	remaining := len(webSearchProviders)
+	for remaining > 0 {
+		results := <-out
+		remaining--
+		if first == nil && len(results) > 0 {
+			first = results
+			cancel()
+		}
+	}
+	return first
+}
+
+// filterWikipedia loại kết quả từ wikipedia.org — áp cho MỌI backend trước
+// khi trả về.
+func filterWikipedia(results []map[string]string) []map[string]string {
+	out := make([]map[string]string, 0, len(results))
+	for _, r := range results {
+		if strings.Contains(r["url"], "wikipedia.org") {
+			continue
+		}
+		out = append(out, r)
+	}
+	return out
+}
+
+// cacheGet trả về kết quả cache còn hạn cho query key; xoá entry đã hết hạn.
+func (t *webSearchTool) cacheGet(key string) ([]map[string]string, bool) {
+	t.cacheMu.Lock()
+	defer t.cacheMu.Unlock()
+	if t.cache == nil {
+		return nil, false
+	}
+	entry, ok := t.cache[key]
+	if !ok {
+		return nil, false
+	}
+	if time.Now().After(entry.expires) {
+		delete(t.cache, key)
+		return nil, false
+	}
+	return entry.results, true
+}
+
+// cacheSet lưu kết quả vào cache với TTL; khi đầy thì xoá sạch (đủ tốt cho
+// 256 entries — không cần LRU).
+func (t *webSearchTool) cacheSet(key string, results []map[string]string) {
+	t.cacheMu.Lock()
+	defer t.cacheMu.Unlock()
+	if t.cache == nil {
+		t.cache = make(map[string]webSearchCacheEntry)
+	}
+	if len(t.cache) >= webSearchCacheSize {
+		for k := range t.cache {
+			delete(t.cache, k)
+		}
+	}
+	t.cache[key] = webSearchCacheEntry{expires: time.Now().Add(webSearchCacheTTL), results: results}
+}
+
+// buildWebSearchOutput encode kết quả search thành JSON trả về cho LLM.
+func buildWebSearchOutput(query string, results []map[string]string) string {
 	out, _ := json.Marshal(map[string]any{
-		"query":   args.Query,
+		"query":   query,
 		"count":   len(results),
 		"results": results,
 	})
-	return Result{Content: string(out)}, nil
-}
-
-// fetchDDGLite fetches and parses DuckDuckGo Lite HTML results (fallback).
-func fetchDDGLite(ctx context.Context, client *http.Client, query string) []map[string]string {
-	reqURL := fmt.Sprintf("https://lite.duckduckgo.com/lite/?q=%s", url.QueryEscape(query))
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
-	if err != nil {
-		return nil
-	}
-	req.Header.Set("User-Agent", randomUA())
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	if err != nil {
-		return nil
-	}
-	return parseDDGLite(string(body))
-}
-
-// parseDDGLite parses DuckDuckGo Lite HTML results.
-func parseDDGLite(html string) []map[string]string {
-	// DDG Lite returns results in this format:
-	// <a rel="nofollow" href="URL">Title</a><span>Snippet</span>
-	linkRe := regexp.MustCompile(`<a[^>]*href="([^"]*)"[^>]*>([^<]*)</a>`)
-	snippetRe := regexp.MustCompile(`<span class="snippet">([^<]*)</span>`)
-
-	// Simpler approach: find all result rows
-	// Each row: <tr class="result-snippet"> or just <tr> with link + snippet
-	rows := strings.Split(html, "<tr")
-	results := make([]map[string]string, 0)
-
-	for _, row := range rows {
-		if !strings.Contains(row, "href=") {
-			continue
-		}
-
-		// Extract link and title
-		linkMatches := linkRe.FindStringSubmatch(row)
-		if len(linkMatches) < 3 {
-			continue
-		}
-		href := cleanURL(linkMatches[1])
-		title := cleanHTML(linkMatches[2])
-
-		// Skip DuckDuckGo internal links & Wikipedia
-		if strings.Contains(href, "duckduckgo.com") || strings.Contains(href, "wikipedia.org") || title == "" {
-			continue
-		}
-
-		// Extract snippet
-		snippet := ""
-		snipMatches := snippetRe.FindStringSubmatch(row)
-		if len(snipMatches) >= 2 {
-			snippet = cleanHTML(snipMatches[1])
-		}
-		if snippet == "" {
-			// Fallback: extract any text between tags
-			snippet = extractTextContent(row)
-		}
-
-		results = append(results, map[string]string{
-			"title":   title,
-			"snippet": truncateStr(snippet, 300),
-			"url":     href,
-		})
-
-		if len(results) >= 10 {
-			break
-		}
-	}
-
-	return results
-}
-
-// DDGResponse là cấu trúc trả về từ DuckDuckGo API (exported for tests).
-type DDGResponse struct {
-	AbstractText  string `json:"AbstractText"`
-	AbstractURL   string `json:"AbstractURL"`
-	Heading       string `json:"Heading"`
-	Answer        string `json:"Answer"`
-	AnswerType    string `json:"AnswerType"`
-	Definition    string `json:"Definition"`
-	RelatedTopics []struct {
-		Text     string `json:"Text"`
-		FirstURL string `json:"FirstURL"`
-	} `json:"RelatedTopics"`
+	return string(out)
 }
 
 // searchGoogleWeb tries Google search via HTML scraping.
@@ -255,58 +264,6 @@ func parseGoogleResults(html string) []map[string]string {
 	return results
 }
 
-// searchDDGJSON fallback: original DuckDuckGo JSON API for instant answers.
-func searchDDGJSON(ctx context.Context, client *http.Client, query string) []map[string]string {
-	reqURL := fmt.Sprintf("https://api.duckduckgo.com/?q=%s&format=json&no_html=1", url.QueryEscape(query))
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
-	req.Header.Set("User-Agent", randomUA())
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil
-	}
-	defer resp.Body.Close()
-
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-
-	var ddg struct {
-		AbstractText  string `json:"AbstractText"`
-		AbstractURL   string `json:"AbstractURL"`
-		Heading       string `json:"Heading"`
-		Answer        string `json:"Answer"`
-		Definition    string `json:"Definition"`
-		RelatedTopics []struct {
-			Text     string `json:"Text"`
-			FirstURL string `json:"FirstURL"`
-		} `json:"RelatedTopics"`
-	}
-	json.Unmarshal(body, &ddg)
-
-	results := make([]map[string]string, 0)
-	if ddg.AbstractText != "" {
-		results = append(results, map[string]string{
-			"title":   ddg.Heading,
-			"snippet": ddg.AbstractText,
-			"url":     ddg.AbstractURL,
-		})
-	}
-	if ddg.Answer != "" {
-		results = append(results, map[string]string{
-			"title":   query,
-			"snippet": ddg.Answer,
-			"url":     "",
-		})
-	}
-	for _, t := range ddg.RelatedTopics {
-		results = append(results, map[string]string{
-			"title":   cleanHTML(t.Text),
-			"snippet": "",
-			"url":     t.FirstURL,
-		})
-	}
-	return results
-}
-
 func cleanHTML(s string) string {
 	s = regexp.MustCompile(`<[^>]*>`).ReplaceAllString(s, "")
 	s = strings.ReplaceAll(s, "&amp;", "&")
@@ -318,18 +275,11 @@ func cleanHTML(s string) string {
 }
 
 func cleanURL(u string) string {
-	u = strings.TrimPrefix(u, "/l/?kh=-1&uddg=")
 	u = strings.TrimPrefix(u, "//")
 	if !strings.HasPrefix(u, "http") && u != "" {
 		u = "https://" + u
 	}
 	return u
-}
-
-func extractTextContent(html string) string {
-	text := regexp.MustCompile(`<[^>]*>`).ReplaceAllString(html, " ")
-	text = strings.Join(strings.Fields(text), " ")
-	return truncateStr(text, 300)
 }
 
 func truncateStr(s string, maxLen int) string {

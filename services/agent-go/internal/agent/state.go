@@ -83,6 +83,11 @@ type State struct {
 	// during this run (for observability).
 	TrimmedTokens int
 
+	// Truncated = true khi model call gần nhất dừng vì chạm giới hạn output
+	// token (finish reason "length"). Client dùng cờ này để mời user bấm
+	// "Tiếp tục".
+	Truncated bool
+
 	// Interrupt != nil khi engine dừng chờ HITL. Lúc này State có thể được
 	// serialize/lưu lại để resume sau.
 	Interrupt *Interrupt
