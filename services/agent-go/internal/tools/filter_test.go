@@ -184,6 +184,63 @@ func TestFilterToolDefs_DocumentKeywordWordBoundary(t *testing.T) {
 	}
 }
 
+// TestUnionToolDefs bảo đảm tool mà skill khai báo (frontmatter `tools:`) luôn
+// được bổ sung vào tool list. Trước đây field đó được parse rồi KHÔNG đọc ở đâu
+// (dead code): skill learning-tutor khai `tools: [web.search, web.fetch]` và
+// hướng dẫn "web.fetch 2-3 nguồn tốt nhất", nhưng có lượt tool list không hề
+// chứa web.fetch nên hướng dẫn đó không thể thực hiện.
+func TestUnionToolDefs(t *testing.T) {
+	r := filterTestRegistry()
+
+	// Bộ tối thiểu (nhánh no-intent) không có web.fetch.
+	base := r.FilterToolDefs("xin chào", 0)
+	if defNames(base)["web.fetch"] {
+		t.Fatalf("tiền đề test sai: base đã có web.fetch: %v", defNames(base))
+	}
+
+	got := defNames(r.UnionToolDefs(base, []string{"web.fetch", "web.search"}))
+	if !got["web.fetch"] {
+		t.Errorf("web.fetch phải được bổ sung, got %v", got)
+	}
+	// web.search đã có sẵn → không được nhân đôi.
+	union := r.UnionToolDefs(base, []string{"web.search"})
+	count := 0
+	for _, d := range union {
+		if d.Name == "web.search" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Errorf("web.search xuất hiện %d lần, want 1 (không nhân đôi)", count)
+	}
+}
+
+// Skill dùng chung cho mọi agent nhưng mỗi agent có registry riêng (vd research
+// không có file.*) → tool skill khai mà registry không có phải bị bỏ qua êm,
+// không tạo ToolDef rỗng khiến provider lỗi schema.
+func TestUnionToolDefs_IgnoresUnknownTool(t *testing.T) {
+	r := filterTestRegistry()
+	base := r.FilterToolDefs("xin chào", 0)
+
+	got := r.UnionToolDefs(base, []string{"tool.khong-ton-tai"})
+	if len(got) != len(base) {
+		t.Errorf("len = %d, want %d (tool lạ phải bị bỏ qua)", len(got), len(base))
+	}
+	for _, d := range got {
+		if d.Name == "" {
+			t.Error("không được tạo ToolDef rỗng")
+		}
+	}
+}
+
+func TestUnionToolDefs_EmptyExtraIsNoop(t *testing.T) {
+	r := filterTestRegistry()
+	base := r.FilterToolDefs("xin chào", 0)
+	if got := r.UnionToolDefs(base, nil); len(got) != len(base) {
+		t.Errorf("len = %d, want %d", len(got), len(base))
+	}
+}
+
 func TestFilterToolDefs_StepGreaterThanZeroKeepsAll(t *testing.T) {
 	r := filterTestRegistry()
 	all := r.ToolDefs()

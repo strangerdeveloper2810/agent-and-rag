@@ -386,6 +386,14 @@ export const ChatPage: React.FC = () => {
               }));
               break;
             case "interrupt":
+              // Guardrails chặn một tool destructive (vd shell.exec). Phần giải
+              // thích chi tiết do Go gửi qua event text nên đã nằm trong nội
+              // dung câu trả lời; ở đây chỉ báo nổi cho user biết vì sao agent
+              // dừng giữa đường. Trước đây case này rỗng nên user không có
+              // manh mối nào.
+              toast.warning(
+                `Đã dừng: công cụ "${e.name ?? "không rõ"}" cần được xác nhận trước khi chạy.`,
+              );
               break;
             case "error":
               setMessages((m) => {
@@ -403,6 +411,23 @@ export const ChatPage: React.FC = () => {
                 "Đang có sự cố với dịch vụ AI, chúng tôi sẽ khắc phục trong giây lát. Vui lòng thử lại.",
               );
               userScrolledUpRef.current = false;
+              break;
+            case "usage":
+              // Go phát usage sau MỖI lần gọi LLM, với Usage là số của RIÊNG
+              // bước đó → cộng dồn để ra tổng cả lượt. Trước đây FE không hề
+              // xử lý event này (và BFF cũng drop nó), nên UsageFooter không
+              // bao giờ có số dù backend tính đúng.
+              if (e.usage) {
+                updateMeta(assistantIndex, (prev) => ({
+                  ...prev,
+                  usage: {
+                    inputTokens:
+                      (prev.usage?.inputTokens ?? 0) + e.usage!.inputTokens,
+                    outputTokens:
+                      (prev.usage?.outputTokens ?? 0) + e.usage!.outputTokens,
+                  },
+                }));
+              }
               break;
             case "truncated":
               updateMeta(assistantIndex, (prev) => ({

@@ -63,12 +63,26 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 	if sl := eng.getSkillLoader(); sl != nil && s.activatedSkills == nil {
 		s.activatedSkills = make(map[string]bool)
 	}
+	// skillTools là tool mà skill đang kích hoạt khai báo cần dùng (frontmatter
+	// `tools:` trong SKILL.md). Được BẢO ĐẢM có trong tool list gửi cho LLM.
+	var skillTools []string
 	if sl := eng.getSkillLoader(); sl != nil {
 		if matched := sl.MatchSkill(userInput); matched != nil && !s.activatedSkills[matched.Name] {
 			s.activatedSkills[matched.Name] = true
 			systemPrompt += "\n\n[KỸ NĂNG ĐANG KÍCH HOẠT: " + matched.Name + "]\n" + matched.Content
-			slog.Info("model: skill activated", "skill", matched.Name)
+			slog.Info("model: skill activated", "skill", matched.Name, "skill_tools", matched.Tools)
 			emit(MemoryEvent("Kích hoạt kỹ năng: " + matched.Name + " — " + matched.Description))
+			skillTools = matched.Tools
+		}
+		// Skill đã kích hoạt ở bước trước trong CÙNG lượt chạy vẫn phải giữ
+		// được tool của nó (activatedSkills chặn inject prompt lặp, nhưng không
+		// nên chặn quyền dùng tool).
+		if len(skillTools) == 0 {
+			for name := range s.activatedSkills {
+				if sk := sl.LoadSkill(name); sk != nil {
+					skillTools = append(skillTools, sk.Tools...)
+				}
+			}
 		}
 	}
 
@@ -93,6 +107,20 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 	// latency + nhiễu tool-call. Từ bước 1 trở đi gửi toàn bộ để cho phép
 	// tool chain phức tạp.
 	toolDefs := reg.FilterToolDefs(userInput, s.Step)
+
+	// Bảo đảm tool mà skill khai báo luôn có mặt. Trước đây field `tools:` trong
+	// SKILL.md được parse (skills/loader.go) rồi KHÔNG đọc ở đâu cả — dead code
+	// cùng loại với AgentSpec.SystemPrompt: skill learning-tutor khai
+	// `tools: [web.search, web.fetch]` nhưng FilterToolDefs chạy độc lập nên có
+	// lượt tool list không hề chứa web.fetch, khiến hướng dẫn trong skill
+	// ("web.fetch 2-3 nguồn tốt nhất") không thể thực hiện được.
+	//
+	// Cố tình dùng UNION (bổ sung) chứ KHÔNG phải INTERSECTION (giới hạn): lấy
+	// giao sẽ cắt mất memory.save/memory.recall và mọi tool khác mà skill không
+	// liệt kê, làm agent yếu đi mỗi khi có skill kích hoạt.
+	if len(skillTools) > 0 {
+		toolDefs = reg.UnionToolDefs(toolDefs, skillTools)
+	}
 
 	req := provider.GenerateRequest{
 		System:   systemPrompt,

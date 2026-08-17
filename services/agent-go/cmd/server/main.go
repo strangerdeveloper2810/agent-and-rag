@@ -132,6 +132,8 @@ func main() {
 	generalEngine.SetSystemPrompt(agent.BuildSystemPrompt(nil, skillSummaries))
 	generalEngine.SetDynamicThinking(dynThinking)
 	generalEngine.SetCircuitBreaker(cb)
+	generalEngine.SetMaxToolOutput(cfg.MaxToolOutput)
+	generalEngine.SetAllowDestructiveTools(cfg.AllowDestructiveTools)
 	generalEngine.SetSkillLoader(skillLoader)
 	generalEngine.SetMemoryNodes(
 		memory.RecallNode(store),
@@ -146,6 +148,8 @@ func main() {
 	codeEngine.SetSystemPrompt(agent.BuildSystemPrompt(nil, skillSummaries))
 	codeEngine.SetDynamicThinking(dynThinking)
 	codeEngine.SetCircuitBreaker(cb)
+	codeEngine.SetMaxToolOutput(cfg.MaxToolOutput)
+	codeEngine.SetAllowDestructiveTools(cfg.AllowDestructiveTools)
 	codeEngine.SetSkillLoader(skillLoader)
 	codeEngine.SetMemoryNodes(
 		memory.RecallNode(store),
@@ -160,6 +164,8 @@ func main() {
 	researchEngine.SetSystemPrompt(agent.BuildSystemPrompt(nil, skillSummaries))
 	researchEngine.SetDynamicThinking(dynThinking)
 	researchEngine.SetCircuitBreaker(cb)
+	researchEngine.SetMaxToolOutput(cfg.MaxToolOutput)
+	researchEngine.SetAllowDestructiveTools(cfg.AllowDestructiveTools)
 	researchEngine.SetSkillLoader(skillLoader)
 	researchEngine.SetMemoryNodes(
 		memory.RecallNode(store),

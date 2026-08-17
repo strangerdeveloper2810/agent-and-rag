@@ -94,6 +94,11 @@ func TestLoad_Defaults(t *testing.T) {
 	if c.EnableLearner {
 		t.Error("EnableLearner mặc định phải là false")
 	}
+	// Quyền tự chạy shell tuỳ ý trên máy người dùng — BẮT BUỘC tắt mặc định,
+	// chỉ bật khi user chủ động đặt ALLOW_DESTRUCTIVE_TOOLS=true.
+	if c.AllowDestructiveTools {
+		t.Error("AllowDestructiveTools mặc định PHẢI là false (an toàn)")
+	}
 
 	if len(c.AllowedPaths) != 2 || c.AllowedPaths[0] != "." {
 		t.Errorf("AllowedPaths = %v, want [. $HOME]", c.AllowedPaths)

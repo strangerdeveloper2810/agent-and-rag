@@ -126,6 +126,38 @@ func (r *Registry) FilterToolDefs(userQuery string, step int) []provider.ToolDef
 	return filtered
 }
 
+// UnionToolDefs bổ sung các tool có tên trong extraNames vào defs (nếu tool đó
+// tồn tại trong registry và chưa có mặt), giữ nguyên thứ tự defs rồi nối phần
+// thêm vào cuối. Dùng để bảo đảm tool mà skill khai báo luôn khả dụng.
+func (r *Registry) UnionToolDefs(defs []provider.ToolDef, extraNames []string) []provider.ToolDef {
+	if len(extraNames) == 0 {
+		return defs
+	}
+	present := make(map[string]bool, len(defs))
+	for _, d := range defs {
+		present[d.Name] = true
+	}
+	for _, name := range extraNames {
+		if present[name] {
+			continue
+		}
+		t, ok := r.Get(name)
+		if !ok {
+			// Skill khai tool không có trong registry của agent này — bỏ qua im
+			// lặng là đúng: mỗi agent có registry riêng (vd research không có
+			// file.*), skill dùng chung cho mọi agent.
+			continue
+		}
+		present[name] = true
+		defs = append(defs, provider.ToolDef{
+			Name:        t.Name(),
+			Description: t.Description(),
+			Schema:      t.Schema(),
+		})
+	}
+	return defs
+}
+
 func containsAny(s string, keywords []string) bool {
 	for _, kw := range keywords {
 		if matchKeyword(s, kw) {
