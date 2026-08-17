@@ -300,3 +300,19 @@ func TestToAnthropicMessages_UserNoContentOnlyImage(t *testing.T) {
 		t.Fatalf("block should be image: %#v", content[0])
 	}
 }
+
+func TestMapStopReason(t *testing.T) {
+	cases := map[string]provider.FinishReason{
+		"max_tokens":    provider.FinishLength,
+		"tool_use":      provider.FinishToolCalls,
+		"end_turn":      provider.FinishStop,
+		"stop_sequence": provider.FinishStop,
+		"":              "",
+		"refusal":       "",
+	}
+	for raw, want := range cases {
+		if got := mapStopReason(raw); got != want {
+			t.Errorf("mapStopReason(%q) = %q, want %q", raw, got, want)
+		}
+	}
+}

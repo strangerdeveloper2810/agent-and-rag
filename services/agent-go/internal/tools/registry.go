@@ -2,8 +2,7 @@ package tools
 
 import (
 	"context"
-
-	"golang.org/x/sync/errgroup"
+	"sync"
 
 	"github.com/ai-agent-tut/agent-go/internal/provider"
 )
@@ -70,21 +69,45 @@ type CallResult struct {
 // Tool không tìm thấy hoặc Execute lỗi được gán vào CallResult.Err (KHÔNG panic).
 // ctx được truyền vào từng Execute để tôn trọng cancel/timeout.
 func (r *Registry) RunParallel(ctx context.Context, calls []provider.ToolCall) []CallResult {
-	results := make([]CallResult, len(calls))
+	return r.RunParallelStreaming(ctx, calls, nil)
+}
 
-	var g errgroup.Group
+// RunParallelStreaming chạy các tool_call SONG SONG như RunParallel, nhưng gọi
+// onResult(index, result) NGAY KHI từng tool hoàn thành (không theo thứ tự)
+// để caller có thể stream kết quả sớm thay vì chờ tất cả. Trả về kết quả
+// ĐÚNG THỨ TỰ đầu vào.
+//
+// onResult chạy tuần tự trên goroutine gọi hàm này (an toàn cho emit SSE).
+func (r *Registry) RunParallelStreaming(ctx context.Context, calls []provider.ToolCall, onResult func(index int, res CallResult)) []CallResult {
+	results := make([]CallResult, len(calls))
 	for i, call := range calls {
-		i, call := i, call // pin biến vòng lặp (an toàn cho mọi phiên bản Go)
 		results[i].Call = call
-		g.Go(func() error {
+	}
+
+	done := make(chan int, len(calls))
+	var wg sync.WaitGroup
+	for i, call := range calls {
+		wg.Add(1)
+		go func(i int, call provider.ToolCall) {
+			defer wg.Done()
 			res, err := r.runOne(ctx, call)
 			results[i].Result = res
 			results[i].Err = err
-			return nil // lỗi tool được giữ trong CallResult.Err, không làm hỏng cả nhóm
-		})
+			done <- i
+		}(i, call)
 	}
-	_ = g.Wait() // không callback nào trả error → Wait luôn nil
 
+	// Đóng done khi mọi goroutine đã gửi xong → vòng range dưới kết thúc.
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	for i := range done {
+		if onResult != nil {
+			onResult(i, results[i])
+		}
+	}
 	return results
 }
 

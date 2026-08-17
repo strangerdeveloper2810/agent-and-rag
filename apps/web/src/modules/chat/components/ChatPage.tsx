@@ -26,7 +26,12 @@ export type MessageMeta = {
   citations: CitationData[];
   agent: string | null;
   usage: UsageData | null;
+  /** true khi câu trả lời bị cắt vì chạm giới hạn output token. */
+  truncated: boolean;
 };
+
+/** Prompt gửi khi user bấm "Tiếp tục" trên một câu trả lời bị cắt. */
+const CONTINUE_PROMPT = "Tiếp tục câu trả lời từ chỗ bị cắt.";
 
 // ── Helpers ──
 
@@ -211,6 +216,7 @@ export const ChatPage: React.FC = () => {
           citations: [],
           agent: null,
           usage: null,
+          truncated: false,
         };
         next.set(index, updater(current));
         return next;
@@ -350,7 +356,7 @@ export const ChatPage: React.FC = () => {
                   tools[idx] = {
                     ...tools[idx],
                     status: e.message ? "error" : "done",
-                    result: e.message ? undefined : "Completed",
+                    result: e.message ? undefined : (e.text ?? "Completed"),
                     error: e.message,
                   };
                 }
@@ -397,11 +403,18 @@ export const ChatPage: React.FC = () => {
               );
               userScrolledUpRef.current = false;
               break;
+            case "truncated":
+              updateMeta(assistantIndex, (prev) => ({
+                ...prev,
+                truncated: true,
+              }));
+              break;
             case "done":
-              if (e.usage) {
+              if (e.usage || e.truncated) {
                 updateMeta(assistantIndex, (prev) => ({
                   ...prev,
-                  usage: e.usage ?? null,
+                  usage: e.usage ?? prev.usage,
+                  truncated: prev.truncated || e.truncated === true,
                 }));
               }
               break;
@@ -472,6 +485,13 @@ export const ChatPage: React.FC = () => {
     [streaming],
   );
 
+  // Câu trả lời bị cắt vì chạm giới hạn output token → gửi prompt yêu cầu
+  // agent viết tiếp (phần đã nhận vẫn nằm trong history nên agent có ngữ cảnh).
+  const handleContinue = useCallback(() => {
+    if (streaming) return;
+    send(CONTINUE_PROMPT);
+  }, [streaming]);
+
   const hasMessages = messages.length > 0;
 
   return (
@@ -501,8 +521,10 @@ export const ChatPage: React.FC = () => {
                   citations={msgMeta?.citations ?? []}
                   agent={msgMeta?.agent ?? null}
                   usage={msgMeta?.usage ?? null}
+                  truncated={msgMeta?.truncated ?? false}
                   onRegenerate={() => handleRegenerate(i)}
                   onRetryUser={(c) => handleRetryUser(c)}
+                  onContinue={handleContinue}
                 />
               );
             })}

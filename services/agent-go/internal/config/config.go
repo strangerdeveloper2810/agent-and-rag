@@ -52,6 +52,7 @@ type Config struct {
 	MaxToolOutput         int  // max chars from tool output. default: 24000
 	ShellTimeout          int  // seconds. default: 30
 	EnableDynamicThinking bool // auto-adjust thinking level based on task complexity
+	EnablePlanning        bool // LLM plan node cho task phức tạp. default: false (tiết kiệm 1 LLM call trước token đầu)
 }
 
 // Load đọc .env (nếu có) rồi env → Config với defaults hợp lý.
@@ -88,6 +89,7 @@ func Load() (Config, error) {
 		MaxToolOutput:         24000,
 		ShellTimeout:          30,
 		EnableDynamicThinking: envOr("ENABLE_DYNAMIC_THINKING", "false") == "true",
+		EnablePlanning:        envOr("ENABLE_PLANNING", "false") == "true",
 	}
 
 	// Validate: ít nhất 1 LLM provider phải được cấu hình

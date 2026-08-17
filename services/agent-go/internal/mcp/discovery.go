@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sync"
 
 	"gopkg.in/yaml.v3"
@@ -296,11 +297,13 @@ func (r *MCPRegistry) Discover(configDir string) error {
 			continue
 		}
 		name := entry.Name()
-		if ext := name[len(name)-4:]; ext != ".yml" && ext != "yaml" && name[len(name)-5:] != ".yaml" {
+		// filepath.Ext an toàn với tên file ngắn (vd "a", ".yml") — cắt chuỗi
+		// bằng index cố định sẽ panic khi len(name) < 5.
+		if ext := filepath.Ext(name); ext != ".yml" && ext != ".yaml" {
 			continue
 		}
 
-		path := configDir + "/" + name
+		path := filepath.Join(configDir, name)
 		data, err := os.ReadFile(path)
 		if err != nil {
 			return fmt.Errorf("mcp: read %q: %w", path, err)

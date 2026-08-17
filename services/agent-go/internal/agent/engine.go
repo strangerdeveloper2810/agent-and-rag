@@ -87,6 +87,15 @@ func (e *Engine) SetPlanningNodes(plan, reflect Node) {
 	e.reflectFn = reflect
 }
 
+// EnablePlanning bật node plan/reflect nội bộ: request phức tạp tốn thêm
+// 1 LLM call (plan) trước token đầu tiên. TẮT mặc định.
+func (e *Engine) EnablePlanning() {
+	e.planFn = func(ctx context.Context, s *State, emit EmitFunc) (NodeID, error) {
+		return nodePlan(ctx, e, s, emit)
+	}
+	e.reflectFn = nodeReflect
+}
+
 // getProvider / getRegistry / getSystemPrompt / getSkillLoader — implements modelEngine & toolsEngine.
 func (e *Engine) getProvider() provider.Provider { return e.prov }
 func (e *Engine) getRegistry() *tools.Registry   { return e.registry }
@@ -169,7 +178,7 @@ func (e *Engine) Run(ctx context.Context, in RunInput, emit EmitFunc) (provider.
 
 	slog.Info("engine: run done", "steps", s.Step, "total_ms", time.Since(start).Milliseconds(),
 		"tokens_in", s.Usage.InputTokens, "tokens_out", s.Usage.OutputTokens, "total_tokens", s.TotalTokens)
-	emit(DoneEvent(s.Usage, s.TotalTokens))
+	emit(DoneEvent(s.Usage, s.TotalTokens, s.Truncated))
 	return s.Usage, nil
 }
 

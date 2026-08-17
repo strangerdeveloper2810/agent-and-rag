@@ -252,10 +252,28 @@ func (c *Client) Generate(ctx context.Context, req provider.GenerateRequest) (<-
 		if !send(ctx, out, provider.StreamChunk{Kind: provider.ChunkUsage, Usage: &usage}) {
 			return
 		}
-		send(ctx, out, provider.StreamChunk{Kind: provider.ChunkDone})
+		send(ctx, out, provider.StreamChunk{
+			Kind:         provider.ChunkDone,
+			FinishReason: mapStopReason(string(acc.StopReason)),
+		})
 	}()
 
 	return out, nil
+}
+
+// mapStopReason dịch stop_reason của Anthropic sang FinishReason chuẩn.
+// "max_tokens" = câu trả lời bị cắt vì chạm giới hạn MaxTokens.
+func mapStopReason(raw string) provider.FinishReason {
+	switch raw {
+	case "max_tokens":
+		return provider.FinishLength
+	case "tool_use":
+		return provider.FinishToolCalls
+	case "end_turn", "stop_sequence":
+		return provider.FinishStop
+	default:
+		return ""
+	}
 }
 
 // send gửi chunk nhưng tôn trọng ctx: trả false nếu ctx bị huỷ (để goroutine thoát).

@@ -315,3 +315,17 @@ func TestToGeminiContents_UserWithInvalidBase64(t *testing.T) {
 		t.Errorf("text mismatch: %q", c.Parts[0].Text)
 	}
 }
+
+func TestMapFinishReason(t *testing.T) {
+	cases := map[genai.FinishReason]provider.FinishReason{
+		genai.FinishReasonMaxTokens:   provider.FinishLength,
+		genai.FinishReasonStop:        provider.FinishStop,
+		genai.FinishReasonSafety:      "",
+		genai.FinishReasonUnspecified: "",
+	}
+	for raw, want := range cases {
+		if got := mapFinishReason(raw); got != want {
+			t.Errorf("mapFinishReason(%v) = %q, want %q", raw, got, want)
+		}
+	}
+}
