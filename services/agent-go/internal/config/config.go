@@ -53,6 +53,13 @@ type Config struct {
 	ShellTimeout          int  // seconds. default: 30
 	EnableDynamicThinking bool // auto-adjust thinking level based on task complexity
 	EnablePlanning        bool // LLM plan node cho task phức tạp. default: false (tiết kiệm 1 LLM call trước token đầu)
+
+	// Autonomous continuous learning / memory reflection worker.
+	// TẮT mặc định — mỗi response tốn thêm 1 LLM call (~1500 max token) chạy
+	// nền để trích xuất user facts + knowledge items. Bật qua ENABLE_LEARNER=true
+	// khi cần tính năng "học liên tục"; để tắt trong dev/test nhằm tiết kiệm
+	// chi phí + tránh side-effect ghi Mongo ngoài ý muốn.
+	EnableLearner bool
 }
 
 // Load đọc .env (nếu có) rồi env → Config với defaults hợp lý.
@@ -90,6 +97,7 @@ func Load() (Config, error) {
 		ShellTimeout:          30,
 		EnableDynamicThinking: envOr("ENABLE_DYNAMIC_THINKING", "false") == "true",
 		EnablePlanning:        envOr("ENABLE_PLANNING", "false") == "true",
+		EnableLearner:         envOr("ENABLE_LEARNER", "false") == "true",
 	}
 
 	// Validate: ít nhất 1 LLM provider phải được cấu hình

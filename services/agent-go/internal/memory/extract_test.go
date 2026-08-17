@@ -58,9 +58,9 @@ func TestExtractNode_Patterns(t *testing.T) {
 			if err != nil || next != agent.NodeEnd {
 				t.Fatalf("next/err = (%q, %v), want (NodeEnd, nil)", next, err)
 			}
-			v, ok := store.Get(tc.key)
+			v, ok := store.Get("default", tc.key)
 			if !ok {
-				t.Fatalf("store không có key %q sau extract; có %d mục", tc.key, store.Len())
+				t.Fatalf("store không có key %q sau extract; có %d mục", tc.key, store.Len("default"))
 			}
 			if v != tc.value {
 				t.Fatalf("store[%q] = %q, want %q", tc.key, v, tc.value)
@@ -108,7 +108,7 @@ func TestExtractNode_DedupAcrossMessages(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
-	if v, _ := store.Get("like"); v != "trà" {
+	if v, _ := store.Get("default", "like"); v != "trà" {
 		t.Fatalf("like = %q, want trà (chỉ lưu lần đầu)", v)
 	}
 	likeEvents := 0
@@ -135,8 +135,8 @@ func TestExtractNode_SkipsNonConversationalRoles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
-	if store.Len() != 0 {
-		t.Fatalf("store có %d mục, want 0 (bỏ qua system/tool)", store.Len())
+	if store.Len("default") != 0 {
+		t.Fatalf("store có %d mục, want 0 (bỏ qua system/tool)", store.Len("default"))
 	}
 	if len(*events) != 0 {
 		t.Fatalf("events = %v, want 0", *events)
@@ -155,7 +155,7 @@ func TestExtractNode_AssistantExtracted(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
-	if v, ok := store.Get("like"); !ok || v != "trà" {
+	if v, ok := store.Get("default", "like"); !ok || v != "trà" {
 		t.Fatalf("like = (%q, %v), want (trà, true)", v, ok)
 	}
 	if len(*events) != 1 {
@@ -175,7 +175,7 @@ func TestExtractNode_ValueTooLongSkipped(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
-	if _, ok := store.Get("like"); ok {
+	if _, ok := store.Get("default", "like"); ok {
 		t.Fatal("value > 200 ký tự nên bị bỏ qua")
 	}
 	if len(*events) != 0 {
@@ -190,7 +190,7 @@ func TestExtractNode_ValueTooLongSkipped(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
-	if v, ok := store2.Get("like"); !ok || len(v) != 200 {
+	if v, ok := store2.Get("default", "like"); !ok || len(v) != 200 {
 		t.Fatalf("like = (%q, %v), want 200 ký tự", v, ok)
 	}
 }
@@ -205,7 +205,7 @@ func TestExtractNode_TrimsWhitespace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
-	if v, _ := store.Get("like"); v != "trà đào" {
+	if v, _ := store.Get("default", "like"); v != "trà đào" {
 		t.Fatalf("like = %q, want trà đào (đã trim)", v)
 	}
 }

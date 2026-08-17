@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ai-agent-tut/agent-go/internal/middleware"
 	"github.com/ai-agent-tut/agent-go/internal/mongo"
 	"github.com/ai-agent-tut/agent-go/internal/provider"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -34,20 +35,34 @@ func NewLearner(store *Store, mongoClient *mongo.Client, p provider.Provider, mo
 }
 
 // LearnFromConversation triggers autonomous reflection in a background goroutine.
-func (l *Learner) LearnFromConversation(messages []provider.Message, conversationID string) {
+//
+// ctx must be the request's original context (e.g. r.Context() from the HTTP
+// handler) so the tenant ID set by middleware.TenantMiddleware can be
+// resolved. The tenant ID is captured synchronously BEFORE the goroutine is
+// spawned — the HTTP handler returns immediately after calling this method,
+// which (per net/http) cancels the request context, so the background
+// goroutine cannot rely on ctx staying alive or usable by the time it runs.
+// The captured tenant ID is then carried into a fresh, request-independent
+// context so the reflection LLM call and every Mongo write below stay
+// scoped to the tenant that produced the conversation (see saveFactToMongo /
+// saveKnowledgeItemToMongo).
+func (l *Learner) LearnFromConversation(ctx context.Context, messages []provider.Message, conversationID string) {
 	if l == nil || l.provider == nil || len(messages) < 2 {
 		return
 	}
+
+	tenantID := middleware.GetTenantID(ctx)
 
 	// Copy messages to avoid race conditions with parent caller
 	msgsCopy := make([]provider.Message, len(messages))
 	copy(msgsCopy, messages)
 
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+		bgCtx := context.WithValue(context.Background(), middleware.TenantIDKey, tenantID)
+		bgCtx, cancel := context.WithTimeout(bgCtx, 45*time.Second)
 		defer cancel()
 
-		res, err := ReflectAndExtract(ctx, l.provider, l.model, msgsCopy)
+		res, err := ReflectAndExtract(bgCtx, l.provider, l.model, msgsCopy)
 		if err != nil {
 			slog.Warn("learner: reflection failed", "err", err)
 			return
@@ -63,14 +78,14 @@ func (l *Learner) LearnFromConversation(messages []provider.Message, conversatio
 				continue
 			}
 
-			// Store in active in-memory / local Store
+			// Store in active in-memory / local Store, scoped to the tenant.
 			if l.store != nil {
-				l.store.Set(fact.Key, fact.Value)
+				l.store.Set(tenantID, fact.Key, fact.Value)
 			}
 
 			// Persist to MongoDB `memories` collection if available
 			if l.mongoClient != nil {
-				l.saveFactToMongo(ctx, fact, conversationID)
+				l.saveFactToMongo(bgCtx, fact, conversationID)
 			}
 
 			slog.Info("learner: learned user fact",
@@ -78,6 +93,7 @@ func (l *Learner) LearnFromConversation(messages []provider.Message, conversatio
 				"key", fact.Key,
 				"value", fact.Value,
 				"confidence", fact.Confidence,
+				"tenant", tenantID,
 			)
 		}
 
@@ -88,7 +104,7 @@ func (l *Learner) LearnFromConversation(messages []provider.Message, conversatio
 			}
 
 			if l.mongoClient != nil {
-				l.saveKnowledgeItemToMongo(ctx, ki, conversationID)
+				l.saveKnowledgeItemToMongo(bgCtx, ki, conversationID)
 			}
 
 			slog.Info("learner: learned knowledge item",
@@ -103,6 +119,7 @@ func (l *Learner) LearnFromConversation(messages []provider.Message, conversatio
 func (l *Learner) saveFactToMongo(ctx context.Context, fact UserFact, conversationID string) {
 	coll := l.mongoClient.Collection("memories")
 	now := time.Now()
+	tenantID := middleware.GetTenantID(ctx)
 
 	var emb []float64
 	if l.embedder != nil {
@@ -112,7 +129,10 @@ func (l *Learner) saveFactToMongo(ctx context.Context, fact UserFact, conversati
 		}
 	}
 
-	filter := bson.M{"key": fact.Key}
+	// Filter MUST include tenantId — otherwise two tenants learning a fact
+	// with the same key (e.g. "user_name") would upsert the very same
+	// document and silently overwrite each other's data.
+	filter := bson.M{"key": fact.Key, "tenantId": tenantID}
 	update := bson.M{
 		"$set": bson.M{
 			"type":           fact.Category,
@@ -122,6 +142,7 @@ func (l *Learner) saveFactToMongo(ctx context.Context, fact UserFact, conversati
 			"confidence":     fact.Confidence,
 			"embedding":      emb,
 			"conversationId": conversationID,
+			"tenantId":       tenantID,
 			"updatedAt":      now,
 		},
 		"$setOnInsert": bson.M{
@@ -136,6 +157,7 @@ func (l *Learner) saveFactToMongo(ctx context.Context, fact UserFact, conversati
 func (l *Learner) saveKnowledgeItemToMongo(ctx context.Context, ki KnowledgeItem, conversationID string) {
 	coll := l.mongoClient.Collection("documents")
 	now := time.Now()
+	tenantID := middleware.GetTenantID(ctx)
 
 	slug := slugify(ki.Title)
 	docID := fmt.Sprintf("learned-%s", slug)
@@ -156,7 +178,11 @@ func (l *Learner) saveKnowledgeItemToMongo(ctx context.Context, ki KnowledgeItem
 		}
 	}
 
-	filter := bson.M{"documentId": docID}
+	// Filter MUST include tenantId — otherwise two tenants learning a
+	// knowledge item with the same title (same slug → same documentId)
+	// would upsert the very same document, leaking content across tenants
+	// and letting rag.search read one tenant's learned knowledge as another's.
+	filter := bson.M{"documentId": docID, "tenantId": tenantID}
 	update := bson.M{
 		"$set": bson.M{
 			"documentId": docID,
@@ -165,6 +191,7 @@ func (l *Learner) saveKnowledgeItemToMongo(ctx context.Context, ki KnowledgeItem
 			"chunkIndex": 0,
 			"text":       fullText,
 			"embedding":  emb,
+			"tenantId":   tenantID,
 			"updatedAt":  now,
 		},
 		"$setOnInsert": bson.M{

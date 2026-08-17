@@ -13,14 +13,24 @@ type storeEntry struct {
 }
 
 // Store is a thread-safe in-memory key-value store for agent memories.
+//
+// Data is partitioned by tenantID (outer map key) — mirroring the pattern
+// already used by internal/tools/memory_tools.go's memoryStore. Without this
+// partitioning, memories learned for one tenant would be visible to (or
+// clobbered by) every other tenant sharing the same process, since Store is
+// wired as a single process-wide singleton in cmd/server/main.go.
+//
+// Callers MUST pass the tenantID resolved via middleware.GetTenantID(ctx) —
+// Store itself has no notion of "no tenant"; an empty string is just another
+// namespace bucket like any other.
 type Store struct {
 	mu       sync.RWMutex
-	data     map[string]storeEntry
+	data     map[string]map[string]storeEntry // tenantID -> key -> entry
 	embedder Embedder
 }
 
 func NewStore() *Store {
-	return &Store{data: make(map[string]storeEntry)}
+	return &Store{data: make(map[string]map[string]storeEntry)}
 }
 
 // SetEmbedder configures an optional embedding provider for semantic search.
@@ -31,17 +41,17 @@ func (s *Store) SetEmbedder(e Embedder) {
 	s.embedder = e
 }
 
-func (s *Store) Get(key string) (string, bool) {
+func (s *Store) Get(tenantID, key string) (string, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	v, ok := s.data[key]
+	v, ok := s.data[tenantID][key]
 	if !ok {
 		return "", false
 	}
 	return v.value, true
 }
 
-func (s *Store) Set(key, value string) {
+func (s *Store) Set(tenantID, key, value string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	entry := storeEntry{value: value}
@@ -53,22 +63,25 @@ func (s *Store) Set(key, value string) {
 		}
 	}
 
-	s.data[key] = entry
+	if s.data[tenantID] == nil {
+		s.data[tenantID] = make(map[string]storeEntry)
+	}
+	s.data[tenantID][key] = entry
 }
 
-func (s *Store) Delete(key string) {
+func (s *Store) Delete(tenantID, key string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	delete(s.data, key)
+	delete(s.data[tenantID], key)
 }
 
-func (s *Store) Search(query string) map[string]string {
+func (s *Store) Search(tenantID, query string) map[string]string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	lowerQuery := strings.ToLower(query)
 	results := make(map[string]string)
-	for k, v := range s.data {
+	for k, v := range s.data[tenantID] {
 		if strings.Contains(strings.ToLower(k), lowerQuery) ||
 			strings.Contains(strings.ToLower(v.value), lowerQuery) {
 			results[k] = v.value
@@ -77,10 +90,10 @@ func (s *Store) Search(query string) map[string]string {
 	return results
 }
 
-// SemanticSearch performs embedding-based cosine similarity search.
-// Returns the topK most similar items. Requires an embedder to be set.
-// If embedder is nil or embeddings are missing, returns empty.
-func (s *Store) SemanticSearch(query string, topK int) ([]Item, error) {
+// SemanticSearch performs embedding-based cosine similarity search scoped to
+// a single tenant. Returns the topK most similar items. Requires an embedder
+// to be set. If embedder is nil or embeddings are missing, returns empty.
+func (s *Store) SemanticSearch(tenantID, query string, topK int) ([]Item, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -101,7 +114,7 @@ func (s *Store) SemanticSearch(query string, topK int) ([]Item, error) {
 	}
 	var candidates []scored
 
-	for key, entry := range s.data {
+	for key, entry := range s.data[tenantID] {
 		if len(entry.embedding) == 0 {
 			continue
 		}
@@ -133,16 +146,17 @@ func (s *Store) SemanticSearch(query string, topK int) ([]Item, error) {
 			Key:        candidates[i].key,
 			Value:      candidates[i].value,
 			Confidence: candidates[i].score,
-			Embedding:  s.data[candidates[i].key].embedding,
+			Embedding:  s.data[tenantID][candidates[i].key].embedding,
 		}
 	}
 	return results, nil
 }
 
-func (s *Store) Len() int {
+// Len returns the number of memories stored for a single tenant.
+func (s *Store) Len(tenantID string) int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return len(s.data)
+	return len(s.data[tenantID])
 }
 
 func cosineSimilarity(a, b []float64) float64 {
