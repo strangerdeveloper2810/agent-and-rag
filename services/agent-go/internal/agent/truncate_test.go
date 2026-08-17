@@ -135,3 +135,61 @@ func TestEngineRun_EmitsTruncatedThenDone(t *testing.T) {
 		t.Error("done event Truncated = false, want true")
 	}
 }
+
+func TestNodeModel_EmptyResponseIsError(t *testing.T) {
+	cases := map[string][]provider.StreamChunk{
+		"finish rỗng": {
+			{Kind: provider.ChunkDone},
+		},
+		"finish stop": {
+			{Kind: provider.ChunkDone, FinishReason: provider.FinishStop},
+		},
+		"có usage nhưng không text/tool call": {
+			{Kind: provider.ChunkUsage, Usage: &provider.Usage{InputTokens: 5, OutputTokens: 0}},
+			{Kind: provider.ChunkDone},
+		},
+	}
+
+	for name, chunks := range cases {
+		t.Run(name, func(t *testing.T) {
+			fake := provider.NewFake(chunks...)
+			eng := &fakeEngine{prov: fake, registry: tools.NewRegistry()}
+			s := newState(RunInput{UserMessage: "hi", MaxSteps: 12})
+
+			var events []Event
+			next, err := nodeModel(context.Background(), eng, s, func(e Event) { events = append(events, e) })
+
+			if err == nil {
+				t.Fatal("nodeModel = nil error, want lỗi empty response")
+			}
+			if next != NodeEnd {
+				t.Errorf("next = %q, want %q", next, NodeEnd)
+			}
+			if hasEvent(events, "error") == nil {
+				t.Error("thiếu event error")
+			}
+			// Không được lặng lẽ append 1 assistant message rỗng.
+			if last := s.LastAssistant(); last != nil {
+				t.Errorf("assistant message rỗng vẫn bị append: %+v", last)
+			}
+		})
+	}
+}
+
+// Bị cắt vì max_tokens KHÔNG được coi là empty-response, kể cả khi text rỗng
+// (model chưa kịp sinh token nào trước khi chạm giới hạn).
+func TestNodeModel_TruncatedWithEmptyTextIsNotEmptyResponseError(t *testing.T) {
+	fake := provider.NewFake(
+		provider.StreamChunk{Kind: provider.ChunkDone, FinishReason: provider.FinishLength},
+	)
+	eng := &fakeEngine{prov: fake, registry: tools.NewRegistry()}
+	s := newState(RunInput{UserMessage: "hi", MaxSteps: 12})
+
+	_, err := nodeModel(context.Background(), eng, s, func(Event) {})
+	if err != nil {
+		t.Fatalf("nodeModel error = %v, want nil (truncated, không phải empty-response)", err)
+	}
+	if !s.Truncated {
+		t.Error("s.Truncated = false, want true")
+	}
+}

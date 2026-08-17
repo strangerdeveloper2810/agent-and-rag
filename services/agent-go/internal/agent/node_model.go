@@ -152,6 +152,19 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 		emit(UsageEvent(stepInput, stepOutput, s.Usage.InputTokens, s.Usage.OutputTokens))
 	}
 
+	// Completion rỗng (không text, không tool call) mà không phải do bị cắt vì
+	// max_tokens là bất thường — một số API trả 200 kèm content rỗng khi gặp
+	// lỗi nội bộ mà không báo qua ChunkError. Coi đây là lỗi thay vì âm thầm
+	// cho qua như 1 lượt hợp lệ (route() sẽ đưa thẳng tới extract/end với câu
+	// trả lời trống, người dùng không biết agent vừa thất bại).
+	if content.Len() == 0 && len(toolCalls) == 0 && !s.Truncated {
+		err := fmt.Errorf("model: empty response from provider %q (no text, no tool calls, finish=%q)",
+			prov.Name(), finish)
+		slog.Error("model: empty response", "provider", prov.Name(), "finish_reason", finish)
+		emit(ErrorEvent(err.Error()))
+		return NodeEnd, err
+	}
+
 	// Append assistant message.
 	s.Messages = append(s.Messages, provider.Message{
 		Role:      provider.RoleAssistant,
