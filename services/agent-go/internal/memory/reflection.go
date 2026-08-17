@@ -231,11 +231,21 @@ func repairTruncatedJSON(raw string) string {
 		return raw // đã hợp lệ (hoặc lỗi không phải do cắt cụt) — không sửa gì
 	}
 
-	var b strings.Builder
-	b.WriteString(raw)
+	body := raw
 	if inString {
-		b.WriteByte('"')
+		body += `"`
+	} else {
+		// Model thường bị cắt NGAY SAU dấu phẩy phân cách phần tử (đang giữa
+		// lúc chuẩn bị sinh phần tử tiếp theo trong mảng/object thì hết
+		// token) — nếu đóng ngoặc ngay sau dấu phẩy đó sẽ để lại trailing
+		// comma (vd `"goroutine",]`), JSON vẫn không hợp lệ dù đã đóng đủ
+		// ngoặc. Bỏ dấu phẩy thừa này trước khi đóng ngoặc.
+		body = strings.TrimRight(body, " \t\r\n")
+		body = strings.TrimSuffix(body, ",")
 	}
+
+	var b strings.Builder
+	b.WriteString(body)
 	for i := len(stack) - 1; i >= 0; i-- {
 		if stack[i] == '{' {
 			b.WriteByte('}')
