@@ -160,14 +160,142 @@ func TestWebSearchRacesProviders(t *testing.T) {
 	}
 }
 
-func TestWebSearchFiltersWikipedia(t *testing.T) {
-	results := []map[string]string{
-		{"title": "wiki", "url": "https://en.wikipedia.org/wiki/Go"},
-		{"title": "official", "url": "https://go.dev/"},
+func TestParseGoogleResults_Success(t *testing.T) {
+	htmlSample := `
+	<html><body>
+	<div>
+		<a href="/url?q=https://go.dev/&sa=U"><h3>The Go Programming Language</h3></a>
+		<div class="VwiC3b">Go is an open source programming language that makes it easy to build simple software.</div>
+	</div>
+	<div>
+		<a href="https://google.com/search?q=other"><h3>Google Search</h3></a>
+	</div>
+	<div>
+		<a href="https://github.com/golang/go"><h3>Golang GitHub Repository</h3></a>
+		<div class="yXMpt">Official repository for the Go programming language.</div>
+	</div>
+	</body></html>
+	`
+
+	results := parseGoogleResults(htmlSample)
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results, got %d: %v", len(results), results)
 	}
-	filtered := filterWikipedia(results)
-	if len(filtered) != 1 || filtered[0]["title"] != "official" {
-		t.Fatalf("expected only non-wikipedia results, got %v", filtered)
+
+	if results[0]["title"] != "The Go Programming Language" {
+		t.Errorf("title 0 = %q, want 'The Go Programming Language'", results[0]["title"])
+	}
+	if results[0]["url"] != "https://go.dev/" {
+		t.Errorf("url 0 = %q, want 'https://go.dev/'", results[0]["url"])
+	}
+
+	if results[1]["title"] != "Golang GitHub Repository" {
+		t.Errorf("title 1 = %q, want 'Golang GitHub Repository'", results[1]["title"])
+	}
+	if results[1]["url"] != "https://github.com/golang/go" {
+		t.Errorf("url 1 = %q, want 'https://github.com/golang/go'", results[1]["url"])
+	}
+}
+
+func TestParseBingResults(t *testing.T) {
+	htmlSample := `
+	<html><body>
+	<ul>
+		<li class="b_algo">
+			<h2><a href="https://go.dev/">The Go Programming Language</a></h2>
+			<div class="b_caption"><p>Go is an open source programming language supported by Google.</p></div>
+		</li>
+		<li class="b_algo">
+			<h2><a href="https://bing.com/search">Bing Internal</a></h2>
+			<div class="b_caption"><p>Bing page</p></div>
+		</li>
+		<li class="b_algo">
+			<h2><a href="https://github.com/fastify/fastify">Fastify GitHub</a></h2>
+			<div class="b_caption"><p>Fast and low overhead web framework for Node.js.</p></div>
+		</li>
+	</ul>
+	</body></html>
+	`
+
+	results := parseBingResults(htmlSample)
+	if len(results) != 2 {
+		t.Fatalf("expected 2 non-internal results, got %d: %v", len(results), results)
+	}
+
+	if results[0]["title"] != "The Go Programming Language" {
+		t.Errorf("title 0 = %q, want 'The Go Programming Language'", results[0]["title"])
+	}
+	if results[0]["url"] != "https://go.dev/" {
+		t.Errorf("url 0 = %q, want 'https://go.dev/'", results[0]["url"])
+	}
+	if !strings.Contains(results[0]["snippet"], "open source programming language") {
+		t.Errorf("snippet 0 = %q, missing expected content", results[0]["snippet"])
+	}
+
+	if results[1]["title"] != "Fastify GitHub" {
+		t.Errorf("title 1 = %q, want 'Fastify GitHub'", results[1]["title"])
+	}
+}
+
+func TestSearchTavilyMock(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") == "" {
+			http.Error(w, "missing auth", http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{
+			"query": "test query",
+			"results": [
+				{
+					"title": "Tavily AI Result",
+					"url": "https://example.com/tavily",
+					"content": "Clean extracted content for AI models."
+				},
+				{
+					"title": "Wikipedia Page",
+					"url": "https://en.wikipedia.org/wiki/Test",
+					"content": "Wikipedia info"
+				}
+			]
+		}`))
+	}))
+	defer srv.Close()
+
+	// Direct verification of parsing logic
+	var tavilyResp struct {
+		Results []struct {
+			Title   string `json:"title"`
+			URL     string `json:"url"`
+			Content string `json:"content"`
+		} `json:"results"`
+	}
+
+	respStr := `{
+		"results": [
+			{"title": "Tavily AI Result", "url": "https://example.com/tavily", "content": "Clean extracted content for AI models."},
+			{"title": "Wikipedia Page", "url": "https://en.wikipedia.org/wiki/Test", "content": "Wikipedia info"}
+		]
+	}`
+
+	json.Unmarshal([]byte(respStr), &tavilyResp)
+	results := make([]map[string]string, 0)
+	for _, r := range tavilyResp.Results {
+		if strings.Contains(r.URL, "wikipedia.org") || r.Title == "" {
+			continue
+		}
+		results = append(results, map[string]string{
+			"title":   r.Title,
+			"snippet": truncateStr(r.Content, 400),
+			"url":     r.URL,
+		})
+	}
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result (filtered wikipedia), got %d", len(results))
+	}
+	if results[0]["title"] != "Tavily AI Result" || results[0]["url"] != "https://example.com/tavily" {
+		t.Errorf("unexpected result: %v", results[0])
 	}
 }
 

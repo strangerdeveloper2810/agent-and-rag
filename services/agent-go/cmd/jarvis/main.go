@@ -37,6 +37,7 @@ import (
 	"github.com/ai-agent-tut/agent-go/internal/provider"
 	"github.com/ai-agent-tut/agent-go/internal/provider/factory"
 	"github.com/ai-agent-tut/agent-go/internal/provider/ollama"
+	"github.com/ai-agent-tut/agent-go/internal/rag"
 	"github.com/ai-agent-tut/agent-go/internal/skills"
 	"github.com/ai-agent-tut/agent-go/internal/tools"
 	agenthttp "github.com/ai-agent-tut/agent-go/internal/transport/http"
@@ -242,8 +243,14 @@ func setup() (config.Config, provider.Provider, *orchestrator.Orchestrator) {
 	store := memory.NewStore()
 
 	// Wire embedding provider for semantic memory recall.
-	if cfg.OllamaURL != "" {
-		embedClient, err := ollama.New(cfg.OllamaURL, "nomic-embed-text")
+	if cfg.VoyageKey != "" {
+		vc := rag.NewClient(cfg.VoyageKey)
+		store.SetEmbedder(memory.EmbedderFunc(func(ctx context.Context, texts []string) ([][]float64, error) {
+			return vc.Embed(ctx, texts, "document")
+		}))
+		slog.Info("memory: semantic embedding enabled", "provider", "voyage")
+	} else if cfg.Provider == "ollama" || os.Getenv("OLLAMA_URL") != "" {
+		embedClient, err := ollama.New(cfg.OllamaURL, cfg.EmbedModel)
 		if err != nil {
 			slog.Warn("memory: ollama embed client creation failed", "err", err)
 		} else {
@@ -261,7 +268,7 @@ func setup() (config.Config, provider.Provider, *orchestrator.Orchestrator) {
 				}
 				return result, nil
 			}))
-			slog.Info("memory: semantic embedding enabled", "url", cfg.OllamaURL)
+			slog.Info("memory: semantic embedding enabled", "provider", "ollama", "url", cfg.OllamaURL)
 		}
 	}
 

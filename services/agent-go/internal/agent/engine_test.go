@@ -255,6 +255,17 @@ func TestEngine_DispatchUnknownNode(t *testing.T) {
 	}
 }
 
+func TestEngine_DispatchNodeInterrupt(t *testing.T) {
+	e := NewEngine(provider.NewFake(), tools.NewRegistry())
+	next, err := e.dispatch(context.Background(), NodeInterrupt, newState(RunInput{}), func(Event) {})
+	if err != nil {
+		t.Fatalf("dispatch NodeInterrupt: %v", err)
+	}
+	if next != NodeEnd {
+		t.Errorf("dispatch NodeInterrupt next = %q, want %q", next, NodeEnd)
+	}
+}
+
 // Memory node được inject phải được gọi đúng thứ tự recall → summarize → ... → extract.
 func TestEngine_MemoryNodesDispatched(t *testing.T) {
 	var order []string

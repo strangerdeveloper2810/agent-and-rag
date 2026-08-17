@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -45,10 +47,12 @@ const (
 // Trả về nil/empty khi không có kết quả hoặc lỗi — race sẽ thử backend khác.
 type webSearchProvider func(context.Context, *http.Client, string) []map[string]string
 
-// webSearchProviders là danh sách backend được chạy song song, lấy kết quả
-// của backend đầu tiên trả về non-empty. Hiện chỉ có Google; giữ cấu trúc
-// race để dễ thêm backend khác và để test inject được fake provider.
-var webSearchProviders = []webSearchProvider{searchGoogleWeb}
+// webSearchProviders là danh sách backend được chạy song song (Tavily AI Search là ưu tiên cao nhất, Google/Bing là fallback).
+var webSearchProviders = []webSearchProvider{
+	searchTavily,
+	searchGoogleWeb,
+	searchBingWeb,
+}
 
 type webSearchCacheEntry struct {
 	expires time.Time
@@ -72,7 +76,7 @@ func NewWebSearchTool(client *http.Client) Tool {
 func (t *webSearchTool) Name() string { return "web.search" }
 
 func (t *webSearchTool) Description() string {
-	return "Tìm kiếm web qua Google (cache 5 phút, bỏ qua Wikipedia). Trả về tiêu đề (title), trích dẫn (snippet), và URL trực tiếp. Dùng để tra cứu thông tin, báo cáo, tin tức thực tế."
+	return "Tìm kiếm web (Google/Bing). Trả về tiêu đề (title), trích dẫn (snippet), và URL trực tiếp. Dùng để tra cứu thông tin, báo cáo, tin tức thực tế."
 }
 
 func (t *webSearchTool) Schema() json.RawMessage {
@@ -111,7 +115,7 @@ func (t *webSearchTool) Execute(ctx context.Context, rawArgs json.RawMessage) (R
 	if len(results) == 0 {
 		results = append(results, map[string]string{
 			"title":   "⚠️ Search unavailable",
-			"snippet": fmt.Sprintf("Google không trả kết quả cho '%s'. Thử query đơn giản hơn hoặc từ khoá khác.", args.Query),
+			"snippet": fmt.Sprintf("Không tìm thấy kết quả cho '%s'. Thử query đơn giản hơn hoặc từ khoá khác.", args.Query),
 			"url":     "",
 		})
 	} else {
@@ -122,14 +126,13 @@ func (t *webSearchTool) Execute(ctx context.Context, rawArgs json.RawMessage) (R
 }
 
 // raceWebSearch chạy mọi backend SONG SONG, trả về kết quả của backend đầu
-// tiên có kết quả (sau khi lọc Wikipedia) và cancel các backend còn lại
-// (qua cancel của searchCtx).
+// tiên có kết quả và cancel các backend còn lại (qua cancel của searchCtx).
 func raceWebSearch(ctx context.Context, cancel context.CancelFunc, client *http.Client, query string) []map[string]string {
 	out := make(chan []map[string]string, len(webSearchProviders))
 	for _, provider := range webSearchProviders {
 		provider := provider
 		go func() {
-			out <- filterWikipedia(provider(ctx, client, query))
+			out <- provider(ctx, client, query)
 		}()
 	}
 
@@ -144,19 +147,6 @@ func raceWebSearch(ctx context.Context, cancel context.CancelFunc, client *http.
 		}
 	}
 	return first
-}
-
-// filterWikipedia loại kết quả từ wikipedia.org — áp cho MỌI backend trước
-// khi trả về.
-func filterWikipedia(results []map[string]string) []map[string]string {
-	out := make([]map[string]string, 0, len(results))
-	for _, r := range results {
-		if strings.Contains(r["url"], "wikipedia.org") {
-			continue
-		}
-		out = append(out, r)
-	}
-	return out
 }
 
 // cacheGet trả về kết quả cache còn hạn cho query key; xoá entry đã hết hạn.
@@ -203,6 +193,67 @@ func buildWebSearchOutput(query string, results []map[string]string) string {
 	return string(out)
 }
 
+// searchTavily thực hiện tìm kiếm qua Tavily AI Search API (chuyên biệt cho AI Agent).
+func searchTavily(ctx context.Context, client *http.Client, query string) []map[string]string {
+	apiKey := os.Getenv("TAVILY_API_KEY")
+	if apiKey == "" {
+		apiKey = "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"
+	}
+
+	payload := map[string]any{
+		"query":        query,
+		"max_results":  8,
+		"search_depth": "basic",
+	}
+	bodyBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.tavily.com/search", bytes.NewReader(bodyBytes))
+	if err != nil {
+		return nil
+	}
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil
+	}
+
+	var tavilyResp struct {
+		Answer  string `json:"answer,omitempty"`
+		Results []struct {
+			Title   string `json:"title"`
+			URL     string `json:"url"`
+			Content string `json:"content"`
+		} `json:"results"`
+	}
+
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&tavilyResp); err != nil {
+		return nil
+	}
+
+	results := make([]map[string]string, 0, len(tavilyResp.Results))
+	for _, r := range tavilyResp.Results {
+		if strings.Contains(r.URL, "wikipedia.org") || r.Title == "" {
+			continue
+		}
+		results = append(results, map[string]string{
+			"title":   r.Title,
+			"snippet": truncateStr(r.Content, 400),
+			"url":     r.URL,
+		})
+	}
+	return results
+}
+
 // searchGoogleWeb tries Google search via HTML scraping.
 func searchGoogleWeb(ctx context.Context, client *http.Client, query string) []map[string]string {
 	reqURL := fmt.Sprintf("https://www.google.com/search?q=%s&hl=vi", url.QueryEscape(query))
@@ -226,7 +277,7 @@ func searchGoogleWeb(ctx context.Context, client *http.Client, query string) []m
 // parseGoogleResults extracts search results from Google HTML (best-effort).
 func parseGoogleResults(html string) []map[string]string {
 	// Extract Google HTML result links and titles
-	linkTitleRe := regexp.MustCompile(`<a[^>]*href="(/url\?q=)?(https?://[^"&]+)"[^>]*>[\s\S]*?<h3[^>]*>([\s\S]*?)</h3>`)
+	linkTitleRe := regexp.MustCompile(`<a[^>]*href="(?:/url\?q=)?(https?://[^"&]+)[^"]*"[^>]*>[\s\S]*?<h3[^>]*>([\s\S]*?)</h3>`)
 	snippetRe := regexp.MustCompile(`<div[^>]*class="[^"]*(?:VwiC3b|yXMpt|s3tnU|BNeawe|r05eec)[^"]*"[^>]*>([\s\S]*?)</div>`)
 
 	matches := linkTitleRe.FindAllStringSubmatch(html, 12)
@@ -234,11 +285,11 @@ func parseGoogleResults(html string) []map[string]string {
 
 	results := make([]map[string]string, 0)
 	for i, m := range matches {
-		if len(m) < 4 {
+		if len(m) < 3 {
 			continue
 		}
-		rawURL := cleanURL(m[2])
-		rawTitle := cleanHTML(m[3])
+		rawURL := cleanURL(m[1])
+		rawTitle := cleanHTML(m[2])
 
 		// Skip internal google links and wikipedia
 		if strings.Contains(rawURL, "google.com") || strings.Contains(rawURL, "wikipedia.org") || rawTitle == "" {
@@ -261,6 +312,63 @@ func parseGoogleResults(html string) []map[string]string {
 		}
 	}
 
+	return results
+}
+
+// searchBingWeb thực hiện tìm kiếm qua Bing Web HTML (fallback khi Google không khả dụng).
+func searchBingWeb(ctx context.Context, client *http.Client, query string) []map[string]string {
+	reqURL := fmt.Sprintf("https://www.bing.com/search?q=%s&setlang=vi", url.QueryEscape(query))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+	if err != nil {
+		return nil
+	}
+	req.Header.Set("User-Agent", randomUA())
+	req.Header.Set("Accept-Language", "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil
+	}
+
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	return parseBingResults(string(body))
+}
+
+func parseBingResults(htmlStr string) []map[string]string {
+	blockRe := regexp.MustCompile(`<li[^>]*class="b_algo"[^>]*>[\s\S]*?<h2><a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)</a></h2>(?:[\s\S]*?<p[^>]*>([\s\S]*?)</p>)?`)
+	matches := blockRe.FindAllStringSubmatch(htmlStr, 12)
+
+	results := make([]map[string]string, 0, len(matches))
+	for _, m := range matches {
+		if len(m) < 3 {
+			continue
+		}
+		rawURL := cleanURL(m[1])
+		rawTitle := cleanHTML(m[2])
+		if strings.Contains(rawURL, "bing.com") || strings.Contains(rawURL, "microsoft.com") || strings.Contains(rawURL, "wikipedia.org") || rawTitle == "" {
+			continue
+		}
+
+		snip := ""
+		if len(m) >= 4 {
+			snip = cleanHTML(m[3])
+		}
+
+		results = append(results, map[string]string{
+			"title":   rawTitle,
+			"snippet": truncateStr(snip, 300),
+			"url":     rawURL,
+		})
+
+		if len(results) >= 8 {
+			break
+		}
+	}
 	return results
 }
 

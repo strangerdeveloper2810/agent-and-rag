@@ -337,18 +337,23 @@ export const DocumentsView: React.FC = () => {
                   >
                     <div className="group flex items-center gap-3.5">
                       <div
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+                        onClick={() => onViewVersion(d.documentId, d.version)}
+                        className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-xl transition hover:scale-105 hover:shadow-sm"
                         style={{
                           backgroundColor: "var(--accent-bg)",
                           color: "var(--accent)",
                           border: "1px solid rgba(0,240,255,0.2)",
                         }}
+                        title="View document content"
                       >
                         <DocIcon width={18} height={18} />
                       </div>
-                      <div className="min-w-0 flex-1">
+                      <div
+                        className="min-w-0 flex-1 cursor-pointer group"
+                        onClick={() => onViewVersion(d.documentId, d.version)}
+                      >
                         <p
-                          className="flex items-center gap-2 truncate text-xs font-semibold"
+                          className="flex items-center gap-2 truncate text-xs font-semibold group-hover:text-[var(--accent)] transition"
                           style={{ color: "var(--text)" }}
                         >
                           {d.source}
@@ -372,6 +377,18 @@ export const DocumentsView: React.FC = () => {
                       </div>
 
                       <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => onViewVersion(d.documentId, d.version)}
+                          className="rounded-xl border px-3 py-1.5 text-[11px] font-medium transition hover:bg-[var(--accent-bg)] hover:border-[var(--accent)]"
+                          style={{
+                            color: "var(--accent)",
+                            borderColor: "var(--border)",
+                          }}
+                        >
+                          View
+                        </button>
+
                         <label
                           className={`cursor-pointer rounded-xl border px-3 py-1.5 text-[11px] font-medium transition hover:bg-[var(--bg-raised)] hover:border-[var(--accent)] ${
                             updatingId === d.documentId
