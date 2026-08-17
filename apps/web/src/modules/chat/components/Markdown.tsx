@@ -219,6 +219,14 @@ function normalizeMarkdown(text: string): string {
   let s = text;
 
   // 1. Structural line breaks around Markdown blocks
+  // Marker (bullet "-"/"*" hoặc số thứ tự "1."/"1)") bị tách khỏi nội dung bởi
+  // (một hay nhiều) dòng trống -> gộp lại thành 1 dòng để CommonMark parse đúng
+  // thành 1 list item duy nhất thay vì 1 item RỖNG + 1 paragraph rời rạc phía sau:
+  // "1.\n\n**text**" -> "1. **text**"
+  // Lưu ý: KHÔNG đụng tới horizontal rule ("---"/"***" đứng một mình trên dòng)
+  // vì [-*] trong group chỉ khớp ĐÚNG 1 ký tự; ký tự thứ 2 của "---"/"***" không
+  // phải khoảng trắng/newline nên `\n+` ngay sau đó không match được -> an toàn.
+  s = s.replace(/^([ \t]*(?:\d{1,3}[.)]|[-*]))[ \t]*\n+(?=\S)/gm, "$1 ");
   // Headings attached to previous sentence: "word.## Heading" -> "word.\n\n## Heading"
   s = s.replace(/([^\n])(#{1,6}\s+)/g, "$1\n\n$2");
   // Code blocks attached to text: "word.```bash" -> "word.\n\n```bash"
