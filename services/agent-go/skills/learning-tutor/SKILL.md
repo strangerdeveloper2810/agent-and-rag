@@ -2,6 +2,7 @@
 name: learning-tutor
 description: Explain complex concepts simply — adapt to Tony's level, use analogies, examples, and progressive disclosure
 when_to_use: When Tony wants to learn something new, understand a concept deeply, or needs an explanation that cuts through jargon
+triggers: [giải thích, giai thich, explain, khái niệm, khai niem, là gì, la gi, hiểu rõ, hieu ro, trực quan, truc quan, dễ hiểu, de hieu, học về, hoc ve, dạy tôi, day toi, cho ví dụ, cho vi du, so sánh, so sanh]
 tools: [web.search, web.fetch]
 ---
 

@@ -3,7 +3,10 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
+	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -63,8 +66,13 @@ type Config struct {
 	EnableHyDE bool
 
 	// Limits
-	MaxSteps              int  // default: 12
-	MaxTokens             int  // default: 0 (unlimited output tokens)
+	MaxSteps int // default: 12
+	// MaxTokens giới hạn output token cho MỖI lần gọi LLM của luồng chat chính.
+	// Trước đây field này là CONFIG CHẾT (khai báo = 0 nhưng không nơi nào đọc),
+	// nên request thật gửi max_tokens=0 → API dùng mặc định của nó, không có
+	// trần nào. Log dev thật: một câu trả lời 15.858 ký tự / 4.747 token mất 44
+	// giây. 0 = không giới hạn; đặt qua MAX_OUTPUT_TOKENS.
+	MaxTokens             int
 	MaxContextTokens      int  // max context tokens before trimming. default: 100000
 	MaxToolOutput         int  // max chars from tool output. default: 24000
 	ShellTimeout          int  // seconds. default: 30
@@ -87,6 +95,16 @@ type Config struct {
 	// rỗng như trước. Chỉ bật trên máy cá nhân, khi người dùng chủ động muốn.
 	AllowDestructiveTools bool
 }
+
+// defaultMaxOutputTokens là trần output token mặc định cho luồng chat chính.
+//
+// Chọn 8192: đủ rộng cho câu trả lời dài kèm code block (log thật cho thấy câu
+// dài nhất ~4.700 token), nhưng vẫn chặn được trường hợp model viết tràn lan
+// hàng chục nghìn token khiến người dùng chờ 40+ giây. Khi chạm trần, provider
+// trả finish_reason=length → engine set s.Truncated → UI hiện chỉ báo + nút
+// "Tiếp tục" (hạ tầng này đã có sẵn nhưng trước đây không bao giờ kích hoạt vì
+// không có trần nào).
+const defaultMaxOutputTokens = 8192
 
 // Load đọc .env (nếu có) rồi env → Config với defaults hợp lý.
 // Không fail nếu không có .env — chỉ dùng biến môi trường có sẵn.
@@ -120,7 +138,7 @@ func Load() (Config, error) {
 		EnableLLMRerank:       envOr("ENABLE_LLM_RERANK", "false") == "true",
 		EnableHyDE:            envOr("ENABLE_HYDE", "false") == "true",
 		MaxSteps:              12,
-		MaxTokens:             0,
+		MaxTokens:             intEnvOr("MAX_OUTPUT_TOKENS", defaultMaxOutputTokens),
 		MaxContextTokens:      100000,
 		MaxToolOutput:         24000,
 		ShellTimeout:          30,
@@ -158,4 +176,20 @@ func envOr(k, def string) string {
 		return v
 	}
 	return def
+}
+
+// intEnvOr đọc biến môi trường dạng số nguyên. Giá trị không parse được hoặc âm
+// → dùng def (fail-safe, không làm sập server vì một biến gõ sai).
+func intEnvOr(k string, def int) int {
+	v := os.Getenv(k)
+	if v == "" {
+		return def
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(v))
+	if err != nil || n < 0 {
+		slog.Warn("config: biến môi trường không phải số nguyên hợp lệ, dùng mặc định",
+			"key", k, "value", v, "default", def)
+		return def
+	}
+	return n
 }

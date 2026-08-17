@@ -133,6 +133,7 @@ func main() {
 	generalEngine.SetDynamicThinking(dynThinking)
 	generalEngine.SetCircuitBreaker(cb)
 	generalEngine.SetMaxToolOutput(cfg.MaxToolOutput)
+	generalEngine.SetMaxOutputTokens(cfg.MaxTokens)
 	generalEngine.SetAllowDestructiveTools(cfg.AllowDestructiveTools)
 	generalEngine.SetSkillLoader(skillLoader)
 	generalEngine.SetMemoryNodes(
@@ -149,6 +150,7 @@ func main() {
 	codeEngine.SetDynamicThinking(dynThinking)
 	codeEngine.SetCircuitBreaker(cb)
 	codeEngine.SetMaxToolOutput(cfg.MaxToolOutput)
+	codeEngine.SetMaxOutputTokens(cfg.MaxTokens)
 	codeEngine.SetAllowDestructiveTools(cfg.AllowDestructiveTools)
 	codeEngine.SetSkillLoader(skillLoader)
 	codeEngine.SetMemoryNodes(
@@ -165,6 +167,7 @@ func main() {
 	researchEngine.SetDynamicThinking(dynThinking)
 	researchEngine.SetCircuitBreaker(cb)
 	researchEngine.SetMaxToolOutput(cfg.MaxToolOutput)
+	researchEngine.SetMaxOutputTokens(cfg.MaxTokens)
 	researchEngine.SetAllowDestructiveTools(cfg.AllowDestructiveTools)
 	researchEngine.SetSkillLoader(skillLoader)
 	researchEngine.SetMemoryNodes(

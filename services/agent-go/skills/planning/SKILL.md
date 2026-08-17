@@ -2,6 +2,7 @@
 name: planning
 description: Project planning — break down goals into tasks, estimate effort, identify dependencies, create timeline
 when_to_use: When Tony needs to plan a project, organize work, estimate timelines, or structure a complex goal into manageable pieces
+triggers: [lập kế hoạch, lap ke hoach, kế hoạch, ke hoach, roadmap, chia task, phân task, phan task, lên plan, len plan]
 tools: [file.read, file.write, web.search]
 ---
 

@@ -2,6 +2,7 @@
 name: api-designer
 description: API design — RESTful principles, GraphQL schema, endpoint design, error handling, rate limiting, versioning, OpenAPI specs
 when_to_use: When Tony needs to design a new API, review an existing API design, or create specifications for endpoints and data contracts
+triggers: [thiết kế api, thiet ke api, design api, api design, rest api, graphql schema, openapi, swagger, thiết kế endpoint, thiet ke endpoint]
 tools: [file.read, file.write]
 ---
 

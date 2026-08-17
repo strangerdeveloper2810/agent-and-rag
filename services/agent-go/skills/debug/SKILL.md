@@ -2,6 +2,7 @@
 name: debug
 description: Systematic debugging: reproduce, isolate, identify, fix, verify
 when_to_use: When user reports a bug, error, crash, or unexpected behavior
+triggers: [debug, sửa lỗi, sua loi, bị lỗi, bi loi, báo lỗi, bao loi, không chạy, khong chay, crash, stack trace, tại sao lỗi, tai sao loi]
 tools: [shell.exec, file.read, git.log, git.diff]
 ---
 

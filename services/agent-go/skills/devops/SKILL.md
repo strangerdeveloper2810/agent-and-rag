@@ -2,6 +2,7 @@
 name: devops
 description: DevOps — CI/CD pipelines, Docker, Kubernetes, monitoring, incident response, and infrastructure configuration
 when_to_use: When Tony needs to deploy, configure infrastructure, debug production issues, set up CI/CD, or containerize applications
+triggers: [deploy, triển khai, trien khai, docker, kubernetes, k8s, ci/cd, pipeline, hạ tầng, ha tang]
 tools: [shell.exec, file.read]
 ---
 

@@ -2,6 +2,7 @@
 name: code-analysis
 description: Code analysis, debugging, architecture review — Tony Stark level engineering
 when_to_use: When user asks for code review, debugging, architecture analysis, or programming help
+triggers: [phân tích code, phan tich code, đọc code, doc code, hiểu codebase, hieu codebase, cấu trúc code, cau truc code, refactor, tái cấu trúc, tai cau truc]
 tools: [file.read, file.search, shell.exec, git, web.search]
 ---
 

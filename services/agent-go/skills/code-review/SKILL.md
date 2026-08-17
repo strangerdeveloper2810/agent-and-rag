@@ -2,6 +2,7 @@
 name: code-review
 description: Review code for bugs, security, and best practices
 when_to_use: When user asks for code review, PR review, or code quality check
+triggers: [review code, rà soát code, ra soat code, kiểm tra code, kiem tra code, đánh giá code, danh gia code, code review, pull request, pr này, pr nay]
 tools: [file.read, shell.exec, git.diff, git.log]
 ---
 

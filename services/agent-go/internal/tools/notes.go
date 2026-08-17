@@ -32,16 +32,21 @@ func NewNotesSearchTool(notesDir string) Tool {
 func (t *notesSearchTool) Name() string { return "notes.search" }
 
 func (t *notesSearchTool) Description() string {
-	return "Full-text search across markdown notes. Returns matching file names with content excerpts."
+	return "Full-text search across markdown notes. Returns matching file names with content excerpts. " +
+		"Omit query (or pass \"*\") to LIST ALL notes."
 }
 
 func (t *notesSearchTool) Schema() json.RawMessage {
+	// query KHÔNG còn required: model rất thường xuyên muốn "liệt kê tất cả" và
+	// gọi tool với args rỗng. Trước đây schema bắt buộc query nên call đó trả
+	// lỗi "query is required" (thấy trong log dev thật), còn khi model đoán
+	// query="*" thì nó lại khớp NHẦM theo nghĩa literal (markdown đầy dấu *)
+	// nên ra kết quả trông như đúng mà thực chất là tình cờ.
 	return json.RawMessage(`{
 		"type":"object",
 		"properties":{
-			"query":{"type":"string","description":"search query string"}
+			"query":{"type":"string","description":"search query string; omit or use \"*\" to list all notes"}
 		},
-		"required":["query"],
 		"additionalProperties":false
 	}`)
 }
@@ -55,17 +60,25 @@ func (t *notesSearchTool) Execute(ctx context.Context, rawArgs json.RawMessage) 
 	if err := json.Unmarshal(rawArgs, &args); err != nil {
 		return Result{}, fmt.Errorf("notes.search: invalid args: %w", err)
 	}
-	if strings.TrimSpace(args.Query) == "" {
-		return Result{}, fmt.Errorf("notes.search: query is required")
-	}
-
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	var results []map[string]string
-	query := strings.ToLower(args.Query)
+	// Query rỗng hoặc "*" = LIỆT KÊ TẤT CẢ. Đây là ý định model thật sự muốn khi
+	// nó gọi tool với args rỗng (đã thấy trong log dev), thay vì trả lỗi.
+	trimmed := strings.TrimSpace(args.Query)
+	listAll := trimmed == "" || trimmed == "*"
 
-	_ = filepath.Walk(t.notesDir, func(path string, info os.FileInfo, err error) error {
+	var results []map[string]string
+	query := strings.ToLower(trimmed)
+
+	// CHỈ tìm trong thư mục note của tenant hiện tại. Trước fix, hàm này walk
+	// TOÀN BỘ notesDir trong khi notes.create lại ghi vào <notesDir>/<tenantID>/
+	// — bất đối xứng đó khiến notes.search trả về note của MỌI tenant, tức rò rỉ
+	// dữ liệu giữa các user.
+	tenantID := middleware.GetTenantID(ctx)
+	tenantNotesDir := filepath.Join(t.notesDir, tenantID)
+
+	_ = filepath.Walk(tenantNotesDir, func(path string, info os.FileInfo, err error) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -82,12 +95,12 @@ func (t *notesSearchTool) Execute(ctx context.Context, rawArgs json.RawMessage) 
 			return nil
 		}
 		content := string(data)
-		if strings.Contains(strings.ToLower(content), query) {
+		if listAll || strings.Contains(strings.ToLower(content), query) {
 			excerpt := content
 			if len(excerpt) > 500 {
 				excerpt = excerpt[:500] + "..."
 			}
-			rel, _ := filepath.Rel(t.notesDir, path)
+			rel, _ := filepath.Rel(tenantNotesDir, path)
 			results = append(results, map[string]string{
 				"file":    rel,
 				"excerpt": excerpt,
@@ -101,7 +114,8 @@ func (t *notesSearchTool) Execute(ctx context.Context, rawArgs json.RawMessage) 
 	}
 
 	out, _ := json.Marshal(map[string]any{
-		"query":   args.Query,
+		"query":   trimmed,
+		"listAll": listAll,
 		"count":   len(results),
 		"results": results,
 	})

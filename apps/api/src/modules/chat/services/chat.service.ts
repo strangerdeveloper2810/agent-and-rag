@@ -121,12 +121,27 @@ export async function streamReply(
   let truncated = false;
   let backend: string = config.AGENT_BACKEND;
 
+  // Định danh model dùng cho CACHE KEY phải phản ánh thứ THỰC SỰ sinh câu trả
+  // lời. Trước đây luôn lấy GOOGLE_MODEL/CLAUDE_MODEL của BFF, trong khi với
+  // AGENT_BACKEND=go thì Go agent sinh câu trả lời bằng provider/model khác
+  // hoàn toàn (log dev: cache ghi "gemini-3.1-flash-lite" nhưng thực tế DeepSeek
+  // trả lời). Hệ quả: cache key không đổi khi đổi model/backend → trả về câu
+  // trả lời cũ của model cũ.
+  //
+  // Hạn chế còn lại: BFF không biết tên model bên trong Go agent, nên khi đổi
+  // model Ở PHÍA GO hãy bump CHAT_CACHE_VERSION để vô hiệu cache.
   const model =
-    config.LLM_PROVIDER === "google"
-      ? config.GOOGLE_MODEL
-      : config.CLAUDE_MODEL;
+    config.AGENT_BACKEND === "go"
+      ? `go-agent@${config.AGENT_GO_URL}`
+      : `${config.LLM_PROVIDER}:${
+          config.LLM_PROVIDER === "google"
+            ? config.GOOGLE_MODEL
+            : config.CLAUDE_MODEL
+        }`;
   const cacheInput = {
-    model,
+    // CHAT_CACHE_VERSION là van xả tay: bump giá trị này để vô hiệu toàn bộ
+    // cache sau khi đổi model bên Go agent hoặc đổi system prompt.
+    model: `v${config.CHAT_CACHE_VERSION}|${model}`,
     temperature: 1.0,
     messages: history as unknown as Record<string, unknown>[],
   };

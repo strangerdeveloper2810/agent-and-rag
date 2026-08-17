@@ -25,6 +25,18 @@ type Skill struct {
 	WhenToUse   string   // Khi nào kích hoạt skill này
 	Tools       []string // Danh sách tool liên quan
 	Content     string   // Toàn bộ nội dung SKILL.md, bao gồm cả frontmatter
+
+	// Triggers là các cụm từ kích hoạt TƯỜNG MINH (frontmatter `triggers:`),
+	// hỗ trợ cả tiếng Việt. Đây là tín hiệu MẠNH, ngang với việc gọi thẳng tên
+	// skill.
+	//
+	// Vì sao cần: description/when_to_use là văn xuôi tiếng Anh, trong khi người
+	// dùng chat tiếng Việt. Đo trên skill thật cho thấy điểm khớp keyword của
+	// skill ĐÚNG và skill SAI đều chỉ 3-4 điểm — tức nhiễu, không phân biệt được.
+	// Ví dụ thật: câu "giải thích go, concurrency, ... database design" khớp
+	// `api-designer` chỉ vì lọt chữ "design"; câu "check trong local doc..."
+	// khớp `code-review` chỉ vì lọt chữ "check".
+	Triggers []string
 }
 
 // SkillSummary là bản rút gọn của Skill dùng cho system prompt.
@@ -106,47 +118,89 @@ func (l *Loader) LoadSkill(name string) *Skill {
 	return l.skills[name]
 }
 
-// MatchSkill tìm skill phù hợp nhất với input của người dùng.
-// Dùng so khớp từ khóa đơn giản:
-//   - Kiểm tra tên skill có xuất hiện trong input không
-//   - Kiểm tra từ khóa trong WhenToUse
-//   - Kiểm tra từ khóa trong Description
+// Trọng số khi CHẤM ĐIỂM skill. Khớp đúng tên skill là tín hiệu mạnh nhất
+// (người dùng gọi thẳng tên), rồi tới when_to_use (mô tả tình huống dùng), cuối
+// cùng là description (mô tả năng lực, chung chung hơn).
+const (
+	skillScoreNameMatch      = 100
+	skillScoreTriggerMatch   = 100
+	skillScoreWhenToUseMatch = 3
+	skillScoreDescMatch      = 1
+)
+
+// minSkillActivationScore là ngưỡng ĐIỂM TỐI THIỂU để kích hoạt một skill.
+//
+// Đo trên 23 skill thật với input thật từ log dev: điểm khớp keyword của skill
+// ĐÚNG và skill SAI đều nằm trong khoảng 1-4 — tức không phân biệt được, chỉ là
+// trùng hợp vài từ kỹ thuật tiếng Anh lọt vào câu tiếng Việt. Kích hoạt sai
+// KHÔNG hề vô hại: nó nhồi toàn bộ SKILL.md (api-designer = 10.904 ký tự,
+// ~3.000 token) vào system prompt và lái model sai hướng.
+//
+// Vì vậy: chỉ kích hoạt khi có tín hiệu MẠNH — người dùng gọi thẳng tên skill,
+// khớp `triggers` tường minh, hoặc khớp nhiều từ khoá when_to_use cùng lúc.
+// Thà KHÔNG kích hoạt skill nào còn hơn kích hoạt sai skill.
+const minSkillActivationScore = 6
+
+// MatchSkill tìm skill phù hợp nhất với input của người dùng bằng cách CHẤM
+// ĐIỂM tất cả skill rồi lấy điểm cao nhất.
+//
+// Vì sao không dùng "khớp đầu tiên thắng" như trước: thứ tự duyệt là thứ tự nạp
+// từ os.ReadDir, tức ALPHABET. Skill đầu bảng (`api-designer`) có when_to_use
+// chứa toàn từ phổ thông ("design", "data", "review", "create") nên nó được
+// quyền chọn trước 22 skill còn lại và thắng gần như mọi câu có các từ đó —
+// log dev thật cho thấy câu hỏi về Go concurrency lại kích hoạt `api-designer`,
+// và câu "check trong local doc..." lại kích hoạt `code-review`.
+// Trước khi có l.order thì thứ tự map là random nên lỗi này ngẫu nhiên; làm
+// deterministic xong thì nó thành thiên lệch hệ thống — nên phải chấm điểm theo
+// SỐ từ khoá khớp thay vì dựa vào thứ tự.
 //
 // Trả về nil nếu không có skill nào khớp.
 func (l *Loader) MatchSkill(userInput string) *Skill {
 	lower := strings.ToLower(userInput)
-
-	// Match by name first (e.g., "code review" matches "code-review")
 	// Normalize input: replace punctuation with spaces, then pad with spaces
 	// for word-boundary matching (avoids "debugging" matching "debug").
-	// Cả 3 vòng dưới duyệt theo l.order (thứ tự nạp, ổn định) chứ KHÔNG duyệt
-	// map — xem comment ở field Loader.order.
 	normalized := normalizeForWordMatch(lower)
+
+	var best *Skill
+	bestScore := 0
+
+	// Duyệt theo l.order (thứ tự nạp, ổn định) để khi ĐIỂM BẰNG NHAU kết quả
+	// vẫn deterministic — xem comment ở field Loader.order.
 	for _, name := range l.order {
 		s := l.skills[name]
+		score := 0
+
 		nameLower := strings.ToLower(s.Name)
 		nameSpaced := strings.ReplaceAll(nameLower, "-", " ")
 		if strings.Contains(normalized, " "+nameLower+" ") ||
 			strings.Contains(normalized, " "+nameSpaced+" ") {
-			return s
+			score += skillScoreNameMatch
+		}
+		// Trigger tường minh: khớp cụm từ (có thể tiếng Việt), không cần ranh
+		// giới từ vì cụm nhiều từ đã đủ đặc trưng.
+		for _, trg := range s.Triggers {
+			trg = strings.ToLower(strings.TrimSpace(trg))
+			if trg == "" {
+				continue
+			}
+			if strings.Contains(lower, trg) {
+				score += skillScoreTriggerMatch
+				break
+			}
+		}
+		score += skillScoreWhenToUseMatch * countKeywordMatches(normalized, s.WhenToUse)
+		score += skillScoreDescMatch * countKeywordMatches(normalized, s.Description)
+
+		if score > bestScore {
+			best, bestScore = s, score
 		}
 	}
 
-	// Match by WhenToUse keywords
-	for _, name := range l.order {
-		if s := l.skills[name]; containsAnyKeyword(lower, s.WhenToUse) {
-			return s
-		}
+	// Điểm quá thấp = trùng hợp, không phải ý định → không kích hoạt skill nào.
+	if bestScore < minSkillActivationScore {
+		return nil
 	}
-
-	// Match by Description keywords
-	for _, name := range l.order {
-		if s := l.skills[name]; containsAnyKeyword(lower, s.Description) {
-			return s
-		}
-	}
-
-	return nil
+	return best
 }
 
 // Len trả về số lượng skill đã nạp.
@@ -202,6 +256,8 @@ func parseSkill(raw string) (*Skill, error) {
 			skill.WhenToUse = value
 		case "tools":
 			skill.Tools = parseToolsList(value)
+		case "triggers":
+			skill.Triggers = parseToolsList(value)
 		}
 	}
 
@@ -280,25 +336,34 @@ var skillStopWords = map[string]bool{
 // so khớp theo ranh giới từ + skillStopWords, không phải bằng cách nâng ngưỡng.
 const minSkillKeywordLen = 3
 
-// containsAnyKeyword kiểm tra xem text có chứa ít nhất 1 từ khóa đáng kể từ
-// reference không. Từ khóa phải >= minSkillKeywordLen ký tự, không nằm trong
-// skillStopWords, và phải khớp theo RANH GIỚI TỪ (không phải substring) để
+// countKeywordMatches đếm SỐ từ khoá đáng kể (không trùng lặp) của reference
+// xuất hiện trong text. Từ khoá phải >= minSkillKeywordLen ký tự, không nằm
+// trong skillStopWords, và khớp theo RANH GIỚI TỪ (không phải substring) để
 // "use" không khớp "useMemo" và "port" không khớp "important".
-func containsAnyKeyword(text, reference string) bool {
+//
+// normalizedText PHẢI là kết quả của normalizeForWordMatch (đã bọc dấu cách).
+func countKeywordMatches(normalizedText, reference string) int {
 	refLower := strings.ToLower(reference)
 	words := strings.FieldsFunc(refLower, func(r rune) bool {
 		return r == ' ' || r == ',' || r == '.' || r == ';' || r == ':'
 	})
-	// Bọc text bằng dấu cách + thay dấu câu để so khớp theo ranh giới từ.
-	normalizedText := normalizeForWordMatch(text)
+
+	seen := make(map[string]bool, len(words))
+	count := 0
 	for _, word := range words {
 		word = strings.TrimSpace(word)
-		if len(word) < minSkillKeywordLen || skillStopWords[word] {
+		if len(word) < minSkillKeywordLen || skillStopWords[word] || seen[word] {
 			continue
 		}
+		seen[word] = true
 		if strings.Contains(normalizedText, " "+word+" ") {
-			return true
+			count++
 		}
 	}
-	return false
+	return count
+}
+
+// containsAnyKeyword giữ lại cho tương thích: có khớp ít nhất 1 từ khoá hay không.
+func containsAnyKeyword(text, reference string) bool {
+	return countKeywordMatches(normalizeForWordMatch(text), reference) > 0
 }

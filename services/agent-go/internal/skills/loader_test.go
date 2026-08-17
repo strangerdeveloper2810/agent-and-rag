@@ -206,12 +206,26 @@ func TestMatchSkill_ByName(t *testing.T) {
 func TestMatchSkill_ByWhenToUse(t *testing.T) {
 	loader := setupTestLoader(t)
 
-	skill := loader.MatchSkill("I found a bug in the login page")
+	// Cần >= 2 từ khoá when_to_use khớp mới đạt minSkillActivationScore. Khớp
+	// đúng 1 từ giờ CỐ TÌNH không kích hoạt: đo trên 23 skill thật cho thấy
+	// khớp-1-từ là nhiễu (skill đúng và skill sai cùng ~3-4 điểm), và kích hoạt
+	// sai thì nhồi cả nghìn token prompt lệch hướng vào system prompt.
+	skill := loader.MatchSkill("I found a bug and a crash in the login page")
 	if skill == nil {
-		t.Fatal("expected match for 'bug' keyword")
+		t.Fatal("expected match khi khớp nhiều từ khoá when_to_use (bug + crash)")
 	}
 	if skill.Name != "debug" {
 		t.Errorf("matched wrong skill: %q, want 'debug'", skill.Name)
+	}
+}
+
+// Khớp đúng MỘT từ khoá là tín hiệu quá yếu → không kích hoạt skill nào.
+func TestMatchSkill_SingleWeakKeywordDoesNotActivate(t *testing.T) {
+	loader := setupTestLoader(t)
+
+	// "bug" khớp when_to_use của debug, nhưng chỉ 1 từ.
+	if skill := loader.MatchSkill("I found a bug in the login page"); skill != nil {
+		t.Errorf("khớp 1 từ khoá không được kích hoạt skill, got %q", skill.Name)
 	}
 }
 
@@ -271,9 +285,164 @@ Teach clearly.`)
 		}
 	}
 
-	// Từ có nghĩa, đứng riêng → vẫn phải khớp bình thường.
-	if s := loader.MatchSkill("giải thích giúp tôi concepts này"); s == nil {
-		t.Error("từ khoá có nghĩa 'concepts' đứng riêng phải khớp skill")
+	// Từ có nghĩa, đứng riêng, và ĐỦ NHIỀU (>= 2 từ khoá when_to_use) → vẫn khớp.
+	// Chỉ 1 từ ("concepts") giờ cố tình không đủ — xem minSkillActivationScore.
+	if s := loader.MatchSkill("help me learn and understand this"); s == nil {
+		t.Error("khớp nhiều từ khoá when_to_use (learn + understand) phải kích hoạt skill")
+	}
+}
+
+// Trigger tường minh (kể cả tiếng Việt) là tín hiệu MẠNH: chỉ cần 1 trigger khớp
+// là kích hoạt, không cần đủ ngưỡng keyword. Đây là cách đúng để skill hoạt động
+// với câu hỏi tiếng Việt, vì description/when_to_use đều là văn xuôi tiếng Anh.
+func TestMatchSkill_VietnameseTriggers(t *testing.T) {
+	dir := t.TempDir()
+	skillDir := filepath.Join(dir, "learning-tutor")
+	mustMkdir(t, skillDir)
+	mustWriteFile(t, filepath.Join(skillDir, "SKILL.md"), `---
+name: learning-tutor
+description: Explain complex concepts simply
+when_to_use: When the user wants to learn something new
+triggers: [giải thích, khái niệm, dễ hiểu]
+tools: [web.search]
+---
+
+# Learning Tutor
+Teach clearly.`)
+
+	loader, err := NewLoader(dir)
+	if err != nil {
+		t.Fatalf("NewLoader: %v", err)
+	}
+
+	s := loader.LoadSkill("learning-tutor")
+	if s == nil {
+		t.Fatal("không nạp được skill")
+	}
+	if len(s.Triggers) != 3 {
+		t.Errorf("Triggers = %v, want 3 phần tử", s.Triggers)
+	}
+
+	for _, input := range []string{
+		"giải thích cho tôi về goroutine",
+		"khái niệm này là gì",
+		"nói kiểu dễ hiểu hơn đi",
+	} {
+		if got := loader.MatchSkill(input); got == nil {
+			t.Errorf("input %q có trigger khớp nhưng không kích hoạt skill", input)
+		}
+	}
+
+	// Không trigger, không đủ keyword → không kích hoạt.
+	if got := loader.MatchSkill("hôm nay trời đẹp quá"); got != nil {
+		t.Errorf("câu không liên quan không được kích hoạt skill, got %q", got.Name)
+	}
+}
+
+// TestMatchSkill_RealSkills_LogScenarios chạy trên BỘ SKILL THẬT trong repo với
+// đúng những câu người dùng đã gõ trong log dev. Đây là test giá trị nhất cho
+// việc chọn skill: unit test với skill giả không phát hiện được vấn đề "keyword
+// tiếng Anh vs câu hỏi tiếng Việt".
+//
+// Trước fix (first-match-wins theo thứ tự alphabet + kích hoạt khi khớp 1 từ):
+//   - "giải thích ... go, concurrency, ... database design" → api-designer (SAI,
+//     chỉ vì lọt chữ "design"), nhồi 10.904 ký tự prompt thiết kế API vào câu
+//     hỏi về Go concurrency.
+//   - "check trong local doc ..." → code-review (SAI, chỉ vì lọt chữ "check").
+func TestMatchSkill_RealSkills_LogScenarios(t *testing.T) {
+	loader, err := NewLoader("../../skills")
+	if err != nil {
+		t.Skipf("bỏ qua: không đọc được thư mục skills thật: %v", err)
+	}
+	if loader.Len() == 0 {
+		t.Skip("bỏ qua: không có skill nào")
+	}
+
+	tests := []struct {
+		name  string
+		input string
+		want  string // "" = KHÔNG được kích hoạt skill nào
+	}{
+		{
+			name:  "câu hỏi học/giải thích tiếng Việt (log: từng ra api-designer)",
+			input: "Hãy giải thích chi tiết khái niệm sau một cách trực quan dễ hiểu: go, concurrency, goroutine, channel, database design",
+			want:  "learning-tutor",
+		},
+		{
+			name:  "câu hỏi liệt kê tài liệu (log: từng ra code-review)",
+			input: "check trong local doc có những kiến thức về những gì nhé",
+			want:  "", // không skill nào thực sự phù hợp → thà không kích hoạt
+		},
+		{
+			name:  "follow-up ngắn, không đủ tín hiệu",
+			input: "T nhớ còn nhiều lắm mà nhỉ",
+			want:  "",
+		},
+		{
+			name:  "gọi thẳng tên skill",
+			input: "debug lỗi này",
+			want:  "debug",
+		},
+		{
+			name:  "review code",
+			input: "review code này giúp tôi",
+			want:  "code-review",
+		},
+		{
+			name:  "thiết kế API",
+			input: "thiết kế REST API cho user service",
+			want:  "api-designer",
+		},
+		{
+			name:  "tối ưu hiệu năng",
+			input: "tối ưu query này đang chậm",
+			want:  "performance-optimizer",
+		},
+		{
+			name:  "devops",
+			input: "deploy lên kubernetes thế nào",
+			want:  "devops",
+		},
+		{
+			name:  "bảo mật (không được bị api-designer cướp)",
+			input: "kiểm tra bảo mật cho endpoint login",
+			want:  "security-audit",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := loader.MatchSkill(tc.input)
+			gotName := ""
+			if got != nil {
+				gotName = got.Name
+			}
+			if gotName != tc.want {
+				t.Errorf("MatchSkill(%q) = %q, want %q", tc.input, gotName, tc.want)
+			}
+		})
+	}
+}
+
+// Skill kích hoạt được phải khai `triggers` tiếng Việt — nếu thiếu, câu hỏi
+// tiếng Việt sẽ không bao giờ đạt ngưỡng và skill thành vô dụng trên thực tế.
+func TestRealSkills_KeyOnesHaveTriggers(t *testing.T) {
+	loader, err := NewLoader("../../skills")
+	if err != nil {
+		t.Skipf("bỏ qua: %v", err)
+	}
+	for _, name := range []string{
+		"learning-tutor", "deep-research", "code-review", "debug",
+		"api-designer", "performance-optimizer", "security-audit", "devops",
+	} {
+		s := loader.LoadSkill(name)
+		if s == nil {
+			t.Errorf("thiếu skill %q", name)
+			continue
+		}
+		if len(s.Triggers) == 0 {
+			t.Errorf("skill %q chưa khai triggers → câu hỏi tiếng Việt không kích hoạt được", name)
+		}
 	}
 }
 
