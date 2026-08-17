@@ -196,6 +196,182 @@ func TestToDSTools_Empty(t *testing.T) {
 
 // --- Generate (qua httptest) ---
 
+// sseOK là 1 stream SSE hợp lệ tối thiểu, dùng cho các test chỉ quan tâm
+// REQUEST BODY gửi lên chứ không quan tâm response.
+const sseOK = `data: {"choices":[{"delta":{"content":"OK"}}]}
+data: {"choices":[{"delta":{},"finish_reason":"stop"}]}
+data: [DONE]
+`
+
+// TestGenerate_ThinkingOffDisablesReasoning khoá phát hiện đã VERIFY BẰNG API
+// THẬT: với deepseek-v4-flash, thinking BẬT MẶC ĐỊNH và token suy luận TÍNH
+// VÀO max_tokens. Cùng prompt max_tokens=16: không gửi field thinking → toàn
+// bộ 16 token vào reasoning_content, content RỖNG, finish_reason="length";
+// gửi {"type":"disabled"} → content="OK" tốn 1 token.
+//
+// Trước fix, ThinkingLevel chỉ được dùng để LOG chứ không gửi lên API, nên
+// provider.ThinkingOff là no-op — đó là lý do HyDE và LLM rerank (MaxTokens=200)
+// âm thầm trả rỗng dù code đã chủ động set ThinkingOff.
+func TestGenerate_ThinkingOffDisablesReasoning(t *testing.T) {
+	var gotBody dsChatRequest
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&gotBody)
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte(sseOK))
+	})
+
+	stream, err := c.Generate(context.Background(), provider.GenerateRequest{
+		Messages: []provider.Message{{Role: provider.RoleUser, Content: "hi"}},
+		Options:  provider.ProviderOptions{ThinkingLevel: provider.ThinkingOff, MaxTokens: 200},
+	})
+	if err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	drain(t, stream)
+
+	if gotBody.Thinking == nil {
+		t.Fatal("request thiếu field thinking — ThinkingOff phải gửi thinking:{\"type\":\"disabled\"} lên API")
+	}
+	if gotBody.Thinking.Type != "disabled" {
+		t.Errorf("thinking.type = %q, want %q", gotBody.Thinking.Type, "disabled")
+	}
+	if gotBody.ReasoningEffort != "" {
+		t.Errorf("reasoning_effort = %q, want rỗng khi đã disable thinking", gotBody.ReasoningEffort)
+	}
+}
+
+// Với ThinkingLevel khác OFF thì KHÔNG disable, mà gửi reasoning_effort.
+// Lưu ý đã verify bằng API thật: reasoning_effort="low" KHÔNG tắt suy luận.
+func TestGenerate_ThinkingLevelMapsToReasoningEffort(t *testing.T) {
+	tests := []struct {
+		level      provider.ThinkingLevel
+		wantEffort string
+	}{
+		{provider.ThinkingLow, "low"},
+		{provider.ThinkingMedium, "high"},
+		{provider.ThinkingHigh, "high"},
+		{"", ""}, // không set → để model dùng mặc định
+	}
+
+	for _, tc := range tests {
+		t.Run(string(tc.level), func(t *testing.T) {
+			var gotBody dsChatRequest
+			c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+				_ = json.NewDecoder(r.Body).Decode(&gotBody)
+				w.Header().Set("Content-Type", "text/event-stream")
+				_, _ = w.Write([]byte(sseOK))
+			})
+
+			stream, err := c.Generate(context.Background(), provider.GenerateRequest{
+				Messages: []provider.Message{{Role: provider.RoleUser, Content: "hi"}},
+				Options:  provider.ProviderOptions{ThinkingLevel: tc.level},
+			})
+			if err != nil {
+				t.Fatalf("Generate: %v", err)
+			}
+			drain(t, stream)
+
+			if gotBody.ReasoningEffort != tc.wantEffort {
+				t.Errorf("reasoning_effort = %q, want %q", gotBody.ReasoningEffort, tc.wantEffort)
+			}
+			if gotBody.Thinking != nil {
+				t.Errorf("thinking = %+v, want nil khi ThinkingLevel != OFF", gotBody.Thinking)
+			}
+		})
+	}
+}
+
+// API tương thích OpenAI không gửi usage khi stream nếu thiếu
+// stream_options.include_usage → ChunkUsage sẽ luôn thiếu số thật.
+func TestGenerate_AlwaysRequestsStreamUsage(t *testing.T) {
+	var gotBody dsChatRequest
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&gotBody)
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte(sseOK))
+	})
+
+	stream, err := c.Generate(context.Background(), provider.GenerateRequest{
+		Messages: []provider.Message{{Role: provider.RoleUser, Content: "hi"}},
+	})
+	if err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	drain(t, stream)
+
+	if gotBody.StreamOptions == nil || !gotBody.StreamOptions.IncludeUsage {
+		t.Errorf("stream_options = %+v, want include_usage=true", gotBody.StreamOptions)
+	}
+}
+
+// reasoning_content là chuỗi suy luận, KHÔNG phải câu trả lời — không được
+// lẫn vào ChunkText (nếu lẫn, user sẽ thấy phần model "tự nhủ" trong câu trả lời).
+func TestGenerate_ReasoningContentNotEmittedAsText(t *testing.T) {
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte(`data: {"choices":[{"delta":{"reasoning_content":"Ta cần trả lời chính xác OK. Người dùng nói..."}}]}
+data: {"choices":[{"delta":{"content":"OK"}}]}
+data: {"choices":[{"delta":{},"finish_reason":"stop"}]}
+data: [DONE]
+`))
+	})
+
+	stream, err := c.Generate(context.Background(), provider.GenerateRequest{
+		Messages: []provider.Message{{Role: provider.RoleUser, Content: "hi"}},
+	})
+	if err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+
+	var text strings.Builder
+	for _, ch := range drain(t, stream) {
+		if ch.Kind == provider.ChunkText {
+			text.WriteString(ch.Text)
+		}
+	}
+	if text.String() != "OK" {
+		t.Errorf("text = %q, want %q — reasoning_content không được emit ra ChunkText", text.String(), "OK")
+	}
+}
+
+// TestGenerate_StreamCutMidway_EmitsChunkError bịt lỗ mà fix scanner.Err()
+// trước đó KHÔNG bắt được: bufio.Scanner.Err() chỉ trả lỗi NON-EOF, nên khi
+// server/proxy đóng stream "sạch" giữa chừng thì Err() là nil và code cũ emit
+// ChunkDone như thể thành công. Phân biệt bằng finish_reason: stream hoàn tất
+// tử tế luôn có finish_reason ở chunk cuối.
+func TestGenerate_StreamCutMidway_EmitsChunkError(t *testing.T) {
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		// Có text nhưng KHÔNG có finish_reason và KHÔNG có [DONE] — handler
+		// return làm body đóng sạch (EOF), scanner.Err() sẽ là nil.
+		_, _ = w.Write([]byte(`data: {"choices":[{"delta":{"content":"{\"user_facts\": [], \"knowledge_items\": [{\"tags\": [\"go\","}}]}
+`))
+	})
+
+	stream, err := c.Generate(context.Background(), provider.GenerateRequest{
+		Messages: []provider.Message{{Role: provider.RoleUser, Content: "hi"}},
+	})
+	if err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+
+	var gotErr, gotDone bool
+	for _, ch := range drain(t, stream) {
+		switch ch.Kind {
+		case provider.ChunkError:
+			gotErr = true
+		case provider.ChunkDone:
+			gotDone = true
+		}
+	}
+	if !gotErr {
+		t.Error("want ChunkError khi stream bị cắt giữa đường (không [DONE], không finish_reason)")
+	}
+	if gotDone {
+		t.Error("không được emit ChunkDone cho stream bị cắt — caller sẽ tưởng là thành công")
+	}
+}
+
 func TestGenerate_StreamsTextAndUsage(t *testing.T) {
 	var gotBody dsChatRequest
 	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
