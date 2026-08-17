@@ -37,6 +37,14 @@ type SkillSummary struct {
 // Loader quản lý danh sách skill đã nạp từ thư mục skills/.
 type Loader struct {
 	skills map[string]*Skill // name -> skill
+
+	// order giữ tên skill theo thứ tự nạp (os.ReadDir trả về đã sort theo tên)
+	// để MatchSkill và ListSkills duyệt ỔN ĐỊNH. Trước đây cả 2 duyệt trực tiếp
+	// trên map: thứ tự map trong Go là random nên (1) cùng một câu hỏi khớp
+	// nhiều skill thì skill nào thắng là random giữa các lần chạy, (2) block
+	// [KỸ NĂNG] trong system prompt đổi thứ tự mỗi lần khởi động, phá vỡ chính
+	// cái cacheable prefix mà BuildSystemPrompt đang tối ưu cho prompt caching.
+	order []string
 }
 
 // NewLoader quét skillsDir và nạp tất cả file SKILL.md vào bộ nhớ.
@@ -69,6 +77,9 @@ func NewLoader(skillsDir string) (*Loader, error) {
 			return nil, fmt.Errorf("skills: parse %q: %w", skillFile, err)
 		}
 
+		if _, exists := l.skills[skill.Name]; !exists {
+			l.order = append(l.order, skill.Name)
+		}
 		l.skills[skill.Name] = skill
 	}
 
@@ -78,8 +89,9 @@ func NewLoader(skillsDir string) (*Loader, error) {
 // ListSkills trả về danh sách skill dạng rút gọn (tên + mô tả).
 // Dùng để chèn vào system prompt — chỉ tốn vài dòng.
 func (l *Loader) ListSkills() []SkillSummary {
-	result := make([]SkillSummary, 0, len(l.skills))
-	for _, s := range l.skills {
+	result := make([]SkillSummary, 0, len(l.order))
+	for _, name := range l.order {
+		s := l.skills[name]
 		result = append(result, SkillSummary{
 			Name:        s.Name,
 			Description: s.Description,
@@ -107,8 +119,11 @@ func (l *Loader) MatchSkill(userInput string) *Skill {
 	// Match by name first (e.g., "code review" matches "code-review")
 	// Normalize input: replace punctuation with spaces, then pad with spaces
 	// for word-boundary matching (avoids "debugging" matching "debug").
+	// Cả 3 vòng dưới duyệt theo l.order (thứ tự nạp, ổn định) chứ KHÔNG duyệt
+	// map — xem comment ở field Loader.order.
 	normalized := normalizeForWordMatch(lower)
-	for _, s := range l.skills {
+	for _, name := range l.order {
+		s := l.skills[name]
 		nameLower := strings.ToLower(s.Name)
 		nameSpaced := strings.ReplaceAll(nameLower, "-", " ")
 		if strings.Contains(normalized, " "+nameLower+" ") ||
@@ -118,15 +133,15 @@ func (l *Loader) MatchSkill(userInput string) *Skill {
 	}
 
 	// Match by WhenToUse keywords
-	for _, s := range l.skills {
-		if containsAnyKeyword(lower, s.WhenToUse) {
+	for _, name := range l.order {
+		if s := l.skills[name]; containsAnyKeyword(lower, s.WhenToUse) {
 			return s
 		}
 	}
 
 	// Match by Description keywords
-	for _, s := range l.skills {
-		if containsAnyKeyword(lower, s.Description) {
+	for _, name := range l.order {
+		if s := l.skills[name]; containsAnyKeyword(lower, s.Description) {
 			return s
 		}
 	}
@@ -232,16 +247,56 @@ func normalizeForWordMatch(s string) string {
 	return " " + replacer.Replace(s) + " "
 }
 
-// containsAnyKeyword kiểm tra xem text có chứa ít nhất 1 từ khóa
-// đáng kể (>= 3 ký tự) từ reference không.
+// skillStopWords là các từ quá phổ thông trong description/when_to_use — chúng
+// không mang ý định nào nên không được dùng làm căn cứ kích hoạt skill.
+//
+// Vì sao cần: containsAnyKeyword coi MỌI từ >= 3 ký tự là keyword và so khớp
+// SUBSTRING. Ví dụ thật đã gặp: learning-tutor có description "...use
+// analogies..." → từ "use" khớp substring trong "useMemo"/"useSelector", nên
+// câu hỏi "Viết custom hook useMemo với useSelector" kích hoạt skill dạy học.
+// Tương tự "the" khớp "theo", "new" khớp "renew", "and" khớp "android".
+var skillStopWords = map[string]bool{
+	"the": true, "and": true, "for": true, "with": true, "use": true,
+	"using": true, "used": true, "uses": true, "when": true, "that": true,
+	"this": true, "any": true, "all": true, "you": true,
+	"your": true, "not": true, "but": true, "how": true, "why": true,
+	"who": true, "was": true, "are": true, "has": true, "have": true,
+	"had": true, "his": true, "her": true, "its": true, "our": true,
+	"can": true, "may": true, "get": true, "got": true, "let": true,
+	"new": true, "old": true, "one": true, "two": true, "out": true,
+	"off": true, "via": true, "per": true, "than": true, "then": true,
+	"them": true, "they": true, "there": true, "here": true, "what": true,
+	"which": true, "into": true, "onto": true, "over": true, "some": true,
+	"more": true, "most": true, "much": true, "many": true, "need": true,
+	"needs": true, "want": true, "wants": true, "make": true, "makes": true,
+	"does": true, "done": true, "will": true, "would": true, "should": true,
+	"could": true, "about": true, "after": true, "before": true, "also": true,
+	"just": true, "only": true, "very": true, "each": true, "both": true,
+	"from": true, "been": true, "being": true, "were": true, "such": true,
+}
+
+// minSkillKeywordLen giữ ở 3 vì nhiều keyword kỹ thuật có nghĩa chỉ dài 3 ký
+// tự ("bug", "api", "css", "sql", "git"). Việc chống khớp nhầm được xử lý bởi
+// so khớp theo ranh giới từ + skillStopWords, không phải bằng cách nâng ngưỡng.
+const minSkillKeywordLen = 3
+
+// containsAnyKeyword kiểm tra xem text có chứa ít nhất 1 từ khóa đáng kể từ
+// reference không. Từ khóa phải >= minSkillKeywordLen ký tự, không nằm trong
+// skillStopWords, và phải khớp theo RANH GIỚI TỪ (không phải substring) để
+// "use" không khớp "useMemo" và "port" không khớp "important".
 func containsAnyKeyword(text, reference string) bool {
 	refLower := strings.ToLower(reference)
 	words := strings.FieldsFunc(refLower, func(r rune) bool {
 		return r == ' ' || r == ',' || r == '.' || r == ';' || r == ':'
 	})
+	// Bọc text bằng dấu cách + thay dấu câu để so khớp theo ranh giới từ.
+	normalizedText := normalizeForWordMatch(text)
 	for _, word := range words {
 		word = strings.TrimSpace(word)
-		if len(word) >= 3 && strings.Contains(text, word) {
+		if len(word) < minSkillKeywordLen || skillStopWords[word] {
+			continue
+		}
+		if strings.Contains(normalizedText, " "+word+" ") {
 			return true
 		}
 	}

@@ -183,6 +183,101 @@ func TestNodeModel_InjectsRecalledMemoriesIntoSystemPrompt(t *testing.T) {
 	}
 }
 
+// TestNodeModel_FiltersToolsByLatestUserMessage khoá đúng bug gốc: nodeModel
+// từng lấy user message ĐẦU TIÊN trong history (duyệt xuôi + break) làm căn cứ
+// lọc tool, match skill và chọn thinking level. Hệ quả: từ lượt chat thứ 2 trở
+// đi, tool được lọc theo câu hỏi đã trả lời xong từ trước — câu hỏi hiện tại
+// không hề ảnh hưởng tới tool được cấp.
+//
+// Dựng đúng tình huống thật: lượt 1 là câu chào (không intent gì), lượt 2 hỏi
+// về tài liệu đã upload. Tool gửi cho LLM phải theo lượt 2.
+func TestNodeModel_FiltersToolsByLatestUserMessage(t *testing.T) {
+	reg := tools.NewRegistry()
+	reg.Register(tools.NewEchoTool())
+	reg.Register(tools.NewWebSearchTool(nil))
+	reg.Register(tools.NewWebFetchTool(nil))
+	reg.Register(tools.NewFileSearchTool(nil))
+	reg.Register(tools.NewFileReadTool(nil))
+	reg.Register(tools.NewShellTool(nil))
+	reg.Register(tools.NewCalculatorTool())
+	reg.Register(tools.NewRecallMemoryTool())
+	reg.Register(tools.NewSaveMemoryTool())
+	reg.Register(tools.NewRAGSearchTool(nil, "test", "", nil, tools.RAGSearchConfig{}))
+
+	fake := newCapturingProvider(
+		provider.StreamChunk{Kind: provider.ChunkText, Text: "OK"},
+		provider.StreamChunk{Kind: provider.ChunkDone},
+	)
+	eng := &fakeEngine{prov: fake, registry: reg}
+
+	s := newState(RunInput{
+		History: []provider.Message{
+			{Role: provider.RoleUser, Content: "xin chào"},
+			{Role: provider.RoleAssistant, Content: "Chào sir, tôi có thể giúp gì?"},
+		},
+		UserMessage: "trong tài liệu tôi đã upload có nói gì về convention không?",
+		MaxSteps:    12,
+	})
+
+	if _, err := nodeModel(context.Background(), eng, s, nilEmit); err != nil {
+		t.Fatalf("nodeModel error: %v", err)
+	}
+
+	sent := make(map[string]bool, len(fake.LastRequest.Tools))
+	for _, d := range fake.LastRequest.Tools {
+		sent[d.Name] = true
+	}
+
+	// Câu hỏi mới nhắc "tài liệu"/"upload"/"convention" → phải được cấp rag.search.
+	// Nếu code lấy "xin chào" (câu đầu) thì đây là nhánh no-intent, rag.search
+	// bị loại và test này fail — đúng như hành vi trước fix.
+	if !sent["rag.search"] {
+		t.Errorf("tool gửi cho LLM = %v, want có rag.search (lọc theo câu hỏi MỚI về tài liệu)", sent)
+	}
+}
+
+// TestNodeModel_LatestMessageDoesNotLeakRAGForGenericQuestion là mặt còn lại:
+// lượt trước hỏi về tài liệu, lượt này hỏi kiến thức lập trình chung chung →
+// KHÔNG được tiếp tục cấp rag.search chỉ vì câu cũ có nhắc tài liệu.
+func TestNodeModel_LatestMessageDoesNotLeakRAGForGenericQuestion(t *testing.T) {
+	reg := tools.NewRegistry()
+	reg.Register(tools.NewEchoTool())
+	reg.Register(tools.NewWebSearchTool(nil))
+	reg.Register(tools.NewWebFetchTool(nil))
+	reg.Register(tools.NewFileSearchTool(nil))
+	reg.Register(tools.NewFileReadTool(nil))
+	reg.Register(tools.NewShellTool(nil))
+	reg.Register(tools.NewCalculatorTool())
+	reg.Register(tools.NewRecallMemoryTool())
+	reg.Register(tools.NewSaveMemoryTool())
+	reg.Register(tools.NewRAGSearchTool(nil, "test", "", nil, tools.RAGSearchConfig{}))
+
+	fake := newCapturingProvider(
+		provider.StreamChunk{Kind: provider.ChunkText, Text: "OK"},
+		provider.StreamChunk{Kind: provider.ChunkDone},
+	)
+	eng := &fakeEngine{prov: fake, registry: reg}
+
+	s := newState(RunInput{
+		History: []provider.Message{
+			{Role: provider.RoleUser, Content: "trong tài liệu tôi upload có gì về convention?"},
+			{Role: provider.RoleAssistant, Content: "Tài liệu nói rằng..."},
+		},
+		UserMessage: "Viết custom hook useMemo kết hợp useSelector của react-redux",
+		MaxSteps:    12,
+	})
+
+	if _, err := nodeModel(context.Background(), eng, s, nilEmit); err != nil {
+		t.Fatalf("nodeModel error: %v", err)
+	}
+
+	for _, d := range fake.LastRequest.Tools {
+		if d.Name == "rag.search" {
+			t.Errorf("câu hỏi lập trình chung chung không được cấp rag.search (rò rỉ từ câu hỏi cũ)")
+		}
+	}
+}
+
 // Không có memory nào được recall (RecalledMemories rỗng) → system prompt
 // không được thêm section [BỘ NHỚ] (tránh noise/token thừa).
 func TestNodeModel_NoRecalledMemories_NoMemorySection(t *testing.T) {

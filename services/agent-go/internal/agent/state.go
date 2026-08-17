@@ -160,6 +160,24 @@ func (s *State) LastAssistant() *provider.Message {
 	return nil
 }
 
+// LastUserContent trả về nội dung message user MỚI NHẤT (duyệt ngược) — tức
+// câu người dùng đang hỏi ở lượt này, không phải câu đầu cuộc hội thoại.
+//
+// Đây là câu hỏi đúng để lọc tool, match skill và chọn thinking level. Trước
+// khi có helper này, node_model và node_plan tự duyệt XUÔI rồi break, nên
+// trong MỌI lượt chat có history chúng lấy câu hỏi CŨ NHẤT: tool được lọc
+// theo intent của câu đã trả lời xong từ lâu, skill activate theo câu cũ.
+// memory.RecallNode thì duyệt ngược (đúng) — sự bất đối xứng đó chính là bug.
+// Giữ một helper duy nhất ở đây để 3 chỗ không thể lệch nhau lần nữa.
+func (s *State) LastUserContent() string {
+	for i := len(s.Messages) - 1; i >= 0; i-- {
+		if s.Messages[i].Role == provider.RoleUser {
+			return s.Messages[i].Content
+		}
+	}
+	return ""
+}
+
 // AppendObservation thêm một observation vào Scratchpad và tạo message
 // role=tool tương ứng trong Messages (để LLM thấy kết quả tool).
 func (s *State) AppendObservation(obs Observation) {

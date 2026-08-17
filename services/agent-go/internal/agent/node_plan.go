@@ -34,13 +34,10 @@ func nodePlan(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (No
 		return NodeModel, nil
 	}
 
-	var userInput string
-	for _, m := range s.Messages {
-		if m.Role == provider.RoleUser {
-			userInput = m.Content
-			break
-		}
-	}
+	// Câu hỏi HIỆN TẠI (message user mới nhất) — xem State.LastUserContent.
+	// Trước đây duyệt xuôi + break nên đánh giá độ phức tạp theo câu hỏi ĐẦU
+	// cuộc hội thoại thay vì câu đang cần lập kế hoạch.
+	userInput := s.LastUserContent()
 
 	if userInput == "" || !isComplexRequest(userInput) {
 		return NodeModel, nil

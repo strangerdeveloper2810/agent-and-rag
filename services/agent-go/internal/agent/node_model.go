@@ -43,15 +43,11 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 		emit(MemoryEvent(fmt.Sprintf("trimmed %d tokens from context", trimmed)))
 	}
 
-	// Input gốc của người dùng — dùng chung cho dynamic thinking, skill
-	// matching và lọc tool theo task.
-	var userInput string
-	for _, m := range s.Messages {
-		if m.Role == provider.RoleUser {
-			userInput = m.Content
-			break
-		}
-	}
+	// Câu hỏi HIỆN TẠI của người dùng — dùng chung cho dynamic thinking, skill
+	// matching và lọc tool theo task. Phải là message user MỚI NHẤT: trước đây
+	// vòng lặp ở đây duyệt xuôi + break nên lấy câu ĐẦU cuộc hội thoại, khiến
+	// mọi lượt chat có history lọc tool/match skill theo câu hỏi đã cũ.
+	userInput := s.LastUserContent()
 
 	// Dynamic thinking: choose OFF/LOW/MEDIUM based on task complexity.
 	// Only applied when no explicit ThinkingLevel is configured.

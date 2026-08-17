@@ -236,6 +236,83 @@ func TestMatchSkill_NoMatch(t *testing.T) {
 	}
 }
 
+// TestMatchSkill_StopWordsAndWordBoundary khoá đúng lỗi đã gặp trên log dev:
+// skill learning-tutor có description "...use analogies..." nên từ "use" khớp
+// SUBSTRING trong "useMemo"/"useSelector", khiến câu hỏi React kích hoạt skill
+// dạy học hoàn toàn không liên quan. Tương tự "for" khớp "format", "and" khớp
+// "android".
+func TestMatchSkill_StopWordsAndWordBoundary(t *testing.T) {
+	dir := t.TempDir()
+	skillDir := filepath.Join(dir, "learning-tutor")
+	mustMkdir(t, skillDir)
+	mustWriteFile(t, filepath.Join(skillDir, "SKILL.md"), `---
+name: learning-tutor
+description: Explain complex concepts simply and use analogies for any topic
+when_to_use: When the user wants to learn something new or understand a concept
+tools: [web.search]
+---
+
+# Learning Tutor
+Teach clearly.`)
+
+	loader, err := NewLoader(dir)
+	if err != nil {
+		t.Fatalf("NewLoader: %v", err)
+	}
+
+	// "useMemo"/"useSelector" chứa "use" nhưng KHÔNG phải từ "use" riêng.
+	for _, input := range []string{
+		"Viết custom hook useMemo kết hợp với useSelector của react-redux",
+		"format lại đoạn code này",
+		"android studio cài thế nào",
+	} {
+		if s := loader.MatchSkill(input); s != nil {
+			t.Errorf("input %q không được kích hoạt skill %q (khớp qua stopword/substring)", input, s.Name)
+		}
+	}
+
+	// Từ có nghĩa, đứng riêng → vẫn phải khớp bình thường.
+	if s := loader.MatchSkill("giải thích giúp tôi concepts này"); s == nil {
+		t.Error("từ khoá có nghĩa 'concepts' đứng riêng phải khớp skill")
+	}
+}
+
+// TestMatchSkill_Deterministic khoá bug nondeterministic: MatchSkill và
+// ListSkills từng duyệt trực tiếp map[string]*Skill — thứ tự map trong Go là
+// random, nên khi input khớp NHIỀU skill thì skill nào thắng đổi giữa các lần
+// chạy, và block [KỸ NĂNG] trong system prompt cũng đổi thứ tự mỗi lần khởi
+// động (phá vỡ cacheable prefix của prompt caching).
+func TestMatchSkill_Deterministic(t *testing.T) {
+	loader := setupTestLoader(t)
+
+	// Input này khớp cả code-review lẫn debug qua keyword description.
+	const input = "review this crash and the bug in code quality"
+
+	first := loader.MatchSkill(input)
+	if first == nil {
+		t.Fatal("expected a match")
+	}
+	for i := 0; i < 50; i++ {
+		if got := loader.MatchSkill(input); got == nil || got.Name != first.Name {
+			t.Fatalf("MatchSkill không deterministic: lần %d ra %v, lần đầu ra %q", i, got, first.Name)
+		}
+	}
+
+	// ListSkills cũng phải ổn định thứ tự (ảnh hưởng prompt cache prefix).
+	want := loader.ListSkills()
+	for i := 0; i < 50; i++ {
+		got := loader.ListSkills()
+		if len(got) != len(want) {
+			t.Fatalf("ListSkills đổi độ dài: %d vs %d", len(got), len(want))
+		}
+		for j := range got {
+			if got[j].Name != want[j].Name {
+				t.Fatalf("ListSkills không deterministic tại index %d: %q vs %q", j, got[j].Name, want[j].Name)
+			}
+		}
+	}
+}
+
 func TestMatchSkill_NameTakesPrecedence(t *testing.T) {
 	loader := setupTestLoader(t)
 

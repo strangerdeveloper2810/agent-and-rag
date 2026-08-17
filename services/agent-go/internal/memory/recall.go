@@ -8,7 +8,6 @@ import (
 
 	"github.com/ai-agent-tut/agent-go/internal/agent"
 	"github.com/ai-agent-tut/agent-go/internal/middleware"
-	"github.com/ai-agent-tut/agent-go/internal/provider"
 )
 
 var keywordToKeys = map[string][]string{
@@ -41,7 +40,7 @@ func RecallNode(store *Store) agent.Node {
 	return func(ctx context.Context, s *agent.State, emit agent.EmitFunc) (agent.NodeID, error) {
 		tenantID := middleware.GetTenantID(ctx)
 
-		query := lastUserContent(s)
+		query := s.LastUserContent()
 		if query == "" {
 			return agent.NodeModel, nil
 		}
@@ -98,11 +97,6 @@ func RecallNode(store *Store) agent.Node {
 	}
 }
 
-func lastUserContent(s *agent.State) string {
-	for i := len(s.Messages) - 1; i >= 0; i-- {
-		if s.Messages[i].Role == provider.RoleUser {
-			return s.Messages[i].Content
-		}
-	}
-	return ""
-}
+// lastUserContent đã được gộp vào agent.State.LastUserContent() để node_model
+// / node_plan / recall dùng CHUNG một cách lấy câu hỏi hiện tại — trước đây 3
+// chỗ tự duyệt riêng và 2 trong số đó duyệt sai chiều.
