@@ -23,6 +23,31 @@ func (m *mockReflectionProvider) Generate(ctx context.Context, req provider.Gene
 
 func (m *mockReflectionProvider) Name() string { return "mock" }
 
+// sequenceReflectionProvider trả về response KHÁC NHAU cho mỗi lần Generate()
+// được gọi liên tiếp — dùng để test hành vi retry của ReflectAndExtract khi
+// lần gọi đầu ra JSON sai cú pháp nhưng lần sau ra JSON hợp lệ.
+type sequenceReflectionProvider struct {
+	responses []string
+	calls     int
+}
+
+func (m *sequenceReflectionProvider) Generate(ctx context.Context, req provider.GenerateRequest) (<-chan provider.StreamChunk, error) {
+	idx := m.calls
+	if idx >= len(m.responses) {
+		idx = len(m.responses) - 1
+	}
+	resp := m.responses[idx]
+	m.calls++
+
+	ch := make(chan provider.StreamChunk, 2)
+	ch <- provider.StreamChunk{Kind: provider.ChunkText, Text: resp}
+	ch <- provider.StreamChunk{Kind: provider.ChunkDone}
+	close(ch)
+	return ch, nil
+}
+
+func (m *sequenceReflectionProvider) Name() string { return "mock-sequence" }
+
 func TestReflectAndExtract_Success(t *testing.T) {
 	jsonResp := `{
 		"user_facts": [
@@ -129,6 +154,59 @@ func TestReflectAndExtract_GarbageJSON_ReturnsEmpty(t *testing.T) {
 	}
 	if len(res.UserFacts) != 0 || len(res.KnowledgeItems) != 0 {
 		t.Fatalf("expected empty result cho garbage input, got %+v", res)
+	}
+}
+
+// TestReflectAndExtract_UnescapedQuote_RetriesAndRecovers tái hiện đúng bug
+// thực tế từ log dev: LLM sinh content chứa dấu ngoặc kép CHƯA escape (vd
+// `similarity: "cosine"`) khiến json.Unmarshal fail với lỗi "invalid
+// character 'c' after object key:value pair" — KHÁC bug bị cắt cụt
+// (repairTruncatedJSON không cứu được case này vì JSON có đủ dấu đóng, chỉ
+// là escaping sai giữa chừng). Lần gọi đầu lỗi, lần 2 (retry) phải parse
+// được JSON hợp lệ.
+func TestReflectAndExtract_UnescapedQuote_RetriesAndRecovers(t *testing.T) {
+	// Lỗi thật: "cosine" không được escape bên trong content.
+	malformed := `{"user_facts": [], "knowledge_items": [{"title": "Atlas Vector Search", "summary": "Tối ưu index.", "tags": ["mongodb"], "content": "Dùng similarity: "cosine" cho index."}]}`
+	valid := `{"user_facts": [], "knowledge_items": [{"title": "Atlas Vector Search", "summary": "Tối ưu index.", "tags": ["mongodb"], "content": "Dùng similarity: cosine cho index."}]}`
+
+	mockP := &sequenceReflectionProvider{responses: []string{malformed, valid}}
+	messages := []provider.Message{
+		{Role: provider.RoleUser, Content: "test"},
+		{Role: provider.RoleAssistant, Content: "test"},
+	}
+
+	res, err := ReflectAndExtract(context.Background(), mockP, "mock-model", messages)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if mockP.calls != 2 {
+		t.Fatalf("expected 2 lần gọi Generate (1 lỗi + 1 retry thành công), got %d", mockP.calls)
+	}
+	if len(res.KnowledgeItems) != 1 || res.KnowledgeItems[0].Title != "Atlas Vector Search" {
+		t.Fatalf("expected knowledge item khôi phục từ lần retry, got %+v", res)
+	}
+}
+
+// TestReflectAndExtract_AlwaysMalformed_GivesUpGracefully xác nhận khi TẤT
+// CẢ các lần thử (kể cả retry) đều ra JSON hỏng, hàm trả về rỗng êm thay vì
+// panic/lỗi — giữ đúng hợp đồng cũ (Learner chỉ log WARN rồi bỏ qua lượt học).
+func TestReflectAndExtract_AlwaysMalformed_GivesUpGracefully(t *testing.T) {
+	malformed := `{"user_facts": [], "knowledge_items": [{"content": "broken "quote" here"}]}`
+	mockP := &sequenceReflectionProvider{responses: []string{malformed, malformed, malformed}}
+	messages := []provider.Message{
+		{Role: provider.RoleUser, Content: "test"},
+		{Role: provider.RoleAssistant, Content: "test"},
+	}
+
+	res, err := ReflectAndExtract(context.Background(), mockP, "mock-model", messages)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if mockP.calls != maxReflectionAttempts {
+		t.Fatalf("expected đúng %d lần gọi (hết retry budget), got %d", maxReflectionAttempts, mockP.calls)
+	}
+	if len(res.UserFacts) != 0 || len(res.KnowledgeItems) != 0 {
+		t.Fatalf("expected empty result sau khi hết retry, got %+v", res)
 	}
 }
 
