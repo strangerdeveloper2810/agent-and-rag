@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/ai-agent-tut/agent-go/internal/provider"
 )
@@ -15,11 +16,41 @@ import (
 // như network/API) để ReflectAndExtract biết khi nào nên retry.
 var errReflectionParseFailed = errors.New("reflection: không parse được JSON trả về")
 
+// errReflectionTruncated đánh dấu response bị cắt vì CHẠM GIỚI HẠN TOKEN —
+// biết chắc qua FinishReason == FinishLength, không phải suy đoán từ lỗi parse.
+// Retry cùng MaxTokens là vô nghĩa với lỗi này (lần sau cũng cắt y vậy), nên
+// ReflectAndExtract sẽ retry với MaxTokens GẤP ĐÔI.
+var errReflectionTruncated = errors.New("reflection: response bị cắt vì chạm giới hạn token")
+
+// errReflectionTimeout đánh dấu context đã hết hạn giữa lúc đọc stream. Đây là
+// đường "cắt cụt im lặng" nguy hiểm nhất: provider thoát vòng emit khi
+// ctx.Done() nên channel đóng mà KHÔNG có ChunkError lẫn ChunkDone, và trước
+// đây reflection nhầm nó thành "JSON hỏng" rồi retry — trong khi ngân sách
+// thời gian đã cạn nên retry chắc chắn cũng chết. Với lỗi này: KHÔNG retry.
+var errReflectionTimeout = errors.New("reflection: hết thời gian khi đọc stream")
+
 // maxReflectionAttempts: LLM đôi khi sinh JSON sai cú pháp (vd quên escape
 // dấu ngoặc kép bên trong 1 string value — xem repairTruncatedJSON cho case
 // bị cắt cụt riêng). Đây là lỗi xác suất, thử lại 1 lần thường ra kết quả
 // hợp lệ thay vì mất trắng lượt học đó.
 const maxReflectionAttempts = 2
+
+// reflectionMaxTokens là ngân sách output cho 1 lượt reflection.
+//
+// Con số cũ 4096 là tự bó: model đang dùng (deepseek-v4-flash) cho output rất
+// lớn, và output thực tế của reflection chỉ ~2-4K token. Nhưng khi thinking
+// bật (mặc định trên model này) phần suy luận có thể ăn vào ngân sách, nên
+// 4096 dễ chạm trần. 16384 để dư ~4x mà vẫn là con số hợp lý cho task phụ trợ.
+const reflectionMaxTokens = 16384
+
+// reflectionPerAttemptTimeout giới hạn TỪNG lần gọi LLM. Trước đây cả 2 attempt
+// dùng chung ctx 45s từ learner.go, nên attempt 1 chạy lâu là attempt 2 gần
+// như không còn thời gian — retry chỉ có trên giấy.
+const reflectionPerAttemptTimeout = 40 * time.Second
+
+// maxReflectionConvRunes giới hạn độ dài transcript đưa vào prompt, tính theo
+// RUNE (không phải byte) để không chẻ giữa ký tự tiếng Việt.
+const maxReflectionConvRunes = 8000
 
 // UserFact represents a learned preference, technology choice, or biographical fact about the user.
 type UserFact struct {
@@ -56,7 +87,8 @@ Nhiệm vụ của bạn là phân tích đoạn hội thoại vừa diễn ra g
    - Title: Tiêu đề rõ ràng
    - Summary: Tóm tắt 1-2 câu
    - Tags: Mảng các từ khóa liên quan
-   - Content: Nội dung chi tiết bằng Markdown giải thích vấn đề và cách giải quyết — SÚC TÍCH, tối đa khoảng 300 từ (đủ ý chính, không cần đầy đủ như tài liệu)
+   - Content: Nội dung bằng Markdown giải thích vấn đề và cách giải quyết — SÚC TÍCH, tối đa khoảng 120 từ (đủ ý chính, không cần đầy đủ như tài liệu)
+   - TỐI ĐA 2 knowledge_items mỗi lượt. Chọn 2 cái giá trị nhất, bỏ phần còn lại.
 
 BẮT BUỘC trả về định dạng JSON thuần túy (không kèm markdown code block hoặc text giải thích):
 {
@@ -95,34 +127,59 @@ func ReflectAndExtract(ctx context.Context, p provider.Provider, model string, m
 		convText.WriteString(fmt.Sprintf("%s: %s\n\n", strings.ToUpper(string(m.Role)), m.Content))
 	}
 
+	// Cắt theo RUNE, không theo byte: transcript là tiếng Việt nên slice byte
+	// có thể chẻ giữa một ký tự multi-byte, để lại byte rác ở đầu prompt.
 	trimmedConv := convText.String()
-	if len(trimmedConv) > 8000 {
-		trimmedConv = trimmedConv[len(trimmedConv)-8000:]
+	if runes := []rune(trimmedConv); len(runes) > maxReflectionConvRunes {
+		trimmedConv = string(runes[len(runes)-maxReflectionConvRunes:])
 	}
 
 	var lastErr error
+	maxTokens := reflectionMaxTokens
 	for attempt := 1; attempt <= maxReflectionAttempts; attempt++ {
-		res, err := reflectOnce(ctx, p, model, trimmedConv)
+		res, err := reflectOnce(ctx, p, model, trimmedConv, maxTokens)
 		if err == nil {
 			return res, nil
 		}
-		if !errors.Is(err, errReflectionParseFailed) {
+
+		switch {
+		case errors.Is(err, errReflectionTimeout):
+			// Ngân sách thời gian đã cạn — retry chắc chắn cũng chết, và còn
+			// làm chậm request kế tiếp. Bỏ cuộc êm, giữ log rõ nguyên nhân.
+			slog.Warn("memory: reflection hết thời gian — bỏ qua lượt học này (không retry)", "attempt", attempt, "err", err)
+			return &ReflectionResult{}, nil
+
+		case errors.Is(err, errReflectionTruncated):
+			// Biết CHẮC là chạm trần token → retry cùng ngân sách là vô nghĩa.
+			maxTokens *= 2
+			lastErr = err
+			slog.Warn("memory: reflection bị cắt vì chạm giới hạn token, thử lại với ngân sách gấp đôi",
+				"attempt", attempt, "max_attempts", maxReflectionAttempts, "next_max_tokens", maxTokens, "err", err)
+
+		case errors.Is(err, errReflectionParseFailed):
+			lastErr = err
+			slog.Warn("memory: reflection JSON parse thất bại, thử lại", "attempt", attempt, "max_attempts", maxReflectionAttempts, "err", err)
+
+		default:
 			// Lỗi Generate() thật sự (network/API) — không phải lỗi xác
 			// suất của 1 lần sinh, retry không giúp ích, trả lỗi luôn.
 			return nil, err
 		}
-		lastErr = err
-		slog.Warn("memory: reflection JSON parse thất bại, thử lại", "attempt", attempt, "max_attempts", maxReflectionAttempts, "err", err)
 	}
 
-	slog.Warn("memory: reflection JSON vẫn không parse được sau khi thử lại — bỏ qua lượt học này", "err", lastErr)
+	slog.Warn("memory: reflection vẫn thất bại sau khi thử lại — bỏ qua lượt học này", "err", lastErr)
 	return &ReflectionResult{}, nil
 }
 
 // reflectOnce chạy đúng 1 lượt Generate() + parse JSON. Trả về
 // errReflectionParseFailed (wrap) khi lỗi là do JSON sai cú pháp — caller
 // (ReflectAndExtract) dựa vào đây để quyết định retry.
-func reflectOnce(ctx context.Context, p provider.Provider, model, trimmedConv string) (*ReflectionResult, error) {
+func reflectOnce(ctx context.Context, p provider.Provider, model, trimmedConv string, maxTokens int) (*ReflectionResult, error) {
+	// Timeout RIÊNG cho lần gọi này — xem reflectionPerAttemptTimeout. Vẫn tôn
+	// trọng deadline của ctx cha nếu nó ngắn hơn.
+	ctx, cancel := context.WithTimeout(ctx, reflectionPerAttemptTimeout)
+	defer cancel()
+
 	req := provider.GenerateRequest{
 		System: reflectionSystemPrompt,
 		Messages: []provider.Message{
@@ -133,7 +190,11 @@ func reflectOnce(ctx context.Context, p provider.Provider, model, trimmedConv st
 		},
 		Options: provider.ProviderOptions{
 			Model:     model,
-			MaxTokens: 4096,
+			MaxTokens: maxTokens,
+			// Reflection là task trích xuất máy móc theo schema cố định, không
+			// cần chuỗi suy luận dài. Với model bật thinking mặc định, phần suy
+			// luận vừa tốn thời gian vừa có thể ăn vào ngân sách output.
+			ThinkingLevel: provider.ThinkingOff,
 		},
 	}
 
@@ -144,6 +205,9 @@ func reflectOnce(ctx context.Context, p provider.Provider, model, trimmedConv st
 
 	var fullResp strings.Builder
 	var streamErr error
+	var finish provider.FinishReason
+	var sawDone bool
+	var outputTokens int
 	for chunk := range chunkChan {
 		switch chunk.Kind {
 		case provider.ChunkText:
@@ -156,6 +220,17 @@ func reflectOnce(ctx context.Context, p provider.Provider, model, trimmedConv st
 			// để ReflectAndExtract retry — thực tế đã thấy retry cứu được
 			// case ChunkError thoáng qua này trong log dev.
 			streamErr = chunk.Err
+		case provider.ChunkDone:
+			// Tín hiệu quyết định để phân biệt "bị cắt" với "JSON hỏng" —
+			// trước đây bị bỏ hoàn toàn, nên mọi nguyên nhân khác nhau đều hiện
+			// ra dưới cùng một triệu chứng "unexpected end of JSON input" và
+			// mỗi lần vá chỉ đoán được một nhánh.
+			finish = chunk.FinishReason
+			sawDone = true
+		case provider.ChunkUsage:
+			if chunk.Usage != nil {
+				outputTokens = chunk.Usage.OutputTokens
+			}
 		}
 	}
 	if streamErr != nil {
@@ -163,6 +238,25 @@ func reflectOnce(ctx context.Context, p provider.Provider, model, trimmedConv st
 	}
 
 	raw := strings.TrimSpace(fullResp.String())
+
+	// Thứ tự kiểm tra quan trọng: ctx trước (nguyên nhân "im lặng" nhất), rồi
+	// chạm trần token, rồi stream kết thúc không rõ lý do.
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return nil, fmt.Errorf("%w: %v (đã nhận %d ký tự)", errReflectionTimeout, ctxErr, len(raw))
+	}
+	if finish == provider.FinishLength {
+		return nil, fmt.Errorf("%w: max_tokens=%d, output_tokens=%d, raw_len=%d",
+			errReflectionTruncated, maxTokens, outputTokens, len(raw))
+	}
+	if !sawDone {
+		// Stream đóng mà không có ChunkDone lẫn ChunkError: adapter thoát giữa
+		// đường (vd emit bị ctx.Done() chặn). Không đủ cơ sở kết luận nguyên
+		// nhân nên vẫn để logic parse/repair chạy, nhưng PHẢI log để lần sau
+		// không phải đoán nữa.
+		slog.Warn("memory: reflection stream kết thúc không có ChunkDone — nghi bị cắt giữa đường",
+			"raw_len", len(raw), "output_tokens", outputTokens)
+	}
+
 	// Strip markdown code fence if LLM wrapped in ```json
 	raw = strings.TrimPrefix(raw, "```json")
 	raw = strings.TrimPrefix(raw, "```")

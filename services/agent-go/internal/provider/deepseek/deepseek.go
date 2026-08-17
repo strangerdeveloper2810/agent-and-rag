@@ -76,10 +76,16 @@ func (c *Client) pickModel(req provider.GenerateRequest) string {
 // --- OpenAI-compatible types ---
 
 type dsMessage struct {
-	Role       string       `json:"role"`
-	Content    string       `json:"content,omitempty"`
-	ToolCalls  []dsToolCall `json:"tool_calls,omitempty"`
-	ToolCallID string       `json:"tool_call_id,omitempty"`
+	Role      string       `json:"role"`
+	Content   string       `json:"content,omitempty"`
+	ToolCalls []dsToolCall `json:"tool_calls,omitempty"`
+	// ReasoningContent là chuỗi suy luận (CoT) model sinh ra, đến dưới dạng
+	// delta RIÊNG chứ không nằm trong content. Không emit ra ChunkText (không
+	// phải câu trả lời), nhưng PHẢI đọc để log được: khi nó ăn hết ngân sách
+	// token thì content rỗng, và nếu không thấy field này thì triệu chứng
+	// trông như "provider trả rỗng không rõ lý do".
+	ReasoningContent string `json:"reasoning_content,omitempty"`
+	ToolCallID       string `json:"tool_call_id,omitempty"`
 }
 
 type dsToolCall struct {
@@ -111,6 +117,33 @@ type dsChatRequest struct {
 	Tools     []dsToolDef `json:"tools,omitempty"`
 	Stream    bool        `json:"stream"`
 	MaxTokens int         `json:"max_tokens,omitempty"`
+
+	// Thinking tắt/bật chế độ suy luận. Với model deepseek-v4-* thinking BẬT
+	// MẶC ĐỊNH và token suy luận TÍNH VÀO max_tokens — đã verify bằng API thật:
+	// cùng prompt với max_tokens=16, nếu KHÔNG gửi field này thì toàn bộ 16
+	// token vào reasoning, content trả về RỖNG và finish_reason="length"; gửi
+	// {"type":"disabled"} thì content="OK" chỉ tốn 1 token.
+	// Đây là lý do các task phụ trợ ngân sách nhỏ (HyDE/LLM rerank max_tokens
+	// =200, reflection 4096) âm thầm trả rỗng hoặc bị cắt.
+	Thinking *dsThinking `json:"thinking,omitempty"`
+
+	// ReasoningEffort điều chỉnh ĐỘ SÂU suy luận khi thinking bật. Lưu ý đã
+	// verify: reasoning_effort="low" KHÔNG tắt suy luận (vẫn ăn hết ngân sách
+	// nhỏ) — muốn tắt phải dùng Thinking ở trên.
+	ReasoningEffort string `json:"reasoning_effort,omitempty"`
+
+	// StreamOptions bật usage trong stream. API tương thích OpenAI không gửi
+	// usage ở chế độ stream nếu thiếu flag này, nên ChunkUsage trước đây
+	// thường không có số thật.
+	StreamOptions *dsStreamOptions `json:"stream_options,omitempty"`
+}
+
+type dsThinking struct {
+	Type string `json:"type"` // "disabled" | "enabled"
+}
+
+type dsStreamOptions struct {
+	IncludeUsage bool `json:"include_usage"`
 }
 
 type dsChoice struct {
@@ -203,18 +236,24 @@ func toDSTools(tools []provider.ToolDef) []dsToolDef {
 	return out
 }
 
+// mapReasoningEffort ánh xạ ThinkingLevel sang reasoning_effort của DeepSeek.
+// Trả rỗng khi không cần gửi (OFF xử lý riêng bằng thinking.disabled, và ""
+// nghĩa là để model dùng mặc định của nó).
+func mapReasoningEffort(level provider.ThinkingLevel) string {
+	switch level {
+	case provider.ThinkingLow:
+		return "low"
+	case provider.ThinkingMedium, provider.ThinkingHigh:
+		return "high"
+	default:
+		return ""
+	}
+}
+
 // --- Generate ---
 
 func (c *Client) Generate(ctx context.Context, req provider.GenerateRequest) (<-chan provider.StreamChunk, error) {
 	model := c.pickModel(req)
-	reasoningEnabled := (req.Options.ThinkingLevel != "" && req.Options.ThinkingLevel != provider.ThinkingOff) || model == c.proModel
-
-	slog.Info("deepseek: calling API",
-		"model", model,
-		"reasoning_enabled", reasoningEnabled,
-		"thinking_level", string(req.Options.ThinkingLevel),
-		"tools_count", len(req.Tools),
-	)
 
 	messages := toDSMessages(req.Messages)
 	if req.System != "" {
@@ -227,7 +266,31 @@ func (c *Client) Generate(ctx context.Context, req provider.GenerateRequest) (<-
 		Tools:     toDSTools(req.Tools),
 		Stream:    true,
 		MaxTokens: req.Options.MaxTokens,
+		// Luôn xin usage trong stream — nếu không có flag này API tương thích
+		// OpenAI không gửi usage khi stream.
+		StreamOptions: &dsStreamOptions{IncludeUsage: true},
 	}
+
+	// ThinkingLevel trước đây chỉ được dùng để LOG, không hề gửi lên API, nên
+	// provider.ThinkingOff là no-op hoàn toàn với DeepSeek.
+	if req.Options.ThinkingLevel == provider.ThinkingOff {
+		body.Thinking = &dsThinking{Type: "disabled"}
+	} else if effort := mapReasoningEffort(req.Options.ThinkingLevel); effort != "" {
+		body.ReasoningEffort = effort
+	}
+
+	// Log ĐÚNG những gì thực sự gửi lên API. Trước đây log một biến
+	// reasoningEnabled tự suy ra và không liên quan tới request, nên khi
+	// ThinkingLevel=OFF nó vẫn in reasoning_enabled=true — sai lệch đúng chỗ
+	// cần chẩn đoán nhất.
+	slog.Info("deepseek: calling API",
+		"model", model,
+		"thinking_disabled", body.Thinking != nil,
+		"reasoning_effort", body.ReasoningEffort,
+		"thinking_level", string(req.Options.ThinkingLevel),
+		"max_tokens", body.MaxTokens,
+		"tools_count", len(req.Tools),
+	)
 
 	payload, err := json.Marshal(body)
 	if err != nil {
@@ -285,6 +348,24 @@ func (c *Client) streamSSE(ctx context.Context, body io.ReadCloser, out chan pro
 
 	var toolCalls []pendingTool
 	var finish provider.FinishReason
+	// textLen/reasoningLen chỉ để log chẩn đoán: phân biệt "model không trả gì"
+	// với "model suy luận hết ngân sách token nên không còn chỗ cho câu trả lời".
+	var textLen, reasoningLen int
+
+	// warnIfReasoningAteBudget log khi câu trả lời rỗng/bị cắt mà phần suy luận
+	// lại dài — dấu hiệu ngân sách max_tokens bị CoT ăn hết. Đã verify bằng API
+	// thật: max_tokens=16 + thinking bật mặc định → 16/16 token vào reasoning,
+	// content rỗng, finish_reason="length".
+	warnIfReasoningAteBudget := func() {
+		if reasoningLen > 0 && (textLen == 0 || finish == provider.FinishLength) {
+			slog.Warn("deepseek: phần suy luận (reasoning) chiếm ngân sách token, câu trả lời bị rỗng hoặc bị cắt",
+				"reasoning_chars", reasoningLen,
+				"text_chars", textLen,
+				"finish_reason", string(finish),
+				"hint", "đặt ThinkingLevel=OFF cho task ngân sách nhỏ, hoặc tăng MaxTokens",
+			)
+		}
+	}
 
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -293,6 +374,7 @@ func (c *Client) streamSSE(ctx context.Context, body io.ReadCloser, out chan pro
 		}
 		if line == "data: [DONE]" {
 			flushToolCalls(&toolCalls, emit)
+			warnIfReasoningAteBudget()
 			emit(provider.StreamChunk{Kind: provider.ChunkDone, FinishReason: finish})
 			return
 		}
@@ -331,9 +413,18 @@ func (c *Client) streamSSE(ctx context.Context, body io.ReadCloser, out chan pro
 
 			// Text
 			if delta.Content != "" {
+				textLen += len(delta.Content)
 				if !emit(provider.StreamChunk{Kind: provider.ChunkText, Text: delta.Content}) {
 					return
 				}
+			}
+
+			// Chuỗi suy luận: KHÔNG emit ra ChunkText (không phải câu trả lời),
+			// chỉ đếm để log. Cần thiết vì token suy luận tính vào max_tokens —
+			// khi nó ăn hết ngân sách thì content rỗng và nếu không đo được
+			// phần này thì triệu chứng trông như "provider trả rỗng vô cớ".
+			if delta.ReasoningContent != "" {
+				reasoningLen += len(delta.ReasoningContent)
 			}
 
 			// Incremental tool call deltas
@@ -374,8 +465,22 @@ func (c *Client) streamSSE(ctx context.Context, body io.ReadCloser, out chan pro
 		return
 	}
 
-	// End of stream (no DONE marker)
+	// scanner.Err() CHỈ trả lỗi non-EOF (theo tài liệu bufio) — nên nó KHÔNG
+	// bịt được trường hợp server/proxy đóng stream "sạch" giữa chừng: khi đó
+	// Err() là nil và ta rơi xuống đây. Phân biệt bằng finish: stream hoàn tất
+	// tử tế luôn kèm finish_reason ở chunk cuối. Nếu KHÔNG có [DONE] và cũng
+	// KHÔNG có finish_reason nào thì đây là stream bị cắt ngang, không phải
+	// thành công — emit ChunkError để caller biết thay vì nhận một response
+	// "rỗng nhưng thành công" rồi báo lỗi mơ hồ ở tầng parse JSON.
+	if finish == "" {
+		warnIfReasoningAteBudget()
+		emit(provider.StreamChunk{Kind: provider.ChunkError, Err: errors.New("deepseek: stream kết thúc giữa đường (không có [DONE] lẫn finish_reason)")})
+		return
+	}
+
+	// End of stream (thiếu [DONE] nhưng đã có finish_reason → coi là hợp lệ)
 	flushToolCalls(&toolCalls, emit)
+	warnIfReasoningAteBudget()
 	emit(provider.StreamChunk{Kind: provider.ChunkDone, FinishReason: finish})
 }
 

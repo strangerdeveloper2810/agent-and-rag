@@ -75,6 +75,131 @@ func (m *sequenceReflectionProvider) Generate(ctx context.Context, req provider.
 
 func (m *sequenceReflectionProvider) Name() string { return "mock-sequence" }
 
+// truncatingProvider mô phỏng model chạm trần token: trả JSON dở dang kèm
+// FinishReason=FinishLength (tín hiệu CHẮC CHẮN bị cắt), và ghi lại MaxTokens
+// của từng lần gọi để kiểm tra retry có nâng ngân sách hay không.
+type truncatingProvider struct {
+	calls            int
+	truncateForCalls int // trả bản bị cắt cho `truncateForCalls` lần đầu
+	truncatedResp    string
+	successResp      string
+	seenMaxTokens    []int
+	seenThinking     []provider.ThinkingLevel
+}
+
+func (m *truncatingProvider) Generate(ctx context.Context, req provider.GenerateRequest) (<-chan provider.StreamChunk, error) {
+	m.calls++
+	m.seenMaxTokens = append(m.seenMaxTokens, req.Options.MaxTokens)
+	m.seenThinking = append(m.seenThinking, req.Options.ThinkingLevel)
+
+	ch := make(chan provider.StreamChunk, 3)
+	if m.calls <= m.truncateForCalls {
+		ch <- provider.StreamChunk{Kind: provider.ChunkText, Text: m.truncatedResp}
+		ch <- provider.StreamChunk{Kind: provider.ChunkDone, FinishReason: provider.FinishLength}
+	} else {
+		ch <- provider.StreamChunk{Kind: provider.ChunkText, Text: m.successResp}
+		ch <- provider.StreamChunk{Kind: provider.ChunkDone, FinishReason: provider.FinishStop}
+	}
+	close(ch)
+	return ch, nil
+}
+
+func (m *truncatingProvider) Name() string { return "mock-truncating" }
+
+// TestReflectAndExtract_TruncatedByTokenLimit_RetriesWithDoubleBudget: khi
+// FinishReason=FinishLength, biết CHẮC là chạm trần token nên retry cùng ngân
+// sách là vô nghĩa (lần sau cắt y vậy). Trước fix, ChunkDone bị bỏ hoàn toàn
+// nên mọi nguyên nhân đều hiện ra dưới cùng triệu chứng "JSON hỏng" và retry
+// mù với đúng MaxTokens cũ.
+func TestReflectAndExtract_TruncatedByTokenLimit_RetriesWithDoubleBudget(t *testing.T) {
+	mockP := &truncatingProvider{
+		truncateForCalls: 1,
+		truncatedResp:    `{"user_facts": [], "knowledge_items": [{"title": "A", "summary": "B", "tags": ["go", "conc`,
+		successResp:      `{"user_facts": [], "knowledge_items": [{"title": "A", "summary": "B", "tags": ["go"], "content": "xong"}]}`,
+	}
+
+	res, err := ReflectAndExtract(context.Background(), mockP, "mock-model", []provider.Message{
+		{Role: provider.RoleUser, Content: "hỏi"},
+		{Role: provider.RoleAssistant, Content: "đáp"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if mockP.calls != 2 {
+		t.Fatalf("số lần gọi LLM = %d, want 2 (bị cắt lần 1, thành công lần 2)", mockP.calls)
+	}
+	if len(mockP.seenMaxTokens) != 2 {
+		t.Fatalf("không ghi được MaxTokens: %v", mockP.seenMaxTokens)
+	}
+	if mockP.seenMaxTokens[1] != mockP.seenMaxTokens[0]*2 {
+		t.Errorf("MaxTokens lần 2 = %d, want gấp đôi lần 1 (%d)", mockP.seenMaxTokens[1], mockP.seenMaxTokens[0])
+	}
+	if len(res.KnowledgeItems) != 1 || res.KnowledgeItems[0].Content != "xong" {
+		t.Errorf("kết quả = %+v, want lấy được item từ lần gọi thứ 2", res.KnowledgeItems)
+	}
+}
+
+// Reflection phải yêu cầu ThinkingOff: token suy luận tính vào max_tokens (đã
+// verify bằng API thật với deepseek-v4-flash), nên bật thinking cho task trích
+// xuất theo schema chỉ làm output bị cắt.
+func TestReflectAndExtract_RequestsThinkingOff(t *testing.T) {
+	mockP := &truncatingProvider{
+		successResp: `{"user_facts": [], "knowledge_items": []}`,
+	}
+
+	if _, err := ReflectAndExtract(context.Background(), mockP, "mock-model", []provider.Message{
+		{Role: provider.RoleUser, Content: "hỏi"},
+	}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(mockP.seenThinking) == 0 || mockP.seenThinking[0] != provider.ThinkingOff {
+		t.Errorf("ThinkingLevel gửi đi = %v, want OFF", mockP.seenThinking)
+	}
+}
+
+// timeoutProvider mô phỏng đường "cắt cụt im lặng" nguy hiểm nhất: ctx hết hạn
+// giữa lúc đọc stream → provider thoát vòng emit nên channel đóng mà KHÔNG có
+// ChunkError lẫn ChunkDone. Trước fix, reflection nhầm thành "JSON hỏng" rồi
+// retry, trong khi ngân sách thời gian đã cạn nên retry chắc chắn cũng chết.
+type timeoutProvider struct {
+	calls int
+}
+
+func (m *timeoutProvider) Generate(ctx context.Context, req provider.GenerateRequest) (<-chan provider.StreamChunk, error) {
+	m.calls++
+	ch := make(chan provider.StreamChunk, 1)
+	// Trả 1 phần text rồi đóng channel không có Done/Error, đồng thời chờ ctx
+	// hết hạn để ctx.Err() != nil ở phía caller.
+	ch <- provider.StreamChunk{Kind: provider.ChunkText, Text: `{"user_facts": [{"cat`}
+	close(ch)
+	<-ctx.Done()
+	return ch, nil
+}
+
+func (m *timeoutProvider) Name() string { return "mock-timeout" }
+
+func TestReflectAndExtract_Timeout_DoesNotRetry(t *testing.T) {
+	mockP := &timeoutProvider{}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	res, err := ReflectAndExtract(ctx, mockP, "mock-model", []provider.Message{
+		{Role: provider.RoleUser, Content: "hỏi"},
+	})
+	if err != nil {
+		t.Fatalf("hết thời gian phải bỏ qua êm, không trả lỗi: %v", err)
+	}
+	if res == nil || len(res.UserFacts) != 0 {
+		t.Errorf("kết quả = %+v, want rỗng", res)
+	}
+	if mockP.calls != 1 {
+		t.Errorf("số lần gọi = %d, want 1 (KHÔNG retry khi đã hết thời gian)", mockP.calls)
+	}
+}
+
 func TestReflectAndExtract_Success(t *testing.T) {
 	jsonResp := `{
 		"user_facts": [
