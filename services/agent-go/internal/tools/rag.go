@@ -146,8 +146,15 @@ func (t *ragSearchTool) vectorSearch(ctx context.Context, queryVector []float64,
 				{Key: "queryVector", Value: queryVector},
 				{Key: "numCandidates", Value: 100},
 				{Key: "limit", Value: limit},
-				{Key: "filter", Value: bson.D{{Key: "tenantId", Value: tenantID}}},
 			}},
+		},
+		// Lọc tenant SAU $vectorSearch, không dùng filter trong-stage: filter
+		// trong $vectorSearch đòi hỏi field phải được khai báo type "filter"
+		// trong Atlas Search index — index "vector_index" hiện tại chưa có,
+		// nên dùng filter trong-stage sẽ lỗi "Path 'tenantId' needs to be
+		// indexed as filter".
+		{
+			{Key: "$match", Value: bson.D{{Key: "tenantId", Value: tenantID}}},
 		},
 		{
 			{Key: "$project", Value: bson.D{
