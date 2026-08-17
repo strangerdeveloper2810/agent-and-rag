@@ -165,6 +165,40 @@ func TestReflectAndExtract_TruncatedJSON_Recovers(t *testing.T) {
 	}
 }
 
+// TestReflectAndExtract_TruncatedMidArray_Recovers tái hiện đúng case log dev
+// thật: model bị cắt NGAY SAU dấu phẩy giữa lúc liệt kê phần tử mảng "tags"
+// (chưa kịp sinh phần tử tiếp theo). repairTruncatedJSON (bản cũ) đóng ngoặc
+// ngay sau dấu phẩy đó, để lại trailing comma (`"goroutine",]`) — vẫn không
+// phải JSON hợp lệ, khiến cả lượt học mất trắng dù user_facts/phần lớn
+// knowledge_items đã hoàn chỉnh.
+func TestReflectAndExtract_TruncatedMidArray_Recovers(t *testing.T) {
+	truncated := `{
+  "user_facts": [],
+  "knowledge_items": [
+    {
+      "title": "Go Concurrency: Goroutines và Channels",
+      "summary": "Go xử lý đồng thời bằng goroutine và channel.",
+      "tags": ["golang", "concurrency", "goroutine",`
+
+	mockP := &mockReflectionProvider{response: truncated}
+	messages := []provider.Message{
+		{Role: provider.RoleUser, Content: "giải thích golang concurrency"},
+		{Role: provider.RoleAssistant, Content: "..."},
+	}
+
+	res, err := ReflectAndExtract(context.Background(), mockP, "mock-model", messages)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(res.KnowledgeItems) != 1 {
+		t.Fatalf("expected 1 knowledge item recovered, got %d: %+v", len(res.KnowledgeItems), res.KnowledgeItems)
+	}
+	if res.KnowledgeItems[0].Title != "Go Concurrency: Goroutines và Channels" {
+		t.Errorf("knowledge item title mismatch: %+v", res.KnowledgeItems[0])
+	}
+}
+
 // TestReflectAndExtract_GarbageJSON_ReturnsEmpty đảm bảo repairTruncatedJSON
 // không "cứu ép" input hoàn toàn rác (không phải JSON bị cắt cụt) thành kết
 // quả giả — vẫn phải fallback về rỗng như hành vi cũ.
@@ -317,6 +351,16 @@ func TestRepairTruncatedJSON(t *testing.T) {
 			name: "chuỗi rỗng không đổi",
 			in:   "",
 			want: "",
+		},
+		{
+			name: "cắt ngay sau dấu phẩy giữa mảng string — không để lại trailing comma",
+			in:   `{"tags": ["golang", "concurrency",`,
+			want: `{"tags": ["golang", "concurrency"]}`,
+		},
+		{
+			name: "cắt ngay sau dấu phẩy giữa 2 phần tử object trong mảng",
+			in:   `{"items": [{"title": "a"}, `,
+			want: `{"items": [{"title": "a"}]}`,
 		},
 	}
 
