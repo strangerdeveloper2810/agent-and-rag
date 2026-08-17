@@ -262,6 +262,53 @@ data: [DONE]
 	}
 }
 
+// TestGenerate_StreamReadError_EmitsChunkError tái hiện đúng bug thực tế từ
+// log dev: connection bị đóng đột ngột GIỮA stream (reset, timeout mạng...)
+// khiến scanner.Scan() trả false vì LỖI ĐỌC THẬT, không phải hết stream bình
+// thường. Trước fix, code không check scanner.Err() nên vẫn emit ChunkDone
+// như thành công, khiến caller nhận response "rỗng nhưng thành công" — hiện
+// ra ở tầng gọi (rerankLLM, HyDE, memory.ReflectAndExtract) dưới dạng lỗi mơ
+// hồ "unexpected end of JSON input" thay vì lỗi provider/mạng thật.
+func TestGenerate_StreamReadError_EmitsChunkError(t *testing.T) {
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte(`data: {"choices":[{"delta":{"content":"xin "}}]}` + "\n"))
+		w.(http.Flusher).Flush()
+
+		hj, ok := w.(http.Hijacker)
+		if !ok {
+			t.Fatal("ResponseWriter không hỗ trợ Hijack — không mô phỏng được connection reset")
+		}
+		conn, _, err := hj.Hijack()
+		if err != nil {
+			t.Fatalf("Hijack: %v", err)
+		}
+		conn.Close() // đóng đột ngột GIỮA stream, mô phỏng connection reset thật
+	})
+
+	stream, err := c.Generate(context.Background(), provider.GenerateRequest{
+		Messages: []provider.Message{{Role: provider.RoleUser, Content: "hi"}},
+	})
+	if err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+
+	chunks := drain(t, stream)
+
+	var gotChunkError bool
+	for _, ch := range chunks {
+		if ch.Kind == provider.ChunkError {
+			gotChunkError = true
+			if ch.Err == nil {
+				t.Error("ChunkError.Err = nil, muốn có lỗi thật kèm theo")
+			}
+		}
+	}
+	if !gotChunkError {
+		t.Fatalf("expected 1 ChunkError khi connection bị đóng đột ngột giữa stream, got %+v", chunks)
+	}
+}
+
 func TestGenerate_IncrementalToolCalls(t *testing.T) {
 	c := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"c1","function":{"name":"web_search"}}]}}]}
