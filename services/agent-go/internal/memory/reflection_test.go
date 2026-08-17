@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ai-agent-tut/agent-go/internal/middleware"
 	"github.com/ai-agent-tut/agent-go/internal/provider"
 )
 
@@ -96,13 +97,13 @@ func TestLearner_LearnFromConversation(t *testing.T) {
 	}
 
 	// Trigger async learning
-	learner.LearnFromConversation(messages, "conv-123")
+	learner.LearnFromConversation(context.Background(), messages, "conv-123")
 
 	// Poll for goroutine completion
 	var foundVal string
 	for i := 0; i < 50; i++ {
 		time.Sleep(10 * time.Millisecond)
-		if val, ok := store.Get("ui_library"); ok {
+		if val, ok := store.Get("default", "ui_library"); ok {
 			foundVal = val
 			break
 		}
@@ -110,5 +111,59 @@ func TestLearner_LearnFromConversation(t *testing.T) {
 
 	if foundVal != "Tailwind v4" {
 		t.Errorf("expected ui_library in store, got %q", foundVal)
+	}
+}
+
+// TestLearner_LearnFromConversation_TenantIsolation xác nhận fix P0 xuyên
+// suốt cả luồng: request context mang tenantID (qua middleware.TenantIDKey,
+// giống ChatHandler dùng r.Context() sau khi TenantMiddleware chạy) phải
+// được Learner truyền tới goroutine nền và cuối cùng ghi đúng namespace của
+// Store — tenant A "học" một fact thì tenant B tuyệt đối không được thấy nó,
+// dù dùng chung 1 Store singleton (đúng như wiring thật trong main.go).
+func TestLearner_LearnFromConversation_TenantIsolation(t *testing.T) {
+	store := NewStore()
+	jsonResp := `{
+		"user_facts": [
+			{"category": "user_profile", "key": "user_name", "value": "Linh", "confidence": 0.9}
+		],
+		"knowledge_items": []
+	}`
+
+	mockP := &mockReflectionProvider{response: jsonResp}
+	learner := NewLearner(store, nil, mockP, "mock-model", nil)
+
+	messages := []provider.Message{
+		{Role: provider.RoleUser, Content: "Tôi tên là Linh."},
+		{Role: provider.RoleAssistant, Content: "Đã rõ."},
+	}
+
+	// Giả lập request context của tenant "tenant-a" — đúng như TenantMiddleware
+	// sẽ set trước khi ChatHandler gọi LearnFromConversation(r.Context(), ...).
+	tenantACtx := context.WithValue(context.Background(), middleware.TenantIDKey, "tenant-a")
+	learner.LearnFromConversation(tenantACtx, messages, "conv-tenant-a")
+
+	// Poll for goroutine completion.
+	var found bool
+	for i := 0; i < 50; i++ {
+		time.Sleep(10 * time.Millisecond)
+		if _, ok := store.Get("tenant-a", "user_name"); ok {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("expected user_name học được nằm trong namespace tenant-a")
+	}
+
+	if v, _ := store.Get("tenant-a", "user_name"); v != "Linh" {
+		t.Errorf("Get(tenant-a, user_name) = %q, want Linh", v)
+	}
+	// Tenant khác (kể cả "default" — tenant fallback khi thiếu header
+	// X-Tenant-ID) tuyệt đối không được thấy fact vừa học của tenant-a.
+	if _, ok := store.Get("tenant-b", "user_name"); ok {
+		t.Fatal("tenant-b không được thấy user_name học được của tenant-a — rò rỉ chéo tenant (P0)")
+	}
+	if _, ok := store.Get("default", "user_name"); ok {
+		t.Fatal("tenant \"default\" không được thấy user_name học được của tenant-a — rò rỉ chéo tenant (P0)")
 	}
 }
