@@ -59,6 +59,20 @@ const (
 	ChunkError
 )
 
+// FinishReason là lý do model dừng sinh, đã chuẩn hoá giữa các provider.
+// Chỉ có ý nghĩa trên chunk Kind=ChunkDone.
+type FinishReason string
+
+const (
+	// FinishStop: model tự kết thúc câu trả lời (bình thường).
+	FinishStop FinishReason = "stop"
+	// FinishToolCalls: model dừng để gọi tool.
+	FinishToolCalls FinishReason = "tool_calls"
+	// FinishLength: model bị cắt vì chạm giới hạn max output tokens
+	// (DeepSeek "length", Anthropic "max_tokens", Gemini "MAX_TOKENS").
+	FinishLength FinishReason = "length"
+)
+
 // StreamChunk là 1 mẩu trong luồng streaming đã chuẩn hoá.
 type StreamChunk struct {
 	Kind     ChunkKind
@@ -66,6 +80,10 @@ type StreamChunk struct {
 	ToolCall *ToolCall
 	Usage    *Usage
 	Err      error
+
+	// FinishReason chỉ được set trên chunk ChunkDone. Rỗng = provider
+	// không báo lý do dừng.
+	FinishReason FinishReason
 }
 
 // Usage đếm token cho quan sát chi phí.

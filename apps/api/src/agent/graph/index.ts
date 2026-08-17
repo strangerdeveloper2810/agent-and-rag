@@ -13,10 +13,11 @@ export { agentGraph };
 export type AgentEvent =
   | { type: "text"; text: string }
   | { type: "tool_start"; name: string }
-  | { type: "tool_end"; name: string }
+  | { type: "tool_end"; name: string; message?: string; text?: string }
   | { type: "step"; node?: string }
   | { type: "error"; message?: string }
-  | { type: "done"; agent?: string; tokens?: number }
+  | { type: "done"; agent?: string; tokens?: number; truncated?: boolean }
+  | { type: "truncated"; message?: string }
   | {
       type: "usage";
       usage?: { inputTokens: number; outputTokens: number };

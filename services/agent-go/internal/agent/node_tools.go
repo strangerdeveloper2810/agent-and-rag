@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/ai-agent-tut/agent-go/internal/guardrails"
@@ -69,7 +70,16 @@ func nodeTools(ctx context.Context, eng toolsEngine, s *State, emit EmitFunc) (N
 	}
 
 	if len(safeCalls) > 0 {
-		results := reg.RunParallel(ctx, safeCalls)
+		// Stream kết quả: emit tool_end NGAY KHI từng tool hoàn thành (không
+		// chờ cả nhóm) để UI hiện tiến độ trực tiếp trong lúc chờ.
+		results := reg.RunParallelStreaming(ctx, safeCalls, func(i int, res tools.CallResult) {
+			if res.Err != nil {
+				slog.Error("tools: failed", "tool", res.Call.Name, "err", res.Err)
+				emit(ToolEndEvent(res.Call.Name, false, res.Err.Error()))
+			} else {
+				emit(ToolEndEvent(res.Call.Name, true, toolResultPreview(res.Result.Content)))
+			}
+		})
 
 		for _, res := range results {
 			obs := Observation{
@@ -79,15 +89,12 @@ func nodeTools(ctx context.Context, eng toolsEngine, s *State, emit EmitFunc) (N
 			}
 			if res.Err != nil {
 				obs.Error = res.Err.Error()
-				slog.Error("tools: failed", "tool", res.Call.Name, "err", res.Err)
-				emit(ToolEndEvent(res.Call.Name, false, res.Err.Error()))
 			} else {
 				outLen := len(res.Result.Content)
 				if outLen > 100 {
 					outLen = 100
 				}
 				slog.Info("tools: done", "tool", res.Call.Name, "output_preview", res.Result.Content[:outLen])
-				emit(ToolEndEvent(res.Call.Name, true, ""))
 			}
 			s.AppendObservation(obs)
 		}
@@ -99,6 +106,18 @@ func nodeTools(ctx context.Context, eng toolsEngine, s *State, emit EmitFunc) (N
 		return NodeInterrupt, nil
 	}
 	return NodeModel, nil
+}
+
+// toolResultPreviewMax giới hạn độ dài preview output tool gửi kèm tool_end.
+const toolResultPreviewMax = 300
+
+// toolResultPreview trích đoạn ngắn từ output tool để stream cho UI.
+func toolResultPreview(output string) string {
+	trimmed := strings.TrimSpace(output)
+	if len(trimmed) > toolResultPreviewMax {
+		return trimmed[:toolResultPreviewMax] + "…"
+	}
+	return trimmed
 }
 
 // compile-time check

@@ -4,6 +4,7 @@ package proactive
 
 import (
 	"context"
+	"sort"
 	"sync"
 	"time"
 
@@ -108,7 +109,9 @@ func (e *ProactiveEngine) Stop() context.Context {
 	return e.cron.Stop()
 }
 
-// Tasks trả về snapshot tất cả tasks đã đăng ký.
+// Tasks trả về snapshot tất cả tasks đã đăng ký, sắp xếp theo Name.
+// Sắp xếp là bắt buộc: e.tasks là map nên thứ tự duyệt ngẫu nhiên, khiến
+// caller (và test) thấy thứ tự khác nhau giữa các lần gọi.
 func (e *ProactiveEngine) Tasks() []Task {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
@@ -117,6 +120,7 @@ func (e *ProactiveEngine) Tasks() []Task {
 	for _, t := range e.tasks {
 		tasks = append(tasks, *t)
 	}
+	sort.Slice(tasks, func(i, j int) bool { return tasks[i].Name < tasks[j].Name })
 	return tasks
 }
 

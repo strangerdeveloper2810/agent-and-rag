@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/ai-agent-tut/agent-go/internal/tools"
@@ -244,5 +245,229 @@ printf '{"jsonrpc":"2.0","id":3,"result":{"tools":[{"name":"echo","description":
 	}
 	if defs[0].Name != "echo" {
 		t.Errorf("name = %q, want %q", defs[0].Name, "echo")
+	}
+}
+
+// TestDiscover_MissingDir tests discovery with a nonexistent config directory.
+func TestDiscover_MissingDir(t *testing.T) {
+	reg := tools.NewRegistry()
+	mcpReg := NewMCPRegistry(reg)
+
+	err := mcpReg.Discover(filepath.Join(t.TempDir(), "missing"))
+	if err == nil {
+		t.Fatal("Discover(missing dir) = nil, want lỗi")
+	}
+	if !strings.Contains(err.Error(), "read config dir") {
+		t.Fatalf("err = %v, want chứa read config dir", err)
+	}
+}
+
+// TestDiscover_InvalidYAML tests that a malformed YAML file fails loudly.
+func TestDiscover_InvalidYAML(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "bad.yaml"), []byte("servers: [unclosed"), 0644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	reg := tools.NewRegistry()
+	err := NewMCPRegistry(reg).Discover(dir)
+	if err == nil {
+		t.Fatal("Discover(bad yaml) = nil, want lỗi parse")
+	}
+	if !strings.Contains(err.Error(), "parse") {
+		t.Fatalf("err = %v, want chứa parse", err)
+	}
+}
+
+// TestDiscover_YMLExtension tests that .yml files are read too (proved by parse error).
+func TestDiscover_YMLExtension(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "mcp.yml"), []byte(":\n\tbroken"), 0644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	reg := tools.NewRegistry()
+	err := NewMCPRegistry(reg).Discover(dir)
+	if err == nil {
+		t.Fatal("Discover(.yml) = nil, want lỗi parse chứng tỏ file được đọc")
+	}
+	if !strings.Contains(err.Error(), "parse") {
+		t.Fatalf("err = %v, want chứa parse", err)
+	}
+}
+
+// TestDiscover_SkipsSubdirectories tests that nested directories are ignored.
+func TestDiscover_SkipsSubdirectories(t *testing.T) {
+	dir := t.TempDir()
+	sub := filepath.Join(dir, "nested")
+	if err := os.MkdirAll(sub, 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(sub, "inner.yaml"), []byte(":\n\tbroken"), 0644); err != nil {
+		t.Fatalf("write inner config: %v", err)
+	}
+
+	reg := tools.NewRegistry()
+	mcpReg := NewMCPRegistry(reg)
+	if err := mcpReg.Discover(dir); err != nil {
+		t.Fatalf("Discover = %v, want nil (bỏ qua subdirectory)", err)
+	}
+	if len(reg.All()) != 0 {
+		t.Fatalf("registry có %d tools, want 0", len(reg.All()))
+	}
+}
+
+// TestDiscover_EmptyConfig tests a valid YAML file with no servers.
+func TestDiscover_EmptyConfig(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "empty.yaml"), []byte(""), 0644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	reg := tools.NewRegistry()
+	mcpReg := NewMCPRegistry(reg)
+	if err := mcpReg.Discover(dir); err != nil {
+		t.Fatalf("Discover(empty) = %v, want nil", err)
+	}
+	if len(reg.All()) != 0 {
+		t.Fatalf("registry có %d tools, want 0", len(reg.All()))
+	}
+	if err := mcpReg.Close(); err != nil {
+		t.Fatalf("Close = %v, want nil", err)
+	}
+}
+
+// TestDiscover_ConnectFailurePropagates tests that a server whose command
+// fails to start surfaces the server name in the error.
+func TestDiscover_ConnectFailurePropagates(t *testing.T) {
+	dir := t.TempDir()
+	configYAML := "servers:\n  - name: bad-srv\n    command: /no/such/binary\n"
+	if err := os.WriteFile(filepath.Join(dir, "mcp.yaml"), []byte(configYAML), 0644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	reg := tools.NewRegistry()
+	err := NewMCPRegistry(reg).Discover(dir)
+	if err == nil {
+		t.Fatal("Discover = nil, want lỗi kết nối")
+	}
+	if !strings.Contains(err.Error(), `server "bad-srv"`) {
+		t.Fatalf("err = %v, want chứa tên server bad-srv", err)
+	}
+}
+
+// TestDiscover_FullFlow drives the whole registry path: YAML → subprocess
+// MCP server → tools/list → adapter đăng ký → Close.
+func TestDiscover_FullFlow(t *testing.T) {
+	script := `#!/bin/bash
+read line
+printf '{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{}}}}\n'
+read line
+read line
+printf '{"jsonrpc":"2.0","id":3,"result":{"tools":[{"name":"echo","description":"Echo back","inputSchema":{"type":"object"}},{"name":"fs.read","description":"Read file","inputSchema":{"type":"object"}}]}}\n'
+`
+	scriptPath := filepath.Join(t.TempDir(), "registry-server.sh")
+	if err := os.WriteFile(scriptPath, []byte(script), 0755); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+
+	dir := t.TempDir()
+	configYAML := "servers:\n  - name: fake\n    command: bash\n    args: [" + scriptPath + "]\n"
+	if err := os.WriteFile(filepath.Join(dir, "mcp.yaml"), []byte(configYAML), 0644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	reg := tools.NewRegistry()
+	mcpReg := NewMCPRegistry(reg)
+	if err := mcpReg.Discover(dir); err != nil {
+		t.Fatalf("Discover = %v, want nil", err)
+	}
+
+	all := reg.All()
+	if len(all) != 2 {
+		t.Fatalf("registry có %d tools, want 2", len(all))
+	}
+	if all[0].Name() != "echo" || all[1].Name() != "fs.read" {
+		t.Fatalf("tool names = %v, want [echo fs.read]", []string{all[0].Name(), all[1].Name()})
+	}
+	if got := reg.ToolDefs(); len(got) != 2 {
+		t.Fatalf("ToolDefs = %d, want 2", len(got))
+	}
+
+	if err := mcpReg.Close(); err != nil {
+		t.Fatalf("Close = %v, want nil", err)
+	}
+}
+
+// TestDiscover_ListToolsFailure tests the connectServer path where the server
+// connects fine but tools/list fails — client phải được đóng và lỗi phải nổi.
+func TestDiscover_ListToolsFailure(t *testing.T) {
+	script := `#!/bin/bash
+read line
+printf '{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{}}}}\n'
+read line
+read line
+printf '{"jsonrpc":"2.0","id":3,"error":{"code":-32601,"message":"tools/list not supported"}}\n'
+`
+	scriptPath := filepath.Join(t.TempDir(), "listfail-server.sh")
+	if err := os.WriteFile(scriptPath, []byte(script), 0755); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+
+	dir := t.TempDir()
+	configYAML := "servers:\n  - name: fake\n    command: bash\n    args: [" + scriptPath + "]\n"
+	if err := os.WriteFile(filepath.Join(dir, "mcp.yaml"), []byte(configYAML), 0644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	reg := tools.NewRegistry()
+	err := NewMCPRegistry(reg).Discover(dir)
+	if err == nil {
+		t.Fatal("Discover = nil, want lỗi từ tools/list")
+	}
+	if !strings.Contains(err.Error(), `server "fake"`) || !strings.Contains(err.Error(), "list tools") {
+		t.Fatalf("err = %v, want chứa server fake và list tools", err)
+	}
+	if len(reg.All()) != 0 {
+		t.Fatalf("registry có %d tools, want 0 (server lỗi không đăng ký gì)", len(reg.All()))
+	}
+}
+
+// TestDiscover_ReadFileError tests that a dangling symlink surfaces a read error.
+func TestDiscover_ReadFileError(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Symlink(filepath.Join(dir, "missing-target"), filepath.Join(dir, "dangling.yaml")); err != nil {
+		t.Fatalf("symlink: %v", err)
+	}
+
+	reg := tools.NewRegistry()
+	err := NewMCPRegistry(reg).Discover(dir)
+	if err == nil {
+		t.Fatal("Discover = nil, want lỗi đọc file symlink hỏng")
+	}
+	if !strings.Contains(err.Error(), "read") {
+		t.Fatalf("err = %v, want chứa read", err)
+	}
+}
+
+// TestDiscover_ShortFileNames là regression test cho panic slice out of range:
+// tên file ngắn hơn 4-5 ký tự (vd "a", "x.md", ".yml") từng làm Discover panic
+// vì cắt chuỗi bằng index cố định thay vì filepath.Ext.
+func TestDiscover_ShortFileNames(t *testing.T) {
+	dir := t.TempDir()
+
+	for _, name := range []string{"a", "ab", "abc", "x.md", ".yml", ".yaml", "y.yml"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("servers: []\n"), 0644); err != nil {
+			t.Fatalf("write %q: %v", name, err)
+		}
+	}
+
+	reg := tools.NewRegistry()
+	mcpReg := NewMCPRegistry(reg)
+
+	// Không được panic, không được lỗi: các file không phải .yml/.yaml bị bỏ qua,
+	// các file yaml hợp lệ có servers rỗng.
+	if err := mcpReg.Discover(dir); err != nil {
+		t.Fatalf("Discover with short file names: %v", err)
 	}
 }

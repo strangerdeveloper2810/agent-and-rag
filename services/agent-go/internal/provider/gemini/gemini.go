@@ -244,6 +244,8 @@ func (c *Client) Generate(ctx context.Context, req provider.GenerateRequest) (<-
 			}
 		}
 
+		var finish provider.FinishReason
+
 		for resp, err := range c.client.Models.GenerateContentStream(ctx, model, contents, config) {
 			if err != nil {
 				emit(provider.StreamChunk{Kind: provider.ChunkError, Err: err})
@@ -251,6 +253,12 @@ func (c *Client) Generate(ctx context.Context, req provider.GenerateRequest) (<-
 			}
 			if resp == nil {
 				continue
+			}
+
+			if len(resp.Candidates) > 0 {
+				if r := mapFinishReason(resp.Candidates[0].FinishReason); r != "" {
+					finish = r
+				}
 			}
 
 			if len(resp.Candidates) > 0 && resp.Candidates[0].Content != nil {
@@ -292,8 +300,21 @@ func (c *Client) Generate(ctx context.Context, req provider.GenerateRequest) (<-
 			}
 		}
 
-		emit(provider.StreamChunk{Kind: provider.ChunkDone})
+		emit(provider.StreamChunk{Kind: provider.ChunkDone, FinishReason: finish})
 	}()
 
 	return out, nil
+}
+
+// mapFinishReason dịch genai.FinishReason sang chuẩn chung.
+// MAX_TOKENS = câu trả lời bị cắt vì chạm MaxOutputTokens.
+func mapFinishReason(raw genai.FinishReason) provider.FinishReason {
+	switch raw {
+	case genai.FinishReasonMaxTokens:
+		return provider.FinishLength
+	case genai.FinishReasonStop:
+		return provider.FinishStop
+	default:
+		return ""
+	}
 }

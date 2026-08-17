@@ -168,3 +168,24 @@ func TestGenerate_ContextCancel(t *testing.T) {
 		t.Fatal("expected error from cancelled context")
 	}
 }
+
+func TestFromOllamaChunk_DoneReason(t *testing.T) {
+	cases := map[string]provider.FinishReason{
+		`{"done":true,"done_reason":"length"}`: provider.FinishLength,
+		`{"done":true,"done_reason":"stop"}`:   provider.FinishStop,
+		`{"done":true}`:                        "",
+		`{"done":true,"done_reason":"load"}`:   "",
+	}
+	for line, want := range cases {
+		chunk, err := fromOllamaChunk([]byte(line))
+		if err != nil {
+			t.Fatalf("fromOllamaChunk(%s): %v", line, err)
+		}
+		if chunk.Kind != provider.ChunkDone {
+			t.Errorf("Kind = %v, want ChunkDone (line %s)", chunk.Kind, line)
+		}
+		if chunk.FinishReason != want {
+			t.Errorf("FinishReason = %q, want %q (line %s)", chunk.FinishReason, want, line)
+		}
+	}
+}

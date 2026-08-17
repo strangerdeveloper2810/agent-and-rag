@@ -22,6 +22,8 @@ export interface StreamMetadata {
   backend: string;
   /** Tổng token đã dùng (input + output), nếu agent trả về. */
   tokensUsed: number;
+  /** true khi câu trả lời bị cắt vì chạm giới hạn output token. */
+  truncated: boolean;
 }
 
 /** Kết quả stream: generator + metadata promise hứa khi stream xong. */
@@ -115,6 +117,7 @@ export async function streamReply(
 
   let full = "";
   let tokensUsed = 0;
+  let truncated = false;
   let backend: string = config.AGENT_BACKEND;
 
   const model =
@@ -140,7 +143,11 @@ export async function streamReply(
         console.log(`[chat-cache] hit (model=${model})`);
         full = cached;
         yield { type: "text", text: cached };
-        metadataResolve({ backend: backend + "+cache", tokensUsed: 0 });
+        metadataResolve({
+          backend: backend + "+cache",
+          tokensUsed: 0,
+          truncated: false,
+        });
         await addMessage(conversationId, "assistant", cached);
         return;
       }
@@ -152,15 +159,18 @@ export async function streamReply(
       for await (const ev of agent.stream(history, { signal, attachments })) {
         if (ev.type === "text") full += ev.text;
 
+        if (ev.type === "truncated") truncated = true;
+
         if (ev.type === "done") {
           if (ev.agent) backend = ev.agent;
           if (ev.tokens) tokensUsed = ev.tokens;
+          if (ev.truncated) truncated = true;
         }
 
         yield ev;
       }
     } finally {
-      metadataResolve({ backend, tokensUsed });
+      metadataResolve({ backend, tokensUsed, truncated });
 
       if (full.trim().length > 0) {
         await addMessage(conversationId, "assistant", full);

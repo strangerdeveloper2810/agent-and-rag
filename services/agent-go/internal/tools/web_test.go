@@ -6,15 +6,17 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestWebSearchTool(t *testing.T) {
 	t.Run("search returns results", func(t *testing.T) {
-		// Mock DuckDuckGo API
+		// Mock search API (giả lập backend trả JSON kiểu instant-answer).
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
-			resp := DDGResponse{
+			resp := testSearchResponse{
 				AbstractText: "The Go Programming Language",
 				AbstractURL:  "https://go.dev/",
 				Heading:      "Go (programming language)",
@@ -121,6 +123,76 @@ func TestWebSearchTool(t *testing.T) {
 			t.Fatal("expected error for cancelled context, got nil")
 		}
 	})
+}
+
+func TestWebSearchRacesProviders(t *testing.T) {
+	orig := webSearchProviders
+	defer func() { webSearchProviders = orig }()
+	webSearchProviders = []webSearchProvider{
+		func(ctx context.Context, c *http.Client, q string) []map[string]string {
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-time.After(50 * time.Millisecond):
+				return []map[string]string{{"title": "fast"}}
+			}
+		},
+		func(ctx context.Context, c *http.Client, q string) []map[string]string {
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-time.After(2 * time.Second):
+				return []map[string]string{{"title": "slow"}}
+			}
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	start := time.Now()
+	results := raceWebSearch(ctx, cancel, nil, "test")
+	if len(results) == 0 || results[0]["title"] != "fast" {
+		t.Fatalf("expected fast provider result, got %v", results)
+	}
+	if elapsed := time.Since(start); elapsed > 500*time.Millisecond {
+		t.Fatalf("race should return first non-empty result immediately, took %v", elapsed)
+	}
+}
+
+func TestWebSearchFiltersWikipedia(t *testing.T) {
+	results := []map[string]string{
+		{"title": "wiki", "url": "https://en.wikipedia.org/wiki/Go"},
+		{"title": "official", "url": "https://go.dev/"},
+	}
+	filtered := filterWikipedia(results)
+	if len(filtered) != 1 || filtered[0]["title"] != "official" {
+		t.Fatalf("expected only non-wikipedia results, got %v", filtered)
+	}
+}
+
+func TestWebSearchCache(t *testing.T) {
+	orig := webSearchProviders
+	defer func() { webSearchProviders = orig }()
+
+	var calls atomic.Int32
+	webSearchProviders = []webSearchProvider{
+		func(ctx context.Context, c *http.Client, q string) []map[string]string {
+			calls.Add(1)
+			return []map[string]string{{"title": "cached"}}
+		},
+	}
+
+	tool := NewWebSearchTool(nil).(*webSearchTool)
+	args, _ := json.Marshal(map[string]string{"query": "test query"})
+	for i := 0; i < 3; i++ {
+		if _, err := tool.Execute(context.Background(), args); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("expected 1 provider call (cached after first), got %d", calls.Load())
+	}
 }
 
 func TestWebFetchTool(t *testing.T) {
@@ -280,8 +352,22 @@ func TestWebToolInterface(t *testing.T) {
 	})
 }
 
+// testSearchResponse là response của mock server trong test variant.
+type testSearchResponse struct {
+	AbstractText  string `json:"AbstractText"`
+	AbstractURL   string `json:"AbstractURL"`
+	Heading       string `json:"Heading"`
+	Answer        string `json:"Answer"`
+	AnswerType    string `json:"AnswerType"`
+	Definition    string `json:"Definition"`
+	RelatedTopics []struct {
+		Text     string `json:"Text"`
+		FirstURL string `json:"FirstURL"`
+	} `json:"RelatedTopics"`
+}
+
 // newWebSearchToolWithURL creates a WebSearchTool that uses a custom base URL (for testing).
-// This is an internal helper that overrides the DuckDuckGo API endpoint.
+// This is an internal helper that overrides the search API endpoint.
 func newWebSearchToolWithURL(client *http.Client, baseURL string) Tool {
 	return &webSearchToolWithURL{
 		httpClient: client,
@@ -324,7 +410,7 @@ func (t *webSearchToolWithURL) Execute(ctx context.Context, rawArgs json.RawMess
 	}
 	defer resp.Body.Close()
 
-	var ddg DDGResponse
+	var ddg testSearchResponse
 	if err := json.NewDecoder(resp.Body).Decode(&ddg); err != nil {
 		return Result{}, err
 	}
