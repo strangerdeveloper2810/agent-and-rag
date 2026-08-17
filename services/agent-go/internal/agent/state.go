@@ -9,6 +9,7 @@ package agent
 import (
 	"context"
 
+	"github.com/ai-agent-tut/agent-go/internal/guardrails"
 	"github.com/ai-agent-tut/agent-go/internal/provider"
 )
 
@@ -101,6 +102,11 @@ type State struct {
 	// activatedSkills tracks which skills have been activated during this run.
 	// Used to prevent re-activation of the same skill within one conversation.
 	activatedSkills map[string]bool
+
+	// loopBreaker phát hiện vòng lặp tool (cùng tool + cùng args gọi liên tiếp)
+	// TRONG PHẠM VI lượt chạy này. Engine.Run tạo mới mỗi lượt — xem comment ở
+	// guardrails.CircuitBreaker về lý do không dùng instance chia sẻ.
+	loopBreaker *guardrails.CircuitBreaker
 
 	// RecalledMemories holds the long-term memories found by the recall node
 	// for the current user turn (formatted as "key: value" strings). nodeModel

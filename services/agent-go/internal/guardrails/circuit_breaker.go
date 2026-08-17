@@ -28,11 +28,27 @@ type callKey struct {
 // CircuitBreaker tracks consecutive identical tool calls.
 // When the same tool+args is called maxRepeats times in a row, Record returns
 // a StuckLoopError. A different call resets the counter.
+//
+// PHẠM VI: state (last/count) là của MỘT lượt chạy agent. Dùng chung một
+// instance cho nhiều request đồng thời sẽ sai cả 2 chiều: (a) false positive —
+// 2 user hỏi trùng câu thì user thứ 3 bị chặn oan, (b) false negative — 2 run
+// song song gọi tool khác nhau liên tục ghi đè `last` của nhau nên loop thật
+// không bị phát hiện. Vì vậy Engine tạo một CircuitBreaker RIÊNG cho mỗi Run
+// (xem Engine.Run), còn instance truyền qua SetCircuitBreaker chỉ đóng vai
+// mẫu cấu hình để lấy MaxRepeats.
 type CircuitBreaker struct {
 	mu         sync.Mutex
 	last       callKey
 	count      int
 	maxRepeats int
+}
+
+// MaxRepeats trả về ngưỡng cấu hình, để caller tạo được breaker mới cùng cấu
+// hình cho từng lượt chạy.
+func (cb *CircuitBreaker) MaxRepeats() int {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+	return cb.maxRepeats
 }
 
 // NewCircuitBreaker creates a CircuitBreaker. If maxRepeats <= 0, defaults to 3.

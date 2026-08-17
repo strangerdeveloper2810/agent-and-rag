@@ -243,6 +243,58 @@ func TestEngineRun_CircuitBreakerStopsRepeatedToolCall(t *testing.T) {
 	}
 }
 
+// oneShotToolProvider gọi tool đúng 1 lần rồi trả text — mô phỏng một request
+// BÌNH THƯỜNG (không hề lặp), dùng để chứng minh breaker không được rò state
+// từ request trước sang.
+type oneShotToolProvider struct{ calls int }
+
+func (p *oneShotToolProvider) Name() string { return "one-shot" }
+func (p *oneShotToolProvider) Generate(context.Context, provider.GenerateRequest) (<-chan provider.StreamChunk, error) {
+	p.calls++
+	ch := make(chan provider.StreamChunk, 2)
+	if p.calls == 1 {
+		ch <- provider.StreamChunk{Kind: provider.ChunkToolCall, ToolCall: &provider.ToolCall{
+			ID: "c1", Name: "echo", Args: json.RawMessage(`{"same":"args"}`),
+		}}
+	} else {
+		ch <- provider.StreamChunk{Kind: provider.ChunkText, Text: "xong"}
+	}
+	ch <- provider.StreamChunk{Kind: provider.ChunkDone}
+	close(ch)
+	return ch, nil
+}
+
+// TestEngineRun_CircuitBreakerIsPerRun khoá bug rò state giữa các request:
+// engine từng dùng THẲNG một instance CircuitBreaker chia sẻ cho cả 3 agent và
+// toàn bộ process, và Reset() không hề được gọi trong production. Hệ quả: 3
+// request KHÁC NHAU (khác user) tình cờ gọi cùng tool + cùng args thì request
+// thứ 3 bị chặn "stuck loop" oan — tool không chạy, câu trả lời rỗng.
+//
+// Test chạy 3 lượt Run độc lập trên cùng engine, mỗi lượt chỉ gọi tool 1 lần.
+// Không lượt nào được phát event error.
+func TestEngineRun_CircuitBreakerIsPerRun(t *testing.T) {
+	reg := tools.NewRegistry()
+	reg.Register(&stubTool{name: "echo", kind: tools.KindRead, output: "pong"})
+
+	e := NewEngine(&oneShotToolProvider{}, reg)
+	e.SetCircuitBreaker(guardrails.NewCircuitBreaker(2))
+
+	for i := 1; i <= 3; i++ {
+		// Provider mới mỗi lượt để mỗi Run đều là "gọi tool đúng 1 lần".
+		e.prov = &oneShotToolProvider{}
+		events, _, err := collectEvents(t, e, RunInput{UserMessage: "cùng câu hỏi", MaxSteps: 20})
+		if err != nil {
+			t.Fatalf("Run lượt %d: %v", i, err)
+		}
+		if ev := hasEvent(events, "error"); ev != nil {
+			t.Fatalf("lượt %d bị chặn oan bởi circuit breaker (state rò từ lượt trước): %+v", i, ev)
+		}
+		if hasEvent(events, "done") == nil {
+			t.Fatalf("lượt %d không kết thúc bằng done", i)
+		}
+	}
+}
+
 func TestEngine_DispatchUnknownNode(t *testing.T) {
 	e := NewEngine(provider.NewFake(), tools.NewRegistry())
 

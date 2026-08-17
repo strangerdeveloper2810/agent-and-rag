@@ -286,6 +286,8 @@ export const ChatPage: React.FC = () => {
     const attachmentMeta: AttachmentMeta[] = snapAttachments.map(pendingToMeta);
 
     let convId = id;
+    // Khai báo ngoài try để block finally dọn được tool còn treo "running".
+    const assistantIndex = messages.length + 1;
     try {
       if (!convId) {
         const title = content || snapAttachments[0]?.name || "Attachment";
@@ -303,7 +305,6 @@ export const ChatPage: React.FC = () => {
         snapAttachments.map(pendingToPayload),
       );
 
-      const assistantIndex = messages.length + 1;
       setMessages((m) => [
         ...m,
         {
@@ -453,6 +454,21 @@ export const ChatPage: React.FC = () => {
     } finally {
       streamCtrlRef.current = null;
       setStreaming(false);
+      // Dọn tool còn treo ở trạng thái "running". Stream đã kết thúc (xong,
+      // lỗi, hoặc user bấm Stop) nên không còn event tool_end nào tới nữa —
+      // nếu không dọn, card tool hiển thị "Đang thực thi N công cụ..." kèm
+      // spinner VĨNH VIỄN dù đã dừng từ lâu.
+      updateMeta(assistantIndex, (prev) => {
+        if (!prev.toolCalls.some((t) => t.status === "running")) return prev;
+        return {
+          ...prev,
+          toolCalls: prev.toolCalls.map((t) =>
+            t.status === "running"
+              ? { ...t, status: "error", error: "Đã dừng trước khi hoàn tất" }
+              : t,
+          ),
+        };
+      });
     }
   };
 
