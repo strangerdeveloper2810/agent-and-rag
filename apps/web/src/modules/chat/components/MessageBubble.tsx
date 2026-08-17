@@ -171,8 +171,11 @@ interface MessageBubbleProps {
   citations?: CitationData[];
   agent?: string | null;
   usage?: UsageData | null;
+  /** Câu trả lời bị cắt vì chạm giới hạn độ dài → hiện chỉ báo + nút "Tiếp tục". */
+  truncated?: boolean;
   onRegenerate?: () => void;
   onRetryUser?: (content: string) => void;
+  onContinue?: () => void;
 }
 
 /**
@@ -185,8 +188,10 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   citations = [],
   agent = null,
   usage = null,
+  truncated = false,
   onRegenerate,
   onRetryUser,
+  onContinue,
 }) => {
   const [copied, setCopied] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -344,6 +349,35 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 style={{ animationDelay: "0.3s" }}
               />
             </span>
+          </div>
+        )}
+
+        {/* Truncated Banner — câu trả lời chạm giới hạn độ dài */}
+        {truncated && !streaming && (
+          <div
+            role="status"
+            className="mt-3.5 flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs text-amber-700 dark:text-amber-400 backdrop-blur-md"
+          >
+            <div className="flex items-center gap-2.5 font-semibold min-w-0">
+              <ExclamationTriangleIcon className="h-5 w-5 shrink-0" />
+              <span className="leading-snug">
+                Câu trả lời bị cắt do chạm giới hạn độ dài tối đa.
+              </span>
+            </div>
+            {onContinue && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onContinue}
+                aria-label="Yêu cầu agent viết tiếp câu trả lời"
+                title="Yêu cầu agent viết tiếp từ chỗ bị cắt"
+                className="gap-1.5 font-bold shadow-sm shrink-0 border-amber-500/40 hover:bg-amber-500/20"
+              >
+                <ArrowPathIcon className="h-3.5 w-3.5" />
+                <span>Tiếp tục</span>
+              </Button>
+            )}
           </div>
         )}
 

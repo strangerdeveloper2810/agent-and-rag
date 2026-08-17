@@ -284,6 +284,7 @@ func (c *Client) streamSSE(ctx context.Context, body io.ReadCloser, out chan pro
 	scanner.Buffer(nil, 64*1024)
 
 	var toolCalls []pendingTool
+	var finish provider.FinishReason
 
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -292,7 +293,7 @@ func (c *Client) streamSSE(ctx context.Context, body io.ReadCloser, out chan pro
 		}
 		if line == "data: [DONE]" {
 			flushToolCalls(&toolCalls, emit)
-			emit(provider.StreamChunk{Kind: provider.ChunkDone})
+			emit(provider.StreamChunk{Kind: provider.ChunkDone, FinishReason: finish})
 			return
 		}
 		if !strings.HasPrefix(line, "data: ") {
@@ -319,6 +320,10 @@ func (c *Client) streamSSE(ctx context.Context, body io.ReadCloser, out chan pro
 		}
 
 		for _, choice := range chunk.Choices {
+			if r := mapFinishReason(choice.FinishReason); r != "" {
+				finish = r
+			}
+
 			delta := choice.Delta
 			if delta == nil {
 				continue
@@ -357,7 +362,22 @@ func (c *Client) streamSSE(ctx context.Context, body io.ReadCloser, out chan pro
 
 	// End of stream (no DONE marker)
 	flushToolCalls(&toolCalls, emit)
-	emit(provider.StreamChunk{Kind: provider.ChunkDone})
+	emit(provider.StreamChunk{Kind: provider.ChunkDone, FinishReason: finish})
+}
+
+// mapFinishReason dịch finish_reason kiểu OpenAI của DeepSeek sang chuẩn chung.
+// "length" = bị cắt vì chạm max_tokens.
+func mapFinishReason(raw string) provider.FinishReason {
+	switch raw {
+	case "length":
+		return provider.FinishLength
+	case "tool_calls":
+		return provider.FinishToolCalls
+	case "stop":
+		return provider.FinishStop
+	default:
+		return ""
+	}
 }
 
 func flushToolCalls(toolCalls *[]pendingTool, emit func(provider.StreamChunk) bool) {

@@ -86,6 +86,7 @@ export const postChat = async (req: FastifyRequest, reply: FastifyReply) => {
       done: true,
       agent: meta.backend,
       tokens: meta.tokensUsed,
+      truncated: meta.truncated,
     });
   } catch (err) {
     // Client chủ động ngắt (AbortError) là bình thường — không phải lỗi.

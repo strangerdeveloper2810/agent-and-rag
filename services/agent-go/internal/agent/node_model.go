@@ -43,18 +43,20 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 		emit(MemoryEvent(fmt.Sprintf("trimmed %d tokens from context", trimmed)))
 	}
 
+	// Input gốc của người dùng — dùng chung cho dynamic thinking, skill
+	// matching và lọc tool theo task.
+	var userInput string
+	for _, m := range s.Messages {
+		if m.Role == provider.RoleUser {
+			userInput = m.Content
+			break
+		}
+	}
+
 	// Dynamic thinking: choose OFF/LOW/MEDIUM based on task complexity.
 	// Only applied when no explicit ThinkingLevel is configured.
 	thinkingLevel := provider.ThinkingOff
 	if dt := eng.getDynamicThinking(); dt.Enabled {
-		// Classify based on the original user message (first user message).
-		var userInput string
-		for _, m := range s.Messages {
-			if m.Role == provider.RoleUser {
-				userInput = m.Content
-				break
-			}
-		}
 		hasToolCalls := s.LastAssistant() != nil && len(s.LastAssistant().ToolCalls) > 0
 		thinkingLevel = ResolveThinking(dt, provider.ThinkingOff, userInput, hasToolCalls, s.Step)
 	}
@@ -66,14 +68,6 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 		s.activatedSkills = make(map[string]bool)
 	}
 	if sl := eng.getSkillLoader(); sl != nil {
-		// Get the original user message for skill matching.
-		var userInput string
-		for _, m := range s.Messages {
-			if m.Role == provider.RoleUser {
-				userInput = m.Content
-				break
-			}
-		}
 		if matched := sl.MatchSkill(userInput); matched != nil && !s.activatedSkills[matched.Name] {
 			s.activatedSkills[matched.Name] = true
 			systemPrompt += "\n\n[KỸ NĂNG ĐANG KÍCH HOẠT: " + matched.Name + "]\n" + matched.Content
@@ -82,10 +76,16 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 		}
 	}
 
+	// Register tool theo task: bước đầu (step 0) chỉ gửi tool liên quan
+	// intent người dùng (3-8 tool thay vì toàn bộ registry) — giảm token +
+	// latency + nhiễu tool-call. Từ bước 1 trở đi gửi toàn bộ để cho phép
+	// tool chain phức tạp.
+	toolDefs := reg.FilterToolDefs(userInput, s.Step)
+
 	req := provider.GenerateRequest{
 		System:   systemPrompt,
 		Messages: s.Messages,
-		Tools:    reg.ToolDefs(),
+		Tools:    toolDefs,
 		Options: provider.ProviderOptions{
 			Cache:         true,
 			ThinkingLevel: thinkingLevel,
@@ -105,6 +105,7 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 	var content strings.Builder
 	var toolCalls []provider.ToolCall
 	var stepInput, stepOutput int
+	var finish provider.FinishReason
 
 	for chunk := range stream {
 		switch chunk.Kind {
@@ -131,7 +132,18 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 
 		case provider.ChunkDone:
 			// done — channel sẽ đóng sau chunk này
+			if chunk.FinishReason != "" {
+				finish = chunk.FinishReason
+			}
 		}
+	}
+
+	// Model bị cắt vì chạm giới hạn output token → báo cho client để hiện
+	// chỉ báo + nút "Tiếp tục". Không phải lỗi: phần text đã stream vẫn giữ.
+	s.Truncated = finish == provider.FinishLength
+	if s.Truncated {
+		slog.Warn("model: response truncated by max output tokens", "provider", prov.Name(), "content_len", content.Len())
+		emit(TruncatedEvent())
 	}
 
 	// Sync cumulative total and emit per-step usage event.
