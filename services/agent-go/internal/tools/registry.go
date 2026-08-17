@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/ai-agent-tut/agent-go/internal/provider"
@@ -112,13 +113,45 @@ func (r *Registry) RunParallelStreaming(ctx context.Context, calls []provider.To
 }
 
 // runOne tra cứu & thực thi một tool_call, gói mọi lỗi vào giá trị trả về.
+// Nếu tool thoả TimeoutTool, ctx được bọc deadline riêng (cooperative — xem
+// doc TimeoutTool) trước khi gọi Execute.
 func (r *Registry) runOne(ctx context.Context, call provider.ToolCall) (Result, error) {
 	t, ok := r.Get(call.Name)
 	if !ok {
 		return Result{}, &NotFoundError{Name: call.Name}
 	}
-	return t.Execute(ctx, call.Args)
+
+	var ownDeadline bool
+	if tt, ok := t.(TimeoutTool); ok {
+		if d := tt.Timeout(); d > 0 {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(ctx, d)
+			defer cancel()
+			ownDeadline = true
+		}
+	}
+
+	res, err := t.Execute(ctx, call.Args)
+	// Chỉ gói TimeoutError khi CHÍNH deadline vừa tạo ở trên là nguyên nhân —
+	// nếu ctx gốc (caller) tự huỷ, giữ nguyên lỗi gốc, đừng gán nhầm cho
+	// TimeoutTool của tool này.
+	if err != nil && ownDeadline && ctx.Err() == context.DeadlineExceeded {
+		return Result{}, &TimeoutError{Name: call.Name, Cause: err}
+	}
+	return res, err
 }
+
+// TimeoutError báo tool_call bị huỷ vì chạm deadline khai báo qua TimeoutTool.
+type TimeoutError struct {
+	Name  string
+	Cause error
+}
+
+func (e *TimeoutError) Error() string {
+	return fmt.Sprintf("tools: %q timed out: %v", e.Name, e.Cause)
+}
+
+func (e *TimeoutError) Unwrap() error { return e.Cause }
 
 // NotFoundError báo tool_call trỏ tới tool chưa được đăng ký.
 type NotFoundError struct {

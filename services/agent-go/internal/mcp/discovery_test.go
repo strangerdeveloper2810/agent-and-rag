@@ -387,8 +387,11 @@ printf '{"jsonrpc":"2.0","id":3,"result":{"tools":[{"name":"echo","description":
 	if len(all) != 2 {
 		t.Fatalf("registry có %d tools, want 2", len(all))
 	}
-	if all[0].Name() != "echo" || all[1].Name() != "fs.read" {
-		t.Fatalf("tool names = %v, want [echo fs.read]", []string{all[0].Name(), all[1].Name()})
+	// Tên tool được namespace theo server ("mcp__<server>__<raw>") để tránh
+	// đụng độ khi nhiều MCP server có tool trùng tên.
+	if all[0].Name() != "mcp__fake__echo" || all[1].Name() != "mcp__fake__fs_read" {
+		t.Fatalf("tool names = %v, want [mcp__fake__echo mcp__fake__fs_read]",
+			[]string{all[0].Name(), all[1].Name()})
 	}
 	if got := reg.ToolDefs(); len(got) != 2 {
 		t.Fatalf("ToolDefs = %d, want 2", len(got))
@@ -469,5 +472,62 @@ func TestDiscover_ShortFileNames(t *testing.T) {
 	// các file yaml hợp lệ có servers rỗng.
 	if err := mcpReg.Discover(dir); err != nil {
 		t.Fatalf("Discover with short file names: %v", err)
+	}
+}
+
+func TestQualifiedToolName(t *testing.T) {
+	if got := qualifiedToolName("github", "search_issues"); got != "mcp__github__search_issues" {
+		t.Errorf("qualifiedToolName = %q, want mcp__github__search_issues", got)
+	}
+}
+
+// Ký tự lạ (dấu chấm, khoảng trắng...) trong tên server/tool phải được thay
+// bằng "_" để khớp ràng buộc tên hàm của provider.
+func TestQualifiedToolName_SanitizesInvalidChars(t *testing.T) {
+	got := qualifiedToolName("my.server", "fs.read file")
+	if got != "mcp__my_server__fs_read_file" {
+		t.Errorf("qualifiedToolName = %q, want mcp__my_server__fs_read_file", got)
+	}
+}
+
+// Cùng (server, raw) → luôn ra cùng 1 tên, bất kể gọi bao nhiêu lần —
+// tên là hàm thuần của input, không phụ thuộc thứ tự kết nối/re-sync.
+func TestQualifiedToolName_Deterministic(t *testing.T) {
+	a := qualifiedToolName("srv", "tool_with_a_very_long_raw_name_that_needs_truncation_eventually")
+	b := qualifiedToolName("srv", "tool_with_a_very_long_raw_name_that_needs_truncation_eventually")
+	if a != b {
+		t.Errorf("qualifiedToolName không xác định: %q != %q", a, b)
+	}
+	if len(a) > maxToolNameLen {
+		t.Errorf("len(%q) = %d, want <= %d", a, len(a), maxToolNameLen)
+	}
+}
+
+// 2 server khác nhau, tool trùng raw name → tên qualified vẫn khác nhau
+// (namespace theo server chống đụng độ đúng mục đích thiết kế).
+func TestQualifiedToolName_DifferentServersNoCollision(t *testing.T) {
+	a := qualifiedToolName("server-a", "search")
+	b := qualifiedToolName("server-b", "search")
+	if a == b {
+		t.Errorf("2 server khác nhau ra cùng tên: %q", a)
+	}
+}
+
+// Tên dài vượt maxToolNameLen phải cắt bớt + gắn hash, và (server, raw) khác
+// nhau nhưng cùng bị cắt về chung 1 tiền tố vẫn phải tách biệt nhờ hash.
+func TestQualifiedToolName_TruncatesLongNamesWithHashSuffix(t *testing.T) {
+	longRaw := strings.Repeat("x", 100)
+	got := qualifiedToolName("server", longRaw)
+
+	if len(got) > maxToolNameLen {
+		t.Fatalf("len(%q) = %d, want <= %d", got, len(got), maxToolNameLen)
+	}
+	if !strings.Contains(got, "-") {
+		t.Errorf("tên bị cắt phải có hash suffix nối bằng '-': %q", got)
+	}
+
+	other := qualifiedToolName("server", strings.Repeat("y", 100))
+	if got == other {
+		t.Errorf("2 raw name khác nhau bị cắt về cùng 1 tên: %q", got)
 	}
 }

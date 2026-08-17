@@ -3,9 +3,12 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/ai-agent-tut/agent-go/internal/provider"
 )
 
 func TestShellTool(t *testing.T) {
@@ -175,5 +178,46 @@ func TestShellToolInterface(t *testing.T) {
 	}
 	if len(tool.Schema()) == 0 {
 		t.Error("Schema is empty")
+	}
+}
+
+func TestNewShellTool_DefaultTimeout(t *testing.T) {
+	tool := NewShellTool(nil).(*shellTool)
+	if tool.Timeout() != defaultShellTimeout {
+		t.Errorf("Timeout() = %v, want %v", tool.Timeout(), defaultShellTimeout)
+	}
+}
+
+func TestNewShellToolWithTimeout(t *testing.T) {
+	tool := NewShellToolWithTimeout(nil, 5*time.Second).(*shellTool)
+	if tool.Timeout() != 5*time.Second {
+		t.Errorf("Timeout() = %v, want 5s", tool.Timeout())
+	}
+
+	// timeout <= 0 rơi về default thay vì tắt hẳn deadline.
+	fallback := NewShellToolWithTimeout(nil, 0).(*shellTool)
+	if fallback.Timeout() != defaultShellTimeout {
+		t.Errorf("Timeout() với 0 = %v, want default %v", fallback.Timeout(), defaultShellTimeout)
+	}
+}
+
+// shell.exec chạy qua Registry với timeout ngắn phải bị TimeoutTool cắt sớm,
+// không chờ lệnh "sleep" chạy hết.
+func TestShellTool_TimeoutViaRegistry(t *testing.T) {
+	r := NewRegistry()
+	r.Register(NewShellToolWithTimeout([]string{"sleep"}, 50*time.Millisecond))
+
+	start := time.Now()
+	results := r.RunParallel(context.Background(), []provider.ToolCall{
+		{ID: "c1", Name: "shell.exec", Args: json.RawMessage(`{"command":"sleep","args":["5"]}`)},
+	})
+	elapsed := time.Since(start)
+
+	if elapsed > 4*time.Second {
+		t.Fatalf("elapsed = %v, want bị cắt ở ~50ms, không chờ sleep 5s", elapsed)
+	}
+	var timeoutErr *TimeoutError
+	if !errors.As(results[0].Err, &timeoutErr) {
+		t.Fatalf("Err = %v, want *TimeoutError", results[0].Err)
 	}
 }

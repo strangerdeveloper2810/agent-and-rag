@@ -153,3 +153,91 @@ func TestRegistry_RunParallel_ActuallyConcurrent(t *testing.T) {
 		}
 	}
 }
+
+// blockingTool ignores its own timeout budget and just waits for ctx.Done() —
+// simulates a well-behaved tool that respects cancellation (the only kind
+// TimeoutTool can actually help with; see TimeoutTool doc).
+type blockingTool struct {
+	name    string
+	timeout time.Duration
+}
+
+func (b *blockingTool) Name() string            { return b.name }
+func (b *blockingTool) Description() string     { return "blocks until ctx done" }
+func (b *blockingTool) Schema() json.RawMessage { return json.RawMessage(`{"type":"object"}`) }
+func (b *blockingTool) Kind() Kind              { return KindRead }
+func (b *blockingTool) Timeout() time.Duration  { return b.timeout }
+func (b *blockingTool) Execute(ctx context.Context, _ json.RawMessage) (Result, error) {
+	<-ctx.Done()
+	return Result{}, ctx.Err()
+}
+
+func TestRunOne_AppliesTimeoutToolDeadline(t *testing.T) {
+	r := NewRegistry()
+	r.Register(&blockingTool{name: "slow", timeout: 20 * time.Millisecond})
+
+	start := time.Now()
+	results := r.RunParallel(context.Background(), []provider.ToolCall{{ID: "c1", Name: "slow"}})
+	elapsed := time.Since(start)
+
+	if len(results) != 1 {
+		t.Fatalf("results len = %d, want 1", len(results))
+	}
+	if elapsed > time.Second {
+		t.Fatalf("elapsed = %v, want ~20ms (Timeout() phải cắt sớm, không chờ ctx gốc)", elapsed)
+	}
+
+	var timeoutErr *TimeoutError
+	if !errors.As(results[0].Err, &timeoutErr) {
+		t.Fatalf("Err = %v (%T), want *TimeoutError", results[0].Err, results[0].Err)
+	}
+	if timeoutErr.Name != "slow" {
+		t.Errorf("TimeoutError.Name = %q, want slow", timeoutErr.Name)
+	}
+}
+
+// Timeout() <= 0 → không bọc deadline, tool chạy tới khi ctx gốc quyết định.
+func TestRunOne_ZeroTimeoutSkipsWrap(t *testing.T) {
+	r := NewRegistry()
+	r.Register(&blockingTool{name: "no-deadline", timeout: 0})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Millisecond)
+	defer cancel()
+
+	results := r.RunParallel(ctx, []provider.ToolCall{{ID: "c1", Name: "no-deadline"}})
+
+	// Không có TimeoutTool wrap riêng → lỗi tới từ ctx GỐC (context.DeadlineExceeded
+	// trần), không phải *TimeoutError của registry.
+	var timeoutErr *TimeoutError
+	if errors.As(results[0].Err, &timeoutErr) {
+		t.Error("Timeout() <= 0 vẫn tạo *TimeoutError, want dùng thẳng lỗi ctx gốc")
+	}
+	if !errors.Is(results[0].Err, context.DeadlineExceeded) {
+		t.Errorf("Err = %v, want context.DeadlineExceeded", results[0].Err)
+	}
+}
+
+// Tool không implement TimeoutTool hoàn toàn không bị ảnh hưởng.
+func TestRunOne_ToolWithoutTimeoutInterfaceUnaffected(t *testing.T) {
+	r := NewRegistry()
+	r.Register(NewEchoTool())
+
+	results := r.RunParallel(context.Background(), []provider.ToolCall{
+		{ID: "c1", Name: "echo", Args: json.RawMessage(`{"n":1}`)},
+	})
+	if results[0].Err != nil {
+		t.Fatalf("Err = %v, want nil", results[0].Err)
+	}
+}
+
+func TestTimeoutError_Unwrap(t *testing.T) {
+	cause := context.DeadlineExceeded
+	err := &TimeoutError{Name: "slow", Cause: cause}
+
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Error("errors.Is không thấy cause qua Unwrap")
+	}
+	if err.Error() == "" {
+		t.Error("Error() rỗng")
+	}
+}

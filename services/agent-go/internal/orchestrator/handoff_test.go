@@ -2,6 +2,7 @@ package orchestrator
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -175,5 +176,53 @@ func TestRun_EmitsAgentEvent(t *testing.T) {
 	}
 	if events[0].Node != "code" {
 		t.Errorf("agent event Node = %q, want code (keyword 'bug')", events[0].Node)
+	}
+}
+
+func TestDelegate_DepthLimitDefault(t *testing.T) {
+	o := twoAgentOrchestrator(t)
+
+	// Depth = default max (4) → chặn ngay, không chạy engine.
+	_, err := o.Delegate(context.Background(), HandoffRequest{From: "general", To: "code", Task: "x", Depth: 4})
+	if err == nil {
+		t.Fatal("Delegate ở depth = max = nil error, want DelegationDepthExceededError")
+	}
+	var depthErr *DelegationDepthExceededError
+	if !errors.As(err, &depthErr) {
+		t.Fatalf("err = %v (%T), want *DelegationDepthExceededError", err, err)
+	}
+	if depthErr.Max != defaultMaxDelegationDepth {
+		t.Errorf("Max = %d, want %d", depthErr.Max, defaultMaxDelegationDepth)
+	}
+
+	// Depth = max-1 vẫn phải chạy được bình thường.
+	res, err := o.Delegate(context.Background(), HandoffRequest{From: "general", To: "code", Task: "x", Depth: 3})
+	if err != nil {
+		t.Fatalf("Delegate ở depth = max-1: %v", err)
+	}
+	if res.Agent != "code" {
+		t.Errorf("Agent = %q, want code", res.Agent)
+	}
+}
+
+func TestSetMaxDelegationDepth(t *testing.T) {
+	o := twoAgentOrchestrator(t)
+	o.SetMaxDelegationDepth(1)
+
+	if _, err := o.Delegate(context.Background(), HandoffRequest{From: "general", To: "code", Task: "x", Depth: 1}); err == nil {
+		t.Fatal("Delegate ở depth = 1 sau SetMaxDelegationDepth(1) = nil error, want lỗi")
+	}
+	if _, err := o.Delegate(context.Background(), HandoffRequest{From: "general", To: "code", Task: "x", Depth: 0}); err != nil {
+		t.Fatalf("Delegate ở depth = 0: %v", err)
+	}
+}
+
+func TestSetMaxDelegationDepth_NonPositiveResetsToDefault(t *testing.T) {
+	o := twoAgentOrchestrator(t)
+	o.SetMaxDelegationDepth(1)
+	o.SetMaxDelegationDepth(0) // reset về default
+
+	if o.maxDelegationDepth != defaultMaxDelegationDepth {
+		t.Errorf("maxDelegationDepth = %d, want %d", o.maxDelegationDepth, defaultMaxDelegationDepth)
 	}
 }
