@@ -48,7 +48,7 @@ export async function ingestDocument(
   content: string,
 ) {
   const documentId = new ObjectId().toHexString();
-  const chunks = await chunkText(content);
+  const chunks = await chunkText(content, source);
   const embeddings = await embedBatched(chunks, "document");
   const docs = buildChunkDocs(
     tenantId,
@@ -82,7 +82,7 @@ export async function updateDocument(
     throw new NotFoundError(`Tài liệu không tồn tại: ${documentId}`);
   }
   const version = current.version + 1;
-  const chunks = await chunkText(content);
+  const chunks = await chunkText(content, source);
   const embeddings = await embedBatched(chunks, "document");
   const docs = buildChunkDocs(
     tenantId,
