@@ -76,7 +76,7 @@ func TestBuildRegistries_ScopedPerSpecialty(t *testing.T) {
 }
 
 func TestNewHTTPHandler_Routes(t *testing.T) {
-	h := newHTTPHandler(provider.NewFake(), &stubRunner{text: `["a"]`}, nil)
+	h := newHTTPHandler(provider.NewFake(), &stubRunner{text: `["a"]`}, nil, nil)
 
 	cases := []struct {
 		name, method, path string
@@ -104,7 +104,7 @@ func TestNewHTTPHandler_Routes(t *testing.T) {
 }
 
 func TestNewHTTPHandler_MiddlewareChain(t *testing.T) {
-	h := newHTTPHandler(provider.NewFake(), &stubRunner{}, nil)
+	h := newHTTPHandler(provider.NewFake(), &stubRunner{}, nil, nil)
 
 	// CORS: preflight trả 204 kèm header.
 	rec := httptest.NewRecorder()
@@ -129,7 +129,7 @@ func TestNewHTTPHandler_MiddlewareChain(t *testing.T) {
 // Chưa nối Mongo → readyz báo "not configured" và vẫn 200 (không panic vì
 // interface nil đúng nghĩa).
 func TestNewHTTPHandler_ReadyzWithoutMongo(t *testing.T) {
-	h := newHTTPHandler(provider.NewFake(), &stubRunner{}, mongoPinger(nil))
+	h := newHTTPHandler(provider.NewFake(), &stubRunner{}, mongoPinger(nil), nil)
 
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/readyz", nil))

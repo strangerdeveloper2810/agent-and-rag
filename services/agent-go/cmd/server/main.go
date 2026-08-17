@@ -238,8 +238,22 @@ Bạn là chuyên gia nghiên cứu internet của JARVIS. Nhiệm vụ của b�
 		os.Exit(1)
 	}
 
+	// --- Wire Autonomous Learner ---
+	var embedder memory.Embedder
+	if cfg.VoyageKey != "" {
+		vc := rag.NewClient(cfg.VoyageKey)
+		embedder = memory.EmbedderFunc(func(ctx context.Context, texts []string) ([][]float64, error) {
+			return vc.Embed(ctx, texts, "document")
+		})
+	}
+	learnerModel := cfg.GeminiModel
+	if cfg.DeepSeekFlashModel != "" && cfg.DeepSeekKey != "" {
+		learnerModel = cfg.DeepSeekFlashModel
+	}
+	learner := memory.NewLearner(store, mongoClient, prov, learnerModel, embedder)
+
 	// --- HTTP Routes ---
-	srv := &http.Server{Addr: ":" + cfg.Port, Handler: newHTTPHandler(prov, orch, mongoPinger(mongoClient))}
+	srv := &http.Server{Addr: ":" + cfg.Port, Handler: newHTTPHandler(prov, orch, mongoPinger(mongoClient), learner)}
 
 	// Start server
 	go func() {
@@ -301,11 +315,15 @@ func buildRegistries(cfg config.Config) (code, research, general *tools.Registry
 
 // newHTTPHandler dựng router + chuỗi middleware (CORS → Tenant → mux).
 // Tách khỏi main để test được routing và middleware mà không cần chạy server.
-func newHTTPHandler(prov provider.Provider, runner agent.Runner, pinger agenthttp.MongoPinger) http.Handler {
+func newHTTPHandler(prov provider.Provider, runner agent.Runner, pinger agenthttp.MongoPinger, learner agenthttp.ConversationLearner) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", agenthttp.Healthz)
 	mux.HandleFunc("GET /readyz", agenthttp.NewReadyzHandler(prov, pinger))
-	mux.HandleFunc("POST /chat", agenthttp.NewChatHandler(runner).ServeHTTP)
+	chatHandler := agenthttp.NewChatHandler(runner)
+	if learner != nil {
+		chatHandler.SetLearner(learner)
+	}
+	mux.HandleFunc("POST /chat", chatHandler.ServeHTTP)
 	mux.HandleFunc("GET /suggestions", agenthttp.NewSuggestionsHandler(runner).ServeHTTP)
 
 	var handler http.Handler = mux

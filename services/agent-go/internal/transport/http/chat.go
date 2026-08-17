@@ -6,22 +6,35 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/ai-agent-tut/agent-go/internal/agent"
 	"github.com/ai-agent-tut/agent-go/internal/guardrails"
 	"github.com/ai-agent-tut/agent-go/internal/provider"
 )
 
+// ConversationLearner extracts and persists knowledge in the background.
+type ConversationLearner interface {
+	LearnFromConversation(messages []provider.Message, conversationID string)
+}
+
 // ChatHandler xử lý POST /chat — nhận JSON, chạy engine hoặc orchestrator,
 // stream SSE events. Accepts agent.Runner interface so both Engine and
 // Orchestrator work interchangeably.
 type ChatHandler struct {
-	runner agent.Runner
+	runner  agent.Runner
+	learner ConversationLearner
 }
 
 // NewChatHandler tạo ChatHandler với runner (Engine hoặc Orchestrator).
 func NewChatHandler(runner agent.Runner) *ChatHandler {
 	return &ChatHandler{runner: runner}
+}
+
+// SetLearner configures the autonomous background learner.
+func (h *ChatHandler) SetLearner(l ConversationLearner) *ChatHandler {
+	h.learner = l
+	return h
 }
 
 // ChatRequest là body JSON client gửi lên.
@@ -116,13 +129,25 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		MaxSteps:       req.MaxSteps,
 	}
 
+	var assistantContent strings.Builder
 	emit := func(e agent.Event) {
+		if e.Type == "text" {
+			assistantContent.WriteString(e.Text)
+		}
 		data, _ := json.Marshal(e)
 		fmt.Fprintf(w, "data: %s\n\n", data)
 		flusher.Flush()
 	}
 
 	_, _ = h.runner.Run(r.Context(), input, emit)
+
+	if h.learner != nil && assistantContent.Len() > 0 {
+		fullMsgs := make([]provider.Message, 0, len(history)+2)
+		fullMsgs = append(fullMsgs, history...)
+		fullMsgs = append(fullMsgs, provider.Message{Role: provider.RoleUser, Content: req.UserMessage})
+		fullMsgs = append(fullMsgs, provider.Message{Role: provider.RoleAssistant, Content: assistantContent.String()})
+		h.learner.LearnFromConversation(fullMsgs, req.ConversationID)
+	}
 }
 
 // validateAttachments checks count limits (7 images + 7 files max) and
