@@ -22,18 +22,33 @@ type AgentSpec struct {
 	SystemPrompt    string        // Prompt RIÊNG cho agent này (merge với base)
 }
 
+// defaultMaxDelegationDepth chặn handoff đệ quy vô hạn (A→B→A→B→...) khi chưa
+// gọi SetMaxDelegationDepth. 0 từ HandoffRequest.Depth nghĩa là handoff gốc.
+const defaultMaxDelegationDepth = 4
+
 // Orchestrator quản lý nhiều engine, route request đến đúng agent.
 type Orchestrator struct {
-	agents       map[string]*AgentSpec // name → spec
-	order        []string              // thứ tự đăng ký (ưu tiên)
-	defaultAgent string                // fallback agent name
+	agents             map[string]*AgentSpec // name → spec
+	order              []string              // thứ tự đăng ký (ưu tiên)
+	defaultAgent       string                // fallback agent name
+	maxDelegationDepth int                   // chốt an toàn cho Delegate() đệ quy
 }
 
 // New tạo Orchestrator rỗng.
 func New() *Orchestrator {
 	return &Orchestrator{
-		agents: make(map[string]*AgentSpec),
+		agents:             make(map[string]*AgentSpec),
+		maxDelegationDepth: defaultMaxDelegationDepth,
 	}
+}
+
+// SetMaxDelegationDepth đặt số lần handoff liên tiếp tối đa Delegate() cho
+// phép (A→B→C→...). n <= 0 → dùng lại defaultMaxDelegationDepth.
+func (o *Orchestrator) SetMaxDelegationDepth(n int) {
+	if n <= 0 {
+		n = defaultMaxDelegationDepth
+	}
+	o.maxDelegationDepth = n
 }
 
 // Register thêm một agent vào orchestrator.
@@ -114,6 +129,25 @@ type HandoffRequest struct {
 	To      string // agent nhận
 	Context string // context để agent nhận hiểu task
 	Task    string // task cụ thể
+
+	// Depth = số lần handoff đã đi qua trước request này (0 = handoff gốc).
+	// Nếu agent nhận (spec.To) tự gọi Delegate tiếp, nó PHẢI truyền Depth+1 —
+	// đây là field duy nhất chống đệ quy vô hạn A→B→A→B→..., Delegate không
+	// tự suy luận được độ sâu vì không giữ call-stack giữa các lượt.
+	Depth int
+}
+
+// DelegationDepthExceededError báo Delegate bị chặn vì chuỗi handoff vượt
+// giới hạn cấu hình (SetMaxDelegationDepth) — fail loud thay vì lặp vô hạn.
+type DelegationDepthExceededError struct {
+	From, To string
+	Depth    int
+	Max      int
+}
+
+func (e *DelegationDepthExceededError) Error() string {
+	return fmt.Sprintf("orchestrator: delegation depth %d exceeds max %d (handoff %s→%s)",
+		e.Depth, e.Max, e.From, e.To)
 }
 
 // HandoffResult là kết quả từ agent nhận.
@@ -133,6 +167,10 @@ func truncate(s string, maxLen int) string {
 // Delegate chuyển task từ agent A → agent B và chạy agent B.
 // Dùng khi một agent cần chuyên môn của agent khác.
 func (o *Orchestrator) Delegate(ctx context.Context, req HandoffRequest) (*HandoffResult, error) {
+	if req.Depth >= o.maxDelegationDepth {
+		return nil, &DelegationDepthExceededError{From: req.From, To: req.To, Depth: req.Depth, Max: o.maxDelegationDepth}
+	}
+
 	spec := o.agents[req.To]
 	if spec == nil {
 		return nil, fmt.Errorf("orchestrator: agent %q not found for handoff from %q", req.To, req.From)

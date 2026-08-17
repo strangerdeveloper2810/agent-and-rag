@@ -5,6 +5,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"time"
 )
 
 // Kind phân loại tool để phục vụ guardrail / HITL.
@@ -29,4 +30,18 @@ type Tool interface {
 	Schema() json.RawMessage // JSON Schema cho args
 	Kind() Kind
 	Execute(ctx context.Context, args json.RawMessage) (Result, error)
+}
+
+// TimeoutTool là interface TUỲ CHỌN — tool nào cần deadline riêng (network
+// call, shell command...) thì implement thêm. Registry.runOne bọc ctx bằng
+// context.WithTimeout trước khi gọi Execute nếu tool thoả interface này và
+// Timeout() > 0.
+//
+// Cơ chế này HỢP TÁC (cooperative), không phải hard-kill: nó chỉ hữu ích với
+// tool tự tôn trọng ctx.Done() bên trong Execute (vd exec.CommandContext,
+// http.NewRequestWithContext) — giống mọi context.Context khác trong Go,
+// không có cách ép 1 goroutine đang chạy dừng lại nếu nó không tự kiểm tra ctx.
+type TimeoutTool interface {
+	Tool
+	Timeout() time.Duration
 }
