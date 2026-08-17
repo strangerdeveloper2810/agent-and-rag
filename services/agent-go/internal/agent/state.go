@@ -101,6 +101,13 @@ type State struct {
 	// activatedSkills tracks which skills have been activated during this run.
 	// Used to prevent re-activation of the same skill within one conversation.
 	activatedSkills map[string]bool
+
+	// RecalledMemories holds the long-term memories found by the recall node
+	// for the current user turn (formatted as "key: value" strings). nodeModel
+	// weaves these into the system prompt sent to the LLM — without this,
+	// recall results only reached the SSE stream for UI display and were
+	// never actually used by the model to answer the request.
+	RecalledMemories []string
 }
 
 // newState khởi tạo State từ RunInput.

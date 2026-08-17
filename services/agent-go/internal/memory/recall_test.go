@@ -41,11 +41,12 @@ func TestRecallNode_KeywordCascade(t *testing.T) {
 	store.Set("default", "email", "linh@example.com")
 
 	emit, events := collectEmit()
-	next, err := RecallNode(store)(context.Background(), &agent.State{
+	state := &agent.State{
 		Messages: []provider.Message{
 			{Role: provider.RoleUser, Content: "tên của tôi là gì? và email của tôi?"},
 		},
-	}, emit)
+	}
+	next, err := RecallNode(store)(context.Background(), state, emit)
 
 	if err != nil || next != agent.NodeModel {
 		t.Fatalf("next/err = (%q, %v), want (NodeModel, nil)", next, err)
@@ -56,6 +57,16 @@ func TestRecallNode_KeywordCascade(t *testing.T) {
 	msg := (*events)[0].Message
 	if !strings.Contains(msg, "user_name: Linh") || !strings.Contains(msg, "email: linh@example.com") {
 		t.Fatalf("event message = %q, want chứa user_name và email", msg)
+	}
+
+	// P1 fix: kết quả recall phải nằm trong State để nodeModel dùng được khi
+	// gọi LLM — không chỉ emit ra SSE cho UI xem.
+	if len(state.RecalledMemories) != 2 {
+		t.Fatalf("state.RecalledMemories = %v, want 2 mục", state.RecalledMemories)
+	}
+	joined := strings.Join(state.RecalledMemories, " | ")
+	if !strings.Contains(joined, "user_name: Linh") || !strings.Contains(joined, "email: linh@example.com") {
+		t.Fatalf("state.RecalledMemories = %v, want chứa user_name và email", state.RecalledMemories)
 	}
 }
 
@@ -177,17 +188,21 @@ func TestRecallNode_NoResults(t *testing.T) {
 	store.Set("default", "user_name", "Linh")
 
 	emit, events := collectEmit()
-	next, err := RecallNode(store)(context.Background(), &agent.State{
+	state := &agent.State{
 		Messages: []provider.Message{
 			{Role: provider.RoleUser, Content: "trời hôm nay đẹp nhỉ"},
 		},
-	}, emit)
+	}
+	next, err := RecallNode(store)(context.Background(), state, emit)
 
 	if err != nil || next != agent.NodeModel {
 		t.Fatalf("next/err = (%q, %v), want (NodeModel, nil)", next, err)
 	}
 	if len(*events) != 0 {
 		t.Fatalf("events = %v, want không emit khi không có kết quả", *events)
+	}
+	if len(state.RecalledMemories) != 0 {
+		t.Fatalf("state.RecalledMemories = %v, want rỗng khi không có kết quả", state.RecalledMemories)
 	}
 }
 
