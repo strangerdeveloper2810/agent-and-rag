@@ -77,6 +77,15 @@ func TestLoad_Defaults(t *testing.T) {
 	if !c.EnableHybridSearch || !c.EnableRerank {
 		t.Errorf("EnableHybridSearch=%v EnableRerank=%v, want both true", c.EnableHybridSearch, c.EnableRerank)
 	}
+	// Parent Document Retrieval rẻ (không gọi LLM) — BẬT mặc định.
+	if !c.EnableParentRetrieval {
+		t.Error("EnableParentRetrieval mặc định phải là true")
+	}
+	// LLM Rerank + HyDE tốn thêm 1 LLM call/lần search — phải TẮT mặc định.
+	if c.EnableLLMRerank || c.EnableHyDE {
+		t.Errorf("EnableLLMRerank=%v EnableHyDE=%v, want both false (mặc định tắt vì tốn LLM call)",
+			c.EnableLLMRerank, c.EnableHyDE)
+	}
 	if c.EnableDynamicThinking || c.EnablePlanning {
 		t.Errorf("EnableDynamicThinking=%v EnablePlanning=%v, want both false",
 			c.EnableDynamicThinking, c.EnablePlanning)
@@ -107,6 +116,9 @@ func TestLoad_EnvOverrides(t *testing.T) {
 	t.Setenv("ENABLE_DYNAMIC_THINKING", "true")
 	t.Setenv("ENABLE_PLANNING", "true")
 	t.Setenv("ENABLE_LEARNER", "true")
+	t.Setenv("ENABLE_PARENT_RETRIEVAL", "false")
+	t.Setenv("ENABLE_LLM_RERANK", "true")
+	t.Setenv("ENABLE_HYDE", "true")
 
 	c, err := Load()
 	if err != nil {
@@ -130,6 +142,12 @@ func TestLoad_EnvOverrides(t *testing.T) {
 	}
 	if !c.EnableLearner {
 		t.Error("ENABLE_LEARNER=true phải bật cờ")
+	}
+	if c.EnableParentRetrieval {
+		t.Error("ENABLE_PARENT_RETRIEVAL=false phải tắt cờ")
+	}
+	if !c.EnableLLMRerank || !c.EnableHyDE {
+		t.Error("ENABLE_LLM_RERANK/ENABLE_HYDE=true phải bật cờ")
 	}
 }
 

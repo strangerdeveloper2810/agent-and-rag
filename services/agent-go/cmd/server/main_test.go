@@ -85,7 +85,7 @@ func TestRegisterRAGAndCodeExtras_CodeGetsWebTools(t *testing.T) {
 	cfg := config.Config{AllowedPaths: []string{t.TempDir()}}
 	code, research, general := buildRegistries(cfg)
 
-	ragTool := tools.NewRAGSearchTool(nil, "db", "", false, false)
+	ragTool := tools.NewRAGSearchTool(nil, "db", "", nil, tools.RAGSearchConfig{})
 	ragReadTool := tools.NewRAGReadTool(nil, "db")
 	registerRAGAndCodeExtras(code, research, general, ragTool, ragReadTool)
 

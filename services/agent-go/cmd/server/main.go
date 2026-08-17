@@ -61,7 +61,14 @@ func main() {
 		}
 	}
 	// RAG tools (register to all registries)
-	ragTool := tools.NewRAGSearchTool(mongoClient, cfg.MongoDB, cfg.VoyageKey, cfg.EnableHybridSearch, cfg.EnableRerank)
+	ragTool := tools.NewRAGSearchTool(mongoClient, cfg.MongoDB, cfg.VoyageKey, prov, tools.RAGSearchConfig{
+		EnableHybridSearch:    cfg.EnableHybridSearch,
+		EnableRerank:          cfg.EnableRerank,
+		EnableLLMRerank:       cfg.EnableLLMRerank,
+		EnableParentRetrieval: cfg.EnableParentRetrieval,
+		EnableHyDE:            cfg.EnableHyDE,
+		Model:                 fastModel(cfg),
+	})
 	ragReadTool := tools.NewRAGReadTool(mongoClient, cfg.MongoDB)
 	registerRAGAndCodeExtras(codeRegistry, researchRegistry, generalRegistry, ragTool, ragReadTool)
 
@@ -244,11 +251,7 @@ Bạn là chuyên gia nghiên cứu internet của JARVIS. Nhiệm vụ của b�
 				return vc.Embed(ctx, texts, "document")
 			})
 		}
-		learnerModel := cfg.GeminiModel
-		if cfg.DeepSeekFlashModel != "" && cfg.DeepSeekKey != "" {
-			learnerModel = cfg.DeepSeekFlashModel
-		}
-		learner = memory.NewLearner(store, mongoClient, prov, learnerModel, embedder)
+		learner = memory.NewLearner(store, mongoClient, prov, fastModel(cfg), embedder)
 		slog.Info("learner: autonomous continuous learning enabled")
 	}
 
@@ -329,6 +332,17 @@ func registerRAGAndCodeExtras(codeRegistry, researchRegistry, generalRegistry *t
 
 	codeRegistry.Register(tools.NewWebSearchTool(nil))
 	codeRegistry.Register(tools.NewWebFetchTool(nil))
+}
+
+// fastModel chọn model rẻ/nhanh cho các tác vụ phụ trợ tốn thêm 1 LLM call
+// (reflection, LLM rerank, HyDE) — KHÔNG dùng model chính cho hội thoại để
+// tránh đội chi phí. Ưu tiên DeepSeek flash (rẻ nhất) nếu có key, rơi về
+// Gemini model chính nếu không.
+func fastModel(cfg config.Config) string {
+	if cfg.DeepSeekFlashModel != "" && cfg.DeepSeekKey != "" {
+		return cfg.DeepSeekFlashModel
+	}
+	return cfg.GeminiModel
 }
 
 // newHTTPHandler dựng router + chuỗi middleware (CORS → Tenant → mux).
