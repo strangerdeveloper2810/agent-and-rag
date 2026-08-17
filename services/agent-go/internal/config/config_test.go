@@ -17,7 +17,7 @@ func clearEnv(t *testing.T) {
 		"DEEPSEEK_PRO_MODEL", "JARVIS_DB_PATH", "JARVIS_SKILLS_DIR",
 		"MONGODB_URI", "MONGODB_DB", "VOYAGE_API_KEY", "EMBED_MODEL",
 		"ENABLE_HYBRID_SEARCH", "ENABLE_RERANK", "ENABLE_DYNAMIC_THINKING",
-		"ENABLE_PLANNING", "HOME",
+		"ENABLE_PLANNING", "ENABLE_LEARNER", "HOME",
 	} {
 		t.Setenv(k, "")
 	}
@@ -81,6 +81,10 @@ func TestLoad_Defaults(t *testing.T) {
 		t.Errorf("EnableDynamicThinking=%v EnablePlanning=%v, want both false",
 			c.EnableDynamicThinking, c.EnablePlanning)
 	}
+	// Learner tốn thêm 1 LLM call/response — phải TẮT mặc định (P2 fix).
+	if c.EnableLearner {
+		t.Error("EnableLearner mặc định phải là false")
+	}
 
 	if len(c.AllowedPaths) != 2 || c.AllowedPaths[0] != "." {
 		t.Errorf("AllowedPaths = %v, want [. $HOME]", c.AllowedPaths)
@@ -102,6 +106,7 @@ func TestLoad_EnvOverrides(t *testing.T) {
 	t.Setenv("ENABLE_RERANK", "false")
 	t.Setenv("ENABLE_DYNAMIC_THINKING", "true")
 	t.Setenv("ENABLE_PLANNING", "true")
+	t.Setenv("ENABLE_LEARNER", "true")
 
 	c, err := Load()
 	if err != nil {
@@ -122,6 +127,9 @@ func TestLoad_EnvOverrides(t *testing.T) {
 	}
 	if !c.EnableDynamicThinking || !c.EnablePlanning {
 		t.Error("ENABLE_DYNAMIC_THINKING/ENABLE_PLANNING=true phải bật cờ")
+	}
+	if !c.EnableLearner {
+		t.Error("ENABLE_LEARNER=true phải bật cờ")
 	}
 }
 
