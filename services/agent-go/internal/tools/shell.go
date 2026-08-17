@@ -14,24 +14,39 @@ import (
 // Kind=KindDestructive because it can modify the system.
 type shellTool struct {
 	allowedCommands map[string]bool // empty = allow all
+	timeout         time.Duration
 }
 
-const shellMaxOutput = 8_000
+const (
+	shellMaxOutput      = 8_000
+	defaultShellTimeout = 30 * time.Second
+)
 
-// NewShellTool creates a shell execution tool.
+// NewShellTool creates a shell execution tool with the default 30s timeout.
 // allowedCommands: list of allowed command names. Empty or nil = allow all.
 func NewShellTool(allowedCommands []string) Tool {
+	return NewShellToolWithTimeout(allowedCommands, defaultShellTimeout)
+}
+
+// NewShellToolWithTimeout is like NewShellTool but with a configurable
+// timeout (timeout <= 0 falls back to the 30s default). Registry.runOne
+// applies this via the TimeoutTool interface — see tool.go.
+func NewShellToolWithTimeout(allowedCommands []string, timeout time.Duration) Tool {
 	ac := make(map[string]bool, len(allowedCommands))
 	for _, cmd := range allowedCommands {
 		ac[cmd] = true
 	}
-	return &shellTool{allowedCommands: ac}
+	if timeout <= 0 {
+		timeout = defaultShellTimeout
+	}
+	return &shellTool{allowedCommands: ac, timeout: timeout}
 }
 
-func (t *shellTool) Name() string { return "shell.exec" }
+func (t *shellTool) Name() string           { return "shell.exec" }
+func (t *shellTool) Timeout() time.Duration { return t.timeout }
 
 func (t *shellTool) Description() string {
-	return "Thực thi shell command qua os/exec. Timeout 30s, output tối đa 8000 ký tự."
+	return fmt.Sprintf("Thực thi shell command qua os/exec. Timeout %s, output tối đa 8000 ký tự.", t.timeout)
 }
 
 func (t *shellTool) Schema() json.RawMessage {
@@ -65,10 +80,8 @@ func (t *shellTool) Execute(ctx context.Context, rawArgs json.RawMessage) (Resul
 		return Result{}, fmt.Errorf("shell.exec: command %q is not allowed", args.Command)
 	}
 
-	// Timeout 30s
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-
+	// Deadline áp qua TimeoutTool ở Registry.runOne (xem tool.go) — ctx ở đây
+	// đã mang deadline đó khi tool chạy qua registry.
 	cmd := exec.CommandContext(ctx, args.Command, args.Args...)
 
 	var stdout, stderr bytes.Buffer

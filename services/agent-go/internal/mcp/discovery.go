@@ -5,12 +5,15 @@ package mcp
 import (
 	"bufio"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sync"
 
 	"gopkg.in/yaml.v3"
@@ -254,8 +257,13 @@ type MCPConfig struct {
 }
 
 // mcpAdapter biến MCP tool thành tools.Tool để dùng chung registry.
+// name là tên đã namespace (dùng cho LLM + registry key); rawName là tên gốc
+// server trả về (dùng khi gọi "tools/call" qua JSON-RPC — server không biết
+// namespace prefix). rawName rỗng → Execute rơi về dùng name (tương thích
+// adapter dựng tay trong test, trước khi namespace tồn tại).
 type mcpAdapter struct {
 	name        string
+	rawName     string
 	description string
 	schema      json.RawMessage
 	client      *MCPClient
@@ -266,11 +274,43 @@ func (a *mcpAdapter) Description() string     { return a.description }
 func (a *mcpAdapter) Schema() json.RawMessage { return a.schema }
 func (a *mcpAdapter) Kind() tools.Kind        { return tools.KindRead }
 func (a *mcpAdapter) Execute(_ context.Context, args json.RawMessage) (tools.Result, error) {
-	text, err := a.client.CallTool(a.name, args)
+	name := a.rawName
+	if name == "" {
+		name = a.name
+	}
+	text, err := a.client.CallTool(name, args)
 	if err != nil {
 		return tools.Result{}, err
 	}
 	return tools.Result{Content: text}, nil
+}
+
+// maxToolNameLen giới hạn độ dài tên tool theo ràng buộc chung của các provider
+// (OpenAI/DeepSeek function name tối đa 64 ký tự).
+const maxToolNameLen = 64
+
+// invalidToolNameChar khớp mọi ký tự ngoài [A-Za-z0-9_-] — ràng buộc tên hàm
+// chung của hầu hết provider (DeepSeek/Anthropic chỉ tự sanitize dấu chấm).
+var invalidToolNameChar = regexp.MustCompile(`[^A-Za-z0-9_-]`)
+
+// qualifiedToolName namespace 1 MCP tool thành "mcp__<server>__<raw>" (cùng quy
+// ước Claude Code/Codex dùng) để tool trùng tên từ 2 server khác nhau không bao
+// giờ đụng độ trong registry. Ký tự không hợp lệ được thay bằng "_".
+//
+// Nếu tên sau namespace vượt maxToolNameLen, cắt bớt và gắn hash 8-hex của
+// (server, raw) — hash chỉ phụ thuộc 2 input này, không phụ thuộc thứ tự kết
+// nối server hay số lần re-sync, nên tên ổn định qua các lần khởi động.
+func qualifiedToolName(server, raw string) string {
+	name := "mcp__" + invalidToolNameChar.ReplaceAllString(server, "_") +
+		"__" + invalidToolNameChar.ReplaceAllString(raw, "_")
+	if len(name) <= maxToolNameLen {
+		return name
+	}
+
+	sum := sha256.Sum256([]byte(server + "\x00" + raw))
+	suffix := "-" + hex.EncodeToString(sum[:])[:8]
+	keep := max(maxToolNameLen-len(suffix), 0)
+	return name[:keep] + suffix
 }
 
 // MCPRegistry quản lý nhiều MCP client, tự động discovery tool từ file YAML.
@@ -339,7 +379,8 @@ func (r *MCPRegistry) connectServer(cfg MCPToolConfig) error {
 
 	for _, def := range defs {
 		adapter := &mcpAdapter{
-			name:        def.Name,
+			name:        qualifiedToolName(cfg.Name, def.Name),
+			rawName:     def.Name,
 			description: def.Description,
 			schema:      def.Schema,
 			client:      client,
