@@ -124,6 +124,24 @@ type ragReadArgs struct {
 	Source     string `json:"source,omitempty"`
 }
 
+// buildRAGReadFilter builds the Mongo match filter for rag.read, scoped to
+// tenantID the same way ragSearchTool.vectorSearch/textSearch already do.
+// Without the tenantId clause, any tenant that knows/guesses another tenant's
+// documentId or source filename could read the full content of that document —
+// this is what previously made rag.read leak data across tenants.
+func buildRAGReadFilter(documentID, source, tenantID string) bson.D {
+	matchDoc := bson.D{}
+	if documentID != "" {
+		matchDoc = append(matchDoc, bson.E{Key: "documentId", Value: documentID})
+	} else if source != "" {
+		matchDoc = append(matchDoc, bson.E{Key: "source", Value: source})
+	}
+	if tenantID != "" && tenantID != "default" {
+		matchDoc = append(matchDoc, bson.E{Key: "tenantId", Value: tenantID})
+	}
+	return matchDoc
+}
+
 func (t *ragReadTool) Execute(ctx context.Context, args json.RawMessage) (Result, error) {
 	if t.mongoClient == nil {
 		return Result{Content: "RAG not configured. Set MONGODB_URI to enable document reading."}, nil
@@ -138,13 +156,9 @@ func (t *ragReadTool) Execute(ctx context.Context, args json.RawMessage) (Result
 		return Result{}, fmt.Errorf("rag.read: either documentId or source is required")
 	}
 
+	tenantID := middleware.GetTenantID(ctx)
 	coll := t.mongoClient.Collection("documents")
-	matchDoc := bson.D{}
-	if parsed.DocumentID != "" {
-		matchDoc = append(matchDoc, bson.E{Key: "documentId", Value: parsed.DocumentID})
-	} else if parsed.Source != "" {
-		matchDoc = append(matchDoc, bson.E{Key: "source", Value: parsed.Source})
-	}
+	matchDoc := buildRAGReadFilter(parsed.DocumentID, parsed.Source, tenantID)
 
 	type chunkDoc struct {
 		Text       string `bson:"text"`
