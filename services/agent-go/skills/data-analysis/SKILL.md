@@ -2,6 +2,7 @@
 name: data-analysis
 description: Analyze data — find patterns, trends, anomalies, calculate statistics, and suggest visualizations
 when_to_use: When Tony has data and needs insights: CSV files, logs, performance metrics, experiment results, or any structured data
+triggers: [phân tích dữ liệu, phan tich du lieu, data analysis, thống kê, thong ke, biểu đồ, bieu do, dataset]
 tools: [file.read, shell.exec, calculator]
 ---
 

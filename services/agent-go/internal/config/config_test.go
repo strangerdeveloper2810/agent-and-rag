@@ -68,10 +68,44 @@ func TestLoad_Defaults(t *testing.T) {
 		}
 	}
 
-	if c.MaxSteps != 12 || c.MaxTokens != 0 || c.MaxContextTokens != 100000 ||
+	// MaxTokens mặc định giờ là 8192 (trước là 0 = không giới hạn, và cũng là
+	// config chết không ai đọc) — xem defaultMaxOutputTokens.
+	if c.MaxSteps != 12 || c.MaxTokens != defaultMaxOutputTokens || c.MaxContextTokens != 100000 ||
 		c.MaxToolOutput != 24000 || c.ShellTimeout != 30 {
-		t.Errorf("limits = %+v, want defaults (12/0/100000/24000/30)", c)
+		t.Errorf("limits = %+v, want defaults (12/%d/100000/24000/30)", c, defaultMaxOutputTokens)
 	}
+
+	// MAX_OUTPUT_TOKENS phải đọc được từ env, và giá trị rác không làm sập server.
+	t.Run("MAX_OUTPUT_TOKENS từ env", func(t *testing.T) {
+		t.Setenv("MAX_OUTPUT_TOKENS", "4096")
+		got, err := Load()
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if got.MaxTokens != 4096 {
+			t.Errorf("MaxTokens = %d, want 4096", got.MaxTokens)
+		}
+	})
+	t.Run("MAX_OUTPUT_TOKENS rác → dùng mặc định", func(t *testing.T) {
+		t.Setenv("MAX_OUTPUT_TOKENS", "nhiều lắm")
+		got, err := Load()
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if got.MaxTokens != defaultMaxOutputTokens {
+			t.Errorf("MaxTokens = %d, want %d (fallback khi parse lỗi)", got.MaxTokens, defaultMaxOutputTokens)
+		}
+	})
+	t.Run("MAX_OUTPUT_TOKENS=0 nghĩa là không giới hạn", func(t *testing.T) {
+		t.Setenv("MAX_OUTPUT_TOKENS", "0")
+		got, err := Load()
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if got.MaxTokens != 0 {
+			t.Errorf("MaxTokens = %d, want 0", got.MaxTokens)
+		}
+	})
 
 	// Bool defaults: hybrid search + rerank BẬT, dynamic thinking + planning TẮT.
 	if !c.EnableHybridSearch || !c.EnableRerank {

@@ -2,6 +2,7 @@
 name: performance-optimizer
 description: Performance optimization — profile, identify bottlenecks, and suggest concrete improvements for CPU, memory, I/O, and latency
 when_to_use: When Tony's system is slow, resource-heavy, or needs to scale — or proactively before a launch to ensure peak performance
+triggers: [tối ưu, toi uu, chậm, cham, performance, tăng tốc, tang toc, bottleneck, profiling, chạy nhanh hơn, chay nhanh hon]
 tools: [shell.exec, file.read, git]
 ---
 

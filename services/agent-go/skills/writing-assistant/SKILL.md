@@ -2,6 +2,7 @@
 name: writing-assistant
 description: Professional writing assistant for emails, documents, reports, and proposals — fast, not fancy
 when_to_use: When Tony needs to write or polish any professional communication: emails, memos, reports, proposals, documentation, or presentations
+triggers: [viết bài, viet bai, soạn thảo, soan thao, viết email, viet email, chỉnh văn, chinh van, viết tài liệu, viet tai lieu]
 tools: [file.read, file.write, web.search]
 ---
 

@@ -2,6 +2,7 @@
 name: deep-research
 description: Deep internet research — multi-source search, cross-reference, synthesize, cite. Triggered when JARVIS doesn't know the answer or needs latest information
 when_to_use: When user asks about facts, news, or topics beyond JARVIS's knowledge cutoff. When user says "search", "research", "find out about", "what's the latest". When JARVIS cannot answer from memory or local documents.
+triggers: [tìm hiểu, tim hieu, tra cứu, tra cuu, tìm kiếm, tim kiem, nghiên cứu, nghien cuu, tin tức, tin tuc, mới nhất, moi nhat, search, research, latest news]
 tools: [web.search, web.fetch, file.read, file.write, memory.save]
 ---
 

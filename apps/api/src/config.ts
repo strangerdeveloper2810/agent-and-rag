@@ -69,6 +69,12 @@ const envSchema = z
     AGENT_GO_URL: z.string().default("http://localhost:3002"),
     /** Timeout (ms) cho mỗi HTTP request sang Go agent (chat + health check). */
     AGENT_GO_TIMEOUT: z.coerce.number().int().positive().default(300_000),
+    /**
+     * Phiên bản chat cache — nằm trong cache key nên bump giá trị này là vô hiệu
+     * toàn bộ cache cũ. Cần thiết vì BFF không biết tên model bên trong Go agent,
+     * nên đổi model/prompt ở phía Go sẽ KHÔNG tự làm mới cache.
+     */
+    CHAT_CACHE_VERSION: z.string().default("1"),
 
     // ----- Vận hành -----
     /** Danh sách origin cho CORS, phân tách bằng dấu phẩy. Rỗng = cho mọi origin (dev). */

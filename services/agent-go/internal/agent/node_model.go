@@ -19,6 +19,7 @@ type modelEngine interface {
 	getRegistry() *tools.Registry
 	getSystemPrompt() string
 	getMaxContextTokens() int
+	getMaxOutputTokens() int
 	getDynamicThinking() DynamicThinkingConfig
 	getSkillLoader() *skills.Loader
 }
@@ -129,6 +130,11 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 		Options: provider.ProviderOptions{
 			Cache:         true,
 			ThinkingLevel: thinkingLevel,
+			// Trần output token. Trước đây không set (cfg.MaxTokens là config
+			// chết) nên request gửi max_tokens=0 → API không có trần nào, và
+			// finish_reason=length không bao giờ xảy ra nên cờ s.Truncated +
+			// nút "Tiếp tục" trên UI thực tế không có cơ hội kích hoạt.
+			MaxTokens: eng.getMaxOutputTokens(),
 		},
 	}
 

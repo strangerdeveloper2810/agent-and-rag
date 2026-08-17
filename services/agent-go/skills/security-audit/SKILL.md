@@ -2,6 +2,7 @@
 name: security-audit
 description: Security review — find vulnerabilities, check OWASP Top 10, review auth/encryption/input validation
 when_to_use: When Tony needs a security assessment: code review for vulnerabilities, architecture security review, or pre-deployment audit
+triggers: [bảo mật, bao mat, security, lỗ hổng, lo hong, vulnerability, kiểm tra an toàn, kiem tra an toan, owasp]
 tools: [file.read, shell.exec, git]
 ---
 

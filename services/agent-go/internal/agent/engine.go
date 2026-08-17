@@ -67,7 +67,19 @@ type Engine struct {
 	// allowDestructiveTools cho phép chạy tool KindDestructive không cần xác
 	// nhận. false (mặc định) → guardrails chặn và agent giải thích cho user.
 	allowDestructiveTools bool
+
+	// maxOutputTokens là trần output token cho MỖI lần gọi LLM. 0 = không giới
+	// hạn. Trước đây cfg.MaxTokens là config chết nên request luôn gửi
+	// max_tokens=0 và không có trần nào — xem cfg.MaxTokens.
+	maxOutputTokens int
 }
+
+// SetMaxOutputTokens đặt trần output token cho mỗi lần gọi LLM. n <= 0 = không giới hạn.
+func (e *Engine) SetMaxOutputTokens(n int) {
+	e.maxOutputTokens = n
+}
+
+func (e *Engine) getMaxOutputTokens() int { return e.maxOutputTokens }
 
 // SetMaxToolOutput đặt giới hạn ký tự output mỗi tool đưa vào context.
 // n <= 0 → không giới hạn.

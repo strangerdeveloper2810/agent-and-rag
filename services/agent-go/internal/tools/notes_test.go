@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/ai-agent-tut/agent-go/internal/middleware"
 )
 
 func TestNotesSearchTool(t *testing.T) {
@@ -23,14 +25,20 @@ func TestNotesSearchTool(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "empty query",
+			// ĐỔI HÀNH VI CÓ CHỦ ĐÍCH: query rỗng nghĩa là "liệt kê tất cả",
+			// không còn là lỗi. Log dev thật cho thấy model gọi notes.search với
+			// args rỗng khi muốn liệt kê toàn bộ note và nhận lỗi
+			// "query is required" — trong khi khi nó đoán query="*" thì lại khớp
+			// NHẦM theo nghĩa literal (file markdown đầy dấu *) nên ra kết quả
+			// trông đúng mà thực chất tình cờ.
+			name:    "empty query = liệt kê tất cả",
 			args:    json.RawMessage(`{"query":""}`),
-			wantErr: true,
+			wantErr: false,
 		},
 		{
-			name:    "missing query",
+			name:    "missing query = liệt kê tất cả",
 			args:    json.RawMessage(`{}`),
-			wantErr: true,
+			wantErr: false,
 		},
 		{
 			name:    "invalid json",
@@ -78,6 +86,105 @@ func TestNotesSearchTool_FindsNotes(t *testing.T) {
 
 	if out.Count < 2 {
 		t.Errorf("expected at least 2 matches, got %d", out.Count)
+	}
+}
+
+// TestNotesSearchTool_ListAll: query rỗng / "*" phải trả về TẤT CẢ note, kể cả
+// note không chứa từ khoá nào. Trước fix, args rỗng trả lỗi và "*" chỉ khớp
+// tình cờ nhờ dấu * trong markdown — nên note không có dấu * sẽ bị bỏ sót.
+func TestNotesSearchTool_ListAll(t *testing.T) {
+	dir := t.TempDir()
+	tenantDir := filepath.Join(dir, "default")
+	if err := os.MkdirAll(tenantDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Cố tình KHÔNG có dấu "*" và không có từ khoá chung nào giữa 3 file.
+	notes := map[string]string{
+		"alpha.md": "# Alpha\nnoi dung ve golang",
+		"beta.md":  "# Beta\nkhong lien quan gi",
+		"gamma.md": "# Gamma\nchu de hoan toan khac",
+	}
+	for name, content := range notes {
+		if err := os.WriteFile(filepath.Join(tenantDir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	tool := NewNotesSearchTool(dir)
+
+	for _, args := range []string{`{}`, `{"query":""}`, `{"query":"*"}`, `{"query":"  "}`} {
+		t.Run(args, func(t *testing.T) {
+			res, err := tool.Execute(context.Background(), json.RawMessage(args))
+			if err != nil {
+				t.Fatalf("Execute(%s) lỗi: %v", args, err)
+			}
+
+			var out struct {
+				Count   int  `json:"count"`
+				ListAll bool `json:"listAll"`
+				Results []struct {
+					File string `json:"file"`
+				} `json:"results"`
+			}
+			if err := json.Unmarshal([]byte(res.Content), &out); err != nil {
+				t.Fatalf("parse kết quả: %v", err)
+			}
+
+			if !out.ListAll {
+				t.Errorf("listAll = false, want true cho args %s", args)
+			}
+			if out.Count != len(notes) {
+				t.Errorf("count = %d, want %d (phải liệt kê TẤT CẢ note)", out.Count, len(notes))
+			}
+			seen := map[string]bool{}
+			for _, r := range out.Results {
+				seen[r.File] = true
+			}
+			for name := range notes {
+				if !seen[name] {
+					t.Errorf("thiếu note %q trong kết quả liệt kê tất cả", name)
+				}
+			}
+		})
+	}
+}
+
+// TestNotesSearchTool_TenantIsolation khoá một lỗ RÒ RỈ DỮ LIỆU GIỮA CÁC USER:
+// notes.create ghi vào <notesDir>/<tenantID>/ nhưng notes.search lại walk TOÀN
+// BỘ <notesDir>, nên note của tenant khác cũng bị trả về. Kể cả khi liệt kê tất
+// cả (query rỗng) cũng chỉ được thấy note của chính tenant mình.
+func TestNotesSearchTool_TenantIsolation(t *testing.T) {
+	dir := t.TempDir()
+
+	for tenant, note := range map[string]string{
+		"tenant-a": "bi-mat-cua-a.md",
+		"tenant-b": "bi-mat-cua-b.md",
+	} {
+		tenantDir := filepath.Join(dir, tenant)
+		if err := os.MkdirAll(tenantDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(tenantDir, note), []byte("# secret\nthong tin rieng cua "+tenant), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	tool := NewNotesSearchTool(dir)
+	ctxA := context.WithValue(context.Background(), middleware.TenantIDKey, "tenant-a")
+
+	for _, args := range []string{`{}`, `{"query":"secret"}`, `{"query":"thong tin"}`} {
+		t.Run(args, func(t *testing.T) {
+			res, err := tool.Execute(ctxA, json.RawMessage(args))
+			if err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+			if strings.Contains(res.Content, "tenant-b") || strings.Contains(res.Content, "bi-mat-cua-b") {
+				t.Errorf("RÒ RỈ note của tenant khác với args %s:\n%s", args, res.Content)
+			}
+			if !strings.Contains(res.Content, "bi-mat-cua-a") {
+				t.Errorf("thiếu note của chính tenant mình với args %s:\n%s", args, res.Content)
+			}
+		})
 	}
 }
 
