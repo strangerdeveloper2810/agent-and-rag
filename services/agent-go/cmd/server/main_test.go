@@ -11,6 +11,7 @@ import (
 	"github.com/ai-agent-tut/agent-go/internal/agent"
 	"github.com/ai-agent-tut/agent-go/internal/config"
 	"github.com/ai-agent-tut/agent-go/internal/provider"
+	"github.com/ai-agent-tut/agent-go/internal/tools"
 )
 
 // stubRunner trả về text cố định, không gọi LLM.
@@ -71,6 +72,38 @@ func TestBuildRegistries_ScopedPerSpecialty(t *testing.T) {
 	} {
 		if !names["memory.save"] || !names["memory.recall"] {
 			t.Errorf("%s registry thiếu tool memory: %v", name, names)
+		}
+	}
+}
+
+// Bug: filter.go's FilterToolDefs hứa web.search/web.fetch cho query có
+// hasCodeIntent (vd từ khoá "search" nằm trong codeKeywords), nhưng trước fix
+// codeRegistry không có 2 tool này → agent code lỗi runtime "tool not found".
+// registerRAGAndCodeExtras phải cấp web.search/web.fetch cho codeRegistry.
+func TestRegisterRAGAndCodeExtras_CodeGetsWebTools(t *testing.T) {
+	cfg := config.Config{AllowedPaths: []string{t.TempDir()}}
+	code, research, general := buildRegistries(cfg)
+
+	ragTool := tools.NewRAGSearchTool(nil, "db", "", false, false)
+	ragReadTool := tools.NewRAGReadTool(nil, "db")
+	registerRAGAndCodeExtras(code, research, general, ragTool, ragReadTool)
+
+	codeTools := toolNames(t, code.ToolDefs())
+	for _, want := range []string{"web.search", "web.fetch", "rag.search", "rag.read"} {
+		if !codeTools[want] {
+			t.Errorf("code registry thiếu %q sau registerRAGAndCodeExtras (có: %v)", want, codeTools)
+		}
+	}
+
+	researchTools := toolNames(t, research.ToolDefs())
+	generalTools := toolNames(t, general.ToolDefs())
+	for name, names := range map[string]map[string]bool{
+		"research": researchTools, "general": generalTools,
+	} {
+		for _, want := range []string{"rag.search", "rag.read"} {
+			if !names[want] {
+				t.Errorf("%s registry thiếu %q sau registerRAGAndCodeExtras (có: %v)", name, want, names)
+			}
 		}
 	}
 }
