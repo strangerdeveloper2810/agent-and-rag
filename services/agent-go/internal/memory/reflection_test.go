@@ -68,6 +68,108 @@ func TestReflectAndExtract_Success(t *testing.T) {
 	}
 }
 
+// TestReflectAndExtract_TruncatedJSON_Recovers tái hiện đúng case thực tế đã
+// gặp trong log dev: response bị cắt cụt giữa chừng khi viết field "content"
+// dài của knowledge_items (chạm MaxTokens). Trước fix, json.Unmarshal fail
+// toàn bộ khiến user_facts đã hoàn chỉnh TRƯỚC chỗ cắt cũng bị mất theo —
+// repairTruncatedJSON phải cứu được cả user_facts lẫn knowledge_items (dù
+// content của item cuối kết thúc giữa câu).
+func TestReflectAndExtract_TruncatedJSON_Recovers(t *testing.T) {
+	truncated := `{
+  "user_facts": [
+    {"category": "user_profile", "key": "role", "value": "backend developer", "confidence": 0.9},
+    {"category": "user_profile", "key": "learning_scope", "value": "PostgreSQL for backend only", "confidence": 0.85}
+  ],
+  "knowledge_items": [
+    {
+      "title": "Backend-Focused PostgreSQL Learning Priorities",
+      "summary": "Focus on SQL fluency and data modeling.",
+      "tags": ["postgresql", "backend"],
+      "content": "1. SQL thuần thục — CRUD, JOIN.\n2. Data modeling —`
+
+	mockP := &mockReflectionProvider{response: truncated}
+	messages := []provider.Message{
+		{Role: provider.RoleUser, Content: "Nếu chỉ là backend thôi thì sao"},
+		{Role: provider.RoleAssistant, Content: "..."},
+	}
+
+	res, err := ReflectAndExtract(context.Background(), mockP, "mock-model", messages)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(res.UserFacts) != 2 {
+		t.Fatalf("expected 2 user facts recovered từ JSON bị cắt, got %d: %+v", len(res.UserFacts), res.UserFacts)
+	}
+	if res.UserFacts[0].Key != "role" || res.UserFacts[1].Key != "learning_scope" {
+		t.Errorf("user facts mismatch: %+v", res.UserFacts)
+	}
+
+	if len(res.KnowledgeItems) != 1 {
+		t.Fatalf("expected 1 knowledge item recovered (content dở dang), got %d", len(res.KnowledgeItems))
+	}
+	if res.KnowledgeItems[0].Title != "Backend-Focused PostgreSQL Learning Priorities" {
+		t.Errorf("knowledge item title mismatch: %+v", res.KnowledgeItems[0])
+	}
+}
+
+// TestReflectAndExtract_GarbageJSON_ReturnsEmpty đảm bảo repairTruncatedJSON
+// không "cứu ép" input hoàn toàn rác (không phải JSON bị cắt cụt) thành kết
+// quả giả — vẫn phải fallback về rỗng như hành vi cũ.
+func TestReflectAndExtract_GarbageJSON_ReturnsEmpty(t *testing.T) {
+	mockP := &mockReflectionProvider{response: "hoàn toàn không phải JSON, model bị lỗi"}
+	messages := []provider.Message{
+		{Role: provider.RoleUser, Content: "test"},
+		{Role: provider.RoleAssistant, Content: "test"},
+	}
+
+	res, err := ReflectAndExtract(context.Background(), mockP, "mock-model", messages)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(res.UserFacts) != 0 || len(res.KnowledgeItems) != 0 {
+		t.Fatalf("expected empty result cho garbage input, got %+v", res)
+	}
+}
+
+func TestRepairTruncatedJSON(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{
+			name: "valid JSON không bị đụng",
+			in:   `{"a": 1, "b": [1, 2, 3]}`,
+			want: `{"a": 1, "b": [1, 2, 3]}`,
+		},
+		{
+			name: "cắt giữa string value",
+			in:   `{"a": "hello wor`,
+			want: `{"a": "hello wor"}`,
+		},
+		{
+			name: "cắt ngay sau khi đóng string, còn dở object+array",
+			in:   `{"items": [{"title": "x"`,
+			want: `{"items": [{"title": "x"}]}`,
+		},
+		{
+			name: "chuỗi rỗng không đổi",
+			in:   "",
+			want: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := repairTruncatedJSON(tt.in)
+			if got != tt.want {
+				t.Errorf("repairTruncatedJSON(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestReflectAndExtract_EmptyMessages(t *testing.T) {
 	mockP := &mockReflectionProvider{response: "{}"}
 	res, err := ReflectAndExtract(context.Background(), mockP, "mock-model", nil)

@@ -45,7 +45,7 @@ Nhiệm vụ của bạn là phân tích đoạn hội thoại vừa diễn ra g
    - Title: Tiêu đề rõ ràng
    - Summary: Tóm tắt 1-2 câu
    - Tags: Mảng các từ khóa liên quan
-   - Content: Nội dung chi tiết bằng Markdown giải thích vấn đề và cách giải quyết
+   - Content: Nội dung chi tiết bằng Markdown giải thích vấn đề và cách giải quyết — SÚC TÍCH, tối đa khoảng 300 từ (đủ ý chính, không cần đầy đủ như tài liệu)
 
 BẮT BUỘC trả về định dạng JSON thuần túy (không kèm markdown code block hoặc text giải thích):
 {
@@ -89,7 +89,7 @@ func ReflectAndExtract(ctx context.Context, p provider.Provider, model string, m
 		},
 		Options: provider.ProviderOptions{
 			Model:     model,
-			MaxTokens: 1500,
+			MaxTokens: 4096,
 		},
 	}
 
@@ -114,9 +114,78 @@ func ReflectAndExtract(ctx context.Context, p provider.Provider, model string, m
 
 	var res ReflectionResult
 	if err := json.Unmarshal([]byte(raw), &res); err != nil {
+		// Response bị cắt cụt (chạm MaxTokens giữa chừng, thường ngay trong
+		// string "content" dài của knowledge_items) khiến JSON không hợp lệ.
+		// json.Unmarshal là all-or-nothing nên nếu bỏ qua thẳng, TOÀN BỘ kết
+		// quả — kể cả user_facts đã hoàn chỉnh TRƯỚC chỗ bị cắt — cũng mất
+		// theo. Thử "vá" JSON (đóng string/bracket còn dang dở) để cứu được
+		// phần dữ liệu hoàn chỉnh trước khi bị cắt.
+		if repaired := repairTruncatedJSON(raw); repaired != raw {
+			if err2 := json.Unmarshal([]byte(repaired), &res); err2 == nil {
+				slog.Warn("memory: reflection JSON bị cắt cụt (chạm MaxTokens) — đã khôi phục phần chưa cắt", "original_err", err)
+				return &res, nil
+			}
+		}
 		slog.Warn("memory: failed to parse reflection json", "err", err, "raw", raw)
 		return &ReflectionResult{}, nil
 	}
 
 	return &res, nil
+}
+
+// repairTruncatedJSON cố gắng biến 1 chuỗi JSON bị cắt cụt giữa chừng thành
+// hợp lệ, bằng cách đóng string literal còn dang dở (nếu có) rồi đóng mọi
+// "{"/"[" chưa khớp theo đúng thứ tự LIFO. Không parse lại nội dung bên trong
+// — chỉ "vá" phần đuôi bị thiếu, nên field bị cắt (vd content) có thể kết
+// thúc giữa câu, nhưng các field hoàn chỉnh trước đó (vd user_facts) được
+// giữ nguyên thay vì mất trắng toàn bộ.
+func repairTruncatedJSON(raw string) string {
+	var stack []byte
+	inString := false
+	escaped := false
+
+	for i := 0; i < len(raw); i++ {
+		c := raw[i]
+		if inString {
+			if escaped {
+				escaped = false
+				continue
+			}
+			switch c {
+			case '\\':
+				escaped = true
+			case '"':
+				inString = false
+			}
+			continue
+		}
+		switch c {
+		case '"':
+			inString = true
+		case '{', '[':
+			stack = append(stack, c)
+		case '}', ']':
+			if len(stack) > 0 {
+				stack = stack[:len(stack)-1]
+			}
+		}
+	}
+
+	if !inString && len(stack) == 0 {
+		return raw // đã hợp lệ (hoặc lỗi không phải do cắt cụt) — không sửa gì
+	}
+
+	var b strings.Builder
+	b.WriteString(raw)
+	if inString {
+		b.WriteByte('"')
+	}
+	for i := len(stack) - 1; i >= 0; i-- {
+		if stack[i] == '{' {
+			b.WriteByte('}')
+		} else {
+			b.WriteByte(']')
+		}
+	}
+	return b.String()
 }
