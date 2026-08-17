@@ -360,6 +360,20 @@ func (c *Client) streamSSE(ctx context.Context, body io.ReadCloser, out chan pro
 		}
 	}
 
+	// scanner.Scan() trả false cho CẢ 2 trường hợp: hết stream bình thường
+	// (đã return sớm ở nhánh "data: [DONE]" phía trên) LẪN lỗi đọc thật sự
+	// (connection reset, timeout giữa chừng...). Trước fix, code không phân
+	// biệt — luôn rơi xuống đây và emit ChunkDone như thể thành công, khiến
+	// caller (rerankLLM, generateHypotheticalAnswer, memory.ReflectAndExtract)
+	// nhận 1 response "rỗng nhưng thành công" thay vì biết rõ có lỗi I/O,
+	// hiện ra dưới dạng lỗi mơ hồ "unexpected end of JSON input (raw=\"\")"
+	// ở tầng gọi thay vì lỗi provider thật. Phải check scanner.Err() TRƯỚC
+	// khi coi đây là kết thúc bình thường.
+	if err := scanner.Err(); err != nil {
+		emit(provider.StreamChunk{Kind: provider.ChunkError, Err: fmt.Errorf("deepseek: lỗi đọc SSE stream: %w", err)})
+		return
+	}
+
 	// End of stream (no DONE marker)
 	flushToolCalls(&toolCalls, emit)
 	emit(provider.StreamChunk{Kind: provider.ChunkDone, FinishReason: finish})
