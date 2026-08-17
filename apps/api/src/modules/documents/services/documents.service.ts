@@ -18,6 +18,7 @@ import {
  * Dựng mảng DocChunk từ chunk + embedding (tách riêng để test thuần, không I/O).
  */
 export function buildChunkDocs(
+  tenantId: string,
   documentId: string,
   source: string,
   version: number,
@@ -26,6 +27,7 @@ export function buildChunkDocs(
   now: Date,
 ): DocChunk[] {
   return chunks.map((text, i) => ({
+    tenantId,
     documentId,
     source,
     version,
@@ -40,11 +42,16 @@ export function buildChunkDocs(
  * Nạp tài liệu MỚI: sinh documentId mới, version = 1.
  * Pipeline: text thô → chunk → embed (Voyage) → lưu vào `documents`.
  */
-export async function ingestDocument(source: string, content: string) {
+export async function ingestDocument(
+  tenantId: string,
+  source: string,
+  content: string,
+) {
   const documentId = new ObjectId().toHexString();
   const chunks = await chunkText(content);
   const embeddings = await embedBatched(chunks, "document");
   const docs = buildChunkDocs(
+    tenantId,
     documentId,
     source,
     1,
@@ -65,11 +72,12 @@ export async function ingestDocument(source: string, content: string) {
  * vẹn. (Bản cũ đảo thứ tự: xóa trước → embed lỗi → tài liệu biến mất.)
  */
 export async function updateDocument(
+  tenantId: string,
   documentId: string,
   source: string,
   content: string,
 ) {
-  const current = await getCurrentVersion(documentId);
+  const current = await getCurrentVersion(tenantId, documentId);
   if (!current) {
     throw new NotFoundError(`Tài liệu không tồn tại: ${documentId}`);
   }
@@ -77,6 +85,7 @@ export async function updateDocument(
   const chunks = await chunkText(content);
   const embeddings = await embedBatched(chunks, "document");
   const docs = buildChunkDocs(
+    tenantId,
     documentId,
     source,
     version,
@@ -85,15 +94,19 @@ export async function updateDocument(
     new Date(),
   );
   // Bản mới đã sẵn sàng → giờ mới archive bản cũ và ghi bản mới.
-  await archiveCurrentVersion(documentId);
+  await archiveCurrentVersion(tenantId, documentId);
   await insertChunks(docs);
   return { documentId, source, version, chunks: docs.length };
 }
 
 // ----- Hàm cho controller gọi (trích text trước rồi mới ingest/update) -----
-export async function ingestUpload(filename: string, buffer: Buffer) {
+export async function ingestUpload(
+  tenantId: string,
+  filename: string,
+  buffer: Buffer,
+) {
   const content = await extractDocumentText(filename, buffer);
-  return ingestDocument(filename, content);
+  return ingestDocument(tenantId, filename, content);
 }
 
 // Kết quả nạp cho MỘT file trong lô upload nhiều file (best-effort).
@@ -125,27 +138,33 @@ export function toUploadResult(
  * khác. Trả về kết quả từng file theo đúng thứ tự đầu vào.
  */
 export async function ingestUploads(
+  tenantId: string,
   files: { filename: string; buffer: Buffer }[],
 ): Promise<UploadResult[]> {
   const settled = await Promise.allSettled(
-    files.map((f) => ingestUpload(f.filename, f.buffer)),
+    files.map((f) => ingestUpload(tenantId, f.filename, f.buffer)),
   );
   return files.map((f, i) => toUploadResult(f.filename, settled[i]));
 }
 
 export async function updateUpload(
+  tenantId: string,
   documentId: string,
   filename: string,
   buffer: Buffer,
 ) {
   const content = await extractDocumentText(filename, buffer);
-  return updateDocument(documentId, filename, content);
+  return updateDocument(tenantId, documentId, filename, content);
 }
 
 // ----- Wrapper sang repository (controller chỉ nói chuyện với service) -----
-export const listDocuments = () => listDocumentsRepo();
-export const getVersions = (documentId: string) => getVersionsRepo(documentId);
-export const getVersionContent = (documentId: string, version: number) =>
-  getVersionContentRepo(documentId, version);
-export const removeDocument = (documentId: string) =>
-  deleteDocumentRepo(documentId);
+export const listDocuments = (tenantId: string) => listDocumentsRepo(tenantId);
+export const getVersions = (tenantId: string, documentId: string) =>
+  getVersionsRepo(tenantId, documentId);
+export const getVersionContent = (
+  tenantId: string,
+  documentId: string,
+  version: number,
+) => getVersionContentRepo(tenantId, documentId, version);
+export const removeDocument = (tenantId: string, documentId: string) =>
+  deleteDocumentRepo(tenantId, documentId);

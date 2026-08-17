@@ -3,13 +3,19 @@ import crypto from "crypto";
 import type { AuthRepository, UserRow } from "./auth.repository";
 import { TokenService } from "./strategies/token.service";
 import { GoogleStrategy } from "./strategies/google.strategy";
+import { OtpService } from "./otp.service";
+import { sendOtpEmail } from "../../common/email/email.service";
 import {
   ConflictError,
   UnauthorizedError,
   ForbiddenError,
+  ValidationError,
+  EmailNotVerifiedError,
 } from "../../common/errors/app-errors";
+import { RateLimitError } from "../../lib/errors";
 import type { RegisterInput } from "./dto/register.dto";
 import type { LoginInput } from "./dto/login.dto";
+import type { VerifyEmailInput } from "./dto/verify-email.dto";
 
 const BCRYPT_ROUNDS = 12;
 
@@ -18,29 +24,89 @@ export class AuthService {
     private repo: AuthRepository,
     private tokenService: TokenService,
     private google: GoogleStrategy,
+    private otp: OtpService,
   ) {}
 
-  // ── Email/Password Register ──
+  // ── Email/Password Register (gửi OTP, KHÔNG cấp token ngay) ──
 
-  async register(
-    input: RegisterInput,
-  ): Promise<{ user: UserRow; accessToken: string; refreshToken: string }> {
+  async register(input: RegisterInput): Promise<{ email: string }> {
     const existing = await this.repo.findUserByEmail(input.email);
+    const hash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
+
+    let user: UserRow;
     if (existing) {
-      throw new ConflictError("Email đã được đăng ký.");
+      if (existing.email_verified) {
+        throw new ConflictError("Email đã được đăng ký.");
+      }
+      // Email tồn tại nhưng chưa verify → coi như đăng ký lại, ghi đè tên + mật khẩu.
+      user = await this.repo.updateUserForReregister(existing.id, input.name);
+      await this.repo.updateEmailCredential(existing.id, hash);
+    } else {
+      user = await this.repo.createUser(input.email, input.name);
+      await this.repo.createEmailCredential(user.id, hash);
     }
 
-    const user = await this.repo.createUser(input.email, input.name);
-    const hash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
-    await this.repo.createEmailCredential(user.id, hash);
+    const otpCode = await this.otp.issue(user.email);
+    await sendOtpEmail(user.email, user.name, otpCode);
+
+    return { email: user.email };
+  }
+
+  // ── Xác minh email bằng OTP → cấp token (đăng nhập lần đầu) ──
+
+  async verifyEmail(
+    input: VerifyEmailInput,
+  ): Promise<{ user: UserRow; accessToken: string; refreshToken: string }> {
+    const user = await this.repo.findUserByEmail(input.email);
+    if (!user) {
+      throw new ValidationError({ otp: ["Email hoặc OTP không hợp lệ."] });
+    }
+
+    const result = await this.otp.verify(input.email, input.otp);
+    if (result === "expired") {
+      throw new ValidationError({ otp: ["OTP đã hết hạn, vui lòng gửi lại."] });
+    }
+    if (result === "locked") {
+      throw new ValidationError({
+        otp: ["OTP không hợp lệ, vui lòng gửi lại."],
+      });
+    }
+    if (result === "invalid") {
+      throw new ValidationError({ otp: ["OTP không đúng."] });
+    }
+
+    await this.repo.updateEmailVerified(user.id);
+    user.email_verified = true;
 
     const tokens = await this.tokenService.issueTokens(user);
-
     return {
       user,
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
     };
+  }
+
+  // ── Gửi lại OTP (tôn trọng cooldown) ──
+
+  async resendOtp(email: string): Promise<void> {
+    const user = await this.repo.findUserByEmail(email);
+    if (!user) {
+      throw new ValidationError({ email: ["Email không tồn tại."] });
+    }
+    if (user.email_verified) {
+      throw new ValidationError({ email: ["Email đã được xác minh."] });
+    }
+
+    const remaining = await this.otp.cooldownRemaining(email);
+    if (remaining > 0) {
+      throw new RateLimitError(
+        `Vui lòng đợi ${remaining} giây trước khi gửi lại.`,
+        remaining,
+      );
+    }
+
+    const otpCode = await this.otp.issue(email);
+    await sendOtpEmail(email, user.name, otpCode);
   }
 
   // ── Email/Password Login ──
@@ -65,6 +131,16 @@ export class AuthService {
     const valid = await bcrypt.compare(input.password, cred.password_hash);
     if (!valid) {
       throw new UnauthorizedError("Email hoặc mật khẩu không đúng.");
+    }
+
+    if (!user.email_verified) {
+      // Auto gửi OTP mới nếu không phạm cooldown, để user không cần tự bấm "gửi lại".
+      const remaining = await this.otp.cooldownRemaining(user.email);
+      if (remaining <= 0) {
+        const otpCode = await this.otp.issue(user.email);
+        await sendOtpEmail(user.email, user.name, otpCode);
+      }
+      throw new EmailNotVerifiedError(user.email);
     }
 
     const tokens = await this.tokenService.issueTokens(user);

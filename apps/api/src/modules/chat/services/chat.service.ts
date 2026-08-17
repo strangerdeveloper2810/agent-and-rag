@@ -109,6 +109,7 @@ export async function streamReply(
     data: string;
     mimeType: string;
   }>,
+  tenantId?: string,
 ): Promise<StreamResult> {
   const raw = (await getMessagesRepo(
     conversationId,
@@ -156,7 +157,11 @@ export async function streamReply(
     }
 
     try {
-      for await (const ev of agent.stream(history, { signal, attachments })) {
+      for await (const ev of agent.stream(history, {
+        signal,
+        attachments,
+        tenantId,
+      })) {
         if (ev.type === "text") full += ev.text;
 
         if (ev.type === "truncated") truncated = true;

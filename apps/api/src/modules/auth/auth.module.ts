@@ -6,6 +6,7 @@ import { TokenService } from "./strategies/token.service";
 import { GoogleStrategy } from "./strategies/google.strategy";
 import { AuthService } from "./auth.service";
 import { AuthController } from "./auth.controller";
+import { OtpService } from "./otp.service";
 import { authGuard } from "../../common/guards/auth.guard";
 
 export interface AuthModuleOptions {
@@ -30,11 +31,14 @@ export const authModule = async (
   const jwt = new JwtStrategy();
   const tokenService = new TokenService(repo, jwt);
   const google = new GoogleStrategy();
-  const authService = new AuthService(repo, tokenService, google);
+  const otp = new OtpService();
+  const authService = new AuthService(repo, tokenService, google, otp);
   const controller = new AuthController(authService, jwt);
 
   // ── Public routes ──
   app.post("/api/auth/register", controller.register);
+  app.post("/api/auth/verify-email", controller.verifyEmail);
+  app.post("/api/auth/resend-otp", controller.resendOtp);
   app.post("/api/auth/login", controller.login);
   app.get("/api/auth/google", controller.googleRedirect);
   app.get("/api/auth/google/callback", controller.googleCallback);

@@ -49,6 +49,10 @@ export class ApiError extends Error {
   constructor(
     public readonly status: number,
     message: string,
+    /** Mã máy-đọc-được từ error filter (vd "EMAIL_NOT_VERIFIED", "CONFLICT"). */
+    public readonly code?: string,
+    /** Số giây khuyến nghị chờ trước khi retry (đọc từ header Retry-After, dùng cho 429). */
+    public readonly retryAfterSeconds?: number,
   ) {
     super(message);
     this.name = "ApiError";
@@ -95,13 +99,19 @@ const request = async <T = unknown>(
 
   if (!res.ok) {
     let message = `HTTP ${res.status}`;
+    let code: string | undefined;
     try {
       const body = await res.json();
       message = body.message ?? body.error ?? message;
+      code = body.code;
     } catch {
       // Không parse được JSON → giữ message mặc định
     }
-    throw new ApiError(res.status, message);
+    const retryAfterHeader = res.headers.get("Retry-After");
+    const retryAfterSeconds = retryAfterHeader
+      ? Number(retryAfterHeader)
+      : undefined;
+    throw new ApiError(res.status, message, code, retryAfterSeconds);
   }
 
   // 204 No Content → trả về undefined

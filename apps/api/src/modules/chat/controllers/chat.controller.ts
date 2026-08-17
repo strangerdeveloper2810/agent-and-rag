@@ -61,11 +61,15 @@ export const postChat = async (req: FastifyRequest, reply: FastifyReply) => {
   };
 
   try {
+    const tenantId = (req as unknown as Record<string, unknown>).tenantId as
+      | string
+      | undefined;
     const { events, metadata } = await chatService.streamReply(
       id,
       ac.signal,
       undefined, // use default agent
       attachments,
+      tenantId,
     );
 
     for await (const ev of events) {

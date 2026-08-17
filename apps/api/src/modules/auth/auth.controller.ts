@@ -4,6 +4,8 @@ import type { JwtStrategy } from "./strategies/jwt.strategy";
 import { validate } from "../../common/pipes/validation.pipe";
 import { registerSchema } from "./dto/register.dto";
 import { loginSchema } from "./dto/login.dto";
+import { verifyEmailSchema } from "./dto/verify-email.dto";
+import { resendOtpSchema } from "./dto/resend-otp.dto";
 import { config } from "../../config";
 
 export class AuthController {
@@ -12,15 +14,29 @@ export class AuthController {
     private jwt: JwtStrategy,
   ) {}
 
-  /** POST /api/auth/register */
+  /** POST /api/auth/register — tạo user (chưa verify) + gửi OTP, KHÔNG cấp token. */
   register = async (req: FastifyRequest, reply: FastifyReply) => {
     const input = validate(registerSchema, req.body);
     const result = await this.authService.register(input);
+    return reply.status(201).send({ email: result.email });
+  };
+
+  /** POST /api/auth/verify-email — xác minh OTP, cấp token (đăng nhập lần đầu). */
+  verifyEmail = async (req: FastifyRequest, reply: FastifyReply) => {
+    const input = validate(verifyEmailSchema, req.body);
+    const result = await this.authService.verifyEmail(input);
 
     this.jwt.setAccessTokenCookie(reply, result.accessToken);
     this.jwt.setRefreshTokenCookie(reply, result.refreshToken);
 
-    return reply.status(201).send({ user: result.user });
+    return reply.status(200).send({ user: result.user });
+  };
+
+  /** POST /api/auth/resend-otp */
+  resendOtp = async (req: FastifyRequest, reply: FastifyReply) => {
+    const input = validate(resendOtpSchema, req.body);
+    await this.authService.resendOtp(input.email);
+    return reply.status(200).send({ message: "OTP đã được gửi lại." });
   };
 
   /** POST /api/auth/login */

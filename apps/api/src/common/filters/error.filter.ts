@@ -7,6 +7,7 @@ import {
   ConflictError,
   ValidationError,
   ServiceUnavailableError,
+  EmailNotVerifiedError,
 } from "../errors/app-errors";
 import {
   HttpError,
@@ -72,6 +73,12 @@ export const registerErrorFilter = (app: FastifyInstance): void => {
 
     if (err instanceof ConflictError) {
       return send(reply, 409, err.message, "CONFLICT");
+    }
+
+    if (err instanceof EmailNotVerifiedError) {
+      return send(reply, 403, err.message, "EMAIL_NOT_VERIFIED", {
+        email: err.email,
+      });
     }
 
     if (err instanceof ServiceUnavailableError) {

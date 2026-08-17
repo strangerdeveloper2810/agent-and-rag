@@ -63,10 +63,13 @@ export const RegisterPage: React.FC = () => {
   const pwdStrength = checkPasswordStrength(passwordValue);
 
   const onSubmit = async (data: RegisterFormValues) => {
+    const email = data.email.trim();
     try {
-      await registerUser(data.email.trim(), data.password, data.name.trim());
-      toast.success("Tạo tài khoản thành công!");
-      navigate("/", { replace: true });
+      await registerUser(email, data.password, data.name.trim());
+      toast.success("Đã gửi mã OTP tới email của bạn!");
+      navigate(`/verify-email?email=${encodeURIComponent(email)}`, {
+        replace: true,
+      });
     } catch (err) {
       const apiErr = err as ApiError;
       toast.error(

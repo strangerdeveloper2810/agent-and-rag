@@ -30,6 +30,13 @@ type Tool = {
   execute: (input: any) => Promise<unknown>;
 };
 
+// Agent legacy (AGENT_BACKEND=langgraph, in-process) không có per-request tenant
+// context — tools ở đây là singleton module-level, không nhận req. Giữ hành vi
+// hiện tại (đọc chung 1 kho "default", giống trước khi có tenant isolation) thay
+// vì refactor lại toàn bộ chain invocation của agent legacy (ngoài phạm vi).
+// Đường dẫn chính (AGENT_BACKEND=go) đã tenant-isolated đầy đủ qua BFF + agent-go.
+const LEGACY_AGENT_TENANT_ID = "default";
+
 const withCache = (
   toolName: string,
   fn: (input: any) => Promise<unknown>,
@@ -84,7 +91,7 @@ const tools: Tool[] = [
       "ragSearch",
       async ({ query }: z.infer<typeof ragSearchSchema>) => {
         const [vec] = await embed([query], "query");
-        const results = await searchSimilar(vec, 5);
+        const results = await searchSimilar(LEGACY_AGENT_TENANT_ID, vec, 5);
         return results;
       },
     ),
@@ -94,7 +101,9 @@ const tools: Tool[] = [
     description:
       "Liệt kê các tài liệu đã được nạp (tên file + số chunk). Dùng khi người dùng hỏi 'có bao nhiêu tài liệu' hoặc 'có những tài liệu nào'.",
     schema: listDocumentsSchema,
-    execute: withCache("listDocuments", async () => listDocuments()),
+    execute: withCache("listDocuments", async () =>
+      listDocuments(LEGACY_AGENT_TENANT_ID),
+    ),
   },
   {
     name: "readDocument",
@@ -104,7 +113,7 @@ const tools: Tool[] = [
     execute: withCache(
       "readDocument",
       async ({ documentId }: z.infer<typeof readDocumentSchema>) =>
-        getDocumentContent(documentId),
+        getDocumentContent(LEGACY_AGENT_TENANT_ID, documentId),
     ),
   },
   {
@@ -158,7 +167,7 @@ import { tool } from "@langchain/core/tools";
 const ragSearch = tool(
   async ({ query }) => {
     const [vec] = await embed([query], "query");
-    const results = await searchSimilar(vec, 5);
+    const results = await searchSimilar(LEGACY_AGENT_TENANT_ID, vec, 5);
     return JSON.stringify(results);
   },
   {
@@ -172,7 +181,7 @@ const ragSearch = tool(
 );
 
 const listDocumentsTool = tool(
-  async () => JSON.stringify(await listDocuments()),
+  async () => JSON.stringify(await listDocuments(LEGACY_AGENT_TENANT_ID)),
   {
     name: "listDocuments",
     description:
@@ -183,7 +192,9 @@ const listDocumentsTool = tool(
 
 const readDocumentTool = tool(
   async ({ documentId }) =>
-    JSON.stringify(await getDocumentContent(documentId)),
+    JSON.stringify(
+      await getDocumentContent(LEGACY_AGENT_TENANT_ID, documentId),
+    ),
   {
     name: "readDocument",
     description:

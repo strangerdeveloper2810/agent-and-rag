@@ -55,6 +55,12 @@ const envSchema = z
       .string()
       .url("GOOGLE_REDIRECT_URI must be a valid URL"),
 
+    // ----- Auth: OTP email verification (Resend) -----
+    // Optional (không throw ở startup): nếu thiếu, sendOtpEmail() log cảnh báo
+    // và bỏ qua gửi mail thay vì chặn toàn bộ server khởi động.
+    RESEND_API_KEY: z.string().optional(),
+    EMAIL_FROM: z.string().default("JARVIS <onboarding@resend.dev>"),
+
     // ----- Agent Backend -----
     // "langgraph" = in-process LangChain (legacy).
     // "go" = proxy HTTP+SSE sang service agent-go.
