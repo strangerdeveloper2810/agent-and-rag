@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"unicode/utf8"
 
@@ -35,14 +36,16 @@ func (s *stubTool) Execute(_ context.Context, _ json.RawMessage) (tools.Result, 
 
 // toolsOnlyEngine chỉ cần registry (interface toolsEngine).
 type toolsOnlyEngine struct {
-	ownerTenants     []string
-	registry         *tools.Registry
-	maxToolOutput    int
-	allowDestructive bool
+	ownerTenants       []string
+	registry           *tools.Registry
+	maxToolOutput      int
+	maxTotalToolOutput int
+	allowDestructive   bool
 }
 
 func (e *toolsOnlyEngine) getRegistry() *tools.Registry   { return e.registry }
 func (e *toolsOnlyEngine) getMaxToolOutput() int          { return e.maxToolOutput }
+func (e *toolsOnlyEngine) getMaxTotalToolOutput() int     { return e.maxTotalToolOutput }
 func (e *toolsOnlyEngine) getAllowDestructiveTools() bool { return e.allowDestructive }
 func (e *toolsOnlyEngine) getOwnerTenants() []string      { return e.ownerTenants }
 
@@ -419,6 +422,265 @@ func TestNodeTools_NonOwnerKeepsSafeTools(t *testing.T) {
 	}
 	if sawSecret {
 		t.Error("tool đặc quyền vẫn chạy dù người dùng không phải chủ")
+	}
+}
+
+// countingTool đếm số lần Execute() thực sự chạy — dùng để khoá chắc rằng
+// dedup KHÔNG chỉ ẩn kết quả mà THỰC SỰ tránh gọi lại tool. An toàn với
+// RunParallelStreaming (chạy goroutine) nhờ atomic.
+type countingTool struct {
+	name   string
+	kind   tools.Kind
+	output string
+	calls  atomic.Int32
+}
+
+func (c *countingTool) Name() string            { return c.name }
+func (c *countingTool) Description() string     { return "counting " + c.name }
+func (c *countingTool) Schema() json.RawMessage { return json.RawMessage(`{"type":"object"}`) }
+func (c *countingTool) Kind() tools.Kind        { return c.kind }
+func (c *countingTool) Execute(_ context.Context, _ json.RawMessage) (tools.Result, error) {
+	c.calls.Add(1)
+	return tools.Result{Content: c.output}, nil
+}
+
+// stateWithSameToolCallArgs dựng State có 1 assistant message với N tool call
+// CÙNG tên + CÙNG args (khác stateWithToolCalls — hàm đó tạo args rỗng cho tất
+// cả nên vô tình cũng trùng args, nhưng ở đây tường minh hoá cho rõ ý định test).
+func stateWithSameToolCallArgs(toolName, args string, count int) *State {
+	s := newState(RunInput{UserMessage: "hi", MaxSteps: 12})
+	tcs := make([]provider.ToolCall, count)
+	for i := range tcs {
+		tcs[i] = provider.ToolCall{ID: fmt.Sprintf("c%d", i), Name: toolName, Args: json.RawMessage(args)}
+	}
+	s.Messages = append(s.Messages, provider.Message{Role: provider.RoleAssistant, ToolCalls: tcs})
+	return s
+}
+
+// TestNodeTools_DedupesIdenticalReadCalls khoá RANH GIỚI CHI PHÍ: log dev thật
+// cho thấy model tự gọi "notes.search notes.search" (2-3 lần, args giống hệt)
+// trong CÙNG một lượt phản hồi — trả tiền + thời gian chạy y hệt nhiều lần một
+// cách vô ích, và mỗi bản sao lại lặp lại TOÀN BỘ nội dung kết quả trong context
+// gửi cho model ở các step sau.
+func TestNodeTools_DedupesIdenticalReadCalls(t *testing.T) {
+	ct := &countingTool{name: "notes.search", kind: tools.KindRead, output: "kết quả tìm kiếm dài"}
+	eng := &toolsOnlyEngine{registry: regWith(ct)}
+	s := stateWithSameToolCallArgs("notes.search", `{"query":"go"}`, 3)
+
+	var events []Event
+	next, err := nodeTools(context.Background(), eng, s, func(e Event) { events = append(events, e) })
+	if err != nil {
+		t.Fatalf("nodeTools: %v", err)
+	}
+	if next != NodeModel {
+		t.Errorf("next = %q, want %q", next, NodeModel)
+	}
+
+	if got := ct.calls.Load(); got != 1 {
+		t.Fatalf("Execute() chạy %d lần, want 1 — dedup phải tránh chạy lại tool trùng lặp", got)
+	}
+
+	// Vẫn phải có 3 Observation (1 cho mỗi ToolCall.ID gốc) — protocol yêu cầu
+	// mỗi tool_call_id có 1 message role=tool tương ứng.
+	if len(s.Scratchpad) != 3 {
+		t.Fatalf("Scratchpad = %d, want 3 (mỗi tool_call_id gốc phải có observation riêng)", len(s.Scratchpad))
+	}
+	if s.Scratchpad[0].Output != "kết quả tìm kiếm dài" {
+		t.Errorf("bản đại diện (đầu tiên) phải có output ĐẦY ĐỦ, got %q", s.Scratchpad[0].Output)
+	}
+	for i, obs := range s.Scratchpad[1:] {
+		if obs.Output == "kết quả tìm kiếm dài" {
+			t.Errorf("bản sao [%d] không được lặp lại toàn bộ nội dung (lãng phí context token): %q", i+1, obs.Output)
+		}
+		if !strings.Contains(obs.Output, "Trùng") {
+			t.Errorf("bản sao [%d] phải có ghi chú giải thích là trùng lặp: %q", i+1, obs.Output)
+		}
+	}
+	// Mỗi CallID gốc phải khớp đúng thứ tự.
+	for i, want := range []string{"c0", "c1", "c2"} {
+		if s.Scratchpad[i].CallID != want {
+			t.Errorf("Scratchpad[%d].CallID = %q, want %q", i, s.Scratchpad[i].CallID, want)
+		}
+	}
+
+	if hasEvent(events, "tool_start") == nil {
+		t.Error("thiếu event tool_start")
+	}
+	// Phải có đủ 3 tool_end (đại diện + 2 bản sao), không chỉ 1.
+	endCount := 0
+	for _, e := range events {
+		if e.Type == "tool_end" {
+			endCount++
+		}
+	}
+	if endCount != 3 {
+		t.Errorf("số event tool_end = %d, want 3 (UI phải thấy đủ 3 tool call, dù chỉ 1 lần thực thi thật)", endCount)
+	}
+}
+
+// Args KHÁC NHAU thì KHÔNG được dedupe — mỗi call phải thực thi riêng.
+func TestNodeTools_DoesNotDedupeDifferentArgs(t *testing.T) {
+	ct := &countingTool{name: "notes.search", kind: tools.KindRead, output: "kết quả"}
+	eng := &toolsOnlyEngine{registry: regWith(ct)}
+
+	s := newState(RunInput{UserMessage: "hi", MaxSteps: 12})
+	s.Messages = append(s.Messages, provider.Message{
+		Role: provider.RoleAssistant,
+		ToolCalls: []provider.ToolCall{
+			{ID: "c0", Name: "notes.search", Args: json.RawMessage(`{"query":"go"}`)},
+			{ID: "c1", Name: "notes.search", Args: json.RawMessage(`{"query":"python"}`)},
+		},
+	})
+
+	if _, err := nodeTools(context.Background(), eng, s, func(Event) {}); err != nil {
+		t.Fatalf("nodeTools: %v", err)
+	}
+	if got := ct.calls.Load(); got != 2 {
+		t.Errorf("Execute() chạy %d lần, want 2 (args khác nhau không được dedupe)", got)
+	}
+}
+
+// KindWrite KHÔNG bị dedupe dù args giống hệt — bảo toàn hành vi cũ cho tool có
+// side-effect (có thể model cố ý gọi lặp lại).
+func TestNodeTools_DoesNotDedupeWriteTools(t *testing.T) {
+	ct := &countingTool{name: "memory.save", kind: tools.KindWrite, output: "đã lưu"}
+	eng := &toolsOnlyEngine{registry: regWith(ct)}
+	s := stateWithSameToolCallArgs("memory.save", `{"key":"x","value":"y"}`, 2)
+
+	if _, err := nodeTools(context.Background(), eng, s, func(Event) {}); err != nil {
+		t.Fatalf("nodeTools: %v", err)
+	}
+	if got := ct.calls.Load(); got != 2 {
+		t.Errorf("Execute() chạy %d lần, want 2 (KindWrite không được dedupe)", got)
+	}
+}
+
+// TestNodeTools_TotalToolOutputBudgetAccumulatesAcrossCalls khoá ngân sách TỔNG:
+// nhiều tool call trong CÙNG 1 lượt gọi nodeTools, MỖI cái riêng lẻ đều dưới
+// trần per-call, nhưng CỘNG DỒN vượt ngân sách tổng → phải bị siết lại. Log dev
+// thật: 46.542 input token ở step 4 không đến từ 1 tool call vượt trần, mà từ
+// nhiều tool call cộng dồn.
+func TestNodeTools_TotalToolOutputBudgetAccumulatesAcrossCalls(t *testing.T) {
+	big := strings.Repeat("a", 1000)
+	eng := &toolsOnlyEngine{
+		registry: regWith(
+			&stubTool{name: "tool.a", kind: tools.KindRead, output: big},
+			&stubTool{name: "tool.b", kind: tools.KindRead, output: big},
+			&stubTool{name: "tool.c", kind: tools.KindRead, output: big},
+		),
+		maxToolOutput:      10000, // per-call cap rộng, không phải nguyên nhân cắt
+		maxTotalToolOutput: 1500,  // ngân sách TỔNG chỉ đủ ~1.5 tool call
+	}
+	s := newState(RunInput{UserMessage: "hi", MaxSteps: 12})
+	s.Messages = append(s.Messages, provider.Message{
+		Role: provider.RoleAssistant,
+		ToolCalls: []provider.ToolCall{
+			{ID: "c0", Name: "tool.a"},
+			{ID: "c1", Name: "tool.b"},
+			{ID: "c2", Name: "tool.c"},
+		},
+	})
+
+	if _, err := nodeTools(context.Background(), eng, s, func(Event) {}); err != nil {
+		t.Fatalf("nodeTools: %v", err)
+	}
+
+	if len(s.Scratchpad) != 3 {
+		t.Fatalf("Scratchpad = %d, want 3", len(s.Scratchpad))
+	}
+	// Call đầu (a) chưa chạm ngân sách → giữ nguyên đầy đủ.
+	if s.Scratchpad[0].Output != big {
+		t.Errorf("tool.a (call đầu) phải giữ nguyên đầy đủ khi ngân sách còn nhiều")
+	}
+	// Các call sau phải bị siết dần — không được giữ nguyên 1000 ký tự đầy đủ.
+	for i := 1; i < 3; i++ {
+		if s.Scratchpad[i].Output == big {
+			t.Errorf("Scratchpad[%d] (%s) phải bị cắt bớt vì ngân sách tổng đã gần/hết, nhưng vẫn giữ nguyên đầy đủ", i, s.Scratchpad[i].Name)
+		}
+	}
+	if s.ToolOutputRunesUsed <= 0 {
+		t.Error("State.ToolOutputRunesUsed phải được cộng dồn sau khi chạy tool")
+	}
+}
+
+// Ngân sách phải SỐNG SÓT qua nhiều lượt gọi nodeTools trên CÙNG một State —
+// mô phỏng đúng cơ chế nhiều "step" trong 1 lượt chạy agent thật (log dev: step
+// 1→2→3→4, mỗi step gọi thêm tool và ngân sách phải cộng dồn xuyên suốt).
+func TestNodeTools_TotalToolOutputBudgetPersistsAcrossMultipleNodeToolsCalls(t *testing.T) {
+	big := strings.Repeat("b", 800)
+	reg := regWith(&stubTool{name: "tool.x", kind: tools.KindRead, output: big})
+	eng := &toolsOnlyEngine{registry: reg, maxTotalToolOutput: 1000}
+
+	s := newState(RunInput{UserMessage: "hi", MaxSteps: 12})
+
+	callToolX := func(id string) {
+		s.Messages = append(s.Messages, provider.Message{
+			Role:      provider.RoleAssistant,
+			ToolCalls: []provider.ToolCall{{ID: id, Name: "tool.x"}},
+		})
+		if _, err := nodeTools(context.Background(), eng, s, func(Event) {}); err != nil {
+			t.Fatalf("nodeTools: %v", err)
+		}
+	}
+
+	callToolX("step1") // 800 ký tự, ngân sách còn 200
+	usedAfterStep1 := s.ToolOutputRunesUsed
+	if usedAfterStep1 == 0 {
+		t.Fatal("ngân sách phải được cộng dồn sau step 1")
+	}
+
+	callToolX("step2") // ngân sách gần hết → phải bị siết mạnh hơn nhiều so với step 1
+	last := s.Scratchpad[len(s.Scratchpad)-1]
+	if last.Output == big {
+		t.Error("step 2 phải bị cắt vì ngân sách tổng đã gần cạn từ step 1, nhưng vẫn giữ nguyên đầy đủ")
+	}
+	if s.ToolOutputRunesUsed < usedAfterStep1 {
+		t.Error("ToolOutputRunesUsed phải tăng thêm (hoặc giữ nguyên), không được giảm giữa các step")
+	}
+}
+
+// truncateRunes(s, maxRunes<=0) chưa được test trực tiếp — mọi call site hiện
+// tại (toolResultPreview, destructiveBlockedMessage) luôn truyền hằng số dương,
+// nên nhánh "không giới hạn" của bản thân hàm chưa từng chạy trong test suite.
+func TestTruncateRunes_ZeroOrNegativeMeansNoLimit(t *testing.T) {
+	long := strings.Repeat("x", 1000)
+	for _, maxRunes := range []int{0, -1, -100} {
+		if got := truncateRunes(long, maxRunes); got != long {
+			t.Errorf("truncateRunes(_, %d) phải trả nguyên văn (không giới hạn), got độ dài %d", maxRunes, len(got))
+		}
+	}
+}
+
+func TestDestructiveBlockedMessage_MultipleCallsPluralizes(t *testing.T) {
+	msg := destructiveBlockedMessage([]provider.ToolCall{
+		{Name: "shell.exec"}, {Name: "shell.exec"},
+	})
+	if !strings.Contains(msg, "2 công cụ") {
+		t.Errorf("2 call phải dùng câu số nhiều '2 công cụ': %q", msg)
+	}
+}
+
+// Call KHÔNG có args (Args rỗng/"{}"): không được hiện "với tham số: “" trống
+// rỗng gây rối mắt.
+func TestDestructiveBlockedMessage_OmitsEmptyArgs(t *testing.T) {
+	msg := destructiveBlockedMessage([]provider.ToolCall{{Name: "shell.exec", Args: nil}})
+	if strings.Contains(msg, "với tham số") {
+		t.Errorf("call không có args không được hiện 'với tham số': %q", msg)
+	}
+
+	msgEmptyObj := destructiveBlockedMessage([]provider.ToolCall{{Name: "shell.exec", Args: json.RawMessage(`{}`)}})
+	if strings.Contains(msgEmptyObj, "với tham số") {
+		t.Errorf("args=\"{}\" không được hiện 'với tham số': %q", msgEmptyObj)
+	}
+}
+
+// Call CÓ args thật: phải hiện "với tham số" kèm nội dung.
+func TestDestructiveBlockedMessage_ShowsNonEmptyArgs(t *testing.T) {
+	msg := destructiveBlockedMessage([]provider.ToolCall{
+		{Name: "shell.exec", Args: json.RawMessage(`{"cmd":"rm -rf /tmp/x"}`)},
+	})
+	if !strings.Contains(msg, "với tham số") || !strings.Contains(msg, "rm -rf") {
+		t.Errorf("args thật phải hiện đầy đủ trong thông báo: %q", msg)
 	}
 }
 

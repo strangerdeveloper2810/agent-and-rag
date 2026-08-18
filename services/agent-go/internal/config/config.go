@@ -72,9 +72,20 @@ type Config struct {
 	// nên request thật gửi max_tokens=0 → API dùng mặc định của nó, không có
 	// trần nào. Log dev thật: một câu trả lời 15.858 ký tự / 4.747 token mất 44
 	// giây. 0 = không giới hạn; đặt qua MAX_OUTPUT_TOKENS.
-	MaxTokens             int
-	MaxContextTokens      int  // max context tokens before trimming. default: 100000
-	MaxToolOutput         int  // max chars from tool output. default: 24000
+	MaxTokens        int
+	MaxContextTokens int // max context tokens before trimming. default: 100000
+	MaxToolOutput    int // max chars from tool output MỖI tool call. default: 24000
+	// MaxTotalToolOutput giới hạn TỔNG số ký tự tool output cộng dồn qua TẤT CẢ
+	// bước của một lượt chạy (không phải từng tool call riêng lẻ).
+	//
+	// Vì sao cần thêm, dù đã có MaxToolOutput: log dev thật cho thấy 1 lượt chat
+	// đạt 46.542 input token ở step 4 — không phải vì 1 tool call nào vượt trần
+	// riêng, mà vì NHIỀU tool call (rag.search, notes.search...) cộng dồn qua 4
+	// step, và mỗi step gửi lại TOÀN BỘ lịch sử message nên nội dung tool cũ bị
+	// trả tiền lặp lại ở mọi step sau. MaxToolOutput chặn được 1 tool "nói quá
+	// nhiều", nhưng không chặn được nhiều tool "nói vừa phải" cộng dồn thành quá
+	// nhiều. Đặt qua MAX_TOTAL_TOOL_OUTPUT, 0 = không giới hạn.
+	MaxTotalToolOutput    int
 	ShellTimeout          int  // seconds. default: 30
 	EnableDynamicThinking bool // auto-adjust thinking level based on task complexity
 	EnablePlanning        bool // LLM plan node cho task phức tạp. default: false (tiết kiệm 1 LLM call trước token đầu)
@@ -117,6 +128,15 @@ type Config struct {
 // không có trần nào).
 const defaultMaxOutputTokens = 8192
 
+// defaultMaxTotalToolOutput là ngân sách TỔNG mặc định cho tool output cộng dồn
+// qua cả lượt chạy.
+//
+// Chọn 60.000 ký tự (~15K token): đủ cho vài lần rag.search full-size (mỗi lần
+// chạm trần MaxToolOutput=24.000 ký tự) trước khi bị siết lại, nhưng vẫn ngăn
+// được kiểu tích luỹ đã thấy trong log dev thật (46.542 input token ở step 4,
+// phần lớn từ tool output cộng dồn qua nhiều bước).
+const defaultMaxTotalToolOutput = 60000
+
 // Load đọc .env (nếu có) rồi env → Config với defaults hợp lý.
 // Không fail nếu không có .env — chỉ dùng biến môi trường có sẵn.
 func Load() (Config, error) {
@@ -152,6 +172,7 @@ func Load() (Config, error) {
 		MaxTokens:             intEnvOr("MAX_OUTPUT_TOKENS", defaultMaxOutputTokens),
 		MaxContextTokens:      100000,
 		MaxToolOutput:         24000,
+		MaxTotalToolOutput:    intEnvOr("MAX_TOTAL_TOOL_OUTPUT", defaultMaxTotalToolOutput),
 		ShellTimeout:          30,
 		EnableDynamicThinking: envOr("ENABLE_DYNAMIC_THINKING", "false") == "true",
 		EnablePlanning:        envOr("ENABLE_PLANNING", "false") == "true",

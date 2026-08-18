@@ -80,6 +80,44 @@ func TestEngine_Setters(t *testing.T) {
 	if e.planFn == nil || e.reflectFn == nil {
 		t.Error("SetPlanningNodes không gán đủ 2 node")
 	}
+
+	e.SetMaxOutputTokens(4096)
+	if e.getMaxOutputTokens() != 4096 {
+		t.Errorf("getMaxOutputTokens = %d, want 4096", e.getMaxOutputTokens())
+	}
+
+	e.SetMaxToolOutput(12345)
+	if e.getMaxToolOutput() != 12345 {
+		t.Errorf("getMaxToolOutput = %d, want 12345", e.getMaxToolOutput())
+	}
+
+	e.SetMaxTotalToolOutput(99999)
+	if e.getMaxTotalToolOutput() != 99999 {
+		t.Errorf("getMaxTotalToolOutput = %d, want 99999", e.getMaxTotalToolOutput())
+	}
+
+	e.SetAllowDestructiveTools(true)
+	if !e.getAllowDestructiveTools() {
+		t.Error("SetAllowDestructiveTools(true) không gán")
+	}
+
+	e.SetOwnerTenants([]string{"tenant-a", "tenant-b"})
+	if got := e.getOwnerTenants(); len(got) != 2 || got[0] != "tenant-a" || got[1] != "tenant-b" {
+		t.Errorf("getOwnerTenants = %v, want [tenant-a tenant-b]", got)
+	}
+}
+
+// NewEngine phải khởi tạo sẵn maxToolOutput/maxTotalToolOutput mặc định hợp lý,
+// không phải 0 (0 nghĩa là "không giới hạn" — không phải giá trị an toàn mặc
+// định cho một chốt bảo vệ context).
+func TestEngine_DefaultToolOutputBudgets(t *testing.T) {
+	e := NewEngine(provider.NewFake(), tools.NewRegistry())
+	if e.getMaxToolOutput() != defaultMaxToolOutput {
+		t.Errorf("getMaxToolOutput mặc định = %d, want %d", e.getMaxToolOutput(), defaultMaxToolOutput)
+	}
+	if e.getMaxTotalToolOutput() != defaultMaxTotalToolOutput {
+		t.Errorf("getMaxTotalToolOutput mặc định = %d, want %d", e.getMaxTotalToolOutput(), defaultMaxTotalToolOutput)
+	}
 }
 
 func TestEngine_DefaultMaxContextTokens(t *testing.T) {
