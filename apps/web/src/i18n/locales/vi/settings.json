@@ -6,7 +6,9 @@
       "profile": "Hồ sơ cá nhân",
       "persona": "AI Persona & Giọng điệu",
       "security": "Bảo mật",
-      "preferences": "Tùy chọn"
+      "preferences": "Tùy chọn",
+      "mcp": "MCP Servers",
+      "skills": "Skills"
     },
     "save": "Lưu thay đổi",
     "saving": "Đang lưu...",
@@ -22,7 +24,11 @@
     "roleLabel": "Vai trò",
     "userRole": "Thành viên",
     "adminRole": "Quản trị viên (Admin)",
-    "success": "Đã cập nhật thông tin cá nhân!"
+    "success": "Đã cập nhật thông tin cá nhân!",
+    "avatarUploadLabel": "Tải ảnh đại diện lên",
+    "avatarUploading": "Đang tải ảnh lên...",
+    "avatarHint": "PNG, JPG hoặc GIF, tối đa 2MB",
+    "avatarSuccess": "Đã cập nhật ảnh đại diện!"
   },
   "persona": {
     "title": "Định hướng AI Persona",
@@ -65,7 +71,13 @@
     "customInstructionsLabel": "Chỉ thị riêng cho J.A.R.V.I.S. (Custom System Instructions)",
     "customInstructionsPlaceholder": "Ví dụ: 'Luôn gọi tôi là Ethan, trả lời bằng tiếng Việt, ưu tiên code TypeScript và tóm tắt theo bảng...'",
     "customInstructionsHint": "Chỉ thị này sẽ được nạp trực tiếp vào Prompt của mọi phiên trò chuyện.",
-    "success": "Đã lưu cài đặt AI Persona thành công!"
+    "success": "Đã lưu cài đặt AI Persona thành công!",
+    "avatarTitle": "Avatar Agent",
+    "avatarDesc": "Ảnh đại diện riêng cho J.A.R.V.I.S., hiển thị trong khung chat",
+    "avatarUploadLabel": "Tải ảnh đại diện Agent lên",
+    "avatarUploading": "Đang tải ảnh lên...",
+    "avatarHint": "PNG, JPG hoặc GIF, tối đa 2MB",
+    "avatarSuccess": "Đã cập nhật ảnh đại diện Agent!"
   },
   "security": {
     "title": "Bảo mật tài khoản",
@@ -92,5 +104,53 @@
     "exportChat": "Xuất lịch sử hội thoại hiện tại",
     "exportMarkdown": "Tải về file Markdown (.md)",
     "exportJson": "Tải về file JSON (.json)"
+  },
+  "mcp": {
+    "title": "MCP Servers",
+    "desc": "Kết nối các MCP server (Model Context Protocol) riêng để mở rộng công cụ cho J.A.R.V.I.S.",
+    "addTitle": "Thêm MCP server mới",
+    "nameLabel": "Tên server",
+    "namePlaceholder": "Ví dụ: Notion, Github MCP...",
+    "urlLabel": "URL SSE",
+    "urlPlaceholder": "https://example.com/sse",
+    "addButton": "Thêm server",
+    "addSuccess": "Đã thêm MCP server thành công!",
+    "listTitle": "Danh sách MCP servers",
+    "empty": "Chưa có MCP server nào được kết nối.",
+    "statusEnabled": "Đang bật",
+    "statusDisabled": "Đang tắt",
+    "enableAria": "Bật MCP server {{name}}",
+    "disableAria": "Tắt MCP server {{name}}",
+    "deleteAria": "Xoá MCP server {{name}}",
+    "deleteConfirmTitle": "Xoá MCP server?",
+    "deleteConfirmMessage": "MCP server \"{{name}}\" sẽ bị xoá vĩnh viễn.",
+    "deleteConfirmButton": "Xoá"
+  },
+  "skills": {
+    "title": "Skills",
+    "desc": "Bật/tắt các skill có sẵn hoặc tự tạo skill riêng cho J.A.R.V.I.S.",
+    "builtinTitle": "Skills có sẵn",
+    "customTitle": "Skills tự tạo",
+    "customEmpty": "Bạn chưa tạo skill tự tạo nào.",
+    "addTitle": "Tạo skill mới",
+    "nameLabel": "Tên skill",
+    "namePlaceholder": "Ví dụ: weekly-report",
+    "descriptionLabel": "Mô tả ngắn",
+    "descriptionPlaceholder": "Skill này dùng để làm gì?",
+    "whenToUseLabel": "Khi nào nên dùng",
+    "whenToUsePlaceholder": "Ví dụ: khi người dùng yêu cầu tổng hợp báo cáo tuần",
+    "contentLabel": "Nội dung skill (system prompt)",
+    "contentPlaceholder": "Hướng dẫn chi tiết cho J.A.R.V.I.S. khi kích hoạt skill này...",
+    "triggersLabel": "Từ khoá kích hoạt",
+    "triggersPlaceholder": "vd: báo cáo, weekly report, tổng kết tuần",
+    "triggersHint": "Phân tách nhiều từ khoá bằng dấu phẩy.",
+    "addButton": "Tạo skill",
+    "addSuccess": "Đã thêm skill thành công!",
+    "enableAria": "Bật skill {{name}}",
+    "disableAria": "Tắt skill {{name}}",
+    "deleteAria": "Xoá skill {{name}}",
+    "deleteConfirmTitle": "Xoá skill?",
+    "deleteConfirmMessage": "Skill \"{{name}}\" sẽ bị xoá vĩnh viễn.",
+    "deleteConfirmButton": "Xoá"
   }
 }

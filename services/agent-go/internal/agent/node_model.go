@@ -64,6 +64,16 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 	// Progressive skill disclosure: match user input against skill triggers
 	// and inject full SKILL.md content into the system prompt on first match.
 	systemPrompt := eng.getSystemPrompt()
+
+	// Set tên builtin skill user đã TẮT (user_disabled_skills) — loại khỏi skill
+	// matching cho lượt này. Việc lọc nằm ở đây (per-request) chứ KHÔNG đổi
+	// BuildSystemPrompt tĩnh (dùng chung, cacheable) — đúng mô hình đã có cho
+	// lang/persona/custom instructions.
+	disabled := make(map[string]bool, len(s.DisabledSkills))
+	for _, name := range s.DisabledSkills {
+		disabled[name] = true
+	}
+
 	if sl := eng.getSkillLoader(); sl != nil && s.activatedSkills == nil {
 		s.activatedSkills = make(map[string]bool)
 	}
@@ -71,7 +81,7 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 	// `tools:` trong SKILL.md). Được BẢO ĐẢM có trong tool list gửi cho LLM.
 	var skillTools []string
 	if sl := eng.getSkillLoader(); sl != nil {
-		if matched := sl.MatchSkill(userInput); matched != nil && !s.activatedSkills[matched.Name] {
+		if matched := sl.MatchSkill(userInput); matched != nil && !disabled[matched.Name] && !s.activatedSkills[matched.Name] {
 			s.activatedSkills[matched.Name] = true
 			// PromptBody: thân skill đã bỏ frontmatter và gọt vừa ngân sách token
 			// (skills.MaxPromptBytes) — nội dung này được chèn lại ở MỖI lượt chat
@@ -151,6 +161,29 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 		systemPrompt += pb.String()
 	}
 
+	// Custom skills của user (prompt instruction text lưu trong PostgreSQL) — nối
+	// toàn bộ vào system prompt để agent "nhận và dùng khi phù hợp". Khác builtin
+	// skill (progressive disclosure qua MatchSkill), custom skill là chỉ thị riêng
+	// của user nên luôn sẵn, không cần trigger.
+	if len(s.CustomSkills) > 0 {
+		var csb strings.Builder
+		csb.WriteString("\n\n[KỸ NĂNG TUỲ CHỈNH CỦA NGƯỜI DÙNG]\n")
+		for _, cs := range s.CustomSkills {
+			csb.WriteString("\n### " + cs.Name)
+			if cs.Description != "" {
+				csb.WriteString(" — " + cs.Description)
+			}
+			csb.WriteString("\n")
+			if cs.WhenToUse != "" {
+				csb.WriteString("Khi nào dùng: " + cs.WhenToUse + "\n")
+			}
+			if cs.Content != "" {
+				csb.WriteString(cs.Content + "\n")
+			}
+		}
+		systemPrompt += csb.String()
+	}
+
 	// Register tool theo task: bước đầu (step 0) chỉ gửi tool liên quan
 	// intent người dùng (3-8 tool thay vì toàn bộ registry) — giảm token +
 	// latency + nhiễu tool-call. Từ bước 1 trở đi gửi toàn bộ để cho phép
@@ -169,6 +202,13 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 	// liệt kê, làm agent yếu đi mỗi khi có skill kích hoạt.
 	if len(skillTools) > 0 {
 		toolDefs = reg.UnionToolDefs(toolDefs, skillTools)
+	}
+
+	// MCP tools (SSE remote) do user cấu hình — LUÔN có mặt trong tool list cho
+	// lượt này (không qua FilterToolDefs theo intent vì chúng là tool riêng của
+	// user, thường ít). Registry riêng từng lượt chạy — xem Engine.Run.
+	if s.mcpRegistry != nil {
+		toolDefs = append(toolDefs, s.mcpRegistry.ToolDefs()...)
 	}
 
 	// Tenant không phải chủ hệ thống KHÔNG được thấy nhóm tool đặc quyền

@@ -6,16 +6,16 @@
 @layer base {
   /* Light Mode (Eye-Comfort & Anti-Glare Palette) */
   :root {
-    --background: 210 28% 98%;      /* #f8fafc - Warm soothing canvas, zero glare */
+    --background: 210 28% 98%; /* #f8fafc - Warm soothing canvas, zero glare */
     --foreground: 222.2 47.4% 11.2%; /* #0f172a - Deep Slate */
 
-    --card: 0 0% 100%;             /* Pure clean card elevation */
+    --card: 0 0% 100%; /* Pure clean card elevation */
     --card-foreground: 222.2 47.4% 11.2%;
 
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 47.4% 11.2%;
 
-    --primary: 238.7 75% 58%;      /* Modern Royal Sapphire Indigo */
+    --primary: 238.7 75% 58%; /* Modern Royal Sapphire Indigo */
     --primary-foreground: 210 40% 98%;
 
     --secondary: 214.3 32% 94.5%;
@@ -30,7 +30,7 @@
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 214.3 22% 88.5%;     /* Subtle clean border */
+    --border: 214.3 22% 88.5%; /* Subtle clean border */
     --input: 214.3 22% 88.5%;
     --ring: 238.7 75% 58%;
 
@@ -66,10 +66,10 @@
   /* Dark Mode (Deep Obsidian & Slate Glow) */
   .dark,
   [data-theme="dark"] {
-    --background: 224 50% 6.5%;     /* #0b0f19 - Sleek Obsidian Slate */
+    --background: 224 50% 6.5%; /* #0b0f19 - Sleek Obsidian Slate */
     --foreground: 213 31% 93%;
 
-    --card: 224 45% 9.5%;          /* #101626 - Elevated deep slate */
+    --card: 224 45% 9.5%; /* #101626 - Elevated deep slate */
     --card-foreground: 213 31% 93%;
 
     --popover: 224 45% 8.5%;

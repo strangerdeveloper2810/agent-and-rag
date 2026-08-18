@@ -42,9 +42,7 @@ describe("ForgotPasswordPage", () => {
 
   it("renders Step 1 email input properly", () => {
     renderPage();
-    expect(
-      screen.getByPlaceholderText("name@company.com"),
-    ).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("name@company.com")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /Gửi mã xác thực OTP/i }),
     ).toBeInTheDocument();
@@ -61,13 +59,17 @@ describe("ForgotPasswordPage", () => {
     const emailInput = screen.getByPlaceholderText("name@company.com");
     await user.type(emailInput, "test@example.com");
 
-    const submitBtn = screen.getByRole("button", { name: /Gửi mã xác thực OTP/i });
+    const submitBtn = screen.getByRole("button", {
+      name: /Gửi mã xác thực OTP/i,
+    });
     await user.click(submitBtn);
 
     await waitFor(() => {
       expect(forgotPassword).toHaveBeenCalledWith("test@example.com");
       expect(screen.getByPlaceholderText("000000")).toBeInTheDocument();
-      expect(screen.getByPlaceholderText("Tối thiểu 8 ký tự")).toBeInTheDocument();
+      expect(
+        screen.getByPlaceholderText("Tối thiểu 8 ký tự"),
+      ).toBeInTheDocument();
     });
   });
 });

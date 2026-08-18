@@ -256,6 +256,12 @@ type MCPConfig struct {
 	Servers []MCPToolConfig `yaml:"servers"`
 }
 
+// toolClient là interface gọi tool trên một MCP server — giúp adapter dùng chung
+// cho cả transport stdio (MCPClient) lẫn SSE remote (SSEClient).
+type toolClient interface {
+	CallTool(name string, args json.RawMessage) (string, error)
+}
+
 // mcpAdapter biến MCP tool thành tools.Tool để dùng chung registry.
 // name là tên đã namespace (dùng cho LLM + registry key); rawName là tên gốc
 // server trả về (dùng khi gọi "tools/call" qua JSON-RPC — server không biết
@@ -266,7 +272,7 @@ type mcpAdapter struct {
 	rawName     string
 	description string
 	schema      json.RawMessage
-	client      *MCPClient
+	client      toolClient
 }
 
 func (a *mcpAdapter) Name() string            { return a.name }

@@ -17,55 +17,102 @@ import {
   MoonIcon,
   EyeIcon,
   EyeSlashIcon,
+  ArrowUpTrayIcon,
+  TrashIcon,
+  PlusIcon,
+  BoltIcon,
+  PuzzlePieceIcon,
 } from "@heroicons/react/24/outline";
 
 import { useAuthStore } from "@/stores/auth.store";
 import { useUserStore } from "@/stores/user.store";
+import { BUILTIN_SKILLS } from "@/stores/builtin-skills";
 import { useToast } from "@/design-system/molecules/Toast";
 import { useTheme } from "@/hooks/useTheme";
 import { persistLocale, type Locale } from "@/i18n/locale";
 import { getMessages } from "@/modules/chat/chat.api";
+import { uploadImage } from "@/lib/upload";
+import ConfirmDialog from "@/design-system/molecules/ConfirmDialog";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface UserSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  initialTab?: "profile" | "persona" | "security" | "preferences";
+  initialTab?:
+    "profile" | "persona" | "security" | "preferences" | "mcp" | "skills";
   conversationId?: string;
-  conversationMessages?: Array<{ role: string; content: string; createdAt?: string }>;
+  conversationMessages?: Array<{
+    role: string;
+    content: string;
+    createdAt?: string;
+  }>;
 }
 
 const PRESET_OPTIONS = [
   {
     id: "default" as const,
     icon: SparklesIcon,
-    accent: "from-amber-500/20 to-orange-500/20 border-amber-500/30 text-amber-500",
+    accent:
+      "from-amber-500/20 to-orange-500/20 border-amber-500/30 text-amber-500",
   },
   {
     id: "coder" as const,
     icon: CommandLineIcon,
-    accent: "from-emerald-500/20 to-teal-500/20 border-emerald-500/30 text-emerald-500",
+    accent:
+      "from-emerald-500/20 to-teal-500/20 border-emerald-500/30 text-emerald-500",
   },
   {
     id: "business" as const,
     icon: BriefcaseIcon,
-    accent: "from-blue-500/20 to-indigo-500/20 border-blue-500/30 text-blue-500",
+    accent:
+      "from-blue-500/20 to-indigo-500/20 border-blue-500/30 text-blue-500",
   },
   {
     id: "creative" as const,
     icon: LightBulbIcon,
-    accent: "from-purple-500/20 to-pink-500/20 border-purple-500/30 text-purple-500",
+    accent:
+      "from-purple-500/20 to-pink-500/20 border-purple-500/30 text-purple-500",
   },
   {
     id: "custom" as const,
     icon: WrenchScrewdriverIcon,
-    accent: "from-slate-500/20 to-zinc-500/20 border-slate-500/30 text-slate-400",
+    accent:
+      "from-slate-500/20 to-zinc-500/20 border-slate-500/30 text-slate-400",
   },
 ];
+
+/**
+ * ToggleSwitch — công tắc bật/tắt dùng chung cho MCP server & skill.
+ * Design-system hiện chưa có component Switch riêng nên dựng tạm bằng button + span,
+ * bám theo token màu bg-primary/bg-muted để tự đồng bộ theme sáng/tối.
+ */
+const ToggleSwitch: React.FC<{
+  checked: boolean;
+  onChange: () => void;
+  label: string;
+}> = ({ checked, onChange, label }) => (
+  <button
+    type="button"
+    role="switch"
+    aria-checked={checked}
+    aria-label={label}
+    onClick={onChange}
+    className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${
+      checked ? "bg-primary" : "bg-muted"
+    }`}
+  >
+    <span
+      className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${
+        checked ? "translate-x-4" : "translate-x-0.5"
+      }`}
+    />
+  </button>
+);
 
 export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
   isOpen,
@@ -82,6 +129,20 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
     updateProfile,
     changePassword,
     isSaving,
+    mcpServers,
+    skills,
+    disabledBuiltinSkills,
+    isLoadingMcp,
+    isLoadingSkills,
+    fetchMcpServers,
+    createMcpServer,
+    updateMcpServer,
+    deleteMcpServer,
+    fetchSkills,
+    createSkill,
+    updateSkill,
+    deleteSkill,
+    toggleBuiltinSkill,
   } = useUserStore();
   const toast = useToast();
   const { theme, setTheme } = useTheme();
@@ -93,8 +154,38 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
   };
 
   const [activeTab, setActiveTab] = useState<
-    "profile" | "persona" | "security" | "preferences"
+    "profile" | "persona" | "security" | "preferences" | "mcp" | "skills"
   >(initialTab);
+
+  // Avatar upload state
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(
+    user?.avatar_url ?? null,
+  );
+  const [agentAvatarUrl, setAgentAvatarUrl] = useState<string | null>(null);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [isUploadingAgentAvatar, setIsUploadingAgentAvatar] = useState(false);
+
+  // MCP form state
+  const [mcpName, setMcpName] = useState("");
+  const [mcpUrl, setMcpUrl] = useState("");
+
+  // Custom skill form state
+  const [skillName, setSkillName] = useState("");
+  const [skillDescription, setSkillDescription] = useState("");
+  const [skillWhenToUse, setSkillWhenToUse] = useState("");
+  const [skillContent, setSkillContent] = useState("");
+  const [skillTriggers, setSkillTriggers] = useState("");
+
+  // Xác nhận xoá (dùng chung ConfirmDialog) - lưu cả id lẫn name để hiện
+  // message mà không cần tra lại list (list có thể đã đổi sau khi xoá xong)
+  const [pendingDeleteMcp, setPendingDeleteMcp] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [pendingDeleteSkill, setPendingDeleteSkill] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   // Profile form state
   const [displayName, setDisplayName] = useState(user?.name || "");
@@ -122,16 +213,20 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
     if (isOpen) {
       setActiveTab(initialTab);
       setDisplayName(user?.name || "");
+      setAvatarUrl(user?.avatar_url ?? null);
       fetchSettings().then((s) => {
         if (s) {
           setPersonaPreset(s.persona_preset || "default");
           setFormality(s.formality || "neutral");
           setVerbosity(s.verbosity || "normal");
           setCustomInstructions(s.custom_instructions || "");
+          setAgentAvatarUrl(s.agent_avatar_url ?? null);
         }
       });
+      fetchMcpServers().catch(() => {});
+      fetchSkills().catch(() => {});
     }
-  }, [isOpen, initialTab, user, fetchSettings]);
+  }, [isOpen, initialTab, user, fetchSettings, fetchMcpServers, fetchSkills]);
 
   if (!isOpen) return null;
 
@@ -159,6 +254,134 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
     } catch (err: any) {
       toast.error(err?.message || "Lỗi lưu cài đặt Persona");
     }
+  };
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingAvatar(true);
+    try {
+      const url = await uploadImage(file);
+      await updateProfile({ avatar_url: url });
+      setAvatarUrl(url);
+      toast.success(t("profile.avatarSuccess"));
+    } catch (err: any) {
+      toast.error(err?.message || "Lỗi tải ảnh đại diện");
+    } finally {
+      setIsUploadingAvatar(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleAgentAvatarUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingAgentAvatar(true);
+    try {
+      const url = await uploadImage(file);
+      await updateSettings({ agent_avatar_url: url });
+      setAgentAvatarUrl(url);
+      toast.success(t("persona.avatarSuccess"));
+    } catch (err: any) {
+      toast.error(err?.message || "Lỗi tải ảnh agent");
+    } finally {
+      setIsUploadingAgentAvatar(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleAddMcpServer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mcpName.trim() || !mcpUrl.trim()) return;
+    try {
+      await createMcpServer({ name: mcpName.trim(), url: mcpUrl.trim() });
+      setMcpName("");
+      setMcpUrl("");
+      toast.success(t("mcp.addSuccess"));
+    } catch (err: any) {
+      toast.error(err?.message || "Lỗi thêm MCP server");
+    }
+  };
+
+  const handleToggleMcpServer = async (id: string, enabled: boolean) => {
+    try {
+      await updateMcpServer(id, { enabled });
+    } catch (err: any) {
+      toast.error(err?.message || "Lỗi cập nhật MCP server");
+    }
+  };
+
+  const handleDeleteMcpServer = async (id: string) => {
+    try {
+      await deleteMcpServer(id);
+    } catch (err: any) {
+      toast.error(err?.message || "Lỗi xoá MCP server");
+    }
+  };
+
+  const handleAddSkill = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!skillName.trim() || !skillContent.trim()) return;
+    try {
+      await createSkill({
+        name: skillName.trim(),
+        description: skillDescription.trim(),
+        when_to_use: skillWhenToUse.trim(),
+        content: skillContent.trim(),
+        triggers: skillTriggers
+          .split(",")
+          .map((t) => t.trim())
+          .filter(Boolean),
+      });
+      setSkillName("");
+      setSkillDescription("");
+      setSkillWhenToUse("");
+      setSkillContent("");
+      setSkillTriggers("");
+      toast.success(t("skills.addSuccess"));
+    } catch (err: any) {
+      toast.error(err?.message || "Lỗi thêm skill");
+    }
+  };
+
+  const handleToggleBuiltinSkill = async (name: string, enabled: boolean) => {
+    try {
+      await toggleBuiltinSkill(name, enabled);
+    } catch (err: any) {
+      toast.error(err?.message || "Lỗi cập nhật skill");
+    }
+  };
+
+  const handleToggleCustomSkill = async (id: string, enabled: boolean) => {
+    try {
+      await updateSkill(id, { enabled });
+    } catch (err: any) {
+      toast.error(err?.message || "Lỗi cập nhật skill");
+    }
+  };
+
+  const handleDeleteSkill = async (id: string) => {
+    try {
+      await deleteSkill(id);
+    } catch (err: any) {
+      toast.error(err?.message || "Lỗi xoá skill");
+    }
+  };
+
+  // Xác nhận xoá MCP server qua ConfirmDialog rồi mới gọi handler xoá thật
+  const confirmDeleteMcp = async () => {
+    if (!pendingDeleteMcp) return;
+    await handleDeleteMcpServer(pendingDeleteMcp.id);
+    setPendingDeleteMcp(null);
+  };
+
+  // Xác nhận xoá custom skill qua ConfirmDialog rồi mới gọi handler xoá thật
+  const confirmDeleteSkill = async () => {
+    if (!pendingDeleteSkill) return;
+    await handleDeleteSkill(pendingDeleteSkill.id);
+    setPendingDeleteSkill(null);
   };
 
   const handleChangePassword = async (e: React.FormEvent) => {
@@ -260,7 +483,9 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
             <h2 className="text-lg font-bold text-foreground">
               {t("modal.title")}
             </h2>
-            <p className="text-xs text-muted-foreground">{t("modal.subtitle")}</p>
+            <p className="text-xs text-muted-foreground">
+              {t("modal.subtitle")}
+            </p>
           </div>
           <button
             onClick={onClose}
@@ -317,6 +542,28 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
             <AdjustmentsHorizontalIcon className="h-4 w-4" />
             <span>{t("modal.tabs.preferences")}</span>
           </button>
+          <button
+            onClick={() => setActiveTab("mcp")}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition shrink-0 ${
+              activeTab === "mcp"
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted"
+            }`}
+          >
+            <BoltIcon className="h-4 w-4" />
+            <span>{t("modal.tabs.mcp")}</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("skills")}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition shrink-0 ${
+              activeTab === "skills"
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted"
+            }`}
+          >
+            <PuzzlePieceIcon className="h-4 w-4" />
+            <span>{t("modal.tabs.skills")}</span>
+          </button>
         </div>
 
         {/* Content Body */}
@@ -331,6 +578,61 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {t("persona.desc")}
                 </p>
+              </div>
+
+              {/* Avatar Agent */}
+              <div className="flex items-center gap-4 p-4 rounded-xl bg-muted/20 border border-border">
+                <div className="relative shrink-0">
+                  <Avatar className="h-16 w-16">
+                    {agentAvatarUrl ? (
+                      <AvatarImage
+                        src={agentAvatarUrl}
+                        alt={t("persona.avatarTitle")}
+                      />
+                    ) : (
+                      <AvatarFallback className="bg-gradient-to-br from-amber-500 to-orange-600 text-white">
+                        <SparklesIcon className="h-6 w-6" />
+                      </AvatarFallback>
+                    )}
+                  </Avatar>
+                  <label
+                    htmlFor="agent-avatar-upload"
+                    title={t("persona.avatarUploadLabel")}
+                    className={`absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition hover:text-primary hover:border-primary ${
+                      isUploadingAgentAvatar
+                        ? "opacity-60 pointer-events-none"
+                        : "cursor-pointer"
+                    }`}
+                  >
+                    {isUploadingAgentAvatar ? (
+                      <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                    ) : (
+                      <ArrowUpTrayIcon className="h-3 w-3" />
+                    )}
+                    <input
+                      id="agent-avatar-upload"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={isUploadingAgentAvatar}
+                      onChange={handleAgentAvatarUpload}
+                      aria-label={t("persona.avatarUploadLabel")}
+                    />
+                  </label>
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-foreground">
+                    {t("persona.avatarTitle")}
+                  </h4>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {t("persona.avatarDesc")}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    {isUploadingAgentAvatar
+                      ? t("persona.avatarUploading")
+                      : t("persona.avatarHint")}
+                  </p>
+                </div>
               </div>
 
               {/* Persona Presets */}
@@ -470,11 +772,44 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
               </div>
 
               <div className="flex items-center gap-4 p-4 rounded-xl bg-muted/20 border border-border">
-                <Avatar className="h-16 w-16">
-                  <AvatarFallback className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-bold text-lg">
-                    {userInitials}
-                  </AvatarFallback>
-                </Avatar>
+                <div className="relative shrink-0">
+                  <Avatar className="h-16 w-16">
+                    {avatarUrl ? (
+                      <AvatarImage
+                        src={avatarUrl}
+                        alt={user?.name || t("profile.title")}
+                      />
+                    ) : (
+                      <AvatarFallback className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-bold text-lg">
+                        {userInitials}
+                      </AvatarFallback>
+                    )}
+                  </Avatar>
+                  <label
+                    htmlFor="profile-avatar-upload"
+                    title={t("profile.avatarUploadLabel")}
+                    className={`absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition hover:text-primary hover:border-primary ${
+                      isUploadingAvatar
+                        ? "opacity-60 pointer-events-none"
+                        : "cursor-pointer"
+                    }`}
+                  >
+                    {isUploadingAvatar ? (
+                      <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                    ) : (
+                      <ArrowUpTrayIcon className="h-3 w-3" />
+                    )}
+                    <input
+                      id="profile-avatar-upload"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={isUploadingAvatar}
+                      onChange={handleAvatarUpload}
+                      aria-label={t("profile.avatarUploadLabel")}
+                    />
+                  </label>
+                </div>
                 <div>
                   <h4 className="text-sm font-bold text-foreground">
                     {user?.name || "Người dùng"}
@@ -482,7 +817,15 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {user?.email}
                   </p>
-                  <Badge variant="outline" className="mt-2 text-[10px] uppercase">
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    {isUploadingAvatar
+                      ? t("profile.avatarUploading")
+                      : t("profile.avatarHint")}
+                  </p>
+                  <Badge
+                    variant="outline"
+                    className="mt-2 text-[10px] uppercase"
+                  >
                     {user?.role === "admin"
                       ? t("profile.adminRole")
                       : t("profile.userRole")}
@@ -595,7 +938,9 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
 
               <div className="flex justify-end pt-2">
                 <Button type="submit" variant="gradient" disabled={isSaving}>
-                  {isSaving ? t("modal.saving") : t("security.changePasswordButton")}
+                  {isSaving
+                    ? t("modal.saving")
+                    : t("security.changePasswordButton")}
                 </Button>
               </div>
             </form>
@@ -629,7 +974,9 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                     }`}
                   >
                     <MoonIcon className="h-5 w-5 text-indigo-400" />
-                    <span className="text-xs">{t("preferences.theme.dark")}</span>
+                    <span className="text-xs">
+                      {t("preferences.theme.dark")}
+                    </span>
                   </button>
                   <button
                     type="button"
@@ -641,7 +988,9 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                     }`}
                   >
                     <SunIcon className="h-5 w-5 text-amber-500" />
-                    <span className="text-xs">{t("preferences.theme.light")}</span>
+                    <span className="text-xs">
+                      {t("preferences.theme.light")}
+                    </span>
                   </button>
                 </div>
               </div>
@@ -707,8 +1056,386 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
               </div>
             </div>
           )}
+
+          {/* TAB 5: MCP SERVERS */}
+          {activeTab === "mcp" && (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-sm font-bold text-foreground">
+                  {t("mcp.title")}
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {t("mcp.desc")}
+                </p>
+              </div>
+
+              {/* Form thêm MCP server mới */}
+              <form
+                onSubmit={handleAddMcpServer}
+                className="space-y-3 p-4 rounded-xl bg-muted/20 border border-border"
+              >
+                <h4 className="text-xs font-bold text-foreground">
+                  {t("mcp.addTitle")}
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                      {t("mcp.nameLabel")}
+                    </label>
+                    <Input
+                      type="text"
+                      value={mcpName}
+                      onChange={(e) => setMcpName(e.target.value)}
+                      placeholder={t("mcp.namePlaceholder")}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                      {t("mcp.urlLabel")}
+                    </label>
+                    <Input
+                      type="text"
+                      value={mcpUrl}
+                      onChange={(e) => setMcpUrl(e.target.value)}
+                      placeholder={t("mcp.urlPlaceholder")}
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <Button
+                    type="submit"
+                    variant="gradient"
+                    size="sm"
+                    disabled={!mcpName.trim() || !mcpUrl.trim()}
+                    className="flex items-center gap-1.5"
+                  >
+                    <PlusIcon className="h-4 w-4" />
+                    <span>{t("mcp.addButton")}</span>
+                  </Button>
+                </div>
+              </form>
+
+              {/* Danh sách MCP servers */}
+              <div>
+                <h4 className="text-xs font-bold text-foreground mb-2">
+                  {t("mcp.listTitle")}
+                </h4>
+                {isLoadingMcp ? (
+                  <div
+                    className="space-y-2"
+                    aria-live="polite"
+                    aria-busy="true"
+                  >
+                    <Skeleton className="h-14 w-full" />
+                    <Skeleton className="h-14 w-full" />
+                  </div>
+                ) : mcpServers.length === 0 ? (
+                  <div className="py-8 text-center rounded-xl border border-dashed border-border text-xs text-muted-foreground">
+                    {t("mcp.empty")}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {mcpServers.map((server) => (
+                      <div
+                        key={server.id}
+                        className="flex items-center gap-3 p-3 rounded-xl bg-card border border-border"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-foreground truncate">
+                              {server.name}
+                            </span>
+                            <Badge
+                              variant={server.enabled ? "success" : "outline"}
+                              className="text-[10px] uppercase shrink-0"
+                            >
+                              {server.enabled
+                                ? t("mcp.statusEnabled")
+                                : t("mcp.statusDisabled")}
+                            </Badge>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                            {server.url}
+                          </p>
+                        </div>
+                        <ToggleSwitch
+                          checked={server.enabled}
+                          onChange={() =>
+                            handleToggleMcpServer(server.id, !server.enabled)
+                          }
+                          label={
+                            server.enabled
+                              ? t("mcp.disableAria", { name: server.name })
+                              : t("mcp.enableAria", { name: server.name })
+                          }
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setPendingDeleteMcp({
+                              id: server.id,
+                              name: server.name,
+                            })
+                          }
+                          aria-label={t("mcp.deleteAria", {
+                            name: server.name,
+                          })}
+                          className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition shrink-0"
+                        >
+                          <TrashIcon className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 6: SKILLS */}
+          {activeTab === "skills" && (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-sm font-bold text-foreground">
+                  {t("skills.title")}
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {t("skills.desc")}
+                </p>
+              </div>
+
+              {/* Builtin skills */}
+              <div>
+                <h4 className="text-xs font-bold text-foreground mb-2">
+                  {t("skills.builtinTitle")}
+                </h4>
+                {isLoadingSkills ? (
+                  <div
+                    className="space-y-2"
+                    aria-live="polite"
+                    aria-busy="true"
+                  >
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-12 w-full" />
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                    {BUILTIN_SKILLS.map((skill) => {
+                      const enabled = !disabledBuiltinSkills.includes(
+                        skill.name,
+                      );
+                      return (
+                        <div
+                          key={skill.name}
+                          className="flex items-center gap-3 p-3 rounded-xl bg-card border border-border"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <span className="text-xs font-bold text-foreground">
+                              {skill.name}
+                            </span>
+                            <p className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5">
+                              {skill.description}
+                            </p>
+                          </div>
+                          <ToggleSwitch
+                            checked={enabled}
+                            onChange={() =>
+                              handleToggleBuiltinSkill(skill.name, !enabled)
+                            }
+                            label={
+                              enabled
+                                ? t("skills.disableAria", { name: skill.name })
+                                : t("skills.enableAria", { name: skill.name })
+                            }
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Custom skills */}
+              <div className="pt-4 border-t border-border">
+                <h4 className="text-xs font-bold text-foreground mb-2">
+                  {t("skills.customTitle")}
+                </h4>
+                {isLoadingSkills ? (
+                  <div
+                    className="space-y-2"
+                    aria-live="polite"
+                    aria-busy="true"
+                  >
+                    <Skeleton className="h-12 w-full" />
+                  </div>
+                ) : skills.length === 0 ? (
+                  <div className="py-6 text-center rounded-xl border border-dashed border-border text-xs text-muted-foreground">
+                    {t("skills.customEmpty")}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {skills.map((skill) => (
+                      <div
+                        key={skill.id}
+                        className="flex items-center gap-3 p-3 rounded-xl bg-card border border-border"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <span className="text-xs font-bold text-foreground">
+                            {skill.name}
+                          </span>
+                          {skill.description && (
+                            <p className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5">
+                              {skill.description}
+                            </p>
+                          )}
+                        </div>
+                        <ToggleSwitch
+                          checked={skill.enabled}
+                          onChange={() =>
+                            handleToggleCustomSkill(skill.id, !skill.enabled)
+                          }
+                          label={
+                            skill.enabled
+                              ? t("skills.disableAria", { name: skill.name })
+                              : t("skills.enableAria", { name: skill.name })
+                          }
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setPendingDeleteSkill({
+                              id: skill.id,
+                              name: skill.name,
+                            })
+                          }
+                          aria-label={t("skills.deleteAria", {
+                            name: skill.name,
+                          })}
+                          className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition shrink-0"
+                        >
+                          <TrashIcon className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Form thêm custom skill mới */}
+              <form
+                onSubmit={handleAddSkill}
+                className="space-y-3 p-4 rounded-xl bg-muted/20 border border-border"
+              >
+                <h4 className="text-xs font-bold text-foreground">
+                  {t("skills.addTitle")}
+                </h4>
+                <div>
+                  <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                    {t("skills.nameLabel")}
+                  </label>
+                  <Input
+                    type="text"
+                    value={skillName}
+                    onChange={(e) => setSkillName(e.target.value)}
+                    placeholder={t("skills.namePlaceholder")}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                    {t("skills.descriptionLabel")}
+                  </label>
+                  <Input
+                    type="text"
+                    value={skillDescription}
+                    onChange={(e) => setSkillDescription(e.target.value)}
+                    placeholder={t("skills.descriptionPlaceholder")}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                    {t("skills.whenToUseLabel")}
+                  </label>
+                  <Input
+                    type="text"
+                    value={skillWhenToUse}
+                    onChange={(e) => setSkillWhenToUse(e.target.value)}
+                    placeholder={t("skills.whenToUsePlaceholder")}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                    {t("skills.contentLabel")}
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={skillContent}
+                    onChange={(e) => setSkillContent(e.target.value)}
+                    placeholder={t("skills.contentPlaceholder")}
+                    className="w-full rounded-xl bg-background border border-border p-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition resize-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                    {t("skills.triggersLabel")}
+                  </label>
+                  <Input
+                    type="text"
+                    value={skillTriggers}
+                    onChange={(e) => setSkillTriggers(e.target.value)}
+                    placeholder={t("skills.triggersPlaceholder")}
+                  />
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    {t("skills.triggersHint")}
+                  </p>
+                </div>
+                <div className="flex justify-end">
+                  <Button
+                    type="submit"
+                    variant="gradient"
+                    size="sm"
+                    disabled={!skillName.trim() || !skillContent.trim()}
+                    className="flex items-center gap-1.5"
+                  >
+                    <PlusIcon className="h-4 w-4" />
+                    <span>{t("skills.addButton")}</span>
+                  </Button>
+                </div>
+              </form>
+            </div>
+          )}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={pendingDeleteMcp !== null}
+        title={t("mcp.deleteConfirmTitle")}
+        message={
+          pendingDeleteMcp
+            ? t("mcp.deleteConfirmMessage", { name: pendingDeleteMcp.name })
+            : undefined
+        }
+        confirmLabel={t("mcp.deleteConfirmButton")}
+        danger
+        onConfirm={confirmDeleteMcp}
+        onCancel={() => setPendingDeleteMcp(null)}
+      />
+
+      <ConfirmDialog
+        open={pendingDeleteSkill !== null}
+        title={t("skills.deleteConfirmTitle")}
+        message={
+          pendingDeleteSkill
+            ? t("skills.deleteConfirmMessage", {
+                name: pendingDeleteSkill.name,
+              })
+            : undefined
+        }
+        confirmLabel={t("skills.deleteConfirmButton")}
+        danger
+        onConfirm={confirmDeleteSkill}
+        onCancel={() => setPendingDeleteSkill(null)}
+      />
     </div>
   );
 };

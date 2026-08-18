@@ -9,6 +9,31 @@ export interface UserSettings {
   verbosity: "concise" | "normal" | "detailed";
   humor: "none" | "dry" | "playful";
   custom_instructions: string;
+  agent_avatar_url?: string | null;
+}
+
+export interface McpServer {
+  id: string;
+  name: string;
+  transport: "sse";
+  url: string;
+  api_key: string | null;
+  enabled: boolean;
+}
+
+export interface UserSkill {
+  id: string;
+  name: string;
+  description: string;
+  when_to_use: string;
+  content: string;
+  triggers: string[];
+  enabled: boolean;
+}
+
+export interface SkillListResult {
+  customSkills: UserSkill[];
+  disabledBuiltinSkills: string[];
 }
 
 interface UserState {
@@ -16,10 +41,58 @@ interface UserState {
   isLoading: boolean;
   isSaving: boolean;
 
+  mcpServers: McpServer[];
+  skills: UserSkill[];
+  disabledBuiltinSkills: string[];
+  isLoadingMcp: boolean;
+  isLoadingSkills: boolean;
+
   fetchSettings: () => Promise<UserSettings>;
   updateSettings: (data: Partial<UserSettings>) => Promise<void>;
-  updateProfile: (data: { name?: string; avatar_url?: string | null }) => Promise<AuthUser>;
+  updateProfile: (data: {
+    name?: string;
+    avatar_url?: string | null;
+  }) => Promise<AuthUser>;
   changePassword: (oldPassword: string, newPassword: string) => Promise<void>;
+
+  fetchMcpServers: () => Promise<McpServer[]>;
+  createMcpServer: (data: {
+    name: string;
+    url: string;
+    api_key?: string;
+  }) => Promise<void>;
+  updateMcpServer: (
+    id: string,
+    data: {
+      name?: string;
+      url?: string;
+      api_key?: string | null;
+      enabled?: boolean;
+    },
+  ) => Promise<void>;
+  deleteMcpServer: (id: string) => Promise<void>;
+
+  fetchSkills: () => Promise<SkillListResult>;
+  createSkill: (data: {
+    name: string;
+    description?: string;
+    when_to_use?: string;
+    content: string;
+    triggers?: string[];
+  }) => Promise<void>;
+  updateSkill: (
+    id: string,
+    data: {
+      name?: string;
+      description?: string;
+      when_to_use?: string;
+      content?: string;
+      triggers?: string[];
+      enabled?: boolean;
+    },
+  ) => Promise<void>;
+  deleteSkill: (id: string) => Promise<void>;
+  toggleBuiltinSkill: (name: string, enabled: boolean) => Promise<void>;
 }
 
 export const useUserStore = create<UserState>((set) => ({
@@ -27,10 +100,18 @@ export const useUserStore = create<UserState>((set) => ({
   isLoading: false,
   isSaving: false,
 
+  mcpServers: [],
+  skills: [],
+  disabledBuiltinSkills: [],
+  isLoadingMcp: false,
+  isLoadingSkills: false,
+
   fetchSettings: async () => {
     set({ isLoading: true });
     try {
-      const res = await api.get<{ settings: UserSettings }>("/api/user/settings");
+      const res = await api.get<{ settings: UserSettings }>(
+        "/api/user/settings",
+      );
       set({ settings: res.settings, isLoading: false });
       return res.settings;
     } catch (err) {
@@ -56,7 +137,10 @@ export const useUserStore = create<UserState>((set) => ({
   updateProfile: async (data) => {
     set({ isSaving: true });
     try {
-      const res = await api.patch<{ user: AuthUser }>("/api/user/profile", data);
+      const res = await api.patch<{ user: AuthUser }>(
+        "/api/user/profile",
+        data,
+      );
       set({ isSaving: false });
       return res.user;
     } catch (err) {
@@ -77,5 +161,99 @@ export const useUserStore = create<UserState>((set) => ({
       set({ isSaving: false });
       throw err;
     }
+  },
+
+  // ── MCP Servers ──
+
+  fetchMcpServers: async () => {
+    set({ isLoadingMcp: true });
+    try {
+      const res = await api.get<{ servers: McpServer[] }>(
+        "/api/user/mcp-servers",
+      );
+      set({ mcpServers: res.servers, isLoadingMcp: false });
+      return res.servers;
+    } catch (err) {
+      set({ isLoadingMcp: false });
+      throw err;
+    }
+  },
+
+  createMcpServer: async (data) => {
+    const res = await api.post<{ server: McpServer }>(
+      "/api/user/mcp-servers",
+      data,
+    );
+    set((s) => ({ mcpServers: [...s.mcpServers, res.server] }));
+  },
+
+  updateMcpServer: async (id, data) => {
+    const res = await api.patch<{ server: McpServer }>(
+      `/api/user/mcp-servers/${id}`,
+      data,
+    );
+    set((s) => ({
+      mcpServers: s.mcpServers.map((m) => (m.id === id ? res.server : m)),
+    }));
+  },
+
+  deleteMcpServer: async (id) => {
+    await api.del(`/api/user/mcp-servers/${id}`);
+    set((s) => ({ mcpServers: s.mcpServers.filter((m) => m.id !== id) }));
+  },
+
+  // ── Skills ──
+
+  fetchSkills: async () => {
+    set({ isLoadingSkills: true });
+    try {
+      const res = await api.get<{
+        customSkills: UserSkill[];
+        disabledBuiltinSkills: string[];
+      }>("/api/user/skills");
+      set({
+        skills: res.customSkills,
+        disabledBuiltinSkills: res.disabledBuiltinSkills,
+        isLoadingSkills: false,
+      });
+      return {
+        customSkills: res.customSkills,
+        disabledBuiltinSkills: res.disabledBuiltinSkills,
+      };
+    } catch (err) {
+      set({ isLoadingSkills: false });
+      throw err;
+    }
+  },
+
+  createSkill: async (data) => {
+    const res = await api.post<{ skill: UserSkill }>("/api/user/skills", data);
+    set((s) => ({ skills: [...s.skills, res.skill] }));
+  },
+
+  updateSkill: async (id, data) => {
+    const res = await api.patch<{ skill: UserSkill }>(
+      `/api/user/skills/${id}`,
+      data,
+    );
+    set((s) => ({
+      skills: s.skills.map((sk) => (sk.id === id ? res.skill : sk)),
+    }));
+  },
+
+  deleteSkill: async (id) => {
+    await api.del(`/api/user/skills/${id}`);
+    set((s) => ({ skills: s.skills.filter((sk) => sk.id !== id) }));
+  },
+
+  toggleBuiltinSkill: async (name, enabled) => {
+    await api.post(`/api/user/skills/${name}/toggle`, { enabled });
+    set((s) => ({
+      disabledBuiltinSkills: enabled
+        ? s.disabledBuiltinSkills.filter((n) => n !== name)
+        : s.disabledBuiltinSkills.includes(name)
+          ? s.disabledBuiltinSkills
+          : [...s.disabledBuiltinSkills, name],
+    }));
   },
 }));

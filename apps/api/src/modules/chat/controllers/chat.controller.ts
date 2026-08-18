@@ -78,21 +78,67 @@ export const postChat = async (req: FastifyRequest, reply: FastifyReply) => {
       | undefined;
 
     const userId = (req.user as { sub?: string } | undefined)?.sub;
+
+    let mcpServers:
+      Array<{ name: string; url: string; apiKey?: string }> | undefined;
+    let disabledSkills: string[] | undefined;
+    let customSkills:
+      | Array<{
+          name: string;
+          description?: string;
+          whenToUse?: string;
+          content?: string;
+          triggers?: string[];
+        }>
+      | undefined;
+
     if (userId) {
       try {
         const pg = getPgPool();
-        const { rows } = await pg.query(
-          "SELECT persona_preset, formality, verbosity, custom_instructions FROM user_settings WHERE user_id = $1",
-          [userId],
+        const [settingsRes, mcpRes, disabledRes, skillsRes] = await Promise.all(
+          [
+            pg.query(
+              "SELECT persona_preset, formality, verbosity, custom_instructions FROM user_settings WHERE user_id = $1",
+              [userId],
+            ),
+            pg.query(
+              "SELECT name, url, api_key FROM user_mcp_servers WHERE user_id = $1 AND enabled = TRUE ORDER BY created_at ASC",
+              [userId],
+            ),
+            pg.query(
+              "SELECT skill_name FROM user_disabled_skills WHERE user_id = $1",
+              [userId],
+            ),
+            pg.query(
+              "SELECT name, description, when_to_use, content, triggers FROM user_skills WHERE user_id = $1 AND enabled = TRUE ORDER BY created_at ASC",
+              [userId],
+            ),
+          ],
         );
-        if (rows[0]) {
+
+        const settingsRow = settingsRes.rows[0];
+        if (settingsRow) {
           personaSettings = {
-            personaPreset: rows[0].persona_preset,
-            formality: rows[0].formality,
-            verbosity: rows[0].verbosity,
-            customInstructions: rows[0].custom_instructions,
+            personaPreset: settingsRow.persona_preset,
+            formality: settingsRow.formality,
+            verbosity: settingsRow.verbosity,
+            customInstructions: settingsRow.custom_instructions,
           };
         }
+
+        mcpServers = mcpRes.rows.map((r) => ({
+          name: r.name,
+          url: r.url,
+          apiKey: r.api_key ?? undefined,
+        }));
+        disabledSkills = disabledRes.rows.map((r) => r.skill_name);
+        customSkills = skillsRes.rows.map((r) => ({
+          name: r.name,
+          description: r.description ?? "",
+          whenToUse: r.when_to_use ?? "",
+          content: r.content ?? "",
+          triggers: r.triggers ?? [],
+        }));
       } catch {
         // Nếu query lỗi hoặc user chưa có settings, bỏ qua
       }
@@ -106,6 +152,9 @@ export const postChat = async (req: FastifyRequest, reply: FastifyReply) => {
       tenantId,
       lang,
       personaSettings,
+      mcpServers,
+      disabledSkills,
+      customSkills,
     );
 
     for await (const ev of events) {

@@ -59,6 +59,27 @@ type ChatRequest struct {
 	Formality          string `json:"formality,omitempty"`
 	Verbosity          string `json:"verbosity,omitempty"`
 	CustomInstructions string `json:"customInstructions,omitempty"`
+
+	// Per-user MCP servers (SSE remote) + skills cấu hình từ PostgreSQL.
+	McpServers     []McpServerInput   `json:"mcpServers,omitempty"`
+	DisabledSkills []string           `json:"disabledSkills,omitempty"`
+	CustomSkills   []CustomSkillInput `json:"customSkills,omitempty"`
+}
+
+// McpServerInput là MCP server (SSE) do user cấu hình, forward từ BFF.
+type McpServerInput struct {
+	Name   string `json:"name"`
+	URL    string `json:"url"`
+	APIKey string `json:"apiKey,omitempty"`
+}
+
+// CustomSkillInput là custom skill (prompt instruction text) do user định nghĩa.
+type CustomSkillInput struct {
+	Name        string   `json:"name"`
+	Description string   `json:"description,omitempty"`
+	WhenToUse   string   `json:"whenToUse,omitempty"`
+	Content     string   `json:"content,omitempty"`
+	Triggers    []string `json:"triggers,omitempty"`
 }
 
 // Attachment represents a file or image attached to a user message.
@@ -136,17 +157,36 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Map per-user MCP servers + skills sang agent types.
+	mcpServers := make([]agent.McpServer, len(req.McpServers))
+	for i, m := range req.McpServers {
+		mcpServers[i] = agent.McpServer{Name: m.Name, URL: m.URL, APIKey: m.APIKey}
+	}
+	customSkills := make([]agent.CustomSkill, len(req.CustomSkills))
+	for i, cs := range req.CustomSkills {
+		customSkills[i] = agent.CustomSkill{
+			Name:        cs.Name,
+			Description: cs.Description,
+			WhenToUse:   cs.WhenToUse,
+			Content:     cs.Content,
+			Triggers:    cs.Triggers,
+		}
+	}
+
 	input := agent.RunInput{
-		ConversationID:      req.ConversationID,
-		History:             history,
-		UserMessage:         req.UserMessage,
-		Attachments:         atts,
-		MaxSteps:            req.MaxSteps,
-		Lang:                req.Lang,
-		PersonaPreset:       req.PersonaPreset,
-		Formality:           req.Formality,
-		Verbosity:           req.Verbosity,
-		CustomInstructions:  req.CustomInstructions,
+		ConversationID:     req.ConversationID,
+		History:            history,
+		UserMessage:        req.UserMessage,
+		Attachments:        atts,
+		MaxSteps:           req.MaxSteps,
+		Lang:               req.Lang,
+		PersonaPreset:      req.PersonaPreset,
+		Formality:          req.Formality,
+		Verbosity:          req.Verbosity,
+		CustomInstructions: req.CustomInstructions,
+		McpServers:         mcpServers,
+		DisabledSkills:     req.DisabledSkills,
+		CustomSkills:       customSkills,
 	}
 
 	var assistantContent strings.Builder

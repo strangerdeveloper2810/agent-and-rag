@@ -4,7 +4,10 @@ import type { AuthRepository, UserRow } from "./auth.repository";
 import { TokenService } from "./strategies/token.service";
 import { GoogleStrategy } from "./strategies/google.strategy";
 import { OtpService } from "./otp.service";
-import { sendOtpEmail, sendPasswordResetOtpEmail } from "../../common/email/email.service";
+import {
+  sendOtpEmail,
+  sendPasswordResetOtpEmail,
+} from "../../common/email/email.service";
 import {
   ConflictError,
   UnauthorizedError,
@@ -309,9 +312,7 @@ export class AuthService {
 
   // ── Reset Password ──
 
-  async resetPassword(
-    input: ResetPasswordInput,
-  ): Promise<{ message: string }> {
+  async resetPassword(input: ResetPasswordInput): Promise<{ message: string }> {
     const user = await this.repo.findUserByEmail(input.email);
     if (!user || user.status === "disabled") {
       throw new ValidationError("Yêu cầu không hợp lệ hoặc tài khoản bị khóa.");
@@ -335,8 +336,8 @@ export class AuthService {
     await this.repo.deleteAllUserRefreshTokens(user.id);
 
     return {
-      message: "Đặt lại mật khẩu thành công. Vui lòng đăng nhập với mật khẩu mới.",
+      message:
+        "Đặt lại mật khẩu thành công. Vui lòng đăng nhập với mật khẩu mới.",
     };
   }
 }
-

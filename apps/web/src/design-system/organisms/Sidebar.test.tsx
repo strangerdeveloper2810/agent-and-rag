@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { I18nextProvider } from "react-i18next";
 import { MemoryRouter } from "react-router-dom";
@@ -13,16 +13,21 @@ vi.mock("@/context/ConversationContext", () => ({
 vi.mock("@/stores/auth.store", () => ({
   useAuthStore: vi.fn(),
 }));
+vi.mock("@/stores/user.store", () => ({
+  useUserStore: vi.fn(),
+}));
 vi.mock("@/design-system/molecules/Toast", () => ({
   useToast: vi.fn(),
 }));
 
 import { useConversation } from "@/context/ConversationContext";
 import { useAuthStore } from "@/stores/auth.store";
+import { useUserStore } from "@/stores/user.store";
 import { useToast } from "@/design-system/molecules/Toast";
 
 const mockUseConversation = useConversation as unknown as Mock;
 const mockUseAuthStore = useAuthStore as unknown as Mock;
+const mockUseUserStore = useUserStore as unknown as Mock;
 const mockUseToast = useToast as unknown as Mock;
 
 const conversations: Conversation[] = [
@@ -66,6 +71,10 @@ describe("Sidebar", () => {
     mockUseAuthStore.mockReturnValue({
       user: { name: "Trinh", email: "t@x.com" },
       logout: vi.fn().mockResolvedValue(undefined),
+    });
+    mockUseUserStore.mockReturnValue({
+      settings: null,
+      fetchSettings: vi.fn().mockResolvedValue({ agent_avatar_url: null }),
     });
     mockUseToast.mockReturnValue(toastApi);
     await i18n.changeLanguage("vi");
@@ -215,5 +224,40 @@ describe("Sidebar", () => {
         "Đã xảy ra lỗi khi đăng xuất.",
       ),
     );
+  });
+
+  it("shows the real user avatar image when avatar_url is set", () => {
+    mockUseAuthStore.mockReturnValue({
+      user: {
+        name: "Trinh Nguyen",
+        email: "t@x.com",
+        avatar_url: "https://cdn.example.com/me.png",
+      },
+      logout: vi.fn(),
+    });
+    renderSidebar();
+
+    const img = screen.getByAltText("Trinh Nguyen") as HTMLImageElement;
+    expect(img).toBeInTheDocument();
+    expect(img.src).toBe("https://cdn.example.com/me.png");
+    expect(screen.queryByText("TN")).not.toBeInTheDocument();
+  });
+
+  it("falls back to initials when the user avatar image fails to load", () => {
+    mockUseAuthStore.mockReturnValue({
+      user: {
+        name: "Trinh Nguyen",
+        email: "t@x.com",
+        avatar_url: "https://cdn.example.com/broken.png",
+      },
+      logout: vi.fn(),
+    });
+    renderSidebar();
+
+    const img = screen.getByAltText("Trinh Nguyen");
+    fireEvent.error(img);
+
+    expect(screen.getByText("TN")).toBeInTheDocument();
+    expect(screen.queryByAltText("Trinh Nguyen")).not.toBeInTheDocument();
   });
 });

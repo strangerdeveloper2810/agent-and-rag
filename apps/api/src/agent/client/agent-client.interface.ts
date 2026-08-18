@@ -27,6 +27,18 @@ export type AgentStreamOptions = {
   formality?: string;
   verbosity?: string;
   customInstructions?: string;
+  /** MCP servers (SSE) do user cấu hình — forward sang agent-go để discovery tools. */
+  mcpServers?: Array<{ name: string; url: string; apiKey?: string }>;
+  /** Tên các builtin skill user đã tắt. */
+  disabledSkills?: string[];
+  /** Custom skills do user định nghĩa (prompt instruction text). */
+  customSkills?: Array<{
+    name: string;
+    description?: string;
+    whenToUse?: string;
+    content?: string;
+    triggers?: string[];
+  }>;
 };
 
 /**

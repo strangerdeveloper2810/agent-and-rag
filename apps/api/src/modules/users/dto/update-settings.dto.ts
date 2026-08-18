@@ -8,6 +8,11 @@ export const updateSettingsSchema = z.object({
   verbosity: z.enum(["concise", "normal", "detailed"]).optional(),
   humor: z.enum(["none", "dry", "playful"]).optional(),
   custom_instructions: z.string().max(2000, "Tối đa 2000 ký tự").optional(),
+  agent_avatar_url: z
+    .string()
+    .url("URL ảnh agent không hợp lệ")
+    .optional()
+    .nullable(),
 });
 
 export type UpdateSettingsInput = z.infer<typeof updateSettingsSchema>;

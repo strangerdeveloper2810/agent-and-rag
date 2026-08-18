@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import {
@@ -16,6 +16,7 @@ import {
 } from "@heroicons/react/24/outline";
 
 import { useAuthStore } from "@/stores/auth.store";
+import { useUserStore } from "@/stores/user.store";
 import { useToast } from "@/design-system/molecules/Toast";
 import ConfirmDialog from "@/design-system/molecules/ConfirmDialog";
 import UserSettingsModal from "@/design-system/organisms/UserSettingsModal";
@@ -26,7 +27,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export type View = "chat" | "documents";
@@ -124,12 +125,32 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
   const onRename = props.onRename ?? ctx.renameConv;
 
   const { user, logout } = useAuthStore();
+  const { settings, fetchSettings } = useUserStore();
   const toast = useToast();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Conversation | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  // Avatar user thật có thể lỗi/404 → fallback êm về initials
+  const [avatarError, setAvatarError] = useState(false);
+
+  // Sidebar chỉ mount 1 lần trong AppLayout → nạp settings (agent_avatar_url)
+  // vào store ở đây, để MessageBubble dùng lại mà không phải tự fetch riêng
+  // cho từng tin nhắn (tránh gọi API trùng lặp khi có nhiều tin nhắn).
+  useEffect(() => {
+    if (!settings) {
+      fetchSettings().catch(() => {
+        // Bỏ qua lỗi — MessageBubble sẽ tự fallback về icon mặc định
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Reset lỗi ảnh khi avatar_url đổi (vd sau khi user upload avatar mới)
+  useEffect(() => {
+    setAvatarError(false);
+  }, [user?.avatar_url]);
 
   const filtered = useMemo(() => {
     if (!searchQuery.trim()) return conversations;
@@ -404,9 +425,17 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
               title="Cài đặt & AI Persona"
             >
               <Avatar className="h-8 w-8 shrink-0">
-                <AvatarFallback className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-bold text-xs">
-                  {userInitials}
-                </AvatarFallback>
+                {user?.avatar_url && !avatarError ? (
+                  <AvatarImage
+                    src={user.avatar_url}
+                    alt={user?.name || t("sidebar.defaultUserName")}
+                    onError={() => setAvatarError(true)}
+                  />
+                ) : (
+                  <AvatarFallback className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-bold text-xs">
+                    {userInitials}
+                  </AvatarFallback>
+                )}
               </Avatar>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-bold text-foreground group-hover:text-primary transition">

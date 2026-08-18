@@ -46,6 +46,20 @@ func nodeTools(ctx context.Context, eng toolsEngine, s *State, emit EmitFunc) (N
 	start := time.Now()
 	reg := eng.getRegistry()
 
+	// Gộp MCP tools (SSE remote) của lượt chạy này vào registry HIỆU DỤNG — tool
+	// do user cấu hình phải thực thi được, không chỉ hiện trong prompt (nodeModel).
+	// Registry riêng từng lượt (s.mcpRegistry) nên không đụng registry dùng chung.
+	if s.mcpRegistry != nil && len(s.mcpRegistry.All()) > 0 {
+		eff := tools.NewRegistry()
+		for _, t := range reg.All() {
+			eff.Register(t)
+		}
+		for _, t := range s.mcpRegistry.All() {
+			eff.Register(t)
+		}
+		reg = eff
+	}
+
 	var safeCalls []provider.ToolCall
 	var destructiveCalls []provider.ToolCall
 	allowDestructive := eng.getAllowDestructiveTools()

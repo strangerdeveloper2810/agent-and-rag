@@ -1,6 +1,11 @@
 import bcrypt from "bcrypt";
 import type { UserRow } from "../auth/auth.repository";
-import { UsersRepository, type UserSettingsRow } from "./users.repository";
+import {
+  UsersRepository,
+  type UserSettingsRow,
+  type McpServerRow,
+  type UserSkillRow,
+} from "./users.repository";
 import {
   NotFoundError,
   ForbiddenError,
@@ -10,6 +15,14 @@ import {
 import type { UpdateProfileInput } from "./dto/update-profile.dto";
 import type { ChangePasswordInput } from "./dto/change-password.dto";
 import type { UpdateSettingsInput } from "./dto/update-settings.dto";
+import type {
+  CreateMcpServerInput,
+  UpdateMcpServerInput,
+} from "./dto/mcp-server.dto";
+import type {
+  CreateUserSkillInput,
+  UpdateUserSkillInput,
+} from "./dto/user-skill.dto";
 
 const BCRYPT_ROUNDS = 12;
 
@@ -80,6 +93,7 @@ export class UsersService {
       verbosity: "normal",
       humor: "none",
       custom_instructions: "",
+      agent_avatar_url: null,
       created_at: new Date(),
       updated_at: new Date(),
     };
@@ -91,6 +105,98 @@ export class UsersService {
     input: UpdateSettingsInput,
   ): Promise<UserSettingsRow> => {
     return this.repo.upsertSettings(userId, input);
+  };
+
+  // ── MCP Servers ──
+
+  /** Lấy danh sách MCP servers của user. */
+  listMcpServers = async (userId: string): Promise<McpServerRow[]> => {
+    return this.repo.findMcpServers(userId);
+  };
+
+  /** Thêm MCP server cho user. */
+  createMcpServer = async (
+    userId: string,
+    input: CreateMcpServerInput,
+  ): Promise<McpServerRow> => {
+    return this.repo.createMcpServer(userId, input);
+  };
+
+  /** Cập nhật MCP server. */
+  updateMcpServer = async (
+    userId: string,
+    id: string,
+    input: UpdateMcpServerInput,
+  ): Promise<McpServerRow> => {
+    const updated = await this.repo.updateMcpServer(userId, id, input);
+    if (!updated) {
+      throw new NotFoundError("Không tìm thấy MCP server.");
+    }
+    return updated;
+  };
+
+  /** Xoá MCP server. */
+  deleteMcpServer = async (userId: string, id: string): Promise<void> => {
+    const deleted = await this.repo.deleteMcpServer(userId, id);
+    if (!deleted) {
+      throw new NotFoundError("Không tìm thấy MCP server.");
+    }
+  };
+
+  // ── Skills ──
+
+  /** Lấy danh sách custom skills của user. */
+  listUserSkills = async (userId: string): Promise<UserSkillRow[]> => {
+    return this.repo.findUserSkills(userId);
+  };
+
+  /** Lấy danh sách builtin skills bị disable. */
+  listDisabledSkills = async (userId: string): Promise<string[]> => {
+    return this.repo.findDisabledSkills(userId);
+  };
+
+  /** Thêm custom skill cho user. */
+  createUserSkill = async (
+    userId: string,
+    input: CreateUserSkillInput,
+  ): Promise<UserSkillRow> => {
+    return this.repo.createUserSkill(userId, {
+      name: input.name,
+      description: input.description ?? "",
+      when_to_use: input.when_to_use ?? "",
+      content: input.content,
+      triggers: input.triggers ?? [],
+    });
+  };
+
+  /** Cập nhật custom skill. */
+  updateUserSkill = async (
+    userId: string,
+    id: string,
+    input: UpdateUserSkillInput,
+  ): Promise<UserSkillRow> => {
+    const updated = await this.repo.updateUserSkill(userId, id, input);
+    if (!updated) {
+      throw new NotFoundError("Không tìm thấy skill.");
+    }
+    return updated;
+  };
+
+  /** Xoá custom skill. */
+  deleteUserSkill = async (userId: string, id: string): Promise<void> => {
+    const deleted = await this.repo.deleteUserSkill(userId, id);
+    if (!deleted) {
+      throw new NotFoundError("Không tìm thấy skill.");
+    }
+  };
+
+  /** Toggle builtin skill (bật/tắt). */
+  toggleBuiltinSkill = async (
+    userId: string,
+    skillName: string,
+    enabled: boolean,
+  ): Promise<void> => {
+    await this.repo.toggleBuiltinSkill(userId, skillName, enabled);
   };
 
   /** Admin vô hiệu hoá 1 user. Không được tự vô hiệu hoá chính mình. */

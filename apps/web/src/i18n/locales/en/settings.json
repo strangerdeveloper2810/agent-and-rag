@@ -6,7 +6,9 @@
       "profile": "Profile",
       "persona": "AI Persona & Tone",
       "security": "Security",
-      "preferences": "Preferences"
+      "preferences": "Preferences",
+      "mcp": "MCP Servers",
+      "skills": "Skills"
     },
     "save": "Save Changes",
     "saving": "Saving...",
@@ -22,7 +24,11 @@
     "roleLabel": "Role",
     "userRole": "Member",
     "adminRole": "Administrator (Admin)",
-    "success": "Profile updated successfully!"
+    "success": "Profile updated successfully!",
+    "avatarUploadLabel": "Upload avatar",
+    "avatarUploading": "Uploading image...",
+    "avatarHint": "PNG, JPG or GIF, up to 2MB",
+    "avatarSuccess": "Avatar updated successfully!"
   },
   "persona": {
     "title": "AI Persona & Custom Instructions",
@@ -65,7 +71,13 @@
     "customInstructionsLabel": "Custom System Instructions",
     "customInstructionsPlaceholder": "e.g. 'Always address me as Ethan, prioritize TypeScript, format data in tables...'",
     "customInstructionsHint": "These instructions are injected into the agent prompt across all conversations.",
-    "success": "AI Persona settings saved successfully!"
+    "success": "AI Persona settings saved successfully!",
+    "avatarTitle": "Agent Avatar",
+    "avatarDesc": "A dedicated avatar for J.A.R.V.I.S., shown in the chat window",
+    "avatarUploadLabel": "Upload agent avatar",
+    "avatarUploading": "Uploading image...",
+    "avatarHint": "PNG, JPG or GIF, up to 2MB",
+    "avatarSuccess": "Agent avatar updated successfully!"
   },
   "security": {
     "title": "Account Security",
@@ -92,5 +104,53 @@
     "exportChat": "Export Current Conversation",
     "exportMarkdown": "Download Markdown (.md)",
     "exportJson": "Download JSON (.json)"
+  },
+  "mcp": {
+    "title": "MCP Servers",
+    "desc": "Connect your own MCP (Model Context Protocol) servers to extend J.A.R.V.I.S.'s toolset",
+    "addTitle": "Add a new MCP server",
+    "nameLabel": "Server name",
+    "namePlaceholder": "e.g. Notion, Github MCP...",
+    "urlLabel": "SSE URL",
+    "urlPlaceholder": "https://example.com/sse",
+    "addButton": "Add server",
+    "addSuccess": "MCP server added successfully!",
+    "listTitle": "Connected MCP servers",
+    "empty": "No MCP servers connected yet.",
+    "statusEnabled": "Enabled",
+    "statusDisabled": "Disabled",
+    "enableAria": "Enable MCP server {{name}}",
+    "disableAria": "Disable MCP server {{name}}",
+    "deleteAria": "Delete MCP server {{name}}",
+    "deleteConfirmTitle": "Delete MCP server?",
+    "deleteConfirmMessage": "The MCP server \"{{name}}\" will be permanently deleted.",
+    "deleteConfirmButton": "Delete"
+  },
+  "skills": {
+    "title": "Skills",
+    "desc": "Enable/disable built-in skills or create your own custom skills for J.A.R.V.I.S.",
+    "builtinTitle": "Built-in Skills",
+    "customTitle": "Custom Skills",
+    "customEmpty": "You haven't created any custom skills yet.",
+    "addTitle": "Create a new skill",
+    "nameLabel": "Skill name",
+    "namePlaceholder": "e.g. weekly-report",
+    "descriptionLabel": "Short description",
+    "descriptionPlaceholder": "What is this skill for?",
+    "whenToUseLabel": "When to use",
+    "whenToUsePlaceholder": "e.g. when the user asks for a weekly report summary",
+    "contentLabel": "Skill content (system prompt)",
+    "contentPlaceholder": "Detailed instructions for J.A.R.V.I.S. when this skill is triggered...",
+    "triggersLabel": "Trigger keywords",
+    "triggersPlaceholder": "e.g. report, weekly report, summary",
+    "triggersHint": "Separate multiple keywords with commas.",
+    "addButton": "Create skill",
+    "addSuccess": "Skill added successfully!",
+    "enableAria": "Enable skill {{name}}",
+    "disableAria": "Disable skill {{name}}",
+    "deleteAria": "Delete skill {{name}}",
+    "deleteConfirmTitle": "Delete skill?",
+    "deleteConfirmMessage": "The skill \"{{name}}\" will be permanently deleted.",
+    "deleteConfirmButton": "Delete"
   }
 }

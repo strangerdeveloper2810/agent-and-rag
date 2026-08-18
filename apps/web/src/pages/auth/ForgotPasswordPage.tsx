@@ -27,11 +27,7 @@ import { translateApiError } from "@/lib/errors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardHeader,
-  CardContent,
-} from "@/components/ui/card";
+import { Card, CardHeader, CardContent } from "@/components/ui/card";
 
 export const ForgotPasswordPage: React.FC = () => {
   const navigate = useNavigate();
@@ -80,13 +76,7 @@ export const ForgotPasswordPage: React.FC = () => {
       setResendCooldown(60); // 60s cooldown
       toast.success(t("forgotPassword.otpSentSuccess"));
     } catch (err) {
-      toast.error(
-        translateApiError(
-          err,
-          t,
-          t("forgotPassword.resetFailed"),
-        ),
-      );
+      toast.error(translateApiError(err, t, t("forgotPassword.resetFailed")));
     }
   };
 
@@ -96,13 +86,7 @@ export const ForgotPasswordPage: React.FC = () => {
       toast.success(t("forgotPassword.resetSuccess"));
       navigate("/login", { replace: true });
     } catch (err) {
-      toast.error(
-        translateApiError(
-          err,
-          t,
-          t("forgotPassword.resetFailed"),
-        ),
-      );
+      toast.error(translateApiError(err, t, t("forgotPassword.resetFailed")));
     }
   };
 
@@ -113,13 +97,7 @@ export const ForgotPasswordPage: React.FC = () => {
       setResendCooldown(60);
       toast.success(t("forgotPassword.otpSentSuccess"));
     } catch (err) {
-      toast.error(
-        translateApiError(
-          err,
-          t,
-          t("forgotPassword.resetFailed"),
-        ),
-      );
+      toast.error(translateApiError(err, t, t("forgotPassword.resetFailed")));
     }
   };
 

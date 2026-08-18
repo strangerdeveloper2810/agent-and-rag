@@ -1,11 +1,20 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import i18n from "@/i18n";
 import { MessageBubble } from "./MessageBubble";
 
+vi.mock("@/stores/user.store", () => ({
+  useUserStore: vi.fn(),
+}));
+
+import { useUserStore } from "@/stores/user.store";
+
+const mockUseUserStore = useUserStore as unknown as Mock;
+
 describe("MessageBubble", () => {
   beforeEach(async () => {
+    mockUseUserStore.mockReturnValue(null);
     await i18n.changeLanguage("vi");
   });
 
@@ -153,5 +162,43 @@ describe("MessageBubble", () => {
     expect(screen.getByText("Input: 120 tokens")).toBeInTheDocument();
     expect(screen.getByText("Output: 340 tokens")).toBeInTheDocument();
     expect(screen.getByText("Total: 460 tokens")).toBeInTheDocument();
+  });
+
+  it("shows the configured agent avatar image for assistant messages", () => {
+    mockUseUserStore.mockReturnValue("https://cdn.example.com/jarvis.png");
+    render(
+      <I18nextProvider i18n={i18n}>
+        <MessageBubble message={{ role: "assistant", content: "Xin chào" }} />
+      </I18nextProvider>,
+    );
+
+    const img = screen.getByAltText("J.A.R.V.I.S.") as HTMLImageElement;
+    expect(img).toBeInTheDocument();
+    expect(img.src).toBe("https://cdn.example.com/jarvis.png");
+  });
+
+  it("falls back to the default bot icon when the agent avatar image fails to load", () => {
+    mockUseUserStore.mockReturnValue("https://cdn.example.com/broken.png");
+    render(
+      <I18nextProvider i18n={i18n}>
+        <MessageBubble message={{ role: "assistant", content: "Xin chào" }} />
+      </I18nextProvider>,
+    );
+
+    const img = screen.getByAltText("J.A.R.V.I.S.");
+    fireEvent.error(img);
+
+    expect(screen.queryByAltText("J.A.R.V.I.S.")).not.toBeInTheDocument();
+  });
+
+  it("falls back to the default bot icon when agent_avatar_url is not configured", () => {
+    mockUseUserStore.mockReturnValue(null);
+    render(
+      <I18nextProvider i18n={i18n}>
+        <MessageBubble message={{ role: "assistant", content: "Xin chào" }} />
+      </I18nextProvider>,
+    );
+
+    expect(screen.queryByAltText("J.A.R.V.I.S.")).not.toBeInTheDocument();
   });
 });

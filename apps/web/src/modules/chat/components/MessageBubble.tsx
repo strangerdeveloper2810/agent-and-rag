@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ClipboardDocumentIcon,
@@ -26,7 +26,8 @@ import type {
 } from "@/modules/chat/chat.api";
 
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { useUserStore } from "@/stores/user.store";
 
 // ── Helpers ──
 
@@ -214,6 +215,15 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
 
+  // Avatar/logo agent J.A.R.V.I.S. tự cấu hình trong Settings — fallback về
+  // icon mặc định khi chưa cấu hình hoặc ảnh lỗi/404.
+  const agentAvatarUrl = useUserStore((s) => s.settings?.agent_avatar_url);
+  const [avatarError, setAvatarError] = useState(false);
+
+  useEffect(() => {
+    setAvatarError(false);
+  }, [agentAvatarUrl]);
+
   const isUser = message.role === "user";
 
   const copyMessage = useCallback(async () => {
@@ -289,9 +299,17 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     <div className="group flex gap-3.5 animate-fade-in">
       {/* Bot Avatar */}
       <Avatar className="h-9 w-9 mt-0.5 border border-primary/30 shadow-md relative shrink-0">
-        <AvatarFallback className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
-          <CpuChipIcon className="h-5 w-5" />
-        </AvatarFallback>
+        {agentAvatarUrl && !avatarError ? (
+          <AvatarImage
+            src={agentAvatarUrl}
+            alt="J.A.R.V.I.S."
+            onError={() => setAvatarError(true)}
+          />
+        ) : (
+          <AvatarFallback className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
+            <CpuChipIcon className="h-5 w-5" />
+          </AvatarFallback>
+        )}
         {streaming && (
           <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-primary animate-ping" />
         )}

@@ -3,10 +3,12 @@ package agent
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"time"
 
 	"github.com/ai-agent-tut/agent-go/internal/guardrails"
+	"github.com/ai-agent-tut/agent-go/internal/mcp"
 	"github.com/ai-agent-tut/agent-go/internal/provider"
 	"github.com/ai-agent-tut/agent-go/internal/skills"
 	"github.com/ai-agent-tut/agent-go/internal/tools"
@@ -230,6 +232,36 @@ func (e *Engine) getMaxContextTokens() int { return e.maxContextTokens }
 func (e *Engine) Run(ctx context.Context, in RunInput, emit EmitFunc) (provider.Usage, error) {
 	start := time.Now()
 	s := newState(in)
+
+	// Discovery MCP tools (SSE remote) cho LƯỢT CHẠY NÀY nếu user cấu hình. Tool
+	// được đăng ký vào registry RIÊNG (s.mcpRegistry) — không ghi vào registry
+	// dùng chung, tránh data race + rò rỉ tool giữa các user. Lỗi discovery không
+	// chặn lượt chat: chỉ log và tiếp tục không có MCP tool.
+	if len(in.McpServers) > 0 {
+		cfg := make([]mcp.ServerConfig, 0, len(in.McpServers))
+		for _, srv := range in.McpServers {
+			cfg = append(cfg, mcp.ServerConfig{Name: srv.Name, URL: srv.URL, APIKey: srv.APIKey})
+		}
+		reg, clients, err := mcp.DiscoverSSE(ctx, cfg)
+		if err != nil {
+			slog.Warn("engine: MCP discovery thất bại", "err", err)
+		} else {
+			s.mcpRegistry = reg
+			s.mcpClients = make([]io.Closer, 0, len(clients))
+			for _, c := range clients {
+				s.mcpClients = append(s.mcpClients, c)
+			}
+			slog.Info("engine: MCP tools đã discovery", "servers", len(clients), "tools", len(reg.ToolDefs()))
+		}
+	}
+	if len(s.mcpClients) > 0 {
+		defer func() {
+			for _, c := range s.mcpClients {
+				_ = c.Close()
+			}
+		}()
+	}
+
 	node := NodeRecall
 
 	// Breaker RIÊNG cho lượt chạy này. Trước đây engine dùng thẳng

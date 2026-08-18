@@ -32,11 +32,85 @@ export const usersModule = async (
   const guard = [authGuard, adminGuard];
 
   // ── User Self-Service routes (Yêu cầu đăng nhập) ──
-  app.get("/api/user/profile", { preHandler: [authGuard] }, controller.getProfile);
-  app.patch("/api/user/profile", { preHandler: [authGuard] }, controller.updateProfile);
-  app.post("/api/user/change-password", { preHandler: [authGuard] }, controller.changePassword);
-  app.get("/api/user/settings", { preHandler: [authGuard] }, controller.getSettings);
-  app.patch("/api/user/settings", { preHandler: [authGuard] }, controller.updateSettings);
+  app.get(
+    "/api/user/profile",
+    { preHandler: [authGuard] },
+    controller.getProfile,
+  );
+  app.patch(
+    "/api/user/profile",
+    { preHandler: [authGuard] },
+    controller.updateProfile,
+  );
+  app.post(
+    "/api/user/avatar",
+    { preHandler: [authGuard] },
+    controller.uploadAvatar,
+  );
+  app.post(
+    "/api/user/change-password",
+    { preHandler: [authGuard] },
+    controller.changePassword,
+  );
+  app.get(
+    "/api/user/settings",
+    { preHandler: [authGuard] },
+    controller.getSettings,
+  );
+  app.patch(
+    "/api/user/settings",
+    { preHandler: [authGuard] },
+    controller.updateSettings,
+  );
+
+  // ── MCP Servers routes ──
+  app.get(
+    "/api/user/mcp-servers",
+    { preHandler: [authGuard] },
+    controller.listMcpServers,
+  );
+  app.post(
+    "/api/user/mcp-servers",
+    { preHandler: [authGuard] },
+    controller.createMcpServer,
+  );
+  app.patch(
+    "/api/user/mcp-servers/:id",
+    { preHandler: [authGuard] },
+    controller.updateMcpServer,
+  );
+  app.delete(
+    "/api/user/mcp-servers/:id",
+    { preHandler: [authGuard] },
+    controller.deleteMcpServer,
+  );
+
+  // ── Skills routes ──
+  app.get(
+    "/api/user/skills",
+    { preHandler: [authGuard] },
+    controller.listSkills,
+  );
+  app.post(
+    "/api/user/skills",
+    { preHandler: [authGuard] },
+    controller.createSkill,
+  );
+  app.patch(
+    "/api/user/skills/:id",
+    { preHandler: [authGuard] },
+    controller.updateSkill,
+  );
+  app.delete(
+    "/api/user/skills/:id",
+    { preHandler: [authGuard] },
+    controller.deleteSkill,
+  );
+  app.post(
+    "/api/user/skills/:name/toggle",
+    { preHandler: [authGuard] },
+    controller.toggleBuiltinSkill,
+  );
 
   // ⚠️ Route /search phải được register TRƯỚC route /:id,
   // nếu không Fastify sẽ match "search" như 1 param :id.

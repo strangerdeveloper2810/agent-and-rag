@@ -158,7 +158,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ onPick }) => {
                     : "bg-card border border-border/80 text-foreground/80 hover:text-foreground hover:border-primary/40 hover:bg-muted/60"
                 }`}
               >
-                <Icon className={`h-4 w-4 ${active ? "text-primary-foreground" : "text-primary"}`} />
+                <Icon
+                  className={`h-4 w-4 ${active ? "text-primary-foreground" : "text-primary"}`}
+                />
                 <span>{cat.category}</span>
               </button>
             );
@@ -215,7 +217,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ onPick }) => {
                   className="inline-flex items-center gap-2 rounded-full border border-border/80 bg-card px-3.5 py-1.5 text-xs sm:text-sm font-medium text-foreground hover:text-primary hover:border-primary/40 hover:bg-primary/[0.04] transition-all duration-200 shadow-xs cursor-pointer"
                 >
                   <span className="text-amber-500">✨</span>
-                  <span className="truncate max-w-[280px] sm:max-w-none">{item}</span>
+                  <span className="truncate max-w-[280px] sm:max-w-none">
+                    {item}
+                  </span>
                 </button>
               ))}
             </div>

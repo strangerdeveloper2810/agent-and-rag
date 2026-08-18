@@ -80,7 +80,10 @@ export async function sendPasswordResetOtpEmail(
     });
 
     if (result.error) {
-      console.error(`[email] Resend API trả về lỗi khi gửi reset OTP (to=${to}):`, result.error);
+      console.error(
+        `[email] Resend API trả về lỗi khi gửi reset OTP (to=${to}):`,
+        result.error,
+      );
       console.info(`[email] [FALLBACK_LOG] Reset OTP cho ${to}: ${otp}`);
     } else {
       console.log(
@@ -92,4 +95,3 @@ export async function sendPasswordResetOtpEmail(
     console.info(`[email] [FALLBACK_LOG] Reset OTP cho ${to}: ${otp}`);
   }
 }
-

@@ -184,6 +184,9 @@ export const goAgentClient: AgentClient = {
       formality: opts?.formality,
       verbosity: opts?.verbosity,
       customInstructions: opts?.customInstructions,
+      mcpServers: opts?.mcpServers ?? [],
+      disabledSkills: opts?.disabledSkills ?? [],
+      customSkills: opts?.customSkills ?? [],
     });
 
     // 3. Gọi POST /chat với retry (chỉ retry khi lỗi TRƯỚC khi có response).

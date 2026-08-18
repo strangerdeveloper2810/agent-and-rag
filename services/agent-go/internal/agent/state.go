@@ -8,9 +8,11 @@ package agent
 
 import (
 	"context"
+	"io"
 
 	"github.com/ai-agent-tut/agent-go/internal/guardrails"
 	"github.com/ai-agent-tut/agent-go/internal/provider"
+	"github.com/ai-agent-tut/agent-go/internal/tools"
 )
 
 // NodeID định danh một node trong đồ thị engine.
@@ -50,6 +52,33 @@ type RunInput struct {
 	Formality          string
 	Verbosity          string
 	CustomInstructions string
+
+	// McpServers: MCP servers (SSE remote) do user cấu hình cho lượt này. Engine
+	// sẽ discovery tools từ chúng và đăng ký vào registry RIÊNG của lượt chạy.
+	McpServers []McpServer
+
+	// DisabledSkills: tên các builtin skill user đã tắt (bị loại khỏi skill matching).
+	DisabledSkills []string
+
+	// CustomSkills: skill tuỳ chỉnh do user định nghĩa (prompt instruction text,
+	// lưu trong PostgreSQL) — được nối vào system prompt cho lượt này.
+	CustomSkills []CustomSkill
+}
+
+// McpServer là cấu hình một MCP server (SSE remote) do user tự thêm.
+type McpServer struct {
+	Name   string
+	URL    string
+	APIKey string
+}
+
+// CustomSkill là một skill tuỳ chỉnh do user định nghĩa.
+type CustomSkill struct {
+	Name        string
+	Description string
+	WhenToUse   string
+	Content     string
+	Triggers    []string
 }
 
 // Observation là kết quả của một lần chạy tool — lưu trong Scratchpad.
@@ -137,6 +166,18 @@ type State struct {
 	Formality          string
 	Verbosity          string
 	CustomInstructions string
+
+	// mcpRegistry chứa tools discovery từ MCP servers (SSE) của lượt chạy này.
+	// nil nếu user không cấu hình MCP server. Tách khỏi registry dùng chung để
+	// tránh data race + rò rỉ tool giữa các user. nodeModel/nodeTools đọc field này.
+	mcpRegistry *tools.Registry
+
+	// mcpClients giữ các client đã mở cho lượt chạy này, để Engine.Run đóng khi xong.
+	mcpClients []io.Closer
+
+	// DisabledSkills / CustomSkills copy từ RunInput cho nodeModel dùng.
+	DisabledSkills []string
+	CustomSkills   []CustomSkill
 }
 
 // newState khởi tạo State từ RunInput.
@@ -179,6 +220,8 @@ func newState(in RunInput) *State {
 		Formality:          in.Formality,
 		Verbosity:          in.Verbosity,
 		CustomInstructions: in.CustomInstructions,
+		DisabledSkills:     in.DisabledSkills,
+		CustomSkills:       in.CustomSkills,
 	}
 }
 

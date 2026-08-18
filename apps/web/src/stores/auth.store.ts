@@ -28,6 +28,7 @@ export interface AuthUser {
   email: string;
   name: string;
   role: string;
+  avatar_url?: string | null;
 }
 
 interface AuthState {

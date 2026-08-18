@@ -124,6 +124,15 @@ export async function streamReply(
     verbosity?: string;
     customInstructions?: string;
   },
+  mcpServers?: Array<{ name: string; url: string; apiKey?: string }>,
+  disabledSkills?: string[],
+  customSkills?: Array<{
+    name: string;
+    description?: string;
+    whenToUse?: string;
+    content?: string;
+    triggers?: string[];
+  }>,
 ): Promise<StreamResult> {
   const raw = (await getMessagesRepo(
     conversationId,
@@ -202,6 +211,9 @@ export async function streamReply(
         formality: personaSettings?.formality,
         verbosity: personaSettings?.verbosity,
         customInstructions: personaSettings?.customInstructions,
+        mcpServers,
+        disabledSkills,
+        customSkills,
       })) {
         if (ev.type === "text") full += ev.text;
 
