@@ -1,0 +1,130 @@
+{
+  "base": "http://172.18.0.2:3002",
+  "mode": "probe",
+  "started_at": "2026-08-18T20:52:17+07:00",
+  "stages": [
+    {
+      "stage": 1,
+      "concurrency": 100,
+      "total": 2000,
+      "wall_ms": 403,
+      "req_per_sec": 4961.899730396666,
+      "ok": 2000,
+      "success_rate": 100,
+      "outcomes": {
+        "ok": 2000
+      },
+      "ttfb_ms": {
+        "p50": 0,
+        "p90": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 0,
+        "avg": 0
+      },
+      "latency_ms": {
+        "p50": 15,
+        "p90": 33,
+        "p95": 45,
+        "p99": 77,
+        "max": 94,
+        "avg": 17.9645
+      },
+      "tokens_sum": 0
+    },
+    {
+      "stage": 2,
+      "concurrency": 500,
+      "total": 5000,
+      "wall_ms": 1125,
+      "req_per_sec": 4443.610586105927,
+      "ok": 5000,
+      "success_rate": 100,
+      "outcomes": {
+        "ok": 5000
+      },
+      "ttfb_ms": {
+        "p50": 0,
+        "p90": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 0,
+        "avg": 0
+      },
+      "latency_ms": {
+        "p50": 92,
+        "p90": 186,
+        "p95": 204.05000000000018,
+        "p99": 248,
+        "max": 401,
+        "avg": 104.3588
+      },
+      "tokens_sum": 0
+    },
+    {
+      "stage": 3,
+      "concurrency": 1000,
+      "total": 10000,
+      "wall_ms": 1893,
+      "req_per_sec": 5281.689678697223,
+      "ok": 10000,
+      "success_rate": 100,
+      "outcomes": {
+        "ok": 10000
+      },
+      "ttfb_ms": {
+        "p50": 0,
+        "p90": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 0,
+        "avg": 0
+      },
+      "latency_ms": {
+        "p50": 164,
+        "p90": 274,
+        "p95": 309,
+        "p99": 410,
+        "max": 784,
+        "avg": 174.9464
+      },
+      "tokens_sum": 0
+    },
+    {
+      "stage": 4,
+      "concurrency": 2000,
+      "total": 10000,
+      "wall_ms": 2551,
+      "req_per_sec": 3918.7995729370605,
+      "ok": 10000,
+      "success_rate": 100,
+      "outcomes": {
+        "ok": 10000
+      },
+      "ttfb_ms": {
+        "p50": 0,
+        "p90": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 0,
+        "avg": 0
+      },
+      "latency_ms": {
+        "p50": 385,
+        "p90": 799,
+        "p95": 834,
+        "p99": 942,
+        "max": 1370,
+        "avg": 434.4093
+      },
+      "tokens_sum": 0
+    }
+  ],
+  "canary": {
+    "samples": 41,
+    "failures": 0,
+    "p50_ms": 0,
+    "p99_ms": 331.4000000000003,
+    "max_ms": 413
+  }
+}

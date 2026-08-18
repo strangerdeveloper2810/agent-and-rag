@@ -1,0 +1,47 @@
+{
+  "base": "https://ai.ethansoftwaredeveloper.com",
+  "mode": "chat",
+  "started_at": "2026-08-18T20:41:00+07:00",
+  "stages": [
+    {
+      "stage": 1,
+      "concurrency": 10,
+      "total": 60,
+      "wall_ms": 17070,
+      "req_per_sec": 3.5148347113828624,
+      "ok": 19,
+      "success_rate": 31.666666666666664,
+      "outcomes": {
+        "429_gateway_ratelimit": 41,
+        "ok": 19
+      },
+      "ttfb_ms": {
+        "p50": 240,
+        "p90": 324.40000000000003,
+        "p95": 341.4,
+        "p99": 365.88,
+        "max": 372,
+        "avg": 241.8421052631579
+      },
+      "latency_ms": {
+        "p50": 4387,
+        "p90": 9055.6,
+        "p95": 10828.499999999998,
+        "p99": 12113.699999999999,
+        "max": 12435,
+        "avg": 4418.526315789473
+      },
+      "tokens_sum": 0,
+      "error_samples": [
+        "429_gateway_ratelimit → {\"error\":\"Rate limit exceeded, retry in 55 seconds\",\"code\":\"BAD_REQUEST\"}"
+      ]
+    }
+  ],
+  "canary": {
+    "samples": 17,
+    "failures": 0,
+    "p50_ms": 12,
+    "p99_ms": 74.52,
+    "max_ms": 75
+  }
+}
