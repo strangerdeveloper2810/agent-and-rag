@@ -160,6 +160,27 @@ func TestNew_AutoDualGeminiModels(t *testing.T) {
 	}
 }
 
+// auto + full Gemini fallback pool → chuỗi gồm nhiều model Gemini + DeepSeek + Claude
+func TestNew_AutoFallbackGeminiPool(t *testing.T) {
+	cfg := baseCfg()
+	cfg.Provider = "auto"
+	cfg.GeminiKey = "gk"
+	cfg.GeminiFallbackModels = []string{"gemini-3.5-flash-lite", "gemini-3.7-flash", "gemini-2.5-flash"}
+	cfg.DeepSeekKey = "dk"
+	cfg.AnthropicKey = "ak"
+
+	p, err := New(cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	// 4 gemini (1 primary + 3 fallback) + 1 deepseek + 1 anthropic = 6 providers
+	want := "fallback[gemini→gemini→gemini→gemini→deepseek→anthropic]"
+	if p.Name() != want {
+		t.Errorf("Name() = %q, want %q", p.Name(), want)
+	}
+}
+
 func TestNew_AutoTwoKeys(t *testing.T) {
 	cfg := baseCfg()
 	cfg.Provider = "auto"

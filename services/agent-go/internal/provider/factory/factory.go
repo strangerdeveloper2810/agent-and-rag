@@ -5,6 +5,8 @@ package factory
 
 import (
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/ai-agent-tut/agent-go/internal/config"
 	"github.com/ai-agent-tut/agent-go/internal/provider"
@@ -19,7 +21,7 @@ import (
 //	"gemini"    → Gemini (single)
 //	"anthropic" → Claude (single)
 //	"deepseek"  → DeepSeek (single)
-//	"auto"      → Fallback chain: Gemini → DeepSeek (nếu có key) → Claude (nếu có key)
+//	"auto"      → Fallback chain: Gemini (toàn bộ free-tier pool) → DeepSeek (nếu có key) → Claude (nếu có key)
 func New(cfg config.Config) (provider.Provider, error) {
 	switch cfg.Provider {
 	case "gemini":
@@ -58,36 +60,55 @@ func newDeepSeek(cfg config.Config) (provider.Provider, error) {
 
 // newAuto tạo provider chain thông minh:
 //
-//	Order: Gemini 3.1 Flash Lite (500 RPD free) → Gemini 3.5 Flash Lite (500 RPD free) → DeepSeek (siêu rẻ) → Claude (chốt chặn)
+//	Order: Toàn bộ Gemini free-tier pool (3.1-flash-lite → 3.5-flash-lite → 3.7-flash → ...) → DeepSeek (siêu rẻ) → Claude (chốt chặn)
 //	Chỉ cần ít nhất 1 provider có key.
 func newAuto(cfg config.Config) (provider.Provider, error) {
 	hasGemini := cfg.GeminiKey != ""
 	hasDeepSeek := cfg.DeepSeekKey != ""
 	hasClaude := cfg.AnthropicKey != ""
 
-	providers := make([]provider.Provider, 0, 4)
+	providers := make([]provider.Provider, 0, 10)
 
 	if hasGemini {
-		// 1. Primary Gemini model (e.g. gemini-3.1-flash-lite: 500 RPD)
-		g1, err := newGemini(cfg)
-		if err != nil {
-			return nil, err
-		}
-		providers = append(providers, g1)
+		// Thu thập danh sách model không trùng lặp theo đúng thứ tự ưu tiên
+		models := make([]string, 0, 2+len(cfg.GeminiFallbackModels))
+		seen := make(map[string]bool)
 
-		// 2. Secondary Gemini model (e.g. gemini-3.5-flash-lite: 500 RPD)
-		secModel := cfg.GeminiSecondaryModel
-		if secModel != "" && secModel != cfg.GeminiModel {
-			secCfg := cfg
-			secCfg.GeminiModel = secModel
-			g2, err := newGemini(secCfg)
+		addModel := func(m string) {
+			m = strings.TrimSpace(m)
+			if m != "" && !seen[m] {
+				seen[m] = true
+				models = append(models, m)
+			}
+		}
+
+		// 1. Primary Gemini model (vd: gemini-3.1-flash-lite: 500 RPD)
+		addModel(cfg.GeminiModel)
+
+		// 2. Secondary Gemini model (nếu có config riêng)
+		if cfg.GeminiSecondaryModel != "" {
+			addModel(cfg.GeminiSecondaryModel)
+		}
+
+		// 3. Toàn bộ Fallback Gemini models pool (3.5-flash-lite, 3.7-flash, 3.6-flash, 3.5-flash, 3-flash, 2.5-flash-lite, 2.5-flash)
+		for _, m := range cfg.GeminiFallbackModels {
+			addModel(m)
+		}
+
+		for _, m := range models {
+			mCfg := cfg
+			mCfg.GeminiModel = m
+			g, err := newGemini(mCfg)
 			if err == nil {
-				providers = append(providers, g2)
+				providers = append(providers, g)
+			} else if m == cfg.GeminiModel {
+				// Lỗi constructor của primary model → báo lỗi ngay
+				return nil, err
 			}
 		}
 	}
 	if hasDeepSeek {
-		// 3. DeepSeek (primary cost-effective pay-as-you-go)
+		// DeepSeek (primary cost-effective pay-as-you-go)
 		d, err := newDeepSeek(cfg)
 		if err != nil {
 			return nil, err
@@ -95,7 +116,7 @@ func newAuto(cfg config.Config) (provider.Provider, error) {
 		providers = append(providers, d)
 	}
 	if hasClaude {
-		// 4. Claude (last resort fallback)
+		// Claude (last resort fallback)
 		c, err := newAnthropic(cfg)
 		if err != nil {
 			return nil, err
@@ -109,7 +130,7 @@ func newAuto(cfg config.Config) (provider.Provider, error) {
 	case 1:
 		return providers[0], nil
 	default:
-		// sử dụng zero cooldown cho immediate failover khi rate limit
-		return fallback.New(0, providers...)
+		// 15s base cooldown kết hợp circuit breaker (exponential backoff cho RPM, day-lock 2h cho RPD)
+		return fallback.New(15*time.Second, providers...)
 	}
 }
