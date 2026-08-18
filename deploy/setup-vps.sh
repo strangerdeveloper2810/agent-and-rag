@@ -122,7 +122,11 @@ BACKUP
   ( crontab -l 2>/dev/null | grep -v "${APP_DIR}/backup.sh" || true; \
     echo "0 2 * * * ${APP_DIR}/backup.sh >> ${APP_DIR}/logs/backup.log 2>&1" ) | crontab -
 
-  log "Backup script + cron (2h sáng hàng ngày) đã tạo"
+  # Cron tự động dọn dẹp Disk & tối ưu RAM mỗi 30 phút
+  ( crontab -l 2>/dev/null | grep -v "${APP_DIR}/scripts/optimize-vps.sh" || true; \
+    echo "*/30 * * * * ${APP_DIR}/scripts/optimize-vps.sh >> ${APP_DIR}/logs/optimize.log 2>&1" ) | crontab -
+
+  log "Backup script + cron tối ưu RAM/Disk đã tạo"
 }
 
 main() {
