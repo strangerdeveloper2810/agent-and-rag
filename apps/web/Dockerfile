@@ -6,12 +6,10 @@ WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json tsconfig.base.json ./
-COPY apps/web/package.json apps/web/tsconfig.json apps/web/tsconfig.node.json apps/web/vite.config.ts apps/web/tailwind.config.js ./apps/web/
-COPY apps/web/index.html ./apps/web/
+COPY packages ./packages
+COPY apps/web ./apps/web
 
-RUN pnpm install --frozen-lockfile --filter @app/web
-
-COPY apps/web/src ./apps/web/src
+RUN pnpm install --frozen-lockfile --filter @app/web...
 
 RUN pnpm --filter @app/web build
 

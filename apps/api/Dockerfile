@@ -6,15 +6,13 @@ WORKDIR /app
 # Install pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# Copy workspace config
+# Copy workspace config & packages
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json tsconfig.base.json ./
-COPY apps/api/package.json apps/api/tsconfig.json ./apps/api/
+COPY packages ./packages
+COPY apps/api ./apps/api
 
 # Install deps
-RUN pnpm install --frozen-lockfile --filter @app/api
-
-# Copy source
-COPY apps/api ./apps/api
+RUN pnpm install --frozen-lockfile --filter @app/api...
 
 # Build
 RUN pnpm --filter @app/api build
