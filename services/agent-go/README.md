@@ -1,8 +1,8 @@
 # agent-go — JARVIS Agent Runtime
 
-Agent runtime viet bang **Go** — trai tim cua JARVIS platform. Tu xay tu dau (khong LangGraph): state machine, ReAct loop, multi-agent orchestrator, tool registry (25 tools), 3-tier memory + autonomous learner, MCP client, personality engine, proactive scheduler, va SSE streaming.
+Agent runtime viết bằng **Go** — trái tim của JARVIS platform. Tự xây từ đầu (không LangGraph): state machine, ReAct loop, multi-agent orchestrator, tool registry (25 tools), 3-tier memory + autonomous learner, MCP client, personality engine, proactive scheduler, và SSE streaming.
 
-Polyglot voi `apps/api` Fastify/TypeScript (gateway) va `apps/web` React (frontend).
+Polyglot với `apps/api` Fastify/TypeScript (gateway) và `apps/web` React (frontend).
 
 ---
 
@@ -10,7 +10,7 @@ Polyglot voi `apps/api` Fastify/TypeScript (gateway) va `apps/web` React (fronte
 
 | Document | Description |
 |----------|-------------|
-| [README.md](../../README.md) | Tong quan du an JARVIS (bilingual VI-EN) |
+| [README.md](../../README.md) | Tổng quan dự án JARVIS (bilingual VI-EN) |
 | [docs/API.md](../../docs/API.md) | API reference: POST /chat (SSE), GET /healthz |
 | [docs/TOOLS.md](../../docs/TOOLS.md) | Tool development guide + built-in tools reference |
 | [docs/DEPLOY.md](../../docs/DEPLOY.md) | Deployment: Docker, Docker Compose, env vars |
@@ -29,34 +29,34 @@ services/agent-go/
 │   └── jarvis/main.go       # CLI entrypoint (serve / ask / chat REPL)
 ├── internal/
 │   ├── agent/               # Core engine: State, Nodes (plan/model/route/tools/extract), Router, Events, ReAct loop
-│   ├── orchestrator/        # Multi-agent orchestration: IntentRouter (keyword) chon agent, HandoffManager (agent-to-agent)
+│   ├── orchestrator/        # Multi-agent orchestration: IntentRouter (keyword) chọn agent, HandoffManager (agent-to-agent)
 │   ├── provider/            # LLM abstraction
-│   │   ├── factory/         # Chon provider theo LLM_PROVIDER (gemini/anthropic/deepseek/auto)
+│   │   ├── factory/         # Chọn provider theo LLM_PROVIDER (gemini/anthropic/deepseek/auto)
 │   │   ├── fallback/        # Auto-fallback chain: DeepSeek → Gemini → Claude, cooldown per-provider
 │   │   ├── gemini/          # Gemini adapter (genai SDK) + prompt caching
 │   │   ├── anthropic/       # Claude adapter (anthropic-sdk-go) + prompt caching
-│   │   ├── deepseek/        # DeepSeek adapter (OpenAI-compatible), auto-route flash/pro theo do phuc tap
+│   │   ├── deepseek/        # DeepSeek adapter (OpenAI-compatible), auto-route flash/pro theo độ phức tạp
 │   │   └── ollama/          # Local Ollama adapter (dev/offline)
-│   ├── tools/                # Tool interface, registry, parallel fan-out — 25 tools (xem bang duoi)
+│   ├── tools/                # Tool interface, registry, parallel fan-out — 25 tools (xem bảng dưới)
 │   ├── memory/               # 3-tier: working (in-msg), episodic (summarize), semantic (extract+store) + autonomous learner
-│   ├── personality/          # Personality profile (formality, humor, verbosity) — AdaptPrompt + Learn theo thoi gian
-│   ├── proactive/             # Cron scheduler (robfig/cron) — goi prompt dinh ky, tich hop voi engine
-│   ├── mcp/                   # MCP client qua subprocess stdin/stdout JSON-RPC 2.0 + auto-discovery tool tu YAML
-│   ├── guardrails/            # Circuit breaker (chong stuck loop), tool guard (Read/Write/Destructive + HITL), prompt-injection filter
+│   ├── personality/          # Personality profile (formality, humor, verbosity) — AdaptPrompt + Learn theo thời gian
+│   ├── proactive/             # Cron scheduler (robfig/cron) — gọi prompt định kỳ, tích hợp với engine
+│   ├── mcp/                   # MCP client qua subprocess stdin/stdout JSON-RPC 2.0 + auto-discovery tool từ YAML
+│   ├── guardrails/            # Circuit breaker (chống stuck loop), tool guard (Read/Write/Destructive + HITL), prompt-injection filter
 │   ├── mongo/                  # MongoDB driver (tasks, documents, memories)
 │   ├── storage/
 │   │   ├── sqlite/            # SQLite (modernc.org/sqlite, pure Go) — conversations/messages/memories offline
 │   │   └── chroma/             # In-memory vector store (cosine similarity) — MVP semantic search
 │   ├── rag/                    # Voyage AI embedding + Atlas vector search (Parent Document Retrieval, HyDE, LLM rerank)
 │   ├── skills/                 # Progressive disclosure engine: ListSkills / LoadSkill / MatchSkill (30 SKILL.md)
-│   ├── eval/                   # EvalHarness (exact/contains/regex/LLM-judge) — thu vien, chua wire vao CLI
+│   ├── eval/                   # EvalHarness (exact/contains/regex/LLM-judge) — thư viện, chưa wire vào CLI
 │   ├── metrics/                # Snapshot metrics: requests, tokens, latency, tool calls, errors (thread-safe)
 │   ├── config/                 # Env-based configuration (fail-fast)
-│   ├── middleware/              # Context key tenant ID, CORS middleware (dev, khi goi truc tiep khong qua gateway)
+│   ├── middleware/              # Context key tenant ID, CORS middleware (dev, khi gọi trực tiếp không qua gateway)
 │   ├── transport/http/          # SSE chat handler, health/readyz, suggestions endpoint
-│   └── observability/           # slog + OpenTelemetry (tracer con noop, chua co exporter that)
+│   └── observability/           # slog + OpenTelemetry (tracer còn noop, chưa có exporter thật)
 ├── skills/                     # 30 SKILL.md files (progressive disclosure data)
-├── eval/                       # (thu muc rieng cho eval dataset — xem internal/eval de biet harness)
+├── eval/                       # (thư mục riêng cho eval dataset — xem internal/eval để biết harness)
 ├── go.mod / go.sum
 └── Dockerfile                  # Multi-stage distroless (~15MB image)
 ```
@@ -66,33 +66,33 @@ services/agent-go/
 ## Quick Start
 
 ```bash
-# Set env (xem env/.env.example o repo root de biet day du bien)
+# Set env (xem env/.env.example ở repo root để biết đầy đủ biến)
 export MONGODB_URI="mongodb+srv://..."
 export LLM_PROVIDER="auto"        # gemini | anthropic | deepseek | auto (fallback chain)
 export GEMINI_API_KEY="your-key"
-export DEEPSEEK_API_KEY="your-key"   # tuy chon — immediate cheap fallback
-export ANTHROPIC_API_KEY="your-key"  # tuy chon — last-resort fallback
+export DEEPSEEK_API_KEY="your-key"   # tuỳ chọn — immediate cheap fallback
+export ANTHROPIC_API_KEY="your-key"  # tuỳ chọn — last-resort fallback
 
 # HTTP server
 go run ./cmd/server
 
 # CLI: one-shot question
-go run ./cmd/jarvis ask "Thoi tiet hom nay the nao?"
+go run ./cmd/jarvis ask "Thời tiết hôm nay thế nào?"
 
 # CLI: interactive chat (REPL)
 go run ./cmd/jarvis chat
 ```
 
-### Bien env quan trong
+### Biến env quan trọng
 
-| Bien | Mac dinh | Mo ta |
+| Biến | Mặc định | Mô tả |
 |------|---------|-------|
 | `LLM_PROVIDER` | `gemini` | `gemini` \| `anthropic` \| `deepseek` \| `auto` (fallback: DeepSeek → Gemini → Claude) |
-| `ENABLE_PLANNING` | `false` | Bat node plan/reflect cho request phuc tap (ton them 1 LLM call truoc token dau) |
-| `ENABLE_LEARNER` | `false` | Bat autonomous learner — chay nen trich xuat user facts + knowledge tu hoi thoai |
-| `ALLOW_DESTRUCTIVE_TOOLS` | `false` | Cho phep agent tu chay tool destructive (`shell.exec`) khong can xac nhan HITL |
-| `OWNER_TENANT_IDS` | (rong) | Danh sach tenant duoc dung nhom tool dac quyen (`file.read/write/search`, `shell.exec`, `git`) — rong = fail-closed, chi tenant `default` (local) dung duoc |
-| `MAX_OUTPUT_TOKENS` | `8192` | Tran output token moi lan goi LLM; `0` = khong gioi han |
+| `ENABLE_PLANNING` | `false` | Bật node plan/reflect cho request phức tạp (tốn thêm 1 LLM call trước token đầu) |
+| `ENABLE_LEARNER` | `false` | Bật autonomous learner — chạy nền trích xuất user facts + knowledge từ hội thoại |
+| `ALLOW_DESTRUCTIVE_TOOLS` | `false` | Cho phép agent tự chạy tool destructive (`shell.exec`) không cần xác nhận HITL |
+| `OWNER_TENANT_IDS` | (rỗng) | Danh sách tenant được dùng nhóm tool đặc quyền (`file.read/write/search`, `shell.exec`, `git`) — rỗng = fail-closed, chỉ tenant `default` (local) dùng được |
+| `MAX_OUTPUT_TOKENS` | `8192` | Trần output token mỗi lần gọi LLM; `0` = không giới hạn |
 
 ---
 
@@ -103,7 +103,7 @@ go run ./cmd/jarvis chat
 | `POST` | `/chat` | Send message, receive SSE stream of agent events |
 | `GET` | `/healthz` | Liveness check (`{"status":"ok"}`) |
 | `GET` | `/readyz` | Readiness check (provider + Mongo ping) |
-| `GET` | `/suggestions` | Goi y cau hoi/prompt (dung cho frontend, thuong qua CORS dev-only) |
+| `GET` | `/suggestions` | Gợi ý câu hỏi/prompt (dùng cho frontend, thường qua CORS dev-only) |
 
 See [docs/API.md](../../docs/API.md) for full request/response format and all SSE event types.
 
@@ -116,30 +116,30 @@ See [docs/API.md](../../docs/API.md) for full request/response format and all SS
 jarvis serve
 
 # One-shot Q&A
-jarvis ask "cau hoi cua ban"
+jarvis ask "câu hỏi của bạn"
 
 # Interactive REPL
 jarvis chat
-> Xin chao
-> /exit    # thoat
+> Xin chào
+> /exit    # thoát
 ```
 
 ---
 
 ## Tools (25)
 
-| Nhom | Tool | Mo ta ngan |
+| Nhóm | Tool | Mô tả ngắn |
 |------|------|-----------|
-| Utility | `calculator`, `datetime`, `timer`, `json`, `translate`, `echo`, `version` | Tinh toan, thoi gian, timer, xu ly JSON, dich, echo test, phien ban |
-| File (dac quyen — chi owner tenant) | `file.search`, `file.read`, `file.write` | Doc/ghi/tim file — gioi han duong dan (`AllowedPaths`) |
-| Shell/Git (dac quyen) | `shell.exec`, `git` | Chay lenh shell (destructive, can HITL hoac `ALLOW_DESTRUCTIVE_TOOLS`), thao tac git |
-| Web | `web.search`, `web.fetch`, `http` | Tim kiem DuckDuckGo, fetch HTML→text, goi HTTP tuy y |
-| Memory | `memory.save`, `memory.recall`, `memory.list` | Ghi/truy hoi/liet ke bo nho ngu nghia dai han |
-| Notes | `notes.search`, `notes.create` | Ghi chu ca nhan (tenant-scoped) |
-| RAG | `rag.search`, `rag.list`, `rag.read` | Tim kiem vector, liet ke DAY DU tai lieu KB, doc noi dung 1 tai lieu |
-| Khac | `calendar`, `weather` | Lich, thoi tiet |
+| Utility | `calculator`, `datetime`, `timer`, `json`, `translate`, `echo`, `version` | Tính toán, thời gian, timer, xử lý JSON, dịch, echo test, phiên bản |
+| File (đặc quyền — chỉ owner tenant) | `file.search`, `file.read`, `file.write` | Đọc/ghi/tìm file — giới hạn đường dẫn (`AllowedPaths`) |
+| Shell/Git (đặc quyền) | `shell.exec`, `git` | Chạy lệnh shell (destructive, cần HITL hoặc `ALLOW_DESTRUCTIVE_TOOLS`), thao tác git |
+| Web | `web.search`, `web.fetch`, `http` | Tìm kiếm DuckDuckGo, fetch HTML→text, gọi HTTP tuỳ ý |
+| Memory | `memory.save`, `memory.recall`, `memory.list` | Ghi/truy hồi/liệt kê bộ nhớ ngữ nghĩa dài hạn |
+| Notes | `notes.search`, `notes.create` | Ghi chú cá nhân (tenant-scoped) |
+| RAG | `rag.search`, `rag.list`, `rag.read` | Tìm kiếm vector, liệt kê ĐẦY ĐỦ tài liệu KB, đọc nội dung 1 tài liệu |
+| Khác | `calendar`, `weather` | Lịch, thời tiết |
 
-Nhom "dac quyen" chi kha dung cho tenant nam trong `OWNER_TENANT_IDS` (xem [`internal/tools/privileged.go`](internal/tools/privileged.go) va [`internal/guardrails`](internal/guardrails)) — vi cac tool nay tac dong len MAY CHAY AGENT, khong scope theo tenant.
+Nhóm "đặc quyền" chỉ khả dụng cho tenant nằm trong `OWNER_TENANT_IDS` (xem [`internal/tools/privileged.go`](internal/tools/privileged.go) và [`internal/guardrails`](internal/guardrails)) — vì các tool này tác động lên MÁY CHẠY AGENT, không scope theo tenant.
 
 ---
 
@@ -163,13 +163,13 @@ go test -cover ./...             # coverage
 | **SSE, not WebSocket** | Unidirectional server->client, browser-native EventSource, simpler |
 | **Stateless agent** | History sent per request — no sticky sessions, horizontal scaling |
 | **Pluggable providers** | `Provider` interface — swap LLM via env var, zero engine changes |
-| **Auto-fallback chain (DeepSeek → Gemini → Claude)** | DeepSeek ~10x re hon Gemini, ~50x re hon Claude — fallback rate-limit voi zero cooldown, khong lam gian doan trai nghiem |
+| **Auto-fallback chain (DeepSeek → Gemini → Claude)** | DeepSeek ~10x rẻ hơn Gemini, ~50x rẻ hơn Claude — fallback rate-limit với zero cooldown, không làm gián đoạn trải nghiệm |
 | **FakeProvider** for testing | Deterministic, no network, tests run in ms |
-| **errgroup/goroutine** for tool fan-out | `WaitGroup` + error propagation, cleaner API than bare goroutines; timeout mac dinh 60s cho moi tool |
+| **errgroup/goroutine** for tool fan-out | `WaitGroup` + error propagation, cleaner API than bare goroutines; timeout mặc định 60s cho mỗi tool |
 | **json.RawMessage** for schema/args | Deferred parsing, zero-allocation passthrough to LLM |
-| **SQLite + in-memory Chroma-style store** | Chay duoc offline/local, khong phu thuoc Mongo Atlas cho dev nhanh; Mongo van la nguon that cho production |
-| **MCP qua subprocess JSON-RPC** | Mo rong tool set qua process ngoai (theo chuan Model Context Protocol) ma khong can build lai binary |
-| **Owner-tenant gating cho tool dac quyen** | `file.*`/`shell.exec`/`git` tac dong len may chu, khong scope duoc theo tenant → mac dinh fail-closed, chi bat cho tenant khai bao trong `OWNER_TENANT_IDS` |
+| **SQLite + in-memory Chroma-style store** | Chạy được offline/local, không phụ thuộc Mongo Atlas cho dev nhanh; Mongo vẫn là nguồn thật cho production |
+| **MCP qua subprocess JSON-RPC** | Mở rộng tool set qua process ngoài (theo chuẩn Model Context Protocol) mà không cần build lại binary |
+| **Owner-tenant gating cho tool đặc quyền** | `file.*`/`shell.exec`/`git` tác động lên máy chủ, không scope được theo tenant → mặc định fail-closed, chỉ bật cho tenant khai báo trong `OWNER_TENANT_IDS` |
 | **Multi-stage Docker + distroless** | ~15MB image, no shell, minimal attack surface |
 
 ---
@@ -189,7 +189,7 @@ POST /chat (JSON)
 ┌─────────────────────┐
 │   Engine (ReAct)      │  recall → summarize → model → route → tools → extract
 │                       │      ↑                                  │
-│  (+ plan/reflect neu  │      └──────── tools → model ────────────┘
+│  (+ plan/reflect nếu  │      └──────── tools → model ────────────┘
 │   ENABLE_PLANNING)    │
 └────┬─────────────┬────┘
      │              │
@@ -197,12 +197,12 @@ POST /chat (JSON)
 ┌──────────┐   ┌───────────┐   ┌──────────────┐   ┌─────────────┐
 │ Provider │   │  Tools     │   │  Guardrails  │   │   Memory     │
 │ Gemini   │   │  Registry  │   │  circuit     │   │  3-tier +    │
-│ DeepSeek │   │  (25, chay │   │  breaker,    │   │  learner     │
+│ DeepSeek │   │  (25, chạy │   │  breaker,    │   │  learner     │
 │ Claude   │   │  song song)│   │  tool guard, │   │  (SQLite/    │
 │ (auto-   │   │            │   │  HITL,       │   │  Mongo)      │
 │ fallback)│   │            │   │  anti-inject │   │              │
 └──────────┘   └───────────┘   └──────────────┘   └─────────────┘
 
-Ben canh do: Personality (adapt giong dieu), Proactive (cron prompt dinh ky),
-MCP client (tool ngoai qua JSON-RPC), Skills (30 SKILL.md, progressive disclosure).
+Bên cạnh đó: Personality (adapt giọng điệu), Proactive (cron prompt định kỳ),
+MCP client (tool ngoài qua JSON-RPC), Skills (30 SKILL.md, progressive disclosure).
 ```

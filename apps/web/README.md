@@ -1,34 +1,34 @@
 # @app/web — React SPA
 
-Single-page app cho JARVIS: chat (SSE streaming), quan ly tai lieu (RAG), va authentication (login/register/verify-email). Xay bang React 19 + Vite + Tailwind CSS, theme **shadcn (indigo/Inter)**.
+Single-page app cho JARVIS: chat (SSE streaming), quản lý tài liệu (RAG), và authentication (login/register/verify-email). Xây bằng React 19 + Vite + Tailwind CSS, theme **shadcn (indigo/Inter)**.
 
-Xem tong quan toan he thong o [README goc](../../README.md).
+Xem tổng quan toàn hệ thống ở [README gốc](../../README.md).
 
 ---
 
-## Vai tro trong kien truc
+## Vai trò trong kiến trúc
 
 ```
 Browser
    │
    ▼
-React SPA (apps/web)  ← file nay
+React SPA (apps/web)  ← file này
    │  fetch (cookie access/refresh token) + EventSource (SSE)
    ▼
 Fastify Gateway (apps/api)  →  services/agent-go
 ```
 
-Dev server chay tren `:3000`, Vite proxy `/api` sang `http://localhost:3001` (xem `vite.config.ts`). Bien `VITE_AGENT_URL` (trong `.env`) dung khi frontend can goi thang endpoint cua Go agent (vi du `/suggestions`) thay vi qua gateway.
+Dev server chạy trên `:3000`, Vite proxy `/api` sang `http://localhost:3001` (xem `vite.config.ts`). Biến `VITE_AGENT_URL` (trong `.env`) dùng khi frontend cần gọi thẳng endpoint của Go agent (ví dụ `/suggestions`) thay vì qua gateway.
 
 ---
 
-## Cau truc thu muc
+## Cấu trúc thư mục
 
 ```
 apps/web/src/
 ├── main.tsx                      # entrypoint (mount React root)
 ├── App.tsx                       # React Router routes (lazy-load + code-splitting)
-├── index.css                     # Tailwind + bien CSS shadcn (theme indigo, light/dark)
+├── index.css                     # Tailwind + biến CSS shadcn (theme indigo, light/dark)
 ├── modules/                      # feature module (theo domain)
 │   ├── chat/                     # ChatPage, Composer, MessageBubble, Markdown, ModeSelector,
 │   │                              # SlashCommandMenu, EmptyState + chat.api.ts
@@ -44,38 +44,38 @@ apps/web/src/
 │   │                              # ChatSkeleton, CitationList, ToolCallCard
 │   ├── organisms/                 # Header, Sidebar
 │   └── templates/                 # AppLayout (Outlet + Suspense cho lazy route)
-├── context/ConversationContext.tsx # state hoi thoai hien tai (React Context)
+├── context/ConversationContext.tsx # state hội thoại hiện tại (React Context)
 ├── stores/auth.store.ts           # zustand — auth state (user, token)
 ├── hooks/useDocumentTitle.ts
 ├── lib/                           # http client wrapper, utils (cn), validation (zod)
-└── types/                         # types cho component/function props (tach khoi @app/types dung chung)
+└── types/                         # types cho component/function props (tách khỏi @app/types dùng chung)
 ```
 
 ## Routes (`App.tsx`)
 
 | Path | Guard | Trang |
 |------|-------|-------|
-| `/login` | `GuestGuard` | Dang nhap |
-| `/register` | `GuestGuard` | Dang ky |
-| `/verify-email` | `GuestGuard` | Xac thuc OTP email |
-| `/` | `AuthGuard` | ChatPage (hoi thoai moi) |
-| `/messages/:id` | `AuthGuard` | ChatPage (hoi thoai co san) |
-| `/documents` | `AuthGuard` | DocumentsView (quan ly tai lieu RAG) |
+| `/login` | `GuestGuard` | Đăng nhập |
+| `/register` | `GuestGuard` | Đăng ký |
+| `/verify-email` | `GuestGuard` | Xác thực OTP email |
+| `/` | `AuthGuard` | ChatPage (hội thoại mới) |
+| `/messages/:id` | `AuthGuard` | ChatPage (hội thoại có sẵn) |
+| `/documents` | `AuthGuard` | DocumentsView (quản lý tài liệu RAG) |
 
-Moi route protected deu boc trong `AppLayout` (Header + Sidebar); cac page duoc `lazy()`-load de code-split theo route.
+Mọi route protected đều bọc trong `AppLayout` (Header + Sidebar); các page được `lazy()`-load để code-split theo route.
 
 ---
 
 ## Shared workspace packages
 
-`apps/web` dung chung 4 package trong `packages/` (pnpm workspace):
+`apps/web` dùng chung 4 package trong `packages/` (pnpm workspace):
 
-| Package | Vai tro |
+| Package | Vai trò |
 |---------|---------|
-| `@app/types` | Type dung chung: `Conversation`, `Message`, `AttachmentPayload`, `ChatEvent`, `UsageData`, ... |
+| `@app/types` | Type dùng chung: `Conversation`, `Message`, `AttachmentPayload`, `ChatEvent`, `UsageData`, ... |
 | `@app/http` | Singleton HTTP client: timeout, retry, request/response interceptor |
-| `@app/api-client` | Client goi API co type, wrap `@app/http` + `@app/types` |
-| `@app/ui` | Component design-system dung chung (atoms/molecules) — song song voi `src/design-system/` cuc bo cua web |
+| `@app/api-client` | Client gọi API có type, wrap `@app/http` + `@app/types` |
+| `@app/ui` | Component design-system dùng chung (atoms/molecules) — song song với `src/design-system/` cục bộ của web |
 
 ---
 
@@ -88,29 +88,29 @@ pnpm --filter @app/web preview     # preview bundle production
 pnpm --filter @app/web typecheck   # tsc --noEmit (app + node config)
 ```
 
-Hoac tu goc repo: `pnpm dev:web`, `pnpm build:web`.
+Hoặc từ gốc repo: `pnpm dev:web`, `pnpm build:web`.
 
-> Chua co test tu dong (`*.test.*`) cho `apps/web` tinh den hien tai — kiem thu thu cong qua trinh duyet la cach xac minh chinh.
+> Chưa có test tự động (`*.test.*`) cho `apps/web` tính đến hiện tại — kiểm thử thủ công qua trình duyệt là cách xác minh chính.
 
 ---
 
 ## Environment Variables
 
-Copy `.env.example` → `.env`. Chi bien co tien to `VITE_` duoc expose vao bundle client (khong dat secret o day).
+Copy `.env.example` → `.env`. Chỉ biến có tiền tố `VITE_` được expose vào bundle client (không đặt secret ở đây).
 
-| Bien | Mac dinh | Mo ta |
+| Biến | Mặc định | Mô tả |
 |------|---------|-------|
-| `VITE_AGENT_URL` | `http://localhost:3002` | Base URL goi truc tiep Go agent runtime (vd endpoint suggestions). Khi chay qua Docker/nginx proxy, de rong de dung same-origin |
+| `VITE_AGENT_URL` | `http://localhost:3002` | Base URL gọi trực tiếp Go agent runtime (vd endpoint suggestions). Khi chạy qua Docker/nginx proxy, để rỗng để dùng same-origin |
 
 ---
 
 ## Tech Stack
 
-- **React 19** + React Compiler (tu dong memo hoa, khong can `useMemo`/`useCallback` thu cong) qua `@rolldown/plugin-babel`
-- **Vite 8** (Rolldown) — dev server + build, manual chunk splitting (tach `react-vendor` va `markdown` de cache tot hon)
+- **React 19** + React Compiler (tự động memo hoá, không cần `useMemo`/`useCallback` thủ công) qua `@rolldown/plugin-babel`
+- **Vite 8** (Rolldown) — dev server + build, manual chunk splitting (tách `react-vendor` và `markdown` để cache tốt hơn)
 - **React Router 7** — routing + lazy loading
 - **Tailwind CSS 4** + shadcn UI (theme indigo, CSS variables cho light/dark) + `class-variance-authority` + `tailwind-merge`
-- **Zustand** — state quan ly nhe (auth store)
+- **Zustand** — state quản lý nhẹ (auth store)
 - **react-hook-form** + **zod** (qua `@hookform/resolvers`) — form + validate
-- **react-markdown** + **remark-gfm** — render markdown trong chat (tach chunk rieng vi nang)
+- **react-markdown** + **remark-gfm** — render markdown trong chat (tách chunk riêng vì nặng)
 - **Heroicons** / **lucide-react** — icon

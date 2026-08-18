@@ -1,6 +1,6 @@
 # J.A.R.V.I.S. — AI Agent Platform
 
-**JARVIS** la mot AI agent runtime tu xay (self-built), viet bang **Go** cho agent engine va **TypeScript (Fastify)** cho API gateway. He thong hoat dong nhu mot tro ly AI ca nhan co kha nang: hoi thoai thong minh, RAG tim kiem tai lieu, quan ly task, ghi nho ngu canh xuyen phien (co autonomous learner), da tac tu (multi-agent), tich hop MCP, va tu dong goi cong cu (tool) de hoan thanh yeu cau.
+**JARVIS** là một AI agent runtime tự xây (self-built), viết bằng **Go** cho agent engine và **TypeScript (Fastify)** cho API gateway. Hệ thống hoạt động như một trợ lý AI cá nhân có khả năng: hội thoại thông minh, RAG tìm kiếm tài liệu, quản lý task, ghi nhớ ngữ cảnh xuyên phiên (có autonomous learner), đa tác tử (multi-agent), tích hợp MCP, và tự động gọi công cụ (tool) để hoàn thành yêu cầu.
 
 JARVIS is a self-built AI agent platform featuring a **Go agent runtime** with a custom ReAct loop, an auto-fallback multi-provider LLM layer (Gemini → DeepSeek → Claude), a 25-tool registry with parallel execution, 3-tier memory with an autonomous learner, multi-agent orchestration, MCP client, a personality engine, proactive (cron) scheduling, and SSE streaming. It replaces LangGraph with a hand-crafted state machine for full control, deep learning, and zero framework lock-in.
 
@@ -47,29 +47,29 @@ JARVIS is a self-built AI agent platform featuring a **Go agent runtime** with a
                                          └───────────────────────────────┘
 ```
 
-**Flow**: User message -> Fastify xac thuc + proxy -> Go agent orchestration -> ReAct loop (model <-> tools) -> SSE stream ve -> React render token theo thoi gian thuc.
+**Flow**: User message -> Fastify xác thực + proxy -> Go agent orchestration -> ReAct loop (model <-> tools) -> SSE stream về -> React render token theo thời gian thực.
 
 ---
 
 ## Quick Start
 
 ```bash
-# 1. Chuan bi env
-cp env/.env.example env/.env              # bien dung chung cho docker + go agent — dien key that
-cp apps/web/.env.example apps/web/.env    # VITE_AGENT_URL neu goi thang Go agent tu web
-# apps/api doc truc tiep apps/api/.env (chua co .env.example rieng) — copy cac bien
-# can thiet tu env/.env.example: MONGODB_URI, PG_CONNECTION_STRING, REDIS_URL,
-# ANTHROPIC_API_KEY hoac GOOGLE_API_KEY, VOYAGE_API_KEY, JWT_SECRET*, GOOGLE_CLIENT_*
+# 1. Chuẩn bị env
+cp env/.env.example env/.env              # biến dùng chung cho docker + go agent — điền key thật
+cp apps/web/.env.example apps/web/.env    # VITE_AGENT_URL nếu gọi thẳng Go agent từ web
+# apps/api đọc trực tiếp apps/api/.env (chưa có .env.example riêng) — copy các biến
+# cần thiết từ env/.env.example: MONGODB_URI, PG_CONNECTION_STRING, REDIS_URL,
+# ANTHROPIC_API_KEY hoặc GOOGLE_API_KEY, VOYAGE_API_KEY, JWT_SECRET*, GOOGLE_CLIENT_*
 
-# 2. Len ha tang dev (MongoDB, Postgres, Redis, MinIO qua Docker)
+# 2. Lên hạ tầng dev (MongoDB, Postgres, Redis, MinIO qua Docker)
 pnpm docker:dev
 
-# 3. Cai dat & chay full stack (web + api + go agent qua Turborepo)
+# 3. Cài đặt & chạy full stack (web + api + go agent qua Turborepo)
 pnpm install
 pnpm dev
 ```
 
-Mo `http://localhost:3000`. API chay o `:3001`, Go agent o `:3002`.
+Mở `http://localhost:3000`. API chạy ở `:3001`, Go agent ở `:3002`.
 
 ---
 
@@ -105,35 +105,35 @@ ai-agent-tut/
 │       ├── internal/
 │       │   ├── agent/              # Engine, State, Nodes (plan/model/route/tools/extract), Router, Events
 │       │   ├── provider/           # LLM abstraction
-│       │   │   ├── factory/        # chon provider theo env (gemini/anthropic/deepseek/auto)
+│       │   │   ├── factory/        # chọn provider theo env (gemini/anthropic/deepseek/auto)
 │       │   │   ├── fallback/       # auto-fallback chain: DeepSeek → Gemini → Claude
-│       │   │   ├── gemini/ anthropic/ deepseek/ ollama/  # cac adapter
+│       │   │   ├── gemini/ anthropic/ deepseek/ ollama/  # các adapter
 │       │   ├── tools/              # 25 tools: file, web, rag, memory, notes, shell, git, calendar, ...
 │       │   ├── memory/             # 3-tier memory (store, recall, extract, summarize) + learner
 │       │   ├── orchestrator/       # multi-agent routing (keyword) + handoff
 │       │   ├── personality/        # personality profile (formality, humor, verbosity)
-│       │   ├── proactive/          # cron scheduler cho prompt dinh ky
+│       │   ├── proactive/          # cron scheduler cho prompt định kỳ
 │       │   ├── mcp/                # MCP client (subprocess JSON-RPC) + YAML tool discovery
 │       │   ├── guardrails/         # circuit breaker, tool guard, prompt-injection filter, HITL
 │       │   ├── mongo/              # MongoDB driver (tasks, documents, memories)
 │       │   ├── storage/            # sqlite (conversations local) + chroma (in-memory vector store)
 │       │   ├── rag/                # Voyage AI embedding + Atlas vector search (PDR, HyDE, rerank)
 │       │   ├── skills/             # progressive disclosure engine (list/load/match SKILL.md)
-│       │   ├── eval/               # eval harness (exact/contains/regex/LLM-judge) — thu vien, chua co CLI
+│       │   ├── eval/               # eval harness (exact/contains/regex/LLM-judge) — thư viện, chưa có CLI
 │       │   ├── metrics/            # snapshot metrics (requests, tokens, latency, tool calls)
-│       │   ├── observability/      # slog + OpenTelemetry (tracer con noop)
-│       │   ├── config/             # cau hinh theo env (fail-fast)
+│       │   ├── observability/      # slog + OpenTelemetry (tracer còn noop)
+│       │   ├── config/             # cấu hình theo env (fail-fast)
 │       │   └── transport/http/     # SSE chat handler + health endpoint
-│       ├── skills/                 # 30 SKILL.md files (dinh nghia du lieu skill)
+│       ├── skills/                 # 30 SKILL.md files (định nghĩa dữ liệu skill)
 │       ├── go.mod
 │       └── Dockerfile
 ├── docs/
 │   ├── architecture/                # Architecture deep-dives
-│   ├── plans/                       # Design + implementation plans (theo moc thoi gian)
+│   ├── plans/                       # Design + implementation plans (theo mốc thời gian)
 │   └── go-patterns/                 # Go production patterns catalog
-├── docker/                          # docker-compose cho dev va deployment
+├── docker/                          # docker-compose cho dev và deployment
 ├── deploy/                          # script setup VPS
-├── env/                             # .env.example / .env.development dung chung
+├── env/                             # .env.example / .env.development dùng chung
 └── package.json                     # pnpm workspace root (Turborepo)
 ```
 
@@ -150,18 +150,18 @@ ai-agent-tut/
 | **3-Tier Memory + Learner** | Done | Working (in-msg), episodic (summarize), semantic (extract+store); autonomous learner (`ENABLE_LEARNER`) |
 | **Multi-Agent Orchestrator** | Done | Keyword routing; agent-to-agent handoff |
 | **MCP Client** | Done | Subprocess JSON-RPC 2.0 + YAML config auto-discovery cho external tool servers |
-| **Personality Engine** | Done | Formality/humor/verbosity profile, adapt prompt + tu hoc theo thoi gian |
-| **Proactive Scheduler** | Done | Cron-based scheduler goi prompt dinh ky (robfig/cron) |
-| **Skills System (30 skills)** | Done | Progressive disclosure qua SKILL.md — list gon trong system prompt, load day du khi trigger |
-| **Guardrails** | Done | Tool Kind (Read/Write/Destructive); circuit breaker chong stuck loop; prompt-injection filter; HITL confirmation |
+| **Personality Engine** | Done | Formality/humor/verbosity profile, adapt prompt + tự học theo thời gian |
+| **Proactive Scheduler** | Done | Cron-based scheduler gọi prompt định kỳ (robfig/cron) |
+| **Skills System (30 skills)** | Done | Progressive disclosure qua SKILL.md — list gọn trong system prompt, load đầy đủ khi trigger |
+| **Guardrails** | Done | Tool Kind (Read/Write/Destructive); circuit breaker chống stuck loop; prompt-injection filter; HITL confirmation |
 | **RAG Retrieval** | Done | Voyage AI embedding + MongoDB Atlas `$vectorSearch`; Parent Document Retrieval, HyDE, LLM rerank |
-| **Prompt Caching** | Done | Gemini + Anthropic provider adapter ho tro cache system/tool defs |
-| **Planner Node** | Done | `ENABLE_PLANNING=true` bat node plan/reflect cho request phuc tap (mac dinh tat de tiet kiem 1 LLM call) |
-| **Task Management** | Partial | `GET /api/tasks` (chi doc) qua `apps/api/modules/tasks`; **chua co route/tool tao-sua-xoa task, chua co UI task board** |
+| **Prompt Caching** | Done | Gemini + Anthropic provider adapter hỗ trợ cache system/tool defs |
+| **Planner Node** | Done | `ENABLE_PLANNING=true` bật node plan/reflect cho request phức tạp (mặc định tắt để tiết kiệm 1 LLM call) |
+| **Task Management** | Partial | `GET /api/tasks` (chỉ đọc) qua `apps/api/modules/tasks`; **chưa có route/tool tạo-sửa-xoá task, chưa có UI task board** |
 | **Auth Multi-tenant** | Done | JWT + refresh, Google OAuth, OTP email verify (Resend), tenant isolation |
-| **Object Storage** | Done | MinIO/S3 cho file upload (anh, doc, file agent tao) |
-| **Eval Harness** | Partial | Package `internal/eval` co day du (exact/contains/regex/LLM-judge) nhung chua wire vao CLI hay dataset that |
-| **OpenTelemetry** | Planned | `observability.SetupTracer` hien la no-op provider; metrics in-process (`internal/metrics`) da co, tracing export chua co |
+| **Object Storage** | Done | MinIO/S3 cho file upload (ảnh, doc, file agent tạo) |
+| **Eval Harness** | Partial | Package `internal/eval` có đầy đủ (exact/contains/regex/LLM-judge) nhưng chưa wire vào CLI hay dataset thật |
+| **OpenTelemetry** | Planned | `observability.SetupTracer` hiện là no-op provider; metrics in-process (`internal/metrics`) đã có, tracing export chưa có |
 
 ---
 
@@ -177,7 +177,7 @@ ai-agent-tut/
 | **Primary DB** | MongoDB Atlas | Conversations, documents (vector search), tasks, memories |
 | **Auth DB** | PostgreSQL 17 | Users, credentials, refresh tokens |
 | **Cache / Rate-limit** | Redis 7 | Chat/embedding/tool cache, rate-limit |
-| **Object Storage** | MinIO / S3 | Uploaded files (anh, doc, file agent tao) |
+| **Object Storage** | MinIO / S3 | Uploaded files (ảnh, doc, file agent tạo) |
 | **Local Storage (Go)** | SQLite (modernc.org/sqlite) + in-memory Chroma-style vector store | Conversation/memory offline, semantic search MVP |
 | **Streaming** | SSE (Server-Sent Events) | Real-time token + event streaming |
 | **Observability** | slog + metrics snapshot + OpenTelemetry (tracer noop) | Structured logging, in-process metrics |
@@ -191,9 +191,9 @@ ai-agent-tut/
 ### Prerequisites
 - **Go 1.25+** (agent runtime)
 - **Node.js 22+** + **pnpm 10+** (gateway + frontend)
-- **Docker** (MongoDB/Postgres/Redis/MinIO dev qua `pnpm docker:dev`, hoac tu cai dat rieng)
-- API keys: **Gemini** (aistudio.google.com), **Anthropic** (console.anthropic.com) va/hoac **DeepSeek** (platform.deepseek.com), **Voyage AI** (voyageai.com)
-- **Google OAuth** client (console.cloud.google.com) + **Resend** API key (OTP email) neu chay auth day du
+- **Docker** (MongoDB/Postgres/Redis/MinIO dev qua `pnpm docker:dev`, hoặc tự cài đặt riêng)
+- API keys: **Gemini** (aistudio.google.com), **Anthropic** (console.anthropic.com) và/hoặc **DeepSeek** (platform.deepseek.com), **Voyage AI** (voyageai.com)
+- **Google OAuth** client (console.cloud.google.com) + **Resend** API key (OTP email) nếu chạy auth đầy đủ
 
 ### Running Individual Services
 ```bash
@@ -207,7 +207,7 @@ pnpm dev:api
 pnpm dev:web
 
 # CLI mode: one-shot question
-cd services/agent-go && go run ./cmd/jarvis ask "thoi tiet hom nay the nao?"
+cd services/agent-go && go run ./cmd/jarvis ask "thời tiết hôm nay thế nào?"
 
 # CLI mode: interactive chat (REPL)
 cd services/agent-go && go run ./cmd/jarvis chat
@@ -217,7 +217,7 @@ cd services/agent-go && go run ./cmd/jarvis chat
 ```bash
 pnpm test              # TS: turbo run test (api)
 pnpm test:go           # Go: go test ./... -race -count=1 (services/agent-go)
-pnpm test:all          # ca hai
+pnpm test:all          # cả hai
 
 pnpm typecheck         # TS type-check
 pnpm lint:all          # eslint (TS) + go vet (Go)
