@@ -66,8 +66,8 @@
     "title": "Tôi có thể giúp gì cho bạn hôm nay?",
     "subtitle": "Bắt đầu trò chuyện, yêu cầu tra cứu tài liệu doanh nghiệp hoặc thực thi quy trình làm việc thông minh.",
     "refreshAllTitle": "Đổi bộ gợi ý ngẫu nhiên mới",
-    "refresh": "Đổi gợi ý",
-    "autoSuggestionsLabel": "GỢI Ý TỰ ĐỘNG TỪ AI AGENT",
+    "autoSuggestionsLabel": "Gợi ý thông minh từ AI Agent",
+    "agentSuggestionsLabel": "Gợi ý thông minh từ AI Agent",
     "refreshAiAria": "Làm mới gợi ý AI",
     "categories": {
       "creative": "Ý tưởng & Kế hoạch",

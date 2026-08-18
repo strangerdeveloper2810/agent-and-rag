@@ -28,7 +28,7 @@ describe("EmptyState", () => {
     ).toBeInTheDocument();
 
     expect(
-      await screen.findByText("GỢI Ý TỰ ĐỘNG TỪ AI AGENT"),
+      await screen.findByText("Gợi ý thông minh từ AI Agent"),
     ).toBeInTheDocument();
   });
 
@@ -41,7 +41,7 @@ describe("EmptyState", () => {
     expect(screen.getByTitle("Refresh random suggestions")).toBeInTheDocument();
 
     expect(
-      await screen.findByText("AUTO SUGGESTIONS FROM AI AGENT"),
+      await screen.findByText("Smart Suggestions from AI Agent"),
     ).toBeInTheDocument();
   });
 });

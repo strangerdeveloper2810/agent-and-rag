@@ -66,8 +66,8 @@
     "title": "How can I help you today?",
     "subtitle": "Start a conversation, ask for enterprise document lookups, or run a smart workflow.",
     "refreshAllTitle": "Refresh random suggestions",
-    "refresh": "Refresh",
-    "autoSuggestionsLabel": "AUTO SUGGESTIONS FROM AI AGENT",
+    "autoSuggestionsLabel": "Smart Suggestions from AI Agent",
+    "agentSuggestionsLabel": "Smart Suggestions from AI Agent",
     "refreshAiAria": "Refresh AI suggestions",
     "categories": {
       "creative": "Ideas & Planning",
