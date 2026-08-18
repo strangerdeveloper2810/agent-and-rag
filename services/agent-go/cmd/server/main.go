@@ -152,10 +152,11 @@ func main() {
 	generalEngine.SetOwnerTenants(cfg.OwnerTenantIDs)
 	generalEngine.SetAllowDestructiveTools(cfg.AllowDestructiveTools)
 	generalEngine.SetSkillLoader(skillLoader)
+	generalEngine.SetFastModel(fastModel(cfg))
 	generalEngine.SetMemoryNodes(
 		memory.RecallNode(store),
 		memory.ExtractNode(store),
-		memory.SummarizeNode(),
+		memory.SummarizeNode(prov, fastModel(cfg)),
 	)
 	if planningEnabled {
 		generalEngine.EnablePlanning()
@@ -171,10 +172,11 @@ func main() {
 	codeEngine.SetOwnerTenants(cfg.OwnerTenantIDs)
 	codeEngine.SetAllowDestructiveTools(cfg.AllowDestructiveTools)
 	codeEngine.SetSkillLoader(skillLoader)
+	codeEngine.SetFastModel(fastModel(cfg))
 	codeEngine.SetMemoryNodes(
 		memory.RecallNode(store),
 		memory.ExtractNode(store),
-		memory.SummarizeNode(),
+		memory.SummarizeNode(prov, fastModel(cfg)),
 	)
 	if planningEnabled {
 		codeEngine.EnablePlanning()
@@ -190,10 +192,11 @@ func main() {
 	researchEngine.SetOwnerTenants(cfg.OwnerTenantIDs)
 	researchEngine.SetAllowDestructiveTools(cfg.AllowDestructiveTools)
 	researchEngine.SetSkillLoader(skillLoader)
+	researchEngine.SetFastModel(fastModel(cfg))
 	researchEngine.SetMemoryNodes(
 		memory.RecallNode(store),
 		memory.ExtractNode(store),
-		memory.SummarizeNode(),
+		memory.SummarizeNode(prov, fastModel(cfg)),
 	)
 	if planningEnabled {
 		researchEngine.EnablePlanning()

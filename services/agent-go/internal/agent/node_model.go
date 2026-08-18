@@ -24,6 +24,7 @@ type modelEngine interface {
 	getOwnerTenants() []string
 	getDynamicThinking() DynamicThinkingConfig
 	getSkillLoader() *skills.Loader
+	getFastModel() string
 }
 
 // nodeModel gọi LLM (qua Provider) với toàn bộ Messages + Tools,
@@ -41,7 +42,7 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 	reg := eng.getRegistry()
 
 	// Token budget: trim context if over limit.
-	if trimmed := trimContext(s, eng.getMaxContextTokens()); trimmed > 0 {
+	if trimmed := trimContext(ctx, prov, eng.getFastModel(), s, eng.getMaxContextTokens()); trimmed > 0 {
 		s.TrimmedTokens += trimmed
 		emit(MemoryEvent(fmt.Sprintf("trimmed %d tokens from context", trimmed)))
 	}
@@ -246,10 +247,13 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 // keepLast is the number of most recent messages to preserve when trimming.
 const keepLast = 10
 
-// trimContext estimates the token count of s.Messages and, if it exceeds maxTokens,
-// drops middle messages keeping only the last keepLast messages plus a summary placeholder.
+// trimContext estimates the token count of s.Messages and, if it exceeds
+// maxTokens, drops the oldest messages — keeping only the tail — and replaces
+// them with either a REAL LLM-generated summary (via SummarizeMessages, using
+// model rẻ/nhanh) khi thành công, hoặc một placeholder TRUNG THỰC (nói rõ là
+// đã lược bỏ, KHÔNG giả vờ đã tóm tắt) khi lượt gọi LLM thất bại/hết thời gian.
 // Returns the number of estimated tokens trimmed (0 if no trimming was needed).
-func trimContext(s *State, maxTokens int) int {
+func trimContext(ctx context.Context, prov provider.Provider, model string, s *State, maxTokens int) int {
 	if maxTokens <= 0 || len(s.Messages) <= keepLast {
 		return 0
 	}
@@ -259,10 +263,14 @@ func trimContext(s *State, maxTokens int) int {
 		return 0
 	}
 
-	// Calculate trimmed tokens from messages being dropped.
-	dropCount := len(s.Messages) - keepLast
+	// SafeDropBoundary tránh cắt giữa 1 cặp tool_call/tool_result — xem doc.
+	// dropCount luôn > 0 tại đây: input len(s.Messages)-keepLast > 0 (đã check
+	// ở trên) và SafeDropBoundary chỉ TĂNG dropCount, không bao giờ giảm.
+	dropCount := SafeDropBoundary(s.Messages, len(s.Messages)-keepLast)
+
+	dropped := s.Messages[:dropCount]
 	var trimmedChars int
-	for _, m := range s.Messages[:dropCount] {
+	for _, m := range dropped {
 		trimmedChars += len(m.Content)
 		trimmedChars += len(m.Role)
 		trimmedChars += len(m.ToolCallID)
@@ -272,11 +280,17 @@ func trimContext(s *State, maxTokens int) int {
 	}
 	trimmedTokens := max(trimmedChars/4, 1)
 
-	// Build new messages: summary placeholder + last keepLast messages.
-	newMsgs := make([]provider.Message, 1, keepLast+1)
+	var noteContent string
+	if summary, ok := SummarizeMessages(ctx, prov, model, dropped); ok {
+		noteContent = fmt.Sprintf("[Tóm tắt %d tin nhắn cũ hơn]: %s", dropCount, summary)
+	} else {
+		noteContent = fmt.Sprintf("[%d tin nhắn cũ hơn đã bị lược bỏ do vượt giới hạn ngữ cảnh — không tóm tắt được]", dropCount)
+	}
+
+	newMsgs := make([]provider.Message, 1, len(s.Messages)-dropCount+1)
 	newMsgs[0] = provider.Message{
 		Role:    provider.RoleUser,
-		Content: "[...các tin nhắn cũ hơn đã được tóm tắt...]",
+		Content: noteContent,
 	}
 	newMsgs = append(newMsgs, s.Messages[dropCount:]...)
 	s.Messages = newMsgs

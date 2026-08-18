@@ -12,20 +12,23 @@ import (
 
 // fakeEngine là engine tối thiểu chỉ để test node model (có provider + registry).
 type fakeEngine struct {
-	ownerTenants    []string
-	prov            provider.Provider
-	registry        *tools.Registry
-	maxOutputTokens int
+	ownerTenants     []string
+	prov             provider.Provider
+	registry         *tools.Registry
+	maxOutputTokens  int
+	maxContextTokens int
+	fastModel        string
 }
 
 func (e *fakeEngine) getProvider() provider.Provider            { return e.prov }
 func (e *fakeEngine) getRegistry() *tools.Registry              { return e.registry }
 func (e *fakeEngine) getSystemPrompt() string                   { return "" }
-func (e *fakeEngine) getMaxContextTokens() int                  { return 0 }
+func (e *fakeEngine) getMaxContextTokens() int                  { return e.maxContextTokens }
 func (e *fakeEngine) getMaxOutputTokens() int                   { return e.maxOutputTokens }
 func (e *fakeEngine) getOwnerTenants() []string                 { return e.ownerTenants }
 func (e *fakeEngine) getDynamicThinking() DynamicThinkingConfig { return DynamicThinkingConfig{} }
 func (e *fakeEngine) getSkillLoader() *skills.Loader            { return nil }
+func (e *fakeEngine) getFastModel() string                      { return e.fastModel }
 
 func TestNodeModel_TextOnly(t *testing.T) {
 	// Kịch bản đơn giản nhất: LLM trả về text, không tool call.

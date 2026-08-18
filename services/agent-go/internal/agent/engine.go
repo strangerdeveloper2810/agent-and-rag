@@ -81,6 +81,12 @@ type Engine struct {
 	// ownerTenantIDs: tenant được dùng nhóm tool đặc quyền. Rỗng = chỉ tenant
 	// "default" (local, không auth) — xem tools.IsOwnerTenant.
 	ownerTenantIDs []string
+
+	// fastModel là model rẻ/nhanh dùng cho các tác vụ phụ trợ tốn thêm 1 LLM
+	// call (nén ngữ cảnh trong trimContext, reflection, HyDE, rerank) — KHÔNG
+	// phải model chat chính. Rỗng → trimContext không gọi LLM, chỉ dùng
+	// fallback trung thực (lược bỏ, không tóm tắt).
+	fastModel string
 }
 
 // SetMaxOutputTokens đặt trần output token cho mỗi lần gọi LLM. n <= 0 = không giới hạn.
@@ -130,6 +136,14 @@ func (e *Engine) SetDynamicThinking(cfg DynamicThinkingConfig) {
 func (e *Engine) getDynamicThinking() DynamicThinkingConfig {
 	return e.dynamicThinking
 }
+
+// SetFastModel đặt model rẻ/nhanh dùng cho các tác vụ phụ trợ (nén ngữ cảnh
+// trong trimContext) — xem fastModel.
+func (e *Engine) SetFastModel(model string) {
+	e.fastModel = model
+}
+
+func (e *Engine) getFastModel() string { return e.fastModel }
 
 // NewEngine tạo Engine với provider và tool registry cho trước.
 func NewEngine(prov provider.Provider, registry *tools.Registry) *Engine {

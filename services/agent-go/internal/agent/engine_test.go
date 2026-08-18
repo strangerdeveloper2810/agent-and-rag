@@ -96,6 +96,11 @@ func TestEngine_Setters(t *testing.T) {
 		t.Errorf("getMaxTotalToolOutput = %d, want 99999", e.getMaxTotalToolOutput())
 	}
 
+	e.SetFastModel("deepseek-v4-flash")
+	if e.getFastModel() != "deepseek-v4-flash" {
+		t.Errorf("getFastModel = %q, want deepseek-v4-flash", e.getFastModel())
+	}
+
 	e.SetAllowDestructiveTools(true)
 	if !e.getAllowDestructiveTools() {
 		t.Error("SetAllowDestructiveTools(true) không gán")
