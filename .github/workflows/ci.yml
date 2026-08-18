@@ -144,11 +144,11 @@ jobs:
     steps:
       - name: Kiểm tra kết quả các job
         run: |
-          echo "detect=${{ needs.detect.result }} backend=${{ needs.backend.result }} frontend=${{ needs.frontend.result }} agent-go=${{ needs.agent-go.result }}"
+          echo "detect=${{ needs.detect.result }} backend=${{ needs.backend.result }} frontend=${{ needs.frontend.result }} agent-go=${{ needs['agent-go'].result }}"
           if [ "${{ needs.detect.result }}" = "failure" ] || \
              [ "${{ needs.backend.result }}" = "failure" ] || \
              [ "${{ needs.frontend.result }}" = "failure" ] || \
-             [ "${{ needs.agent-go.result }}" = "failure" ]; then
+             [ "${{ needs['agent-go'].result }}" = "failure" ]; then
             echo "Có job CI thất bại"; exit 1
           fi
           echo "CI OK (job không liên quan đã được skip)"

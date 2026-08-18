@@ -35,7 +35,10 @@ export const VerifyEmailPage: React.FC = () => {
   const email = searchParams.get("email") ?? "";
   const { verifyEmail, resendOtp, isLoading } = useAuthStore();
   const toast = useToast();
-  useDocumentTitle("Xác minh Email", "Nhập mã OTP 6 số để kích hoạt tài khoản J.A.R.V.I.S.");
+  useDocumentTitle(
+    "Xác minh Email",
+    "Nhập mã OTP 6 số để kích hoạt tài khoản J.A.R.V.I.S.",
+  );
 
   const [cooldown, setCooldown] = useState(COOLDOWN_SECONDS);
   const [resending, setResending] = useState(false);
@@ -59,7 +62,10 @@ export const VerifyEmailPage: React.FC = () => {
 
   useEffect(() => {
     if (cooldown <= 0) return;
-    const timer = setInterval(() => setCooldown((s) => Math.max(0, s - 1)), 1000);
+    const timer = setInterval(
+      () => setCooldown((s) => Math.max(0, s - 1)),
+      1000,
+    );
     return () => clearInterval(timer);
   }, [cooldown]);
 

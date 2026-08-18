@@ -1,0 +1,80 @@
+name: CD Auto Deployment
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    branches: [master]
+    types:
+      - completed
+  workflow_dispatch:
+
+concurrency:
+  group: cd-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to Production VPS
+    # Chỉ deploy khi CI workflow trên branch master chạy thành công 100% (hoặc bấm manual dispatch)
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure SSH Key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_PORT: ${{ secrets.VPS_PORT || '22' }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "${VPS_PORT:-22}" -H "$VPS_HOST" >> ~/.ssh/known_hosts
+
+      - name: Sync source code to VPS (Rsync)
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER || 'root' }}
+          VPS_PORT: ${{ secrets.VPS_PORT || '22' }}
+        run: |
+          rsync -avz --delete \
+            -e "ssh -i ~/.ssh/deploy_key -p $VPS_PORT" \
+            --exclude '.git' \
+            --exclude 'node_modules' \
+            --exclude '.turbo' \
+            --exclude 'dist' \
+            --exclude 'coverage' \
+            --exclude 'env/.env*' \
+            --exclude '.claude' \
+            ./ "$VPS_USER@$VPS_HOST:/opt/jarvis/"
+
+      - name: Build & Restart Docker Services
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER || 'root' }}
+          VPS_PORT: ${{ secrets.VPS_PORT || '22' }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" "
+            cd /opt/jarvis && \
+            WEB_HOST_PORT=8090 docker compose -f docker/deployment/docker-compose.yml up -d --build && \
+            docker image prune -f
+          "
+
+      - name: Verify Live Service Health
+        run: |
+          echo "Kiểm tra endpoint production sau khi deploy..."
+          sleep 5
+          for i in {1..6}; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://ai.ethansoftwaredeveloper.com/api/healthz || true)
+            if [ "$STATUS" = "200" ]; then
+              echo "✅ Healthcheck passed: HTTP 200 OK"
+              exit 0
+            fi
+            echo "Thử lại lần $i (Status: $STATUS)... đợi 5s"
+            sleep 5
+          done
+          echo "❌ Lỗi: Service không phản hồi 200 OK sau deploy"
+          exit 1

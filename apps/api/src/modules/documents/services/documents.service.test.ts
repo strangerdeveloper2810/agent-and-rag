@@ -54,9 +54,9 @@ describe("buildChunkDocs", () => {
   });
 
   it("trả mảng rỗng khi không có chunk", () => {
-    expect(buildChunkDocs("tenant-1", "doc-1", "x.txt", 1, [], [], now)).toEqual(
-      [],
-    );
+    expect(
+      buildChunkDocs("tenant-1", "doc-1", "x.txt", 1, [], [], now),
+    ).toEqual([]);
   });
 });
 

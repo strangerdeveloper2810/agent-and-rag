@@ -15,7 +15,10 @@ describe("chunkText", () => {
   });
 
   it("thêm breadcrumb [source] khi có source nhưng không có heading (vd PDF/resume)", async () => {
-    const chunks = await chunkText("nội dung không có heading nào cả", "resume.pdf");
+    const chunks = await chunkText(
+      "nội dung không có heading nào cả",
+      "resume.pdf",
+    );
     expect(chunks).toEqual(["[resume.pdf]\nnội dung không có heading nào cả"]);
   });
 
@@ -34,7 +37,9 @@ describe("chunkText", () => {
     const chunks = await chunkText(text, "postgresql.md");
 
     expect(chunks).toHaveLength(3);
-    expect(chunks[0]).toBe("[postgresql.md › Indexing]\nGiới thiệu chung về indexing.");
+    expect(chunks[0]).toBe(
+      "[postgresql.md › Indexing]\nGiới thiệu chung về indexing.",
+    );
     expect(chunks[1]).toBe(
       "[postgresql.md › Indexing › B-tree Index]\nNội dung về B-tree.",
     );
@@ -63,9 +68,12 @@ describe("chunkText", () => {
   });
 
   it("văn bản trước heading đầu tiên có breadcrumb chỉ gồm source (chưa vào section nào)", async () => {
-    const text = ["Đoạn mở đầu không thuộc heading nào.", "", "# Phần 1", "Nội dung phần 1."].join(
-      "\n",
-    );
+    const text = [
+      "Đoạn mở đầu không thuộc heading nào.",
+      "",
+      "# Phần 1",
+      "Nội dung phần 1.",
+    ].join("\n");
 
     const chunks = await chunkText(text, "doc.md");
 
@@ -107,14 +115,20 @@ describe("chunkText", () => {
         "```",
       ].join("\n"),
     );
-    expect(chunks[1]).toBe("[guide.md › Cài đặt › Bước tiếp theo]\nXong phần cài đặt.");
+    expect(chunks[1]).toBe(
+      "[guide.md › Cài đặt › Bước tiếp theo]\nXong phần cài đặt.",
+    );
   });
 
   it("code fence dùng ~~~ cũng được nhận diện như ```", async () => {
-    const text = ["# Tiêu đề", "~~~python", "# python comment", "~~~"].join("\n");
+    const text = ["# Tiêu đề", "~~~python", "# python comment", "~~~"].join(
+      "\n",
+    );
     const chunks = await chunkText(text, "doc.md");
     expect(chunks).toHaveLength(1);
-    expect(chunks[0]).toBe("[doc.md › Tiêu đề]\n~~~python\n# python comment\n~~~");
+    expect(chunks[0]).toBe(
+      "[doc.md › Tiêu đề]\n~~~python\n# python comment\n~~~",
+    );
   });
 
   it("chunk dài trong 1 section vẫn được cắt tiếp bởi splitter, mỗi mảnh đều có breadcrumb", async () => {

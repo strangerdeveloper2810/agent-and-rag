@@ -177,7 +177,10 @@ export const ChatPage: React.FC = () => {
   const streamCtrlRef = useRef<AbortController | null>(null);
   const userScrolledUpRef = useRef(false);
   const toast = useToast();
-  useDocumentTitle("Trò chuyện AI", "Trò chuyện và giao việc trực tiếp cho trợ lý AI thông minh J.A.R.V.I.S.");
+  useDocumentTitle(
+    "Trò chuyện AI",
+    "Trò chuyện và giao việc trực tiếp cho trợ lý AI thông minh J.A.R.V.I.S.",
+  );
 
   const streamingRef = useRef(false);
   streamingRef.current = streaming;
@@ -262,10 +265,7 @@ export const ChatPage: React.FC = () => {
             const tools = [...prev.toolCalls];
             let idx = -1;
             for (let i = tools.length - 1; i >= 0; i--) {
-              if (
-                tools[i].name === e.name &&
-                tools[i].status === "running"
-              ) {
+              if (tools[i].name === e.name && tools[i].status === "running") {
                 idx = i;
                 break;
               }
@@ -283,9 +283,7 @@ export const ChatPage: React.FC = () => {
           break;
         case "citation":
           try {
-            const citations: CitationData[] = e.text
-              ? JSON.parse(e.text)
-              : [];
+            const citations: CitationData[] = e.text ? JSON.parse(e.text) : [];
             updateMeta(assistantIndex, (prev) => ({
               ...prev,
               citations,
@@ -547,7 +545,7 @@ export const ChatPage: React.FC = () => {
         send(userText);
       }
     },
-    [messages, streaming],
+    [messages, streaming, send],
   );
 
   const handleRetryUser = useCallback(
@@ -555,7 +553,7 @@ export const ChatPage: React.FC = () => {
       if (streaming) return;
       send(userContent);
     },
-    [streaming],
+    [streaming, send],
   );
 
   const handleContinue = useCallback(() => {

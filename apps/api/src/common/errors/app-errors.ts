@@ -64,7 +64,11 @@ export class ConflictError extends AppError {
  */
 export class EmailNotVerifiedError extends AppError {
   constructor(public readonly email: string) {
-    super("Email chưa được xác minh. Vui lòng kiểm tra hộp thư.", 403, "EMAIL_NOT_VERIFIED");
+    super(
+      "Email chưa được xác minh. Vui lòng kiểm tra hộp thư.",
+      403,
+      "EMAIL_NOT_VERIFIED",
+    );
     this.name = "EmailNotVerifiedError";
   }
 }

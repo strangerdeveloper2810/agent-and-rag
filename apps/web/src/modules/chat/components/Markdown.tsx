@@ -248,7 +248,9 @@ function normalizeMarkdown(text: string): string {
  */
 function fixAllTablesInMarkdown(text: string): string {
   // Normalize unicode dashes (— / –) to ASCII hyphen
-  const s = text.replace(/\|[\s]*[—–][-—–]*[\s]*/g, (m) => m.replace(/[—–]/g, "-"));
+  const s = text.replace(/\|[\s]*[—–][-—–]*[\s]*/g, (m) =>
+    m.replace(/[—–]/g, "-"),
+  );
 
   const lines = s.split("\n");
   const result: string[] = [];
@@ -308,7 +310,8 @@ function fixAllTablesInMarkdown(text: string): string {
 function formatSingleTableBlock(tableBlock: string): string | null {
   const firstPipe = tableBlock.indexOf("|");
   const lastPipe = tableBlock.lastIndexOf("|");
-  if (firstPipe === -1 || lastPipe === -1 || firstPipe === lastPipe) return null;
+  if (firstPipe === -1 || lastPipe === -1 || firstPipe === lastPipe)
+    return null;
 
   const preText = tableBlock.slice(0, firstPipe).trim();
   const postText = tableBlock.slice(lastPipe + 1).trim();
@@ -338,7 +341,7 @@ function formatSingleTableBlock(tableBlock: string): string | null {
   const numSepCols = sepEndIdx - firstSepIdx;
 
   // Header tokens are everything before the first separator
-  let headerTokens = rawTokens.slice(0, firstSepIdx);
+  const headerTokens = rawTokens.slice(0, firstSepIdx);
 
   // If separator has more columns than headers (e.g. empty first corner cell `| | Col1 | Col2 |`),
   // pad headers at the beginning so column count matches separator!

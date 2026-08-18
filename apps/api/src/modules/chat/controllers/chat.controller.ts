@@ -62,8 +62,7 @@ export const postChat = async (req: FastifyRequest, reply: FastifyReply) => {
 
   try {
     const tenantId = (req as unknown as Record<string, unknown>).tenantId as
-      | string
-      | undefined;
+      string | undefined;
     const { events, metadata } = await chatService.streamReply(
       id,
       ac.signal,
@@ -122,8 +121,7 @@ export const postContinue = async (
 ) => {
   const { id } = req.params as { id: string };
   const tenantId = (req as unknown as Record<string, unknown>).tenantId as
-    | string
-    | undefined;
+    string | undefined;
 
   const ac = new AbortController();
 

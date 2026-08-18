@@ -1,5 +1,10 @@
 import crypto from "crypto";
-import { cacheSet, cacheGet, cacheDel, cacheKey } from "../../database/redis/redis.module";
+import {
+  cacheSet,
+  cacheGet,
+  cacheDel,
+  cacheKey,
+} from "../../database/redis/redis.module";
 
 const OTP_TTL_SECONDS = 10 * 60; // 10 phút
 const COOLDOWN_SECONDS = 2 * 60; // 2 phút
@@ -40,7 +45,9 @@ export class OtpService {
     await cacheSet(otpKey(email), record, OTP_TTL_SECONDS);
     await cacheSet(
       cooldownKey(email),
-      { availableAt: Date.now() + COOLDOWN_SECONDS * 1000 } satisfies CooldownRecord,
+      {
+        availableAt: Date.now() + COOLDOWN_SECONDS * 1000,
+      } satisfies CooldownRecord,
       COOLDOWN_SECONDS + 10, // TTL dư 10s so với cooldown thật, tránh lệch giờ giữa client/server
     );
     return otp;

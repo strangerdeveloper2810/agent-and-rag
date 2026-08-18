@@ -63,7 +63,10 @@ export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const { login, isLoading } = useAuthStore();
   const toast = useToast();
-  useDocumentTitle("Đăng nhập", "Đăng nhập vào nền tảng J.A.R.V.I.S. để tương tác với trợ lý AI thông minh.");
+  useDocumentTitle(
+    "Đăng nhập",
+    "Đăng nhập vào nền tảng J.A.R.V.I.S. để tương tác với trợ lý AI thông minh.",
+  );
 
   const [showPassword, setShowPassword] = useState(false);
   const [activeFeature, setActiveFeature] = useState(0);

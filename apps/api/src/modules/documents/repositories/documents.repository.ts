@@ -145,7 +145,10 @@ export function createDocumentRepository(
    * Lưu bản hiện tại vào kho lịch sử rồi xóa khỏi `documents`.
    * Trả về số version vừa archive (để caller biết version kế tiếp), null nếu chưa có.
    */
-  const archiveCurrentVersion = async (tenantId: string, documentId: string) => {
+  const archiveCurrentVersion = async (
+    tenantId: string,
+    documentId: string,
+  ) => {
     const current = await getCurrentVersion(tenantId, documentId);
     if (!current) return null;
     await versions().insertOne({
@@ -205,7 +208,11 @@ export function createDocumentRepository(
         isLatest: true,
       };
     }
-    const archived = await versions().findOne({ documentId, version, tenantId });
+    const archived = await versions().findOne({
+      documentId,
+      version,
+      tenantId,
+    });
     if (!archived) return { found: false };
     return {
       found: true,

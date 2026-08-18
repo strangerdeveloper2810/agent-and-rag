@@ -17,7 +17,10 @@ const DEFAULT_TITLE = `${APP_NAME} — Trợ Lý AI Thông Minh & Đa Tác Nhân
  * Nếu `title` là undefined/empty → reset về DEFAULT_TITLE.
  * Tự động cập nhật thẻ meta description nếu có.
  */
-export const useDocumentTitle = (title?: string, description?: string): void => {
+export const useDocumentTitle = (
+  title?: string,
+  description?: string,
+): void => {
   useEffect(() => {
     const prev = document.title;
     document.title = title ? `${title} — ${APP_NAME}` : DEFAULT_TITLE;

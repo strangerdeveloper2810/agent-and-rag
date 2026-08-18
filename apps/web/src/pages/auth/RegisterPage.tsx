@@ -45,7 +45,10 @@ export const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
   const { register: registerUser, isLoading } = useAuthStore();
   const toast = useToast();
-  useDocumentTitle("Đăng ký tài khoản", "Tạo tài khoản J.A.R.V.I.S. AI Agent miễn phí.");
+  useDocumentTitle(
+    "Đăng ký tài khoản",
+    "Tạo tài khoản J.A.R.V.I.S. AI Agent miễn phí.",
+  );
 
   const [showPassword, setShowPassword] = useState(false);
 

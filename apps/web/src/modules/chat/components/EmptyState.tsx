@@ -138,9 +138,10 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ onPick }) => {
 
   // Chọn ngẫu nhiên 2 câu hỏi từ pool của danh mục đang chọn mỗi khi chuyển tab hoặc bấm làm mới
   const currentPrompts = useMemo(() => {
+    void refreshSeed;
     const currentCategory = PROMPT_DATABASE[activeTab] ?? PROMPT_DATABASE[0];
     const pool = [...currentCategory.pool];
-    
+
     // Thuật toán xáo trộn Fisher-Yates dựa theo refreshSeed
     for (let i = pool.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));

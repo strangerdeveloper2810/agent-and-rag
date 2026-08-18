@@ -117,8 +117,7 @@ describe("goAgentClient.stream — map SSE của Go sang AgentEvent", () => {
 
     const events = await drain(goAgentClient.stream(history));
     const done = events.find((e) => e.type === "done") as
-      | { contextTokens?: number; contextBudget?: number }
-      | undefined;
+      { contextTokens?: number; contextBudget?: number } | undefined;
 
     expect(done?.contextTokens).toBe(82000);
     expect(done?.contextBudget).toBe(100000);

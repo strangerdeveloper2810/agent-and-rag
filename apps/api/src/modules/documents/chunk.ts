@@ -80,7 +80,10 @@ function splitByHeadings(text: string): Section[] {
  * có truyền `source`), không có source thì không thêm prefix gì (giữ nguyên
  * hành vi cũ).
  */
-export async function chunkText(text: string, source?: string): Promise<string[]> {
+export async function chunkText(
+  text: string,
+  source?: string,
+): Promise<string[]> {
   const sections = splitByHeadings(text);
   const chunks: string[] = [];
 
@@ -88,7 +91,8 @@ export async function chunkText(text: string, source?: string): Promise<string[]
     const breadcrumbParts = [source, ...section.breadcrumb].filter(
       (p): p is string => Boolean(p),
     );
-    const prefix = breadcrumbParts.length > 0 ? `[${breadcrumbParts.join(" › ")}]\n` : "";
+    const prefix =
+      breadcrumbParts.length > 0 ? `[${breadcrumbParts.join(" › ")}]\n` : "";
 
     const subChunks = await splitter.splitText(section.text);
     for (const sub of subChunks) {

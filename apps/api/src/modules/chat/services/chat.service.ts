@@ -200,7 +200,13 @@ export async function streamReply(
         yield ev;
       }
     } finally {
-      metadataResolve({ backend, tokensUsed, truncated, contextTokens, contextBudget });
+      metadataResolve({
+        backend,
+        tokensUsed,
+        truncated,
+        contextTokens,
+        contextBudget,
+      });
 
       if (full.trim().length > 0) {
         await addMessage(conversationId, "assistant", full);
