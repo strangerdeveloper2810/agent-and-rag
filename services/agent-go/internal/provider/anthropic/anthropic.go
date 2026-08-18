@@ -41,6 +41,9 @@ func New(apiKey, model string) (*Client, error) {
 // Name trả về định danh provider.
 func (c *Client) Name() string { return "anthropic" }
 
+// Model trả model được cấu hình — để tầng fallback log đúng model nào lỗi.
+func (c *Client) Model() string { return c.model }
+
 // defaultMaxTokens dùng khi Options.MaxTokens <= 0.
 const defaultMaxTokens = 4096
 

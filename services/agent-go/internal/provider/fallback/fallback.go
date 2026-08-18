@@ -127,7 +127,7 @@ func (p *Provider) Generate(ctx context.Context, req provider.GenerateRequest) (
 		if i > 0 {
 			slog.Info("fallback: provider phục vụ sau khi bỏ qua provider trước",
 				"provider", np.name,
-				"model", modelOf(scoped, np.name),
+				"model", modelOf(scoped, np),
 				"chain_index", i,
 				"skipped", i,
 			)
@@ -150,7 +150,7 @@ func (p *Provider) Generate(ctx context.Context, req provider.GenerateRequest) (
 func (p *Provider) logFailure(np *namedProvider, req provider.GenerateRequest, idx int, err error, phase string) {
 	slog.Warn("fallback: provider lỗi, thử provider kế tiếp",
 		"provider", np.name,
-		"model", modelOf(req, np.name),
+		"model", modelOf(req, np),
 		"chain_index", idx,
 		"phase", phase, // "generate" = lỗi ngay khi gọi; "stream" = lỗi ở chunk đầu
 		"consecutive_failures", np.failures.Load(),
@@ -159,15 +159,28 @@ func (p *Provider) logFailure(np *namedProvider, req provider.GenerateRequest, i
 	)
 }
 
-// modelOf trả tên model THẬT SỰ được yêu cầu cho lượt gọi này. Options.Model rỗng
-// nghĩa là provider dùng model mặc định của chính nó (xem scopeModel) — lúc đó tên
-// cụ thể nằm bên trong client, nên ghi rõ là "default" để đọc log không nhầm là
-// thiếu dữ liệu.
-func modelOf(req provider.GenerateRequest, providerName string) string {
+// modelNamer là interface TUỲ CHỌN cho provider tự khai tên model nó đang dùng.
+//
+// Cần vì chuỗi fallback có tới 8 client cùng tên "gemini", mỗi client cấu hình một
+// model khác nhau. Nếu chỉ log tên provider thì dòng log "gemini lỗi 429" không
+// cho biết model NÀO hết quota — mà đó chính là thông tin để sửa cấu hình.
+// Provider không implement thì log rơi về "<provider>:default", không vỡ gì.
+type modelNamer interface {
+	Model() string
+}
+
+// modelOf trả tên model THẬT SỰ dùng cho lượt gọi này, theo thứ tự ưu tiên:
+// override trong request → model mặc định do provider tự khai → không biết.
+func modelOf(req provider.GenerateRequest, np *namedProvider) string {
 	if req.Options.Model != "" {
 		return req.Options.Model
 	}
-	return providerName + ":default"
+	if mn, ok := np.prov.(modelNamer); ok {
+		if m := mn.Model(); m != "" {
+			return m
+		}
+	}
+	return np.name + ":default"
 }
 
 // modelFamily suy ra provider nào sở hữu một tên model. Trả "" khi không nhận ra

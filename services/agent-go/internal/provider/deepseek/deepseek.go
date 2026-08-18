@@ -54,6 +54,9 @@ func New(apiKey, flashModel, proModel string) (*Client, error) {
 
 func (c *Client) Name() string { return "deepseek" }
 
+// Model trả về model mặc định được cấu hình.
+func (c *Client) Model() string { return c.flashModel }
+
 // pickModel routes to flash or pro based on request complexity and reasoning config.
 func (c *Client) pickModel(req provider.GenerateRequest) string {
 	if req.Options.Model != "" {

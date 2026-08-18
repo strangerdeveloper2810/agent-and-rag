@@ -32,6 +32,9 @@ func New(baseURL, model string) (*Client, error) {
 
 func (c *Client) Name() string { return "ollama" }
 
+// Model trả model được cấu hình — để tầng fallback log đúng model nào lỗi.
+func (c *Client) Model() string { return c.model }
+
 // Generate calls Ollama /api/chat with streaming, maps to StreamChunk channel.
 func (c *Client) Generate(ctx context.Context, req provider.GenerateRequest) (<-chan provider.StreamChunk, error) {
 	body := ollamaChatRequest{
