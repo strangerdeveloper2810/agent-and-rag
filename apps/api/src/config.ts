@@ -29,8 +29,10 @@ const envSchema = z
     ANTHROPIC_API_KEY: z.string().min(1, "ANTHROPIC_API_KEY is required"),
     CLAUDE_MODEL: z.string().default("claude-haiku-4-5-20251001"),
 
-    // ----- AI Provider: Google (optional) -----
-    LLM_PROVIDER: z.enum(["anthropic", "google"]).default("anthropic"),
+    // ----- AI Provider: Google / Anthropic / DeepSeek / Auto -----
+    LLM_PROVIDER: z
+      .enum(["anthropic", "google", "deepseek", "auto"])
+      .default("anthropic"),
     GOOGLE_API_KEY: z.string().optional(),
     GOOGLE_MODEL: z.string().default("gemini-3.1-flash-lite"),
     // Mức "thinking" của Gemini 3.x: OFF | LOW | MEDIUM | HIGH.
