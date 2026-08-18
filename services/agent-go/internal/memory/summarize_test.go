@@ -23,7 +23,7 @@ func TestSummarizeNode_AtThresholdNoChange(t *testing.T) {
 	s := &agent.State{Messages: msgs}
 	emit, events := collectEmit()
 
-	next, err := SummarizeNode()(context.Background(), s, emit)
+	next, err := SummarizeNode(nil, "")(context.Background(), s, emit)
 
 	if err != nil || next != agent.NodeModel {
 		t.Fatalf("next/err = (%q, %v), want (NodeModel, nil)", next, err)
@@ -36,24 +36,31 @@ func TestSummarizeNode_AtThresholdNoChange(t *testing.T) {
 	}
 }
 
-func TestSummarizeNode_OneMessageOver(t *testing.T) {
+// Không có provider (nil) → agent.SummarizeMessages luôn thất bại → note
+// PHẢI nói THẬT là đã lược bỏ, không giả vờ đã tóm tắt như bản cũ.
+func TestSummarizeNode_OneMessageOver_HonestFallbackWhenNoProvider(t *testing.T) {
 	s := &agent.State{Messages: fillMessages(summarizeThreshold + 1)}
 	emit, events := collectEmit()
 
-	next, err := SummarizeNode()(context.Background(), s, emit)
+	next, err := SummarizeNode(nil, "")(context.Background(), s, emit)
 
 	if err != nil || next != agent.NodeModel {
 		t.Fatalf("next/err = (%q, %v), want (NodeModel, nil)", next, err)
 	}
-	// 1 system note + 15 tin cuối.
+	// 1 note + 15 tin cuối.
 	if len(s.Messages) != summarizeThreshold+1 {
 		t.Fatalf("len(Messages) = %d, want %d", len(s.Messages), summarizeThreshold+1)
 	}
-	if s.Messages[0].Role != provider.RoleSystem {
-		t.Fatalf("Messages[0].Role = %q, want system", s.Messages[0].Role)
+	// role=user (không phải RoleSystem) — Anthropic adapter bỏ qua hoàn toàn
+	// mọi message role=system nằm trong Messages, sẽ làm mất nội dung âm thầm.
+	if s.Messages[0].Role != provider.RoleUser {
+		t.Fatalf("Messages[0].Role = %q, want user", s.Messages[0].Role)
 	}
 	if !strings.Contains(s.Messages[0].Content, "1 tin nhắn") {
 		t.Fatalf("Messages[0].Content = %q, want chứa số lượng rút gọn", s.Messages[0].Content)
+	}
+	if !strings.Contains(s.Messages[0].Content, "không tóm tắt được") {
+		t.Fatalf("Messages[0].Content = %q, want fallback trung thực", s.Messages[0].Content)
 	}
 	if s.Messages[1].Content != "msg-1" {
 		t.Fatalf("Messages[1].Content = %q, want msg-1 (giữ 15 tin cuối)", s.Messages[1].Content)
@@ -63,12 +70,36 @@ func TestSummarizeNode_OneMessageOver(t *testing.T) {
 	}
 }
 
+// Có provider trả tóm tắt thật → note PHẢI chứa đúng nội dung đó, không phải
+// placeholder lược bỏ.
+func TestSummarizeNode_OneMessageOver_RealSummaryOnSuccess(t *testing.T) {
+	fake := provider.NewFake(
+		provider.StreamChunk{Kind: provider.ChunkText, Text: "Người dùng đã hỏi 1 câu trước đó."},
+		provider.StreamChunk{Kind: provider.ChunkDone},
+	)
+	s := &agent.State{Messages: fillMessages(summarizeThreshold + 1)}
+	emit, events := collectEmit()
+
+	next, err := SummarizeNode(fake, "fast-model")(context.Background(), s, emit)
+
+	if err != nil || next != agent.NodeModel {
+		t.Fatalf("next/err = (%q, %v), want (NodeModel, nil)", next, err)
+	}
+	if !strings.Contains(s.Messages[0].Content, "Người dùng đã hỏi 1 câu trước đó.") {
+		t.Fatalf("Messages[0].Content = %q, want chứa tóm tắt thật", s.Messages[0].Content)
+	}
+	if strings.Contains(s.Messages[0].Content, "không tóm tắt được") {
+		t.Fatalf("Messages[0].Content = %q, không được lẫn fallback khi đã tóm tắt thành công", s.Messages[0].Content)
+	}
+	_ = events
+}
+
 func TestSummarizeNode_ManyExcess(t *testing.T) {
 	total := summarizeThreshold + 15
 	s := &agent.State{Messages: fillMessages(total)}
 	emit, events := collectEmit()
 
-	_, err := SummarizeNode()(context.Background(), s, emit)
+	_, err := SummarizeNode(nil, "")(context.Background(), s, emit)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}

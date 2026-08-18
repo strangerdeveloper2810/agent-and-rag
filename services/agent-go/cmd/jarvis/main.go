@@ -286,19 +286,21 @@ func setup() (config.Config, provider.Provider, *orchestrator.Orchestrator) {
 	// General agent.
 	generalEngine := agent.NewEngine(prov, registry)
 	generalEngine.SetSkillLoader(skillLoader)
+	generalEngine.SetFastModel(fastModel(cfg))
 	generalEngine.SetMemoryNodes(
 		memory.RecallNode(store),
 		memory.ExtractNode(store),
-		memory.SummarizeNode(),
+		memory.SummarizeNode(prov, fastModel(cfg)),
 	)
 
 	// Code agent.
 	codeEngine := agent.NewEngine(prov, registry)
 	codeEngine.SetSkillLoader(skillLoader)
+	codeEngine.SetFastModel(fastModel(cfg))
 	codeEngine.SetMemoryNodes(
 		memory.RecallNode(store),
 		memory.ExtractNode(store),
-		memory.SummarizeNode(),
+		memory.SummarizeNode(prov, fastModel(cfg)),
 	)
 
 	orch := orchestrator.New()
@@ -323,4 +325,15 @@ func setup() (config.Config, provider.Provider, *orchestrator.Orchestrator) {
 	}
 
 	return cfg, prov, orch
+}
+
+// fastModel chọn model rẻ/nhanh cho các tác vụ phụ trợ tốn thêm 1 LLM call
+// (nén ngữ cảnh trong trimContext/SummarizeNode) — KHÔNG dùng model chính cho
+// hội thoại để tránh đội chi phí. Ưu tiên DeepSeek flash (rẻ nhất) nếu có
+// key, rơi về Gemini model chính nếu không.
+func fastModel(cfg config.Config) string {
+	if cfg.DeepSeekFlashModel != "" && cfg.DeepSeekKey != "" {
+		return cfg.DeepSeekFlashModel
+	}
+	return cfg.GeminiModel
 }

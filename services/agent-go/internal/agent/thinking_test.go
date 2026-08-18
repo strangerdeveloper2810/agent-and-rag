@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -221,10 +222,10 @@ func TestEstimateTokens(t *testing.T) {
 func TestTrimContext_NoTrimNeeded(t *testing.T) {
 	s := &State{Messages: []provider.Message{{Role: provider.RoleUser, Content: "hi"}}}
 
-	if got := trimContext(s, 0); got != 0 {
+	if got := trimContext(context.Background(), nil, "", s, 0); got != 0 {
 		t.Errorf("maxTokens=0 (không giới hạn) = %d, want 0", got)
 	}
-	if got := trimContext(s, 100000); got != 0 {
+	if got := trimContext(context.Background(), nil, "", s, 100000); got != 0 {
 		t.Errorf("ít message = %d, want 0", got)
 	}
 	if len(s.Messages) != 1 {
@@ -232,23 +233,76 @@ func TestTrimContext_NoTrimNeeded(t *testing.T) {
 	}
 }
 
-func TestTrimContext_DropsOldMessages(t *testing.T) {
+// Nhiều hơn keepLast message (vượt check đầu) nhưng nội dung NGẮN nên
+// estimateTokens vẫn <= maxTokens → không cần trim, không được gọi LLM.
+func TestTrimContext_ManyShortMessagesUnderBudget(t *testing.T) {
+	msgs := make([]provider.Message, keepLast+5)
+	for i := range msgs {
+		msgs[i] = provider.Message{Role: provider.RoleUser, Content: "hi"}
+	}
+	s := &State{Messages: msgs}
+
+	if got := trimContext(context.Background(), nil, "", s, 100000); got != 0 {
+		t.Errorf("got %d, want 0 (dưới budget, không cần trim)", got)
+	}
+	if len(s.Messages) != keepLast+5 {
+		t.Errorf("Messages bị đổi dù không cần trim: %d", len(s.Messages))
+	}
+}
+
+// Không có provider (nil) → SummarizeMessages luôn thất bại → trimContext
+// PHẢI rơi vào fallback TRUNG THỰC (nói rõ đã lược bỏ, không tóm tắt được),
+// khác với hành vi cũ luôn chèn placeholder giả vờ "đã được tóm tắt".
+func TestTrimContext_DropsOldMessages_HonestFallbackWhenNoProvider(t *testing.T) {
 	msgs := make([]provider.Message, 30)
 	for i := range msgs {
 		msgs[i] = provider.Message{Role: provider.RoleUser, Content: strings.Repeat("x", 400)}
 	}
 	s := &State{Messages: msgs}
 
-	trimmed := trimContext(s, 100)
+	trimmed := trimContext(context.Background(), nil, "", s, 100)
 	if trimmed <= 0 {
 		t.Fatalf("trimmed = %d, want > 0", trimmed)
 	}
-	// Giữ lại placeholder tóm tắt + keepLast message cuối.
+	// Giữ lại placeholder + keepLast message cuối.
 	if len(s.Messages) != keepLast+1 {
 		t.Errorf("Messages len = %d, want %d", len(s.Messages), keepLast+1)
 	}
-	if !strings.Contains(s.Messages[0].Content, "tóm tắt") {
-		t.Errorf("message đầu = %q, want placeholder tóm tắt", s.Messages[0].Content)
+	if !strings.Contains(s.Messages[0].Content, "không tóm tắt được") {
+		t.Errorf("message đầu = %q, want fallback trung thực (không tóm tắt được)", s.Messages[0].Content)
+	}
+	if !strings.Contains(s.Messages[0].Content, "lược bỏ") {
+		t.Errorf("message đầu = %q, want nói rõ đã LƯỢC BỎ (không giả vờ đã tóm tắt)", s.Messages[0].Content)
+	}
+}
+
+// Có provider trả về tóm tắt thật → trimContext PHẢI dùng đúng nội dung đó,
+// không phải placeholder giả.
+func TestTrimContext_DropsOldMessages_RealSummaryOnSuccess(t *testing.T) {
+	fake := newCapturingProvider(
+		provider.StreamChunk{Kind: provider.ChunkText, Text: "Người dùng tên Linh, đã hỏi về giá sản phẩm X."},
+		provider.StreamChunk{Kind: provider.ChunkDone},
+	)
+
+	msgs := make([]provider.Message, 30)
+	for i := range msgs {
+		msgs[i] = provider.Message{Role: provider.RoleUser, Content: strings.Repeat("x", 400)}
+	}
+	s := &State{Messages: msgs}
+
+	trimmed := trimContext(context.Background(), fake, "fast-model", s, 100)
+	if trimmed <= 0 {
+		t.Fatalf("trimmed = %d, want > 0", trimmed)
+	}
+	if !strings.Contains(s.Messages[0].Content, "Người dùng tên Linh") {
+		t.Errorf("message đầu = %q, want chứa tóm tắt thật từ provider", s.Messages[0].Content)
+	}
+	if strings.Contains(s.Messages[0].Content, "không tóm tắt được") {
+		t.Errorf("message đầu = %q, không được lẫn text fallback khi đã tóm tắt thành công", s.Messages[0].Content)
+	}
+	// Request gửi cho provider phải dùng đúng model rẻ/nhanh được truyền vào.
+	if fake.LastRequest.Options.Model != "fast-model" {
+		t.Errorf("Options.Model = %q, want fast-model", fake.LastRequest.Options.Model)
 	}
 }
 
@@ -265,7 +319,50 @@ func TestTrimContext_CountsToolCallChars(t *testing.T) {
 	}
 	s := &State{Messages: msgs}
 
-	if trimmed := trimContext(s, 10); trimmed <= 0 {
+	if trimmed := trimContext(context.Background(), nil, "", s, 10); trimmed <= 0 {
 		t.Errorf("trimmed = %d, want > 0 (phải tính cả tool call)", trimmed)
+	}
+}
+
+// Boundary giữa dropped/kept KHÔNG được rơi ngay sau 1 cặp tool_call/
+// tool_result bị chẻ đôi: nếu tin nhắn đầu tiên còn giữ lại là role=tool mồ
+// côi (tool_call sinh ra nó đã bị drop), provider sẽ từ chối request. Dựng 30
+// message dài với đúng 1 cặp tool_call(assistant)/tool_result(tool) nằm NGAY
+// tại ranh giới cắt tự nhiên (index len-keepLast) để buộc SafeDropBoundary
+// phải dịch chuyển.
+func TestTrimContext_NeverSplitsToolCallPair(t *testing.T) {
+	total := 30
+	msgs := make([]provider.Message, total)
+	for i := range msgs {
+		msgs[i] = provider.Message{Role: provider.RoleUser, Content: strings.Repeat("x", 400)}
+	}
+	naiveCut := total - keepLast
+	// Đặt cặp tool_call/tool_result NGAY tại ranh giới tự nhiên: message cuối
+	// cùng bị drop (index naiveCut-1) là assistant tool_call, message đầu tiên
+	// được giữ (index naiveCut) là tool_result tương ứng — chẻ đôi cặp này nếu
+	// không có SafeDropBoundary.
+	msgs[naiveCut-1] = provider.Message{
+		Role: provider.RoleAssistant,
+		ToolCalls: []provider.ToolCall{
+			{ID: "call-x", Name: "echo"},
+		},
+	}
+	msgs[naiveCut] = provider.Message{
+		Role:       provider.RoleTool,
+		ToolCallID: "call-x",
+		Content:    "kết quả",
+	}
+	s := &State{Messages: msgs}
+
+	if trimmed := trimContext(context.Background(), nil, "", s, 100); trimmed <= 0 {
+		t.Fatalf("trimmed = %d, want > 0", trimmed)
+	}
+
+	// Tin nhắn ĐẦU TIÊN sau placeholder không được là role=tool mồ côi.
+	if len(s.Messages) < 2 {
+		t.Fatalf("Messages quá ngắn: %d", len(s.Messages))
+	}
+	if s.Messages[1].Role == provider.RoleTool {
+		t.Errorf("Messages[1] = %+v, không được là role=tool mồ côi (chẻ cặp tool_call/tool_result)", s.Messages[1])
 	}
 }
