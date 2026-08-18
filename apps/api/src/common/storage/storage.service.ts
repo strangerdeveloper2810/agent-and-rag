@@ -54,7 +54,7 @@ const objectKey = (
 ): string => `${tenantId}/${category}/${filename}`;
 
 /** Đoán content-type từ extension. */
-const guessContentType = (filename: string): string => {
+export const guessContentType = (filename: string): string => {
   const ext = filename.split(".").pop()?.toLowerCase();
   const map: Record<string, string> = {
     png: "image/png",
@@ -118,6 +118,39 @@ export const getDownloadUrl = async (key: string): Promise<string> => {
     new GetObjectCommand({ Bucket: BUCKET, Key: key }),
     { expiresIn: URL_EXPIRY },
   );
+};
+
+/**
+ * Lấy stream của file từ MinIO để proxy stream trực tiếp về client qua API gateway.
+ */
+export const getFileStream = async (
+  key: string,
+): Promise<{
+  stream: unknown;
+  contentType: string;
+  contentLength?: number;
+} | null> => {
+  try {
+    const res = await s3().send(
+      new GetObjectCommand({ Bucket: BUCKET, Key: key }),
+    );
+    if (!res.Body) {
+      return null;
+    }
+    return {
+      stream: res.Body,
+      contentType: res.ContentType || guessContentType(key),
+      contentLength: res.ContentLength,
+    };
+  } catch (err) {
+    if (
+      (err as { $metadata?: { httpStatusCode?: number } }).$metadata
+        ?.httpStatusCode === 404
+    ) {
+      return null;
+    }
+    throw err;
+  }
 };
 
 /**
@@ -213,3 +246,4 @@ export const getPublicUrl = async (key: string): Promise<string> => {
     { expiresIn: URL_EXPIRY },
   );
 };
+

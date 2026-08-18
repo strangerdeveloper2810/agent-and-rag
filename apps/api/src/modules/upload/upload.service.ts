@@ -3,6 +3,7 @@ import {
   uploadFile,
   createUploadUrl,
   getPublicUrl,
+  getFileStream as storageGetFileStream,
   deleteFile,
 } from "../../common/storage/storage.service";
 import type { StorageCategory } from "../../common/storage/storage.service";
@@ -76,6 +77,8 @@ export const uploadFileServer = async (
     input.mimeType,
   );
 
+  const fileUrl = `/api/upload/file/${result.key}`;
+
   const rec = await insertUpload({
     tenantId: input.tenantId,
     userId: input.userId,
@@ -83,7 +86,7 @@ export const uploadFileServer = async (
     originalName: input.originalName,
     mimeType: input.mimeType,
     size: input.size,
-    url: result.url,
+    url: fileUrl,
     key: result.key,
     bucket: BUCKET,
     category: input.category,
@@ -98,7 +101,12 @@ export const getUploadByKey = async (tenantId: string, key: string) => {
   return doc ? toRecord(doc) : null;
 };
 
-export const getDownloadUrl = async (key: string) => getPublicUrl(key);
+export const getFileStream = async (key: string) => storageGetFileStream(key);
+
+export const getDownloadUrl = async (key: string) => {
+  // Trả về endpoint file stream của API để an toàn qua HTTPS và không phụ thuộc MinIO public host
+  return `/api/upload/file/${key}`;
+};
 
 export const listUploads = async (tenantId: string, category?: string) => {
   const docs = await listByTenant(tenantId, category);
@@ -109,3 +117,4 @@ export const removeUpload = async (tenantId: string, key: string) => {
   await deleteFile(key);
   await deleteByKey(tenantId, key);
 };
+

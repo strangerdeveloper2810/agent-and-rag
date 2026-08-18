@@ -12,11 +12,11 @@ const MIME_BY_EXT: Record<string, string> = {
 };
 
 /**
- * Upload ảnh (avatar/agent logo) lên MinIO theo presigned POST flow:
- *   1. GET /api/upload/presigned → { url, fields, key }
- *   2. POST thẳng lên MinIO
- *   3. GET /api/upload/download/:key → { url } (presigned download)
- * Trả về URL dùng để hiển thị / lưu vào avatar_url.
+ * Upload ảnh (avatar/agent logo) lên server / MinIO qua API Gateway:
+ *   POST /api/upload?category=images (multipart/form-data)
+ *
+ * Trả về relative URL `/api/upload/file/...` dùng để hiển thị / lưu vào avatar_url.
+ * Đảm bảo hoạt động qua HTTPS trên production (tránh Mixed Content và lỗi DNS docker minio:9000).
  */
 export async function uploadImage(file: File): Promise<string> {
   if (!file.type.startsWith("image/")) {
@@ -26,28 +26,21 @@ export async function uploadImage(file: File): Promise<string> {
     throw new Error("Ảnh tối đa 2MB");
   }
 
-  const ext = (file.name.split(".").pop() || "png").toLowerCase();
-  const contentType = MIME_BY_EXT[ext] ?? file.type ?? "image/png";
+  const formData = new FormData();
+  formData.append("file", file);
 
-  const presigned = await api.get<{
-    url: string;
-    fields: Record<string, string>;
-    key: string;
-  }>(
-    `/api/upload/presigned?category=images&ext=${ext}&contentType=${encodeURIComponent(contentType)}`,
-  );
+  const res = await fetch("/api/upload?category=images", {
+    method: "POST",
+    body: formData,
+    credentials: "include",
+  });
 
-  const form = new FormData();
-  Object.entries(presigned.fields).forEach(([k, v]) => form.append(k, v));
-  form.append("file", file);
-
-  const uploadRes = await fetch(presigned.url, { method: "POST", body: form });
-  if (!uploadRes.ok) {
-    throw new Error("Tải ảnh lên thất bại");
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}));
+    throw new Error(errBody.message || errBody.error || "Tải ảnh lên thất bại");
   }
 
-  const download = await api.get<{ key: string; url: string }>(
-    `/api/upload/download/${presigned.key}`,
-  );
-  return download.url;
+  const data = (await res.json()) as { url: string; key: string };
+  return data.url;
 }
+

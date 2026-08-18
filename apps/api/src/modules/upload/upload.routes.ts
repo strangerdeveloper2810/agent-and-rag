@@ -98,8 +98,33 @@ export const uploadRoutes = async (app: FastifyInstance): Promise<void> => {
   });
 
   /**
+   * GET /api/upload/file/*
+   * Stream file trực tiếp từ MinIO qua API Gateway (HTTPS).
+   * Giải quyết triệt để lỗi Mixed Content và DNS nội bộ Docker trên production.
+   */
+  app.get("/api/upload/file/*", async (req, reply) => {
+    const key = (req.params as { "*": string })["*"];
+    if (!key) {
+      throw new BadRequestError("Thiếu file key.");
+    }
+    const fileData = await uploadService.getFileStream(key);
+    if (!fileData) {
+      return reply.status(404).send({ message: "File không tồn tại." });
+    }
+
+    if (fileData.contentLength) {
+      reply.header("Content-Length", fileData.contentLength);
+    }
+
+    return reply
+      .header("Content-Type", fileData.contentType)
+      .header("Cache-Control", "public, max-age=31536000, immutable")
+      .send(fileData.stream);
+  });
+
+  /**
    * GET /api/upload/download/:tenantId/:category/:filename
-   * Lấy URL để download/view file (presigned, 1h).
+   * Lấy URL để download/view file (stream URL an toàn qua HTTPS).
    */
   app.get(
     "/api/upload/download/:tenantId/:category/:filename",
@@ -126,3 +151,4 @@ export const uploadRoutes = async (app: FastifyInstance): Promise<void> => {
     return reply.status(200).send({ deleted: key });
   });
 };
+

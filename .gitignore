@@ -19,3 +19,4 @@ coverage
 
 # Claude Code worktrees (mỗi thư mục là một git worktree riêng, không commit)
 .claude/worktrees/
+/ARCHITECTURE_DEEP_DIVE/
