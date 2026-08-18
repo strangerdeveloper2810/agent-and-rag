@@ -167,15 +167,93 @@ vì đoán.
 ## Kiểm chứng
 
 ```
-services/agent-go:  go vet ./... && go test ./...   → toàn bộ pass
-apps/api:           pnpm test                        → 18 file, 74 test pass
+services/agent-go:  gofmt -l . (sạch) && go vet ./... && go test ./...   → toàn bộ pass
+                    ./scripts/coverage-gate.sh                           → pass
+apps/api:           pnpm test (22 file, 84 test)  → pass
+                    pnpm typecheck / eslint / prettier --check           → sạch
+                    pnpm test:coverage (ngưỡng theo file)                 → pass
 ```
 
 Mỗi test hồi quy đã được chạy thử với code CHƯA sửa để chắc là nó thật sự bắt
-được bug:
+được bug (test không fail được thì không chứng minh điều gì):
 
-- `TestScopeModel_KhongRoRiTenModelSangProviderKhacHo` → fail: `gemini nhận model "deepseek-v4-flash"`
-- `TestNodeModel_UsageCongDonQuaNhieuBuoc` → fail: `InputTokens = 400, want 200`
+| Test | Khi bỏ fix ra |
+|---|---|
+| `TestScopeModel_KhongRoRiTenModelSangProviderKhacHo` | `gemini nhận model "deepseek-v4-flash"` |
+| `TestNodeModel_UsageCongDonQuaNhieuBuoc` | `InputTokens = 400, want 200` |
+| `TestEngineRun_TokenKhongBiNhanLen_QuaToolLoop` | `Usage.InputTokens = 6000, want 2500`; `done.TotalTokens = 6071, want 2550` |
+| `app.ratelimit.integration.test.ts` | user B: `expected 429 to be 400`; khách chưa đăng nhập: `expected 429 to be 401` |
+
+## Test đã viết
+
+**Unit test**
+
+- `apps/api/src/common/guards/rate-limit-key.test.ts` (6) — sinh khoá theo user/IP,
+  token giả mạo, token hết hạn, thiếu cookie.
+- `services/agent-go/internal/provider/fallback/model_scope_test.go` (4) —
+  `modelFamily` 9 dạng tên, giữ/bỏ override, model lạ.
+- `services/agent-go/internal/agent/usage_accounting_test.go` (3) — kiểu Gemini,
+  kiểu Anthropic/DeepSeek, cộng dồn qua nhiều bước.
+- `services/agent-go/internal/memory/learner_gate_test.go` (7 + 2) — bảng
+  `worthLearning`, và learner không gọi provider khi tán gẫu.
+- `slugify` (7 case) trong `learner_integration_test.go`.
+
+**Integration test**
+
+- `apps/api/src/app.ratelimit.integration.test.ts` (3) — qua `buildApp()` THẬT,
+  route chat thật: user A hết 20/phút → 429, user B vẫn 400 (không bị 429 oan).
+- `apps/api/src/common/guards/rate-limit-route.test.ts` (2) — hạn mức riêng của
+  route có kế thừa `keyGenerator` toàn cục hay không (nếu không thì cả bản fix vô
+  nghĩa; đây là giả định phải test chứ không được tin).
+- `apps/api/src/app.health.test.ts` (5) — `/api/health`, `/api/healthz`,
+  `/api/ready` cho cả nhánh Mongo sống và Mongo chết. CD dựa vào healthz để
+  quyết định deploy thành công, trước đây không có test nào chạm tới.
+- `services/agent-go/internal/agent/engine_usage_integration_test.go` (2) — chạy
+  trọn `engine.Run()` qua tool loop 2 bước với provider stream kiểu Gemini, kiểm
+  số token ở event `done` mà client thật sự nhận.
+- `services/agent-go/internal/memory/learner_integration_test.go` (4) —
+  `LearnFromConversation` → `ReflectAndExtract` → `Store`, có kiểm tra fact được
+  scope theo tenant.
+
+## Coverage — số thật
+
+Đo bằng `go test -cover` và `vitest --coverage` (provider v8):
+
+| Phạm vi | Coverage | Ghi chú |
+|---|---|---|
+| `internal/agent` | **94,8%** | gate ≥90% |
+| `internal/provider/fallback` | **95,1%** | gate ≥90% |
+| `internal/memory` | **87,9%** | gate ≥85% — xem bên dưới |
+| `apps/api/src/app.ts` | **92,98%** (funcs 100%) | trước: 59,6% |
+| `apps/api/.../rate-limit-key.ts` | **100%** cả 4 chỉ số | |
+| agent-go toàn bộ | 81,0% | có sẵn từ trước |
+| apps/api toàn bộ | 37,6% | có sẵn từ trước |
+
+**Nói rõ: KHÔNG đạt >90% ở phạm vi toàn repo.** Code do lần sửa này thêm vào thì
+100% (`scopeModel`, `modelFamily`, `worthLearning`, `lastByRole`, `nodePlan`,
+`rate-limit-key.ts`). Phần kéo tổng xuống là code có sẵn chưa từng có test:
+`apps/api` có `server.ts`, `common/email`, `src/agent/deprecated/*` (0%);
+agent-go có `internal/mongo` 40,9%, `internal/tools` 76,3%. Đưa cả hai lên 90% là
+một việc riêng, lớn hơn nhiều lần bản fix này.
+
+**Vì sao `internal/memory` dừng ở 87,9%:** ba hàm còn lại là I/O Mongo thuần —
+`saveFactToMongo`, `saveKnowledgeItemToMongo` (0%), `LoadFromMongo` (18,2%).
+Không fake được vì `mongo.Client` chỉ dựng qua `Connect()` (ping ngay lúc tạo, và
+struct có field unexported), nên cần MongoDB thật. Máy dev lúc đo không có
+`mongod` và Docker daemon chưa bật, nên tôi **không viết test cho phần này** —
+viết mà không chạy được thì không kiểm chứng được. Bật Docker (hoặc cấp
+`MONGODB_TEST_URI`) là làm được ngay.
+
+**Gate coverage** (chống tụt về sau, không phải gate toàn repo cho đỏ CI):
+
+- `services/agent-go/scripts/coverage-gate.sh` — ratchet theo từng package, chạy
+  trong CI dùng lại `coverage.out` của bước test (không chạy test 2 lần).
+- `apps/api/vitest.config.ts` — `coverage.thresholds` theo từng file; CI có step
+  `Coverage gate (API)`.
+
+Cả hai gate đã được thử với ngưỡng cố tình đặt cao để chắc là chúng thật sự fail
+(`ERROR: Coverage for statements (92.98%) does not meet "src/app.ts" threshold (99%)`
+và `❌ internal/memory: 87.9% < ngưỡng 95%`), rồi mới đặt lại mức thật.
 
 ## Việc còn lại (chưa làm)
 
