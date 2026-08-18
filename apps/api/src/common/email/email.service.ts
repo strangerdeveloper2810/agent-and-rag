@@ -19,7 +19,7 @@ export async function sendOtpEmail(
   }
 
   try {
-    await resend.emails.send({
+    const result = await resend.emails.send({
       from: config.EMAIL_FROM,
       to,
       subject: "Mã xác minh JARVIS của bạn",
@@ -32,7 +32,15 @@ export async function sendOtpEmail(
         </div>
       `,
     });
+
+    if (result.error) {
+      console.error(`[email] Resend API trả về lỗi (to=${to}):`, result.error);
+      console.info(`[email] [FALLBACK_LOG] OTP cho ${to}: ${otp}`);
+    } else {
+      console.log(`[email] Đã gửi OTP thành công tới ${to} (id=${result.data?.id})`);
+    }
   } catch (err) {
     console.error(`[email] sendOtpEmail thất bại (to=${to})`, err);
+    console.info(`[email] [FALLBACK_LOG] OTP cho ${to}: ${otp}`);
   }
 }
