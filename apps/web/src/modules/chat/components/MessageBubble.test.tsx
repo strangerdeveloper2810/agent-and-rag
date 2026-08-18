@@ -4,17 +4,20 @@ import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import i18n from "@/i18n";
 import { MessageBubble } from "./MessageBubble";
 
-vi.mock("@/stores/user.store", () => ({
-  useUserStore: vi.fn(),
+// MessageBubble đọc avatar agent qua TanStack Query (cache dùng chung với
+// Sidebar/EmptyState). Mock hook thay vì dựng QueryClient để test này vẫn chỉ
+// tập trung vào phần render của bubble.
+vi.mock("@/hooks/queries/useUserSettings", () => ({
+  useAgentAvatarUrl: vi.fn(),
 }));
 
-import { useUserStore } from "@/stores/user.store";
+import { useAgentAvatarUrl } from "@/hooks/queries/useUserSettings";
 
-const mockUseUserStore = useUserStore as unknown as Mock;
+const mockUseAgentAvatarUrl = useAgentAvatarUrl as unknown as Mock;
 
 describe("MessageBubble", () => {
   beforeEach(async () => {
-    mockUseUserStore.mockReturnValue(null);
+    mockUseAgentAvatarUrl.mockReturnValue(null);
     await i18n.changeLanguage("vi");
   });
 
@@ -165,7 +168,7 @@ describe("MessageBubble", () => {
   });
 
   it("shows the configured agent avatar image for assistant messages", () => {
-    mockUseUserStore.mockReturnValue("https://cdn.example.com/jarvis.png");
+    mockUseAgentAvatarUrl.mockReturnValue("https://cdn.example.com/jarvis.png");
     render(
       <I18nextProvider i18n={i18n}>
         <MessageBubble message={{ role: "assistant", content: "Xin chào" }} />
@@ -178,7 +181,7 @@ describe("MessageBubble", () => {
   });
 
   it("falls back to the default bot icon when the agent avatar image fails to load", () => {
-    mockUseUserStore.mockReturnValue("https://cdn.example.com/broken.png");
+    mockUseAgentAvatarUrl.mockReturnValue("https://cdn.example.com/broken.png");
     render(
       <I18nextProvider i18n={i18n}>
         <MessageBubble message={{ role: "assistant", content: "Xin chào" }} />
@@ -192,7 +195,7 @@ describe("MessageBubble", () => {
   });
 
   it("falls back to the default bot icon when agent_avatar_url is not configured", () => {
-    mockUseUserStore.mockReturnValue(null);
+    mockUseAgentAvatarUrl.mockReturnValue(null);
     render(
       <I18nextProvider i18n={i18n}>
         <MessageBubble message={{ role: "assistant", content: "Xin chào" }} />

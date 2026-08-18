@@ -2,37 +2,36 @@
  * AuthGuard — bảo vệ route yêu cầu đăng nhập.
  *
  * Cơ chế:
- *   - isLoading = true  → hiển thị spinner (amber, centered)
+ *   - isPending = true  → hiển thị spinner (chưa biết có session hay không)
  *   - user = null       → redirect sang /login
  *   - user tồn tại      → render children
+ *
+ * Session lấy từ useSession() (TanStack Query) chứ không còn tự gọi init()
+ * trong useEffect: nhiều guard cùng mount thì vẫn chỉ một request /api/auth/me,
+ * và trong staleTime thì điều hướng qua lại không gọi lại lần nào.
  */
 
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuthStore } from "@/stores/auth.store";
+import { useSession } from "@/hooks/queries/useSession";
 
 interface AuthGuardProps {
   children: React.ReactNode;
 }
 
 export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
-  const { user, isLoading, initialized, init } = useAuthStore();
+  const { user, isPending } = useSession();
   const navigate = useNavigate();
-
-  // Khởi tạo session lần đầu
-  useEffect(() => {
-    init();
-  }, [init]);
 
   // Redirect sang /login nếu đã kiểm tra xong mà không có user
   useEffect(() => {
-    if (initialized && !isLoading && !user) {
+    if (!isPending && !user) {
       navigate("/login", { replace: true });
     }
-  }, [initialized, isLoading, user, navigate]);
+  }, [isPending, user, navigate]);
 
   // Lần đầu tải ứng dụng — hiển thị spinner trung tâm
-  if (!initialized || isLoading) {
+  if (isPending) {
     return (
       <div className="flex h-screen items-center justify-center bg-[var(--bg)]">
         <div

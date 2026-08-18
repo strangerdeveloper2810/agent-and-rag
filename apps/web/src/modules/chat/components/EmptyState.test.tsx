@@ -1,20 +1,56 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
-import { beforeEach, describe, expect, it } from "vitest";
+import type { QueryClient } from "@tanstack/react-query";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "@/i18n";
-import { useUserStore } from "@/stores/user.store";
+import { queryKeys } from "@/lib/query-keys";
+import { createTestQueryClient, withQueryClient } from "@/test/query";
 import { EmptyState } from "./EmptyState";
+
+let queryClient: QueryClient;
 
 const renderEmptyState = () =>
   render(
-    <I18nextProvider i18n={i18n}>
-      <EmptyState onPick={() => {}} />
-    </I18nextProvider>,
+    withQueryClient(
+      <I18nextProvider i18n={i18n}>
+        <EmptyState onPick={() => {}} />
+      </I18nextProvider>,
+      queryClient,
+    ),
   );
+
+/**
+ * Giả lập GET /suggestions (một lượt gọi LLM ở agent-go).
+ *
+ * Stub trùm lên global fetch nên spy nhận CẢ /api/user/settings (component còn
+ * đọc avatar agent) — vì vậy phải đếm riêng theo URL, xem suggestionCalls().
+ */
+const mockSuggestionsFetch = (
+  response: { ok: boolean; suggestions?: string[] } = { ok: true },
+) => {
+  const spy = vi.fn((url: string) =>
+    Promise.resolve({
+      ok: String(url).includes("/suggestions") ? response.ok : false,
+      json: () => Promise.resolve({ suggestions: response.suggestions }),
+    } as Response),
+  );
+  vi.stubGlobal("fetch", spy);
+  return spy;
+};
+
+/** Số lần thực sự gọi tới /suggestions (bỏ qua các request khác). */
+const suggestionCalls = (spy: ReturnType<typeof mockSuggestionsFetch>) =>
+  spy.mock.calls.filter(([url]) => String(url).includes("/suggestions")).length;
 
 describe("EmptyState", () => {
   beforeEach(async () => {
+    queryClient = createTestQueryClient();
     await i18n.changeLanguage("vi");
+    mockSuggestionsFetch({ ok: false });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it("shows Vietnamese header, subtitle and category tabs", async () => {
@@ -46,13 +82,71 @@ describe("EmptyState", () => {
     ).toBeInTheDocument();
   });
 
+  // /suggestions là một lượt gọi LLM nên phải cache: mount lại component KHÔNG
+  // được gọi lại. Đây chính là khoản tốn kém mà bản Zustand cũ không chặn được.
+  describe("gợi ý từ agent", () => {
+    it("hiện gợi ý agent trả về", async () => {
+      mockSuggestionsFetch({ ok: true, suggestions: ["Tóm tắt tài liệu này"] });
+
+      renderEmptyState();
+
+      expect(
+        await screen.findByText("Tóm tắt tài liệu này"),
+      ).toBeInTheDocument();
+    });
+
+    it("chỉ gọi /suggestions một lần dù component mount lại", async () => {
+      const spy = mockSuggestionsFetch({
+        ok: true,
+        suggestions: ["Gợi ý đã cache"],
+      });
+
+      const first = renderEmptyState();
+      await screen.findByText("Gợi ý đã cache");
+      expect(suggestionCalls(spy)).toBe(1);
+
+      first.unmount();
+      renderEmptyState();
+      await screen.findByText("Gợi ý đã cache");
+
+      // Vẫn 1 — lần mount thứ hai đọc từ cache theo queryKey ["suggestions"].
+      expect(suggestionCalls(spy)).toBe(1);
+    });
+
+    it("agent lỗi thì vẫn hiện gợi ý dự phòng từ file i18n", async () => {
+      mockSuggestionsFetch({ ok: false });
+
+      renderEmptyState();
+
+      expect(
+        await screen.findByText("Gợi ý thông minh từ AI Agent"),
+      ).toBeInTheDocument();
+    });
+
+    it("bấm nút đổi gợi ý thì gọi lại agent", async () => {
+      const spy = mockSuggestionsFetch({
+        ok: true,
+        suggestions: ["Gợi ý ban đầu"],
+      });
+
+      renderEmptyState();
+      await screen.findByText("Gợi ý ban đầu");
+      expect(suggestionCalls(spy)).toBe(1);
+
+      fireEvent.click(screen.getByTitle("Đổi bộ gợi ý ngẫu nhiên mới"));
+
+      await waitFor(() => expect(suggestionCalls(spy)).toBe(2));
+    });
+  });
+
   // User upload avatar cho agent nhưng khung chat không đổi gì — vì lúc chưa có
   // tin nhắn nào thì MessageBubble chưa render, mà hero của EmptyState lại
   // hardcode icon. Nhóm test này khoá lại hành vi đó.
   describe("avatar agent ở hero", () => {
-    beforeEach(() => {
-      useUserStore.setState({ settings: null });
-    });
+    const seedAgentAvatar = (url: string) =>
+      queryClient.setQueryData(queryKeys.settings(), {
+        agent_avatar_url: url,
+      } as never);
 
     it("hiện icon mặc định khi user chưa cấu hình avatar agent", () => {
       renderEmptyState();
@@ -60,11 +154,7 @@ describe("EmptyState", () => {
     });
 
     it("hiện ảnh thật khi settings có agent_avatar_url", () => {
-      useUserStore.setState({
-        settings: {
-          agent_avatar_url: "https://cdn.example.com/agent.png",
-        } as never,
-      });
+      seedAgentAvatar("https://cdn.example.com/agent.png");
 
       renderEmptyState();
 
@@ -73,11 +163,7 @@ describe("EmptyState", () => {
     });
 
     it("ảnh lỗi 404 thì fallback về icon, không để khung trống", () => {
-      useUserStore.setState({
-        settings: {
-          agent_avatar_url: "https://cdn.example.com/hong.png",
-        } as never,
-      });
+      seedAgentAvatar("https://cdn.example.com/hong.png");
 
       renderEmptyState();
       fireEvent.error(screen.getByRole("img"));

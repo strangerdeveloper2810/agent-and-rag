@@ -5,6 +5,7 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import i18n from "@/i18n";
 import type { Conversation } from "@/modules/chat/chat.api";
+import { withQueryClient } from "@/test/query";
 import { Sidebar } from "./Sidebar";
 
 vi.mock("@/context/ConversationContext", () => ({
@@ -13,8 +14,10 @@ vi.mock("@/context/ConversationContext", () => ({
 vi.mock("@/stores/auth.store", () => ({
   useAuthStore: vi.fn(),
 }));
-vi.mock("@/stores/user.store", () => ({
-  useUserStore: vi.fn(),
+// Sidebar chỉ còn lấy logout từ auth store; user hiện tại đến từ useSession()
+// (TanStack Query) và nó KHÔNG còn nạp settings hộ component khác nữa.
+vi.mock("@/hooks/queries/useSession", () => ({
+  useSession: vi.fn(),
 }));
 vi.mock("@/design-system/molecules/Toast", () => ({
   useToast: vi.fn(),
@@ -22,12 +25,21 @@ vi.mock("@/design-system/molecules/Toast", () => ({
 
 import { useConversation } from "@/context/ConversationContext";
 import { useAuthStore } from "@/stores/auth.store";
-import { useUserStore } from "@/stores/user.store";
+import { useSession } from "@/hooks/queries/useSession";
 import { useToast } from "@/design-system/molecules/Toast";
 
 const mockUseConversation = useConversation as unknown as Mock;
 const mockUseAuthStore = useAuthStore as unknown as Mock;
-const mockUseUserStore = useUserStore as unknown as Mock;
+const mockUseSession = useSession as unknown as Mock;
+
+/** Sidebar đọc user từ useSession() và logout từ auth store — set cả hai. */
+const setSession = (
+  user: Record<string, unknown> | null,
+  logout: Mock = vi.fn().mockResolvedValue(undefined),
+) => {
+  mockUseSession.mockReturnValue({ user, isPending: false });
+  mockUseAuthStore.mockReturnValue({ logout });
+};
 const mockUseToast = useToast as unknown as Mock;
 
 const conversations: Conversation[] = [
@@ -55,27 +67,24 @@ const toastApi = {
   warning: vi.fn(),
 };
 
+// Sidebar render sẵn <UserSettingsModal/> (modal tự return null khi đóng), mà
+// modal đọc settings/MCP/skills qua TanStack Query → cần QueryClientProvider.
 const renderSidebar = () =>
   render(
-    <I18nextProvider i18n={i18n}>
-      <MemoryRouter>
-        <Sidebar />
-      </MemoryRouter>
-    </I18nextProvider>,
+    withQueryClient(
+      <I18nextProvider i18n={i18n}>
+        <MemoryRouter>
+          <Sidebar />
+        </MemoryRouter>
+      </I18nextProvider>,
+    ),
   );
 
 describe("Sidebar", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     mockUseConversation.mockReturnValue(baseCtx);
-    mockUseAuthStore.mockReturnValue({
-      user: { name: "Trinh", email: "t@x.com" },
-      logout: vi.fn().mockResolvedValue(undefined),
-    });
-    mockUseUserStore.mockReturnValue({
-      settings: null,
-      fetchSettings: vi.fn().mockResolvedValue({ agent_avatar_url: null }),
-    });
+    setSession({ name: "Trinh", email: "t@x.com" });
     mockUseToast.mockReturnValue(toastApi);
     await i18n.changeLanguage("vi");
   });
@@ -150,7 +159,7 @@ describe("Sidebar", () => {
   });
 
   it("shows a translated default user name when no user is present", () => {
-    mockUseAuthStore.mockReturnValue({ user: null, logout: vi.fn() });
+    setSession(null);
     renderSidebar();
     expect(screen.getByText("Người dùng")).toBeInTheDocument();
   });
@@ -194,10 +203,7 @@ describe("Sidebar", () => {
 
   it("shows a translated success toast after logout", async () => {
     const logout = vi.fn().mockResolvedValue(undefined);
-    mockUseAuthStore.mockReturnValue({
-      user: { name: "Trinh", email: "t@x.com" },
-      logout,
-    });
+    setSession({ name: "Trinh", email: "t@x.com" }, logout);
     const user = userEvent.setup();
     renderSidebar();
 
@@ -210,10 +216,7 @@ describe("Sidebar", () => {
 
   it("shows a translated error toast when logout fails", async () => {
     const logout = vi.fn().mockRejectedValue(new Error("boom"));
-    mockUseAuthStore.mockReturnValue({
-      user: { name: "Trinh", email: "t@x.com" },
-      logout,
-    });
+    setSession({ name: "Trinh", email: "t@x.com" }, logout);
     const user = userEvent.setup();
     renderSidebar();
 
@@ -227,13 +230,10 @@ describe("Sidebar", () => {
   });
 
   it("shows the real user avatar image when avatar_url is set", () => {
-    mockUseAuthStore.mockReturnValue({
-      user: {
-        name: "Trinh Nguyen",
-        email: "t@x.com",
-        avatar_url: "https://cdn.example.com/me.png",
-      },
-      logout: vi.fn(),
+    setSession({
+      name: "Trinh Nguyen",
+      email: "t@x.com",
+      avatar_url: "https://cdn.example.com/me.png",
     });
     renderSidebar();
 
@@ -244,13 +244,10 @@ describe("Sidebar", () => {
   });
 
   it("falls back to initials when the user avatar image fails to load", () => {
-    mockUseAuthStore.mockReturnValue({
-      user: {
-        name: "Trinh Nguyen",
-        email: "t@x.com",
-        avatar_url: "https://cdn.example.com/broken.png",
-      },
-      logout: vi.fn(),
+    setSession({
+      name: "Trinh Nguyen",
+      email: "t@x.com",
+      avatar_url: "https://cdn.example.com/broken.png",
     });
     renderSidebar();
 

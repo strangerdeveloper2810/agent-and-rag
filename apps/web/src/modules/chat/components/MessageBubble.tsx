@@ -27,7 +27,7 @@ import type {
 
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { useUserStore } from "@/stores/user.store";
+import { useAgentAvatarUrl } from "@/hooks/queries/useUserSettings";
 
 // ── Helpers ──
 
@@ -217,7 +217,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   // Avatar/logo agent J.A.R.V.I.S. tự cấu hình trong Settings — fallback về
   // icon mặc định khi chưa cấu hình hoặc ảnh lỗi/404.
-  const agentAvatarUrl = useUserStore((s) => s.settings?.agent_avatar_url);
+  const agentAvatarUrl = useAgentAvatarUrl();
   const [avatarError, setAvatarError] = useState(false);
 
   useEffect(() => {

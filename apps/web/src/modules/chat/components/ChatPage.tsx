@@ -4,7 +4,6 @@ import { useNavigate, useParams } from "react-router-dom";
 import { SparklesIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import {
   createConversation,
-  getMessages,
   streamChat,
   streamContinue,
   type Message,
@@ -23,6 +22,7 @@ import ChatSkeleton from "@/design-system/molecules/ChatSkeleton";
 import { useToast } from "@/design-system/molecules/Toast";
 import { validateComposerInput } from "@/lib/validation";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { useMessagesCache } from "@/hooks/queries/useMessages";
 import { Button } from "@/components/ui/button";
 
 export type MessageMeta = {
@@ -162,13 +162,19 @@ export const ChatPage: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { reloadConversations } = useConversation();
+  const { fetchMessages, primeMessages, dropMessages } = useMessagesCache();
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [meta, setMeta] = useState<Map<number, MessageMeta>>(new Map());
   const [input, setInput] = useState("");
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [streaming, setStreaming] = useState(false);
-  const [historyLoading, setHistoryLoading] = useState(false);
+  // Khởi tạo theo `id`, KHÔNG phải false. URL có id nghĩa là chắc chắn sẽ tải
+  // lịch sử, mà effect thì chỉ chạy SAU lần render đầu — để false thì render
+  // đầu tiên có messages rỗng và rơi vào nhánh <EmptyState/>, khiến EmptyState
+  // mount rồi unmount ngay. Mỗi lần mount như vậy là một lượt gọi LLM
+  // (/suggestions) bị bỏ đi, xảy ra mỗi lần mở lại một hội thoại cũ.
+  const [historyLoading, setHistoryLoading] = useState(Boolean(id));
   const [contextWarning, setContextWarning] = useState<ContextWarning | null>(
     null,
   );
@@ -391,7 +397,10 @@ export const ChatPage: React.FC = () => {
     setMessages([]);
     setMeta(new Map());
 
-    getMessages(id)
+    // fetchMessages đi qua cache TanStack Query: quay lại một hội thoại vừa
+    // xem (trong staleTime) là lấy ngay từ cache, không request và không
+    // spinner; hai lần gọi trùng nhau (StrictMode ở dev) gộp thành một.
+    fetchMessages(id)
       .then((m) => {
         if (loadedIdRef.current === id) setMessages(m);
       })
@@ -401,9 +410,33 @@ export const ChatPage: React.FC = () => {
       .finally(() => {
         if (loadedIdRef.current === id) setHistoryLoading(false);
       });
-  }, [id]);
+  }, [id, fetchMessages]);
 
   useEffect(() => () => streamCtrlRef.current?.abort(), []);
+
+  // Đồng bộ cache tin nhắn sau khi một lượt chat kết thúc, để lần sau quay lại
+  // hội thoại này không thấy thiếu tin nhắn vừa gửi.
+  //
+  // Nếu lượt đó có lỗi thì XOÁ cache thay vì ghi: mảng messages lúc đó chứa
+  // bubble lỗi dựng ở client ("Gửi tin nhắn thất bại") — thứ không tồn tại
+  // trên server. Ghi nó vào cache sẽ khiến lần mở lại hiển thị lỗi giả.
+  useEffect(() => {
+    if (!id || streaming || historyLoading || messages.length === 0) return;
+    const hadError = Array.from(meta.values()).some((m) => m.hasError);
+    if (hadError) {
+      dropMessages(id);
+      return;
+    }
+    primeMessages(id, messages);
+  }, [
+    id,
+    streaming,
+    historyLoading,
+    messages,
+    meta,
+    primeMessages,
+    dropMessages,
+  ]);
 
   useEffect(() => {
     scrollToBottom(false, streaming);

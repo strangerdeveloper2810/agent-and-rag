@@ -3,16 +3,26 @@ import userEvent from "@testing-library/user-event";
 import { I18nextProvider } from "react-i18next";
 import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import i18n from "@/i18n";
-import type { McpServer, UserSkill } from "@/stores/user.store";
+import type { McpServer } from "@/hooks/queries/useMcpServers";
+import type { UserSkill } from "@/hooks/queries/useSkills";
 import { UserSettingsModal } from "./UserSettingsModal";
 
 // Mock cac store/hook phu thuoc de test tap trung vao phan UI moi gan cho
 // avatar upload / MCP servers / skills - khong can goi API that.
-vi.mock("@/stores/auth.store", () => ({
-  useAuthStore: vi.fn(),
+vi.mock("@/hooks/queries/useSession", () => ({
+  useSession: vi.fn(),
 }));
-vi.mock("@/stores/user.store", () => ({
-  useUserStore: vi.fn(),
+vi.mock("@/hooks/queries/useUserSettings", () => ({
+  useUserSettings: vi.fn(),
+  useUpdateSettings: vi.fn(),
+  useUpdateProfile: vi.fn(),
+  useChangePassword: vi.fn(),
+}));
+vi.mock("@/hooks/queries/useMcpServers", () => ({
+  useMcpServers: vi.fn(),
+}));
+vi.mock("@/hooks/queries/useSkills", () => ({
+  useSkills: vi.fn(),
 }));
 vi.mock("@/design-system/molecules/Toast", () => ({
   useToast: vi.fn(),
@@ -21,13 +31,25 @@ vi.mock("@/lib/upload", () => ({
   uploadImage: vi.fn(),
 }));
 
-import { useAuthStore } from "@/stores/auth.store";
-import { useUserStore } from "@/stores/user.store";
+import { useSession } from "@/hooks/queries/useSession";
+import {
+  useChangePassword,
+  useUpdateProfile,
+  useUpdateSettings,
+  useUserSettings,
+} from "@/hooks/queries/useUserSettings";
+import { useMcpServers } from "@/hooks/queries/useMcpServers";
+import { useSkills } from "@/hooks/queries/useSkills";
 import { useToast } from "@/design-system/molecules/Toast";
 import { uploadImage } from "@/lib/upload";
 
-const mockUseAuthStore = useAuthStore as unknown as Mock;
-const mockUseUserStore = useUserStore as unknown as Mock;
+const mockUseSession = useSession as unknown as Mock;
+const mockUseUserSettings = useUserSettings as unknown as Mock;
+const mockUseUpdateSettings = useUpdateSettings as unknown as Mock;
+const mockUseUpdateProfile = useUpdateProfile as unknown as Mock;
+const mockUseChangePassword = useChangePassword as unknown as Mock;
+const mockUseMcpServers = useMcpServers as unknown as Mock;
+const mockUseSkills = useSkills as unknown as Mock;
 const mockUseToast = useToast as unknown as Mock;
 const mockUploadImage = uploadImage as unknown as Mock;
 
@@ -68,13 +90,15 @@ const buildUserStoreState = () => ({
   disabledBuiltinSkills: [] as string[],
   isLoadingMcp: false,
   isLoadingSkills: false,
-  fetchSettings: vi.fn().mockResolvedValue({
+  // Trước đây là fetchSettings() trả về Promise; giờ settings nằm sẵn trong
+  // cache TanStack Query nên chỉ là dữ liệu, không còn hàm fetch.
+  settings: {
     persona_preset: "default",
     formality: "neutral",
     verbosity: "normal",
     custom_instructions: "",
     agent_avatar_url: null,
-  }),
+  },
   updateSettings: vi.fn().mockResolvedValue(undefined),
   updateProfile: vi.fn().mockResolvedValue({
     id: "u1",
@@ -83,13 +107,9 @@ const buildUserStoreState = () => ({
     role: "user",
   }),
   changePassword: vi.fn().mockResolvedValue(undefined),
-  fetchMcpServers: vi.fn().mockResolvedValue([]),
   createMcpServer: vi.fn().mockResolvedValue(undefined),
   updateMcpServer: vi.fn().mockResolvedValue(undefined),
   deleteMcpServer: vi.fn().mockResolvedValue(undefined),
-  fetchSkills: vi
-    .fn()
-    .mockResolvedValue({ customSkills: [], disabledBuiltinSkills: [] }),
   createSkill: vi.fn().mockResolvedValue(undefined),
   updateSkill: vi.fn().mockResolvedValue(undefined),
   deleteSkill: vi.fn().mockResolvedValue(undefined),
@@ -107,15 +127,49 @@ describe("UserSettingsModal - avatar upload, MCP servers, skills", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     userStoreState = buildUserStoreState();
-    mockUseUserStore.mockImplementation(() => userStoreState);
-    mockUseAuthStore.mockReturnValue({
+    // Mỗi hook đọc từ cùng một object userStoreState nên test vẫn chỉnh dữ
+    // liệu bằng cách gán trực tiếp (vd userStoreState.mcpServers = [...]).
+    mockUseSession.mockReturnValue({
       user: {
         id: "u1",
         email: "trinh@x.com",
         name: "Trinh Nguyen",
         role: "user",
       },
+      isPending: false,
     });
+    mockUseUserSettings.mockImplementation(() => ({
+      settings: userStoreState.settings,
+      isPending: false,
+    }));
+    mockUseUpdateSettings.mockImplementation(() => ({
+      mutateAsync: userStoreState.updateSettings,
+      isPending: userStoreState.isSaving,
+    }));
+    mockUseUpdateProfile.mockImplementation(() => ({
+      mutateAsync: userStoreState.updateProfile,
+      isPending: userStoreState.isSaving,
+    }));
+    mockUseChangePassword.mockImplementation(() => ({
+      mutateAsync: userStoreState.changePassword,
+      isPending: userStoreState.isSaving,
+    }));
+    mockUseMcpServers.mockImplementation(() => ({
+      mcpServers: userStoreState.mcpServers,
+      isLoadingMcp: userStoreState.isLoadingMcp,
+      createMcpServer: userStoreState.createMcpServer,
+      updateMcpServer: userStoreState.updateMcpServer,
+      deleteMcpServer: userStoreState.deleteMcpServer,
+    }));
+    mockUseSkills.mockImplementation(() => ({
+      skills: userStoreState.skills,
+      disabledBuiltinSkills: userStoreState.disabledBuiltinSkills,
+      isLoadingSkills: userStoreState.isLoadingSkills,
+      createSkill: userStoreState.createSkill,
+      updateSkill: userStoreState.updateSkill,
+      deleteSkill: userStoreState.deleteSkill,
+      toggleBuiltinSkill: userStoreState.toggleBuiltinSkill,
+    }));
     mockUseToast.mockReturnValue(toastApi);
     mockUploadImage.mockResolvedValue("https://cdn.example.com/avatar.png");
     await i18n.changeLanguage("vi");

@@ -2,35 +2,37 @@
  * AdminGuard — bảo vệ route yêu cầu quyền admin.
  *
  * Kế thừa hành vi từ AuthGuard:
- *   - Kiểm tra session (init)
+ *   - Kiểm tra session qua useSession()
  *   - Nếu user.role !== "admin" → hiển thị "Access Denied"
  *   - Nếu là admin → render children
+ *
+ * Việc chuyển sang useSession() cũng sửa một lỗi thật của bản cũ: store khởi
+ * tạo isLoading = false, nên ở lần render đầu tiên (trước khi init() kịp
+ * chạy) điều kiện `!isLoading && !user` đúng và guard đá user có session hợp
+ * lệ về /login khi reload trang admin. useSession() có isPending = true ngay
+ * từ render đầu nên không còn khoảng trống đó.
  */
 
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuthStore } from "@/stores/auth.store";
+import { useSession } from "@/hooks/queries/useSession";
 
 interface AdminGuardProps {
   children: React.ReactNode;
 }
 
 export const AdminGuard: React.FC<AdminGuardProps> = ({ children }) => {
-  const { user, isLoading, init } = useAuthStore();
+  const { user, isPending } = useSession();
   const navigate = useNavigate();
 
   useEffect(() => {
-    init();
-  }, [init]);
-
-  useEffect(() => {
-    if (!isLoading && !user) {
+    if (!isPending && !user) {
       navigate("/login", { replace: true });
     }
-  }, [isLoading, user, navigate]);
+  }, [isPending, user, navigate]);
 
   // Đang kiểm tra session → spinner
-  if (isLoading) {
+  if (isPending) {
     return (
       <div className="flex h-screen items-center justify-center bg-[var(--bg)]">
         <div

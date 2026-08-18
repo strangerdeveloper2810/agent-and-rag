@@ -4,6 +4,7 @@ import { I18nextProvider } from "react-i18next";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "@/i18n";
+import { withQueryClient } from "@/test/query";
 import { AppLayout } from "./AppLayout";
 
 vi.mock("../organisms/Sidebar", () => ({
@@ -24,17 +25,21 @@ vi.mock("@/modules/chat/chat.api", () => ({
 // fallback stays visible for the duration of the assertion.
 const NeverResolves = lazy(() => new Promise<never>(() => {}));
 
+// AppLayout dựng ConversationProvider, mà provider này lấy danh sách hội thoại
+// qua TanStack Query → phải có QueryClientProvider bọc ngoài.
 const renderLayout = () =>
   render(
-    <I18nextProvider i18n={i18n}>
-      <MemoryRouter initialEntries={["/"]}>
-        <Routes>
-          <Route element={<AppLayout />}>
-            <Route path="/" element={<NeverResolves />} />
-          </Route>
-        </Routes>
-      </MemoryRouter>
-    </I18nextProvider>,
+    withQueryClient(
+      <I18nextProvider i18n={i18n}>
+        <MemoryRouter initialEntries={["/"]}>
+          <Routes>
+            <Route element={<AppLayout />}>
+              <Route path="/" element={<NeverResolves />} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </I18nextProvider>,
+    ),
   );
 
 describe("AppLayout", () => {

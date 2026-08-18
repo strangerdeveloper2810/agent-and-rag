@@ -16,7 +16,7 @@ import {
 } from "@heroicons/react/24/outline";
 
 import { useAuthStore } from "@/stores/auth.store";
-import { useUserStore } from "@/stores/user.store";
+import { useSession } from "@/hooks/queries/useSession";
 import { useToast } from "@/design-system/molecules/Toast";
 import ConfirmDialog from "@/design-system/molecules/ConfirmDialog";
 import UserSettingsModal from "@/design-system/organisms/UserSettingsModal";
@@ -124,8 +124,8 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
   const onDelete = props.onDelete ?? ctx.deleteConv;
   const onRename = props.onRename ?? ctx.renameConv;
 
-  const { user, logout } = useAuthStore();
-  const { settings, fetchSettings } = useUserStore();
+  const { logout } = useAuthStore();
+  const { user } = useSession();
   const toast = useToast();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Conversation | null>(null);
@@ -135,17 +135,11 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
   // Avatar user thật có thể lỗi/404 → fallback êm về initials
   const [avatarError, setAvatarError] = useState(false);
 
-  // Sidebar chỉ mount 1 lần trong AppLayout → nạp settings (agent_avatar_url)
-  // vào store ở đây, để MessageBubble dùng lại mà không phải tự fetch riêng
-  // cho từng tin nhắn (tránh gọi API trùng lặp khi có nhiều tin nhắn).
-  useEffect(() => {
-    if (!settings) {
-      fetchSettings().catch(() => {
-        // Bỏ qua lỗi — MessageBubble sẽ tự fallback về icon mặc định
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Sidebar KHÔNG còn nạp settings hộ các component khác. Trước đây nó phải
+  // làm vậy vì Zustand không dedupe được: nếu để MessageBubble tự gọi thì mỗi
+  // tin nhắn là một request. Với TanStack Query thì mọi component dùng chung
+  // queryKey ["user","settings"] nên chỉ có đúng một request, ai cần thì tự
+  // gọi useAgentAvatarUrl() — không còn phụ thuộc thứ tự mount nữa.
 
   // Reset lỗi ảnh khi avatar_url đổi (vd sau khi user upload avatar mới)
   useEffect(() => {

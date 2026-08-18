@@ -1,3 +1,15 @@
+/**
+ * ConversationContext — giờ chỉ còn giữ CLIENT state của sidebar
+ * (mở/đóng, thu gọn) và tính activeId/view từ URL.
+ *
+ * Danh sách hội thoại là server state nên đã chuyển sang TanStack Query
+ * (useConversations). Trước đây context tự giữ useState + useEffect fetch,
+ * nghĩa là mỗi lần ConversationProvider mount lại là một request
+ * /api/conversations, và xoá/đổi tên luôn kèm một lần reload cả danh sách.
+ *
+ * API của context giữ nguyên để Sidebar/AppLayout/ChatPage không phải sửa gì.
+ */
+
 import {
   createContext,
   useContext,
@@ -7,13 +19,12 @@ import {
   type FC,
   type ReactNode,
 } from "react";
-import {
-  listConversations,
-  deleteConversation,
-  renameConversation,
-  type Conversation,
-} from "@/modules/chat/chat.api";
 import { useNavigate, useLocation } from "react-router-dom";
+import {
+  useConversations,
+  type Conversation,
+} from "@/hooks/queries/useConversations";
+import { useMessagesCache } from "@/hooks/queries/useMessages";
 
 interface ConversationContextType {
   conversations: Conversation[];
@@ -34,28 +45,21 @@ const ConversationContext = createContext<ConversationContextType | null>(null);
 export const ConversationProvider: FC<{ children: ReactNode }> = ({
   children,
 }) => {
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [loadingConversations, setLoadingConversations] = useState(true);
+  const {
+    conversations,
+    loadingConversations,
+    reloadConversations,
+    deleteConv: deleteConvMutation,
+    renameConv,
+  } = useConversations();
+  const { dropMessages } = useMessagesCache();
+
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(
     () => localStorage.getItem("sb-collapsed") === "1",
   );
   const navigate = useNavigate();
   const location = useLocation();
-
-  const reloadConversations = useCallback(async () => {
-    try {
-      setConversations(await listConversations());
-    } catch {
-      // Ignore failure
-    } finally {
-      setLoadingConversations(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    reloadConversations();
-  }, [reloadConversations]);
 
   useEffect(() => {
     localStorage.setItem("sb-collapsed", collapsed ? "1" : "0");
@@ -82,32 +86,13 @@ export const ConversationProvider: FC<{ children: ReactNode }> = ({
       if (activeId === id) {
         navigate("/");
       }
-      setConversations((prev) => prev.filter((c) => c._id !== id));
-      try {
-        await deleteConversation(id);
-      } catch {
-        // Ignore
-      } finally {
-        reloadConversations();
-      }
+      // Bỏ luôn cache tin nhắn của hội thoại vừa xoá — nếu không, tạo hội
+      // thoại mới trùng id (hoặc quay lại bằng nút back) sẽ đọc được lịch sử
+      // của một hội thoại không còn tồn tại.
+      dropMessages(id);
+      await deleteConvMutation(id);
     },
-    [activeId, navigate, reloadConversations],
-  );
-
-  const renameConv = useCallback(
-    async (id: string, title: string) => {
-      setConversations((prev) =>
-        prev.map((c) => (c._id === id ? { ...c, title } : c)),
-      );
-      try {
-        await renameConversation(id, title);
-      } catch {
-        // Ignore
-      } finally {
-        reloadConversations();
-      }
-    },
-    [reloadConversations],
+    [activeId, navigate, deleteConvMutation, dropMessages],
   );
 
   return (
@@ -115,9 +100,13 @@ export const ConversationProvider: FC<{ children: ReactNode }> = ({
       value={{
         conversations,
         loadingConversations,
-        reloadConversations,
+        reloadConversations: async () => {
+          await reloadConversations();
+        },
         deleteConv,
-        renameConv,
+        renameConv: async (id, title) => {
+          await renameConv(id, title);
+        },
         sidebarOpen,
         collapsed,
         toggleSidebar,

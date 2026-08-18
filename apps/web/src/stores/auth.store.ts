@@ -1,42 +1,42 @@
 /**
- * Auth store — quản lý trạng thái xác thực người dùng.
+ * Auth store — CHỈ còn giữ các hành động (login/register/verify/logout) và cờ
+ * isLoading của form.
  *
- * Yêu cầu: cài zustand vào @app/web
- *   pnpm add zustand --filter @app/web
+ * User của session hiện tại KHÔNG còn ở đây nữa: đó là server state, đã
+ * chuyển sang TanStack Query (xem src/hooks/queries/useSession.ts). Trước đây
+ * store tự giữ `user` + `initialized` + `init()`, nên mỗi guard phải gọi
+ * init() trong useEffect — reload trang là 3 lần GET /api/auth/me mà không
+ * cách nào dedupe, vì Zustand không biết dữ liệu còn mới hay đã cũ.
  *
- * State:
- *   - user: thông tin người dùng hiện tại (null nếu chưa đăng nhập)
- *   - isLoading: true khi đang kiểm tra session (init) hoặc đang login/register
- *
- * Actions:
- *   - init(): gọi khi app mount, kiểm tra session qua GET /api/auth/me
- *   - login(email, password): đăng nhập, lưu user vào store
- *   - register(email, password, name): đăng ký — gửi OTP, CHƯA đăng nhập
- *     (user phải verifyEmail() thành công mới có session)
- *   - verifyEmail(email, otp): xác minh OTP, lưu user vào store (đăng nhập lần đầu)
- *   - resendOtp(email): gửi lại OTP (tôn trọng cooldown 2 phút phía server)
- *   - logout(): đăng xuất, xóa user khỏi store
+ * Các hành động dưới đây ghi thẳng kết quả vào cache ["session"] bằng
+ * queryClient (instance dùng chung, xem src/lib/query-client.ts) — endpoint
+ * login/verify đã trả về user mới nhất nên không cần gọi thêm /me.
  */
 
 import { create } from "zustand";
 import api from "@/lib/http";
+import { queryClient } from "@/lib/query-client";
+import { queryKeys } from "@/lib/query-keys";
+import type { AuthUser } from "@/hooks/queries/useSession";
 
-// ── Types ──
+export type { AuthUser };
 
-export interface AuthUser {
-  id: string;
-  email: string;
-  name: string;
-  role: string;
-  avatar_url?: string | null;
-}
+/**
+ * Ghi user vào cache session sau khi đăng nhập thành công.
+ *
+ * clear() TRƯỚC khi ghi: nếu tab này vừa có user khác đăng nhập, cache còn
+ * giữ hội thoại/settings của người đó — hiện lại cho người mới là rò rỉ dữ
+ * liệu. Sau clear() mới set session để guard không phải gọi lại /me.
+ */
+const adoptSession = (user: AuthUser) => {
+  queryClient.clear();
+  queryClient.setQueryData(queryKeys.session(), user);
+};
 
 interface AuthState {
-  user: AuthUser | null;
+  /** true khi đang có một request auth (login/register/...) chạy. */
   isLoading: boolean;
-  initialized: boolean;
 
-  init: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string) => Promise<void>;
   verifyEmail: (email: string, otp: string) => Promise<void>;
@@ -50,31 +50,12 @@ interface AuthState {
   logout: () => Promise<void>;
 }
 
-// ── Store ──
-
-export const useAuthStore = create<AuthState>((set, get) => ({
-  user: null,
+export const useAuthStore = create<AuthState>((set) => ({
   isLoading: false,
-  initialized: false,
-
-  /**
-   * Khởi tạo session — gọi khi app mount.
-   * Gọi GET /api/auth/me để kiểm tra cookie session còn hợp lệ không.
-   */
-  init: async () => {
-    if (get().initialized) return;
-    set({ isLoading: true });
-    try {
-      const data = await api.get<{ user: AuthUser }>("/api/auth/me");
-      set({ user: data.user, isLoading: false, initialized: true });
-    } catch {
-      set({ user: null, isLoading: false, initialized: true });
-    }
-  },
 
   /**
    * Đăng nhập bằng email + password.
-   * BFF set httpOnly cookie, store nhận user từ response.
+   * BFF set httpOnly cookie, user từ response được ghi vào cache session.
    */
   login: async (email: string, password: string) => {
     set({ isLoading: true });
@@ -83,7 +64,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         email,
         password,
       });
-      set({ user: data.user, isLoading: false });
+      adoptSession(data.user);
+      set({ isLoading: false });
     } catch (err) {
       set({ isLoading: false });
       throw err;
@@ -92,7 +74,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   /**
    * Đăng ký tài khoản mới — gửi OTP về email, CHƯA đăng nhập.
-   * Không set user: phải verifyEmail() thành công mới có session.
+   * Không set session: phải verifyEmail() thành công mới có.
    */
   register: async (email: string, password: string, name: string) => {
     set({ isLoading: true });
@@ -120,7 +102,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         "/api/auth/verify-email",
         { email, otp },
       );
-      set({ user: data.user, isLoading: false });
+      adoptSession(data.user);
+      set({ isLoading: false });
     } catch (err) {
       set({ isLoading: false });
       throw err;
@@ -162,10 +145,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   /**
    * Đăng xuất — BFF clear httpOnly cookie.
-   * Luôn xóa user khỏi store, kể cả khi request lỗi.
+   *
+   * Xoá SẠCH cache (không chỉ session) kể cả khi request lỗi: hội thoại, tin
+   * nhắn, settings đều là dữ liệu riêng của user vừa đăng xuất. Ghi
+   * session = null ngay sau đó để guard biết "đã kiểm tra, chưa đăng nhập" mà
+   * không phải gọi thêm /me chỉ để nhận 401.
    */
   logout: async () => {
-    set({ user: null, isLoading: false });
+    set({ isLoading: false });
+    queryClient.clear();
+    queryClient.setQueryData(queryKeys.session(), null);
     try {
       await api.post("/api/auth/logout");
     } catch {

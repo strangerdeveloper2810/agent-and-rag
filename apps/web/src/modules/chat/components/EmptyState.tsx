@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import {
@@ -13,7 +13,8 @@ import {
 } from "@heroicons/react/24/outline";
 import type { EmptyStateProps } from "@/types";
 import { Card } from "@/components/ui/card";
-import { useUserStore } from "@/stores/user.store";
+import { useAgentAvatarUrl } from "@/hooks/queries/useUserSettings";
+import { useSuggestions } from "@/hooks/queries/useSuggestions";
 
 const PROMPT_CATEGORY_IDS = [
   "creative",
@@ -43,20 +44,12 @@ const buildPromptDatabase = (t: TFunction<"chat">) =>
     pool: t(`emptyState.prompts.${id}`, { returnObjects: true }) as string[],
   }));
 
-const fetchSuggestionsApi = async (t: TFunction<"chat">): Promise<string[]> => {
-  try {
-    const baseUrl = import.meta.env.VITE_AGENT_URL ?? "";
-    const res = await fetch(`${baseUrl}/suggestions?_t=${Date.now()}`);
-    if (!res.ok) throw new Error("failed");
-    const data = await res.json();
-    if (data.suggestions?.length) return data.suggestions;
-    throw new Error("empty");
-  } catch {
-    const randomPool = t("emptyState.randomPool", {
-      returnObjects: true,
-    }) as string[];
-    return [...randomPool].sort(() => Math.random() - 0.5).slice(0, 4);
-  }
+/** Pool gợi ý tĩnh trong file i18n — dùng khi agent không trả về gợi ý nào. */
+const shuffledFallbackPool = (t: TFunction<"chat">): string[] => {
+  const randomPool = t("emptyState.randomPool", {
+    returnObjects: true,
+  }) as string[];
+  return [...randomPool].sort(() => Math.random() - 0.5).slice(0, 4);
 };
 
 /**
@@ -64,37 +57,39 @@ const fetchSuggestionsApi = async (t: TFunction<"chat">): Promise<string[]> => {
  */
 export const EmptyState: React.FC<EmptyStateProps> = ({ onPick }) => {
   const { t } = useTranslation("chat");
-  const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
   const [pickedPrompt, setPickedPrompt] = useState<string | null>(null);
   const [refreshSeed, setRefreshSeed] = useState(0);
 
-  // Avatar agent do user tự cấu hình (settings.agent_avatar_url). Đọc từ store
-  // toàn cục — Sidebar đã fetchSettings() một lần khi app mount nên ở đây chỉ
-  // đọc, không fetch lại. Ảnh do user upload có thể 404 nên phải fallback êm về
-  // icon mặc định thay vì để khung hero trống.
-  const agentAvatarUrl = useUserStore((s) => s.settings?.agent_avatar_url);
+  // Avatar agent do user tự cấu hình (settings.agent_avatar_url). Dùng chung
+  // cache ["user","settings"] với Sidebar/modal nên không phát request riêng.
+  // Ảnh do user upload có thể 404 nên phải fallback êm về icon mặc định thay
+  // vì để khung hero trống.
+  const agentAvatarUrl = useAgentAvatarUrl();
   const [agentAvatarError, setAgentAvatarError] = useState(false);
   useEffect(() => {
     setAgentAvatarError(false);
   }, [agentAvatarUrl]);
 
+  // /suggestions là một lượt gọi LLM — cache 30 phút, và component này chỉ
+  // được ChatPage render khi thật sự không có tin nhắn nào (trước đây nó còn
+  // render trong lúc lịch sử đang tải, tức là gọi LLM rồi bỏ đi ngay).
+  const {
+    suggestions: agentSuggestions,
+    isFetching: loadingSuggestions,
+    refresh: refreshSuggestions,
+  } = useSuggestions();
+
   const PROMPT_DATABASE = useMemo(() => buildPromptDatabase(t), [t]);
 
-  const loadSuggestions = useCallback(async () => {
-    setLoadingSuggestions(true);
-    try {
-      const items = await fetchSuggestionsApi(t);
-      setSuggestions(items);
-    } finally {
-      setLoadingSuggestions(false);
-    }
-  }, [t]);
-
-  useEffect(() => {
-    loadSuggestions();
-  }, [loadSuggestions]);
+  // Fallback tính ở phía component (không nằm trong cache) để đổi ngôn ngữ là
+  // đổi gợi ý theo ngay, không phải chờ cache hết hạn.
+  const suggestions = useMemo(
+    () => agentSuggestions ?? shuffledFallbackPool(t),
+    // refreshSeed đứng trong deps để bấm "đổi gợi ý" cũng xáo lại pool tĩnh.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [agentSuggestions, t, refreshSeed],
+  );
 
   const currentPrompts = useMemo(() => {
     void refreshSeed;
@@ -116,7 +111,8 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ onPick }) => {
 
   const handleRefreshAll = () => {
     setRefreshSeed((s) => s + 1);
-    loadSuggestions();
+    // Hành động rõ ràng của user → cho phép gọi lại LLM một lượt.
+    refreshSuggestions();
   };
 
   return (

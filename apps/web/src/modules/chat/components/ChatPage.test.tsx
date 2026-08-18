@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "@/i18n";
 import { ToastProvider } from "@/design-system/molecules/Toast";
 import type { ChatEvent } from "@/modules/chat/chat.api";
+import { withQueryClient } from "@/test/query";
 import { ChatPage } from "./ChatPage";
 
 // jsdom doesn't implement scrollIntoView; ChatPage calls it on every message update.
@@ -34,17 +35,20 @@ vi.mock("@/context/ConversationContext", () => ({
   useConversation: () => ({ reloadConversations: vi.fn() }),
 }));
 
+// ChatPage đọc lịch sử tin nhắn qua cache TanStack Query (useMessagesCache).
 const renderChatPage = () =>
   render(
-    <I18nextProvider i18n={i18n}>
-      <ToastProvider>
-        <MemoryRouter initialEntries={["/messages/conv-1"]}>
-          <Routes>
-            <Route path="/messages/:id" element={<ChatPage />} />
-          </Routes>
-        </MemoryRouter>
-      </ToastProvider>
-    </I18nextProvider>,
+    withQueryClient(
+      <I18nextProvider i18n={i18n}>
+        <ToastProvider>
+          <MemoryRouter initialEntries={["/messages/conv-1"]}>
+            <Routes>
+              <Route path="/messages/:id" element={<ChatPage />} />
+            </Routes>
+          </MemoryRouter>
+        </ToastProvider>
+      </I18nextProvider>,
+    ),
   );
 
 describe("ChatPage", () => {
@@ -175,5 +179,62 @@ describe("ChatPage", () => {
       undefined,
       "en",
     );
+  });
+
+  // Regression: mở lại một hội thoại ĐÃ CÓ tin nhắn không được phát
+  // GET /suggestions. EmptyState gọi endpoint đó, mà nó là một lượt gọi LLM ở
+  // agent-go. Bản cũ khởi tạo historyLoading = false nên render đầu tiên
+  // (messages còn rỗng, effect chưa chạy) rơi vào nhánh EmptyState → mount rồi
+  // unmount ngay, đốt một lượt LLM mà user không bao giờ thấy gợi ý.
+  describe("không gọi gợi ý LLM khi đang tải lịch sử", () => {
+    const HERO_VI = "Tôi có thể giúp gì cho bạn hôm nay?";
+
+    /** Đếm riêng số lần gọi /suggestions (fetch còn dùng cho request khác). */
+    const stubFetch = () => {
+      const spy = vi.fn((_url: string) =>
+        Promise.resolve({
+          ok: false,
+          json: () => Promise.resolve({}),
+        } as Response),
+      );
+      vi.stubGlobal("fetch", spy);
+      return () =>
+        spy.mock.calls.filter(([url]) => String(url).includes("/suggestions"))
+          .length;
+    };
+
+    it("không render EmptyState và không gọi /suggestions khi lịch sử chưa về", async () => {
+      const suggestionCalls = stubFetch();
+      let resolveMessages: (m: unknown[]) => void = () => {};
+      chatApi.getMessages.mockReturnValue(
+        new Promise((resolve) => {
+          resolveMessages = resolve as (m: unknown[]) => void;
+        }),
+      );
+
+      renderChatPage();
+
+      expect(screen.queryByText(HERO_VI)).not.toBeInTheDocument();
+      expect(suggestionCalls()).toBe(0);
+
+      await act(async () => {
+        resolveMessages([{ role: "user", content: "tin nhắn cũ" }]);
+      });
+
+      // Lịch sử có tin nhắn → vẫn không được hiện EmptyState.
+      expect(screen.queryByText(HERO_VI)).not.toBeInTheDocument();
+      expect(suggestionCalls()).toBe(0);
+      vi.unstubAllGlobals();
+    });
+
+    it("hội thoại rỗng thật thì vẫn hiện EmptyState như cũ", async () => {
+      stubFetch();
+      chatApi.getMessages.mockResolvedValue([]);
+
+      renderChatPage();
+
+      expect(await screen.findByText(HERO_VI)).toBeInTheDocument();
+      vi.unstubAllGlobals();
+    });
   });
 });

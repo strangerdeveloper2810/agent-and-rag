@@ -24,8 +24,15 @@ import {
   PuzzlePieceIcon,
 } from "@heroicons/react/24/outline";
 
-import { useAuthStore } from "@/stores/auth.store";
-import { useUserStore } from "@/stores/user.store";
+import { useSession } from "@/hooks/queries/useSession";
+import {
+  useChangePassword,
+  useUpdateProfile,
+  useUpdateSettings,
+  useUserSettings,
+} from "@/hooks/queries/useUserSettings";
+import { useMcpServers } from "@/hooks/queries/useMcpServers";
+import { useSkills } from "@/hooks/queries/useSkills";
 import { BUILTIN_SKILLS } from "@/stores/builtin-skills";
 import { useToast } from "@/design-system/molecules/Toast";
 import { useTheme } from "@/hooks/useTheme";
@@ -131,28 +138,42 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
   conversationMessages = [],
 }) => {
   const { t, i18n } = useTranslation("settings");
-  const { user } = useAuthStore();
+  const { user } = useSession();
+  const { settings } = useUserSettings();
+
+  const updateSettingsMutation = useUpdateSettings();
+  const updateProfileMutation = useUpdateProfile();
+  const changePasswordMutation = useChangePassword();
+  const updateSettings = updateSettingsMutation.mutateAsync;
+  const updateProfile = updateProfileMutation.mutateAsync;
+  const changePassword = (oldPassword: string, newPassword: string) =>
+    changePasswordMutation.mutateAsync({ oldPassword, newPassword });
+  // Ba form (profile / persona / mật khẩu) dùng chung một cờ "đang lưu" để
+  // disable nút submit, đúng như isSaving của store cũ.
+  const isSaving =
+    updateSettingsMutation.isPending ||
+    updateProfileMutation.isPending ||
+    changePasswordMutation.isPending;
+
+  // enabled: isOpen — modal luôn được mount (nó tự return null khi đóng), nên
+  // nếu không chặn thì mọi user vừa vào app là đã fetch MCP + skills dù chưa
+  // mở cài đặt. Trong staleTime thì đóng/mở lại không gọi API nữa.
   const {
-    fetchSettings,
-    updateSettings,
-    updateProfile,
-    changePassword,
-    isSaving,
     mcpServers,
-    skills,
-    disabledBuiltinSkills,
     isLoadingMcp,
-    isLoadingSkills,
-    fetchMcpServers,
     createMcpServer,
     updateMcpServer,
     deleteMcpServer,
-    fetchSkills,
+  } = useMcpServers({ enabled: isOpen });
+  const {
+    skills,
+    disabledBuiltinSkills,
+    isLoadingSkills,
     createSkill,
     updateSkill,
     deleteSkill,
     toggleBuiltinSkill,
-  } = useUserStore();
+  } = useSkills({ enabled: isOpen });
   const toast = useToast();
   const { theme, setTheme } = useTheme();
 
@@ -235,19 +256,21 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
       setActiveTab(initialTab);
       setDisplayName(user?.name || "");
       setAvatarUrl(user?.avatar_url ?? null);
-      fetchSettings().then((s) => {
-        if (s) {
-          setPersonaPreset(s.persona_preset || "default");
-          setFormality(s.formality || "neutral");
-          setVerbosity(s.verbosity || "normal");
-          setCustomInstructions(s.custom_instructions || "");
-          setAgentAvatarUrl(s.agent_avatar_url ?? null);
-        }
-      });
-      fetchMcpServers().catch(() => {});
-      fetchSkills().catch(() => {});
     }
-  }, [isOpen, initialTab, user, fetchSettings, fetchMcpServers, fetchSkills]);
+  }, [isOpen, initialTab, user]);
+
+  // Nạp form persona từ settings. Trước đây chỗ này gọi fetchSettings() rồi
+  // seed trong .then() — tức là mỗi lần mở modal là một request. Giờ settings
+  // đến từ cache dùng chung, effect chỉ chịu trách nhiệm copy vào form state
+  // (form là client state, phải cho user sửa được nên không đọc trực tiếp).
+  useEffect(() => {
+    if (!isOpen || !settings) return;
+    setPersonaPreset(settings.persona_preset || "default");
+    setFormality(settings.formality || "neutral");
+    setVerbosity(settings.verbosity || "normal");
+    setCustomInstructions(settings.custom_instructions || "");
+    setAgentAvatarUrl(settings.agent_avatar_url ?? null);
+  }, [isOpen, settings]);
 
   if (!isOpen) return null;
 
