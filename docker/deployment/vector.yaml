@@ -17,7 +17,7 @@ transforms:
       .stream = .stream
       .host = .host
       if !exists(.message) || .message == null || .message == "" {
-        .message = string!(.msg, "[log]")
+        .message = to_string(.msg) ?? "[log]"
       }
 
 sinks:
