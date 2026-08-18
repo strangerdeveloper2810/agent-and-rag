@@ -1,137 +1,104 @@
 ---
 name: data-analysis
-description: Analyze data — find patterns, trends, anomalies, calculate statistics, and suggest visualizations
-when_to_use: When the user has data and needs insights: CSV files, logs, performance metrics, experiment results, or any structured data
-triggers: [phân tích dữ liệu, phan tich du lieu, data analysis, thống kê, thong ke, biểu đồ, bieu do, dataset]
+description: Data analysis — clean, explore, find patterns, test hypotheses, and turn numbers into actionable insight
+when_to_use: When the user has data to analyse, wants statistics explained, needs pattern discovery, or asks what the numbers mean
+triggers: [phân tích dữ liệu, phan tich du lieu, thống kê, thong ke, dữ liệu, du lieu, csv, biểu đồ, bieu do, xu hướng, xu huong, tương quan, tuong quan, outlier, data analysis]
 tools: [file.read, shell.exec, calculator]
 ---
 
 # Data Analysis Skill
 
-J.A.R.V.I.S. as a data analyst. Turn raw data into actionable insights. Numbers are not the answer — what they MEAN is the answer.
+Con số không phải câu trả lời — Ý NGHĨA của nó mới là.
 
-## Analysis Workflow
+## 1. Hiểu dữ liệu trước
 
-### Step 1: Understand the Data
-Before any analysis, answer:
-- **What is the source?** Experiment, production logs, survey, financial records?
-- **What does each column/field represent?** Get definitions. Do not guess.
-- **What is the time range?** Is this a snapshot or time series?
-- **What are the known issues?** Missing data, outliers, measurement errors?
-- **What question are we answering?** Analysis without a question is just math — not useful.
+Trả lời trước khi phân tích: nguồn ở đâu · mỗi cột nghĩa là gì (hỏi cho rõ, không
+đoán) · khoảng thời gian nào, snapshot hay time series · vấn đề đã biết (thiếu
+dữ liệu, outlier, sai số đo) · **đang trả lời câu hỏi nào**. Phân tích không có
+câu hỏi thì chỉ là làm toán.
 
-Load and inspect with `file.read` for small files or `shell.exec` with appropriate tools (jq for JSON, awk for CSV, python/go for larger datasets).
+Đọc bằng `file.read` với file nhỏ; `shell.exec` với công cụ phù hợp (jq cho JSON,
+awk cho CSV, script Python/Go cho tập lớn).
 
-### Step 2: Clean and Validate
-- **Check for missing values**: How many? Is there a pattern to what is missing?
-- **Check data types**: Are numbers stored as strings? Dates as timestamps?
-- **Identify outliers**: Values that are physically impossible or statistically extreme.
-- **Validate ranges**: Do values fall within expected bounds?
-- **Deduplicate**: Are there repeated rows?
+## 2. Làm sạch và kiểm tra
 
-Report data quality issues to the user BEFORE analysis. "15% of the temperature readings are missing for the Tuesday run. Should I exclude that day or interpolate?"
+- Thiếu bao nhiêu giá trị, thiếu có theo quy luật nào không?
+- Kiểu dữ liệu: số bị lưu thành chuỗi? ngày bị lưu thành timestamp?
+- Outlier: giá trị bất khả thi về mặt vật lý hay cực trị về mặt thống kê?
+- Giá trị có nằm trong biên mong đợi?
+- Có dòng trùng?
 
-### Step 3: Exploratory Analysis
+Báo vấn đề chất lượng dữ liệu cho user **trước khi** phân tích, kèm lựa chọn:
+"15% số đo nhiệt độ ngày thứ Ba bị thiếu — loại ngày đó hay nội suy?"
 
-#### Descriptive Statistics
-For each numeric variable, compute and present:
-- **Count** — how many data points?
-- **Mean / Median** — central tendency. If they differ significantly, the distribution is skewed.
-- **Std Dev / Variance** — spread.
-- **Min / Max** — range.
-- **Quartiles (Q1, Q3)** — distribution shape.
-- **IQR** — Q3 - Q1, robust measure of spread.
+## 3. Khám phá
 
-#### Distribution Analysis
-- Is the data normally distributed, skewed, bimodal, uniform?
-- Are there unexpected clusters or gaps?
-- Use histograms (describe shape if the user cannot view charts).
+**Thống kê mô tả** cho mỗi biến số: count · mean và median (lệch nhau nhiều nghĩa
+là phân phối lệch) · std dev · min/max · Q1/Q3 · IQR (thước đo độ phân tán ít bị
+outlier ảnh hưởng).
 
-#### Correlation Analysis
-- Compute pairwise correlations between numeric variables.
-- Flag strong correlations (|r| > 0.7): "thrust output and fuel consumption show a 0.92 correlation — nearly linear."
-- Caution: correlation is not causation. Always state this.
+**Phân phối:** chuẩn, lệch, hai đỉnh, hay đều? Có cụm hoặc khoảng trống bất
+thường? Nếu user không xem được biểu đồ thì mô tả hình dạng bằng lời.
 
-#### Trend Analysis (Time Series)
-- What is the overall trend: increasing, decreasing, stable, cyclical?
-- Is there seasonality: daily, weekly, monthly patterns?
-- Are there change points where behavior shifted? "Performance degraded sharply after the March 15th update, sir."
-- Compute rolling averages to smooth noise.
+**Tương quan:** tính tương quan từng cặp biến số, nêu cặp mạnh (|r| > 0,7). **Luôn
+nói rõ tương quan không phải nhân quả.**
 
-### Step 4: Pattern Discovery
+**Chuỗi thời gian:** xu hướng chung (tăng/giảm/ổn định/theo chu kỳ) · tính mùa
+(ngày/tuần/tháng) · điểm đổi hành vi ("hiệu năng tụt hẳn sau bản cập nhật ngày
+15/3") · dùng rolling average để bớt nhiễu.
 
-- **Clusters / Segments**: Are there natural groupings in the data?
-- **Anomalies**: Data points that deviate from expected patterns. "reactor temperature spiked to 3400K for 0.3 seconds at 14:22. That is 3 standard deviations above normal."
-- **Relationships**: Non-linear patterns, thresholds, interaction effects.
-- **Funnels / Sequences**: For process data, where do things drop off?
+## 4. Tìm pattern
 
-### Step 5: Hypothesis Testing
-If the user has a specific hypothesis:
-1. State the null hypothesis (H0) and alternative (H1).
-2. Choose the appropriate test: t-test (compare means), chi-squared (categorical), correlation test, etc.
-3. Set significance level (typically alpha = 0.05).
-4. Compute test statistic and p-value.
-5. Interpret: "We can reject the null hypothesis at p < 0.01. The new alloy is significantly stronger, sir."
+Cụm/phân khúc tự nhiên · điểm bất thường (nêu kèm mức lệch: "cao hơn bình thường
+3 độ lệch chuẩn") · quan hệ phi tuyến, ngưỡng, tác động tương tác · phễu/chuỗi
+bước: người dùng rơi ở bước nào.
 
-### Step 6: Insight Synthesis
+## 5. Kiểm định giả thuyết
 
-Transform analysis into insights the user can act on:
+Nêu H0 và H1 → chọn test phù hợp (t-test so sánh trung bình, chi-squared cho biến
+phân loại, test tương quan) → đặt mức ý nghĩa (thường α = 0,05) → tính test
+statistic và p-value → diễn giải bằng lời thường, kèm điều kiện.
 
-**Bad**: "The mean value is 42.3 with standard deviation 5.7."
-**Good**: "The new thruster design delivers 42.3 kN of thrust — that is a 23% improvement over the Mark VII, but with higher variance (the worst-performing unit still beats the old best by 8%)."
+## 6. Biến phân tích thành insight
 
-**Output format for each insight:**
-```
-[Finding] — What the data shows.
-[Context] — Why it matters relative to the goal.
-[Action] — What the user should do about it.
-[Confidence] — How certain are we? (High / Medium / Low — with reason)
-```
+**Dở:** "mean 42,3, std dev 5,7."
+**Tốt:** "thiết kế mới cho 42,3 kN — cải thiện 23% so với bản cũ, nhưng phương sai
+lớn hơn (bản tệ nhất vẫn hơn bản tốt nhất cũ 8%)."
 
-## Visualization Guidance
+Mỗi insight trình bày 4 phần: **Finding** (dữ liệu cho thấy gì) · **Context** (vì
+sao nó quan trọng với mục tiêu) · **Action** (nên làm gì) · **Confidence**
+(cao/trung bình/thấp, kèm lý do).
 
-the user often benefits from visual representations. For each analysis, suggest:
+## Chọn biểu đồ
 
-| Data Type | Best Visualization | Why |
+| Loại dữ liệu | Biểu đồ | Vì sao |
 |---|---|---|
-| Distribution | Histogram, density plot | Shows shape, skew, modes |
-| Comparison | Bar chart, box plot | Compare groups side by side |
-| Trend over time | Line chart | Shows trajectory |
-| Correlation | Scatter plot | Shows relationships |
-| Composition | Stacked bar, pie (avoid), treemap | Shows parts of a whole |
-| Ranking | Horizontal bar (sorted) | Easy to scan |
-| Geographic | Map, heatmap | Spatial patterns |
+| Phân phối | histogram, density | thấy hình dạng, độ lệch, số đỉnh |
+| So sánh nhóm | bar, box plot | đặt cạnh nhau |
+| Theo thời gian | line | thấy quỹ đạo |
+| Quan hệ | scatter | thấy tương quan |
+| Thành phần | stacked bar, treemap (tránh pie) | phần trong tổng thể |
+| Xếp hạng | bar ngang đã sort | dễ đọc |
+| Địa lý | map, heatmap | pattern không gian |
 
-Run actual plotting commands via `shell.exec` when possible (Python with matplotlib/seaborn, Go with gonum/plot).
+Vẽ thật qua `shell.exec` khi được (matplotlib/seaborn, gonum/plot).
 
-## Anti-Patterns
+## Lệnh nhanh
 
-- **Analysis without a question**: Never explore data aimlessly. "What are we trying to learn, sir?"
-- **Cherry-picking**: Report ALL findings, not just the ones that support a narrative.
-- **Overstating confidence**: "Given the sample size of 12, these results are suggestive but not conclusive, sir."
-- **P-hacking**: Testing 20 hypotheses and reporting the one with p < 0.05 is dishonest. Correct for multiple comparisons.
-- **Ignoring data quality**: Garbage in, garbage out. Flag quality issues before drawing conclusions.
-- **Complexity for its own sake**: A simple average that answers the question beats a sophisticated model that does not.
+```bash
+awk '{s+=$1; q+=$1*$1; n++} END {print "mean:", s/n, "sd:", sqrt(q/n-(s/n)^2)}' data.csv
+jq '[.[].value] | add/length' data.json
+```
 
-## Tools Reference
+Phân tích nặng thì viết script Python/Go rồi chạy.
 
-| Tool | Use Case |
-|---|---|
-| `file.read` | Inspect data files: CSV, JSON, log files |
-| `shell.exec` | Run analysis: awk, jq, python, go scripts; generate plots |
-| `calculator` | Quick statistical calculations |
+## Anti-pattern
 
-For `shell.exec`, prefer one-liners for quick stats:
-- `awk '{sum+=$1; sumsq+=$1*$1; count++} END {print "mean:", sum/count, "stddev:", sqrt(sumsq/count - (sum/count)^2)}' data.csv`
-- `jq '[.[].value] | add/length' data.json`
-- For heavy analysis, write and run a Python or Go script.
-
-## Quick Commands
-
-- "Analyze [file] and tell me what you see" — full exploratory analysis.
-- "What is the trend in [metric] over [time period]?" — time series analysis.
-- "Are [variable A] and [variable B] related?" — correlation analysis.
-- "Is there anything unusual in [dataset]?" — anomaly detection.
-- "Test the hypothesis that [claim]" — formal hypothesis testing.
-- "Summarize the key statistics for [dataset]" — descriptive stats.
-- "Plot [X] vs [Y] for [dataset]" — visualization.
+- **Phân tích không có câu hỏi** — hỏi "chúng ta đang muốn biết điều gì?" trước.
+- **Chọn lọc kết quả** — báo TẤT CẢ phát hiện, không chỉ cái ủng hộ kết luận mong muốn.
+- **Nói quá độ chắc chắn** — n = 12 thì kết quả là gợi ý, không phải kết luận.
+- **P-hacking** — thử 20 giả thuyết rồi báo cái p < 0,05; phải hiệu chỉnh cho
+  nhiều phép so sánh.
+- **Bỏ qua chất lượng dữ liệu** — rác vào thì rác ra.
+- **Phức tạp để cho oai** — một phép trung bình trả lời được câu hỏi thắng một mô
+  hình tinh vi không trả lời được.

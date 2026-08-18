@@ -105,6 +105,18 @@ jobs:
     needs: detect
     if: ${{ needs.detect.outputs.agent_go == 'true' }}
     runs-on: ubuntu-latest
+    # MongoDB thật cho nhóm integration test của internal/memory. Không có nó thì
+    # 3 hàm I/O Mongo không được phủ và coverage gate (95%) sẽ fail.
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ping:1}).ok'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     defaults:
       run:
         working-directory: services/agent-go
@@ -123,6 +135,11 @@ jobs:
       - name: Vet
         run: go vet ./...
       - name: Test (race + coverage)
+        # MONGODB_TEST_URI bật nhóm integration test của internal/memory
+        # (saveFactToMongo / saveKnowledgeItemToMongo / LoadFromMongo là I/O thuần,
+        # không fake được). Thiếu biến này thì chúng skip và coverage tụt dưới gate.
+        env:
+          MONGODB_TEST_URI: mongodb://localhost:27017
         run: go test -race -coverprofile=coverage.out ./...
       # Ratchet coverage theo từng package (không gate toàn repo — xem giải thích
       # trong script). Dùng lại profile của bước Test nên không chạy test 2 lần.

@@ -78,6 +78,36 @@ func main() {
 	reg.Register(tools.NewRecallMemoryTool(store))
 	reg.Register(tools.NewListMemoriesTool(store))
 
+	// Skill nào đang bị trần cắt: đây là chỗ mất nội dung, cần viết lại cho gọn.
+	fmt.Printf("\n═══ Skill vượt trần %d byte (bị gọt) ═══\n", skills.MaxPromptBytes)
+	overCount, overBytes := 0, 0
+	type overSkill struct {
+		name string
+		size int
+	}
+	var over []overSkill
+	for _, sum := range summaries {
+		sk := loader.LoadSkill(sum.Name)
+		if sk == nil {
+			continue
+		}
+		if len(sk.Content) > skills.MaxPromptBytes {
+			over = append(over, overSkill{sum.Name, len(sk.Content)})
+			overCount++
+			overBytes += len(sk.Content) - skills.MaxPromptBytes
+		}
+	}
+	sort.Slice(over, func(i, j int) bool { return over[i].size > over[j].size })
+	for _, o := range over {
+		fmt.Printf("  %-28s %6d byte  (mất %d byte)\n", o.name, o.size, o.size-skills.MaxPromptBytes)
+	}
+	if overCount == 0 {
+		fmt.Printf("  không có skill nào bị gọt ✅\n")
+	} else {
+		fmt.Printf("  → %d/%d skill bị gọt, tổng %d byte nội dung không tới được model\n",
+			overCount, len(summaries), overBytes)
+	}
+
 	fmt.Printf("\n═══ Tool schema ═══\n")
 	all := reg.ToolDefs()
 	totalAll := 0

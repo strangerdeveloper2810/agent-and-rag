@@ -14,16 +14,19 @@ cd "$(dirname "$0")/.."
 
 # package<TAB>ngưỡng tối thiểu (%)
 #
-# internal/memory ở 85 chứ không 90: phần chưa phủ là saveFactToMongo /
-# saveKnowledgeItemToMongo / LoadFromMongo — I/O thuần cần MongoDB thật, không
-# fake được vì mongo.Client chỉ dựng qua Connect() (ping ngay khi tạo). Muốn lên
-# >90 thì cần integration test có Mongo (docker compose hoặc MONGODB_TEST_URI).
+# internal/memory CẦN MongoDB để đạt ngưỡng: saveFactToMongo /
+# saveKnowledgeItemToMongo / LoadFromMongo là I/O thuần, không fake được (
+# mongo.Client chỉ dựng qua Connect() có ping ngay lúc tạo). Không có
+# MONGODB_TEST_URI thì các test đó skip và coverage tụt xuống ~88%.
+#
+#	docker run -d --rm --name jarvis-test-mongo -p 27117:27017 mongo:7
+#	MONGODB_TEST_URI=mongodb://localhost:27117 ./scripts/coverage-gate.sh
 GATES=$(
 	cat <<'EOF'
-internal/agent	90
-internal/memory	85
-internal/provider/fallback	90
-internal/skills	90
+internal/agent	95
+internal/memory	95
+internal/provider/fallback	95
+internal/skills	95
 EOF
 )
 

@@ -12,6 +12,7 @@ import (
 	"github.com/ai-agent-tut/agent-go/internal/mongo"
 	"github.com/ai-agent-tut/agent-go/internal/provider"
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 // Learner handles continuous background reflection and knowledge persistence.
@@ -158,7 +159,16 @@ func (l *Learner) saveFactToMongo(ctx context.Context, fact UserFact, conversati
 		},
 	}
 
-	_, _ = coll.UpdateOne(ctx, filter, update)
+	// PHẢI có SetUpsert: filter theo {key, tenantId} nên lần học đầu tiên của một
+	// key chưa có document nào khớp — thiếu upsert thì UpdateOne không ghi gì cả.
+	// Và PHẢI xử lý error: trước đây cả hai chỗ ghi Mongo đều `_, _ =`, nên việc
+	// không ghi được diễn ra hoàn toàn im lặng — fact chỉ nằm trong Store
+	// in-memory và mất sạch sau mỗi lần restart, trong khi log vẫn báo
+	// "learner: learned user fact" như thể đã lưu.
+	if _, err := coll.UpdateOne(ctx, filter, update, options.UpdateOne().SetUpsert(true)); err != nil {
+		slog.Warn("learner: không ghi được fact vào Mongo",
+			"key", fact.Key, "tenant", tenantID, "err", err)
+	}
 }
 
 func (l *Learner) saveKnowledgeItemToMongo(ctx context.Context, ki KnowledgeItem, conversationID string) {
@@ -207,7 +217,11 @@ func (l *Learner) saveKnowledgeItemToMongo(ctx context.Context, ki KnowledgeItem
 		},
 	}
 
-	_, _ = coll.UpdateOne(ctx, filter, update)
+	// Cùng lý do như saveFactToMongo: cần upsert, và error phải được ghi log.
+	if _, err := coll.UpdateOne(ctx, filter, update, options.UpdateOne().SetUpsert(true)); err != nil {
+		slog.Warn("learner: không ghi được knowledge item vào Mongo",
+			"title", ki.Title, "tenant", tenantID, "err", err)
+	}
 }
 
 func slugify(s string) string {

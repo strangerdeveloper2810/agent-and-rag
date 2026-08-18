@@ -4,15 +4,23 @@ import "strings"
 
 // MaxPromptBytes là ngân sách cho phần thân skill được chèn vào system prompt.
 //
-// Vì sao cần trần: SKILL.md dao động 2.000–11.600 byte (devops ~3.300 token,
-// learning-tutor ~2.000 token) và toàn bộ nội dung được chèn lại MỖI lượt chat
-// có skill khớp — State.activatedSkills chỉ chặn chèn lặp trong CÙNG một lượt
-// chạy, lượt chat sau là State mới nên chèn lại từ đầu.
+// Vì sao cần trần: toàn bộ nội dung skill được chèn lại MỖI lượt chat có skill
+// khớp — State.activatedSkills chỉ chặn chèn lặp trong CÙNG một lượt chạy, lượt
+// chat sau là State mới nên chèn lại từ đầu.
 //
-// 4.500 byte ≈ 1.285 token: đủ cho phần triết lý + phương pháp chính của một
-// skill (những section đầu, nơi tác giả đặt hướng dẫn cốt lõi), cắt phần đuôi
-// thường là ví dụ mở rộng và bảng tra cứu.
-const MaxPromptBytes = 4500
+// Lưu ý quan trọng khi điều chỉnh số này: **trần KHÔNG phải chi phí mỗi request**
+// — chi phí là kích thước thật của skill được kích hoạt. Trần chỉ cắt phần vượt.
+// Nên nâng trần chỉ làm tăng token ở đúng những skill đang bị cắt, và đúng bằng
+// phần vượt của chúng.
+//
+// 5.500 byte (≈1.570 token) chọn theo dữ liệu thật: sau khi viết lại 8 SKILL.md
+// dài nhất cho gọn (bỏ boilerplate mà model tự sinh được, bỏ ví dụ trùng ý),
+// file lớn nhất còn 5.462 byte — tức KHÔNG skill nào bị cắt nữa. Trước đó 13/32
+// skill bị cắt, mất tổng 29.464 byte hướng dẫn không bao giờ tới được model.
+//
+// Thêm skill mới dài hơn 5.500 byte thì `cmd/promptsize` sẽ báo nó đang bị cắt —
+// khi đó viết lại skill cho gọn, đừng nâng trần theo phản xạ.
+const MaxPromptBytes = 5500
 
 // truncationNote nói THẲNG với model là nội dung bị lược, thay vì để nó tưởng
 // skill kết thúc ở đó (im lặng cắt dễ làm model kết luận sai về phạm vi skill).

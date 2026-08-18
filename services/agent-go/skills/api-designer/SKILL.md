@@ -8,149 +8,62 @@ tools: [file.read, file.write]
 
 # API Designer Skill
 
-J.A.R.V.I.S. as an API architect. A well-designed API is like a well-designed suit interface — intuitive, reliable, and powerful. A bad API is like the Hammer Drone controls — nobody should have to use that.
+## Nguyên tắc vàng
 
-## Design Principles
+**Thiết kế cho người DÙNG API, không cho người viết nó.** Mọi quyết định lọc qua
+câu: "người lần đầu đọc endpoint này có đoán đúng không?"
 
-### The Golden Rule
-**Design APIs for the consumer, not the implementer.** Every decision should be filtered through: "Would this make sense to someone using this API for the first time?"
+1. **Nhất quán** — một chỗ dùng `snake_case` thì mọi chỗ dùng `snake_case`; một
+   format lỗi cho toàn bộ API.
+2. **Đoán được** — dev chưa từng thấy endpoint vẫn đoán đúng cách dùng.
+3. **Không gây bất ngờ** — `DELETE /users/123` là xoá, không phải archive.
+4. **Suy giảm mềm** — trả kết quả một phần thay vì fail toàn bộ; thêm field không
+   được làm vỡ client cũ.
+5. **Tự tài liệu** — URL, tên field, status code tự kể câu chuyện.
 
-### Core Principles
-1. **Consistency**: Same patterns everywhere. If one endpoint uses `snake_case`, all use `snake_case`. If one error format, all use the same format.
-2. **Predictability**: A developer should be able to guess how to use an endpoint they have never seen.
-3. **Least surprise**: Do what the user expects. `DELETE /users/123` should delete user 123, not archive them.
-4. **Graceful degradation**: Return partial results rather than failing completely. Add fields without breaking clients.
-5. **Self-documenting**: URLs, field names, and status codes should tell the story.
+## Resource naming
 
-## RESTful API Design
+- Danh từ số nhiều cho collection: `/users`, không `/user`.
+- Kebab-case cho tên nhiều từ: `/battle-damage-reports`.
+- Không động từ trong URL (`/users` không `/getUsers`), trừ action không phải
+  CRUD: `POST /suits/:id/activate`.
+- Không dấu `/` ở cuối. Sub-resource: `/users/:id/suits`.
+- `PUT` = thay toàn bộ, `PATCH` = sửa một phần.
 
-### Resource Naming
+## Status code — chỗ hay dùng sai
 
-```
-GET    /users              — List users
-POST   /users              — Create user
-GET    /users/:id          — Get user
-PUT    /users/:id          — Replace user (full update)
-PATCH  /users/:id          — Update user (partial update)
-DELETE /users/:id          — Delete user
+201 POST thành công (kèm `Location`) · 202 nhận rồi, xử lý async · 204 DELETE
+thành công không body · 401 chưa xác thực vs **403 đã xác thực nhưng không có
+quyền** · 409 xung đột trạng thái · 422 đúng cú pháp sai nghĩa · 429 vượt rate
+limit · 500 **không bao giờ** lộ chi tiết nội bộ.
 
-# Sub-resources
-GET    /users/:id/suits    — List user's suits
-POST   /users/:id/suits    — Create suit for user
+## Request / response
 
-# Actions that are not CRUD
-POST   /suits/:id/activate — Activate a suit
-POST   /suits/:id/self-destruct — Self-destruct (with confirmation!)
-```
+- Chọn MỘT kiểu đặt tên field (`snake_case` hoặc `camelCase`) và giữ suốt.
+- Không prefix tên field bằng tên resource (`user_name` trong `/users` là dư).
+- Enum là **string**, không phải số (`"role": "pilot"`, không `"role": 3`).
+- Phẳng hơn là lồng — không quá 2 tầng.
+- Timestamp theo RFC 3339: `"2026-07-24T14:30:00Z"`.
+- Response luôn có `id`; resource có thể sửa thì thêm `created_at` + `updated_at`.
+- Không lộ ID nội bộ, không lộ field nhạy cảm (hash mật khẩu, ghi chú nội bộ).
 
-**Naming conventions:**
-- Plural nouns for collections: `/users` not `/user`
-- Kebab-case for multi-word resources: `/battle-damage-reports`
-- No verbs in URLs (except for non-CRUD actions): `/users` not `/getUsers`
-- No trailing slashes: `/users` not `/users/`
-- Consistent case: use `snake_case` or `camelCase` for JSON fields throughout
+## Pagination
 
-### HTTP Status Codes
+- **Cursor** (`?cursor=abc&limit=20`) — **khuyến nghị**: ổn định khi dữ liệu đang
+  thay đổi, tốt cho tập lớn.
+- **Offset** (`?offset=0&limit=20`) — đơn giản, nhưng nhảy/lặp item khi dữ liệu đổi.
+- **Page** (`?page=1&per_page=20`) — thân thiện cho UI.
 
-| Code | When to Use |
-|---|---|
-| **200 OK** | Successful GET, PUT, PATCH |
-| **201 Created** | Successful POST, include `Location` header |
-| **202 Accepted** | Async operation started, not yet complete |
-| **204 No Content** | Successful DELETE, nothing to return |
-| **400 Bad Request** | Malformed input, validation error |
-| **401 Unauthorized** | Missing or invalid authentication |
-| **403 Forbidden** | Authenticated but not authorized |
-| **404 Not Found** | Resource does not exist |
-| **409 Conflict** | Resource state conflict (e.g., duplicate, version mismatch) |
-| **422 Unprocessable Entity** | Semantic error in request body |
-| **429 Too Many Requests** | Rate limit exceeded |
-| **500 Internal Server Error** | Unexpected server error — never expose details to client |
-| **503 Service Unavailable** | Temporary outage, maintenance |
+Response kèm khối `pagination` có tổng số và link `next`/`prev`.
 
-### Request Design
+## Filter / sort / search
 
-```json
-// POST /users — Good
-{
-  "name": "James Rhodes",
-  "email": "rhodey@stark-industries.com",
-  "role": "pilot",
-  "clearance_level": 5
-}
+`GET /suits?status=active&sort=-created_at&q=thruster`
 
-// POST /users — Bad
-{
-  "user_name": "James Rhodes",       // inconsistent naming
-  "userEmail": "rhodey@...",         // prefixes are redundant
-  "type": 3,                          // magic number
-  "data": { "stuff": "..." }         // unnecessary nesting
-}
-```
+Sort tăng `?sort=field`, giảm `?sort=-field`. Full-text `?q=`. Luôn ghi rõ field
+nào cho phép filter/sort.
 
-**Rules:**
-- Use consistent field naming (choose one: `snake_case` or `camelCase`).
-- Do not prefix field names with the resource name.
-- Use enums as strings, not integers (`"role": "pilot"` not `"role": 3`).
-- Flat is better than deeply nested — avoid more than 2 levels of nesting.
-- All timestamps in ISO 8601 / RFC 3339: `"2026-07-24T14:30:00Z"`.
-
-### Response Design
-
-```json
-// GET /users/123 — Good
-{
-  "id": "usr_abc123",
-  "name": "the user",
-  "email": "tony@stark-industries.com",
-  "role": "admin",
-  "created_at": "2026-01-15T09:00:00Z",
-  "updated_at": "2026-07-20T16:45:00Z"
-}
-```
-
-**Rules:**
-- Always return an `id` field.
-- Include `created_at` and `updated_at` for mutable resources.
-- Do not expose internal IDs if they are different from public-facing IDs.
-- Do not expose sensitive fields (password hashes, internal notes) by accident.
-
-### Pagination
-
-```json
-// GET /users?page=2&per_page=20
-
-// Response
-{
-  "data": [...],
-  "pagination": {
-    "page": 2,
-    "per_page": 20,
-    "total_items": 157,
-    "total_pages": 8,
-    "next": "/users?page=3&per_page=20",
-    "prev": "/users?page=1&per_page=20"
-  }
-}
-```
-
-**Options:**
-- **Offset-based**: `?offset=0&limit=20` — simple, but can skip items if data changes.
-- **Cursor-based**: `?cursor=abc123&limit=20` — stable for real-time data, better for large datasets. Recommended.
-- **Page-based**: `?page=1&per_page=20` — user-friendly for UIs.
-
-### Filtering, Sorting, Searching
-
-```
-GET /suits?status=active&type=mk-vii&sort=-created_at&q=thruster
-```
-
-- Filtering: `?field=value`
-- Sorting: `?sort=field` (ascending), `?sort=-field` (descending)
-- Searching: `?q=search+terms` (full-text) or `?field=value` (exact)
-- Always document which fields are filterable/sortable.
-
-### Error Format
+## Format lỗi
 
 ```json
 {
@@ -158,169 +71,67 @@ GET /suits?status=active&type=mk-vii&sort=-created_at&q=thruster
     "code": "VALIDATION_ERROR",
     "message": "Invalid request parameters.",
     "details": [
-      {
-        "field": "email",
-        "issue": "invalid_format",
-        "message": "Must be a valid email address."
-      },
-      {
-        "field": "clearance_level",
-        "issue": "out_of_range",
-        "message": "Must be between 1 and 10."
-      }
+      { "field": "email", "issue": "invalid_format", "message": "Must be a valid email address." }
     ],
     "request_id": "req_abc123"
   }
 }
 ```
 
-**Rules:**
-- Always include a machine-readable `code` for programmatic handling.
-- Always include a human-readable `message` for developers.
-- Include `details` array for validation errors mapping to specific fields.
-- Include `request_id` for log correlation and support.
-- Never expose stack traces or internal error details.
+Luôn có `code` (máy đọc) + `message` (người đọc) + `request_id` (đối chiếu log);
+`details` cho lỗi validate theo từng field. Không lộ stack trace.
 
-### Versioning
+## Versioning
 
-| Strategy | Pros | Cons | Recommendation |
-|---|---|---|---|
-| URL path `/v1/users` | Explicit, simple | URL pollution, breaking change on upgrade | **Recommended** for public APIs |
-| Header `Accept: version=1` | Clean URLs | Less discoverable, harder to test in browser | Good for internal APIs |
-| Query param `?version=1` | Easy to default | Clutters query parameters | Avoid |
+- URL path `/v1/users` — **khuyến nghị** cho API public (rõ, dễ test).
+- Header `Accept: version=1` — URL sạch, dùng cho API nội bộ.
+- Query `?version=1` — tránh.
 
-**Versioning rules:**
-- Version only when making breaking changes.
-- Support N-1 version for a deprecation period (e.g., 6 months).
-- Send deprecation notices via `Sunset` and `Deprecation` HTTP headers.
-- Never release an API without versioning — even `v1`.
+Chỉ bump version khi có breaking change; đỡ version N-1 trong thời gian deprecate
+(vd 6 tháng); báo qua header `Deprecation` + `Sunset`. Không phát hành API mà
+không có version, kể cả `v1`. Thêm một field **bắt buộc** cũng là breaking change.
 
-### Rate Limiting
+## Rate limit
 
-Use headers to communicate limits:
-```
-RateLimit-Limit: 100
-RateLimit-Remaining: 87
-RateLimit-Reset: 1690000000
-Retry-After: 60
-```
+Trả header `RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset`, và
+`Retry-After` khi đã chặn. Vượt hạn mức → `429`.
 
-When rate limit is exceeded: `429 Too Many Requests`.
+## Auth
 
-### Authentication
+API key cho service-to-service (`Authorization: Bearer` hoặc `X-API-Key`), JWT
+cho API của user, OAuth 2.0 cho bên thứ ba theo flow chuẩn. **Không bao giờ**:
+key trong URL, basic auth không TLS, tự phát minh scheme auth. Mọi response có
+security header (HSTS, `nosniff`, `X-Frame-Options: DENY`, CSP).
 
-- **API Keys**: Simple, good for service-to-service. Send via `Authorization: Bearer <key>` or `X-API-Key`.
-- **JWT**: For user-facing APIs. Include in `Authorization: Bearer <token>`.
-- **OAuth 2.0**: For third-party access. Use standard flows.
-- **Never**: API keys in URLs, basic auth without TLS, custom auth schemes.
+## GraphQL
 
-### Security Headers
+Connection kiểu Relay cho list phân trang · mutation dùng input type trả payload
+type · đánh `!` ở field chắc chắn có · description cho mọi type/field · giới hạn
+độ sâu và độ phức tạp query để chống abuse.
 
-Every API response should include at minimum:
-```
-Content-Security-Policy: default-src 'none'
-X-Content-Type-Options: nosniff
-X-Frame-Options: DENY
-Strict-Transport-Security: max-age=31536000; includeSubDomains
-```
+## OpenAPI
 
-## GraphQL Schema Design (when applicable)
+Khi user xin spec: sinh OpenAPI **3.1** đầy đủ — paths, parameters, schema
+request/response, security scheme, ví dụ từng endpoint.
 
-```graphql
-type Suit {
-  id: ID!
-  name: String!
-  model: SuitModel!
-  status: SuitStatus!
-  thrustKN: Float!
-  weightKG: Float!
-  pilot: User
-  missions(last: Int = 10): [Mission!]!
-  createdAt: DateTime!
-  updatedAt: DateTime!
-}
+## Checklist review
 
-enum SuitStatus {
-  ACTIVE
-  MAINTENANCE
-  DESTROYED
-  IN_DEVELOPMENT
-}
+- [ ] Resource số nhiều, kebab-case, không động từ
+- [ ] HTTP method đúng nghĩa (GET an toàn, PUT idempotent)
+- [ ] Lỗi theo format chuẩn, có `request_id`
+- [ ] Mọi endpoint list đều có pagination
+- [ ] Có versioning
+- [ ] Rate limit được định nghĩa và thông báo qua header
+- [ ] Tên field nhất quán một kiểu
+- [ ] Timestamp RFC 3339, ID nhất quán một loại
+- [ ] Có security header
+- [ ] Spec có ví dụ request/response
 
-type Query {
-  suit(id: ID!): Suit
-  suits(
-    status: SuitStatus
-    first: Int = 20
-    after: String
-  ): SuitConnection!
-}
+## Anti-pattern
 
-type Mutation {
-  createSuit(input: CreateSuitInput!): CreateSuitPayload!
-  activateSuit(id: ID!): ActivateSuitPayload!
-}
-```
-
-**GraphQL rules:**
-- Use Relay-style connections for paginated lists.
-- Use input types for mutations, payload types for mutation responses.
-- Use non-null (`!`) where field is guaranteed.
-- Add descriptions to every type and field.
-- Limit query depth and complexity to prevent abuse.
-
-## OpenAPI Specification
-
-When the user asks for an API spec, produce an OpenAPI 3.1 document. Start with:
-
-```yaml
-openapi: "3.1.0"
-info:
-  title: Stark Industries Suit Management API
-  version: "1.0.0"
-  description: API for managing Iron Man suit inventory, missions, and diagnostics.
-  contact:
-    name: J.A.R.V.I.S.
-    email: jarvis@stark-industries.com
-servers:
-  - url: https://api.stark-industries.com/v1
-    description: Production
-  - url: https://api-staging.stark-industries.com/v1
-    description: Staging
-```
-
-Create a comprehensive spec including paths, parameters, request/response schemas, security schemes, and examples.
-
-## Design Review Checklist
-
-Before finalizing any API design:
-- [ ] Are resource names plural, kebab-case, no verbs?
-- [ ] Are HTTP methods used correctly (GET safe, PUT idempotent, etc.)?
-- [ ] Do error responses follow the standard format?
-- [ ] Is pagination supported for all list endpoints?
-- [ ] Is versioning in place?
-- [ ] Are rate limits defined and communicated?
-- [ ] Are all fields consistently `snake_case` or `camelCase`?
-- [ ] Are timestamps in ISO 8601?
-- [ ] Are IDs consistent (UUID? ULID? integer? string?)?
-- [ ] Are security headers included?
-- [ ] Is the spec documentation complete with request/response examples?
-
-## Anti-Patterns
-
-- **GET requests that modify state**: Never. GET must be safe and idempotent.
-- **POST for everything**: Use the right HTTP method. It communicates intent.
-- **Deep nesting**: `/users/123/suits/456/missions/789/logs/012` — too deep. Break into separate endpoints.
-- **Boolean trap**: `?active=true` — what does `?active=false` mean? Use `?status=active` instead.
-- **Success always 200**: Use 201 for creation, 204 for no content. Status codes carry meaning.
-- **RPC-style URLs**: `/api/getUserById` is not REST. It is RPC dressed as REST.
-- **Breaking changes without version bump**: Adding a required field is a breaking change.
-
-## Quick Commands
-
-- "Design an API for [domain]" — full RESTful API design with OpenAPI spec.
-- "Review this API design" — design review against the checklist.
-- "Create OpenAPI spec for [endpoints]" — generate YAML specification.
-- "Add versioning to [API]" — versioning strategy and migration plan.
-- "Design GraphQL schema for [domain]" — GraphQL type definitions.
-- "What is wrong with this endpoint?" — focused critique of a specific endpoint.
+- GET làm thay đổi state — không bao giờ.
+- Dùng POST cho mọi thứ; method mang ý nghĩa, đừng bỏ.
+- Lồng sâu: `/users/1/suits/2/missions/3/logs/4` — tách endpoint.
+- Bẫy boolean: `?active=true` thì `?active=false` nghĩa là gì? Dùng `?status=`.
+- Mọi thứ trả 200 — 201/204 mang thông tin.
+- URL kiểu RPC: `/api/getUserById` là RPC đội lốt REST.
