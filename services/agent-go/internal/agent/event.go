@@ -17,6 +17,15 @@ type Event struct {
 	Usage       *provider.Usage `json:"usage,omitempty"`       // per-step usage (Type=usage) hoặc cumulative (Type=done)
 	TotalTokens int             `json:"totalTokens,omitempty"` // cumulative total (input+output) across all steps
 	Truncated   bool            `json:"truncated,omitempty"`   // true khi Type=truncated hoặc Type=done của lượt bị cắt
+
+	// ContextTokens/ContextBudget (Type=done): kích thước ước tính (token) của
+	// s.Messages ở CUỐI lượt chạy — đây chính là kích thước history mà client
+	// sẽ gửi lại ở lượt chat kế tiếp. FE dùng tỉ lệ ContextTokens/ContextBudget
+	// để tự quyết định khi nào gợi ý user bắt đầu chat mới (Tier 4), thay vì Go
+	// hardcode 1 ngưỡng cố định — ContextBudget=0 nghĩa là không giới hạn
+	// (MAX_CONTEXT_TOKENS chưa cấu hình), FE nên bỏ qua gợi ý trong trường hợp đó.
+	ContextTokens int `json:"contextTokens,omitempty"`
+	ContextBudget int `json:"contextBudget,omitempty"`
 }
 
 // --- Helpers dựng nhanh event ---

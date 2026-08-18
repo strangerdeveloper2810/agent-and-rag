@@ -139,6 +139,8 @@ function normalizeEvent(raw: Record<string, unknown>): ChatEvent | null {
   // ghi {done:true, tokens}). Không nhận alias này thì đồng hồ token luôn
   // undefined dù backend tính đúng.
   const totalTokens = num("totalTokens") ?? num("tokens");
+  const contextTokens = num("contextTokens");
+  const contextBudget = num("contextBudget");
   const type = typeof raw.type === "string" ? raw.type : undefined;
 
   if (type === "step") return { type: "step", node: str("node") };
@@ -168,6 +170,8 @@ function normalizeEvent(raw: Record<string, unknown>): ChatEvent | null {
       usage,
       totalTokens,
       truncated: raw.truncated === true,
+      contextTokens,
+      contextBudget,
     };
 
   // Legacy: done flag without explicit type
@@ -177,6 +181,8 @@ function normalizeEvent(raw: Record<string, unknown>): ChatEvent | null {
       usage,
       totalTokens,
       truncated: raw.truncated === true,
+      contextTokens,
+      contextBudget,
     };
 
   // Legacy: flat { token } → text event

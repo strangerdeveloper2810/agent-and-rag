@@ -23,6 +23,10 @@ export type AgentEvent =
       usage?: { inputTokens: number; outputTokens: number };
       totalTokens?: number;
       truncated?: boolean;
+      /** Kích thước ước tính (token) của context ở CUỐI lượt. */
+      contextTokens?: number;
+      /** Ngân sách token context. 0 = không giới hạn. */
+      contextBudget?: number;
     }
   | { type: "agent"; name?: string }
   | { type: "truncated"; message?: string }

@@ -68,6 +68,10 @@ export type ChatEvent =
       usage?: UsageData;
       totalTokens?: number;
       truncated?: boolean;
+      /** Kích thước ước tính (token) của context ở CUỐI lượt. */
+      contextTokens?: number;
+      /** Ngân sách token context. 0 = không giới hạn. */
+      contextBudget?: number;
     };
 
 // Task & Document Types

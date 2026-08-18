@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { SparklesIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import {
   createConversation,
   getMessages,
@@ -20,6 +21,7 @@ import ChatSkeleton from "@/design-system/molecules/ChatSkeleton";
 import { useToast } from "@/design-system/molecules/Toast";
 import { validateComposerInput } from "@/lib/validation";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { Button } from "@/components/ui/button";
 
 export type MessageMeta = {
   toolCalls: ToolCallState[];
@@ -32,6 +34,12 @@ export type MessageMeta = {
 
 /** Prompt gửi khi user bấm "Tiếp tục" trên một câu trả lời bị cắt. */
 const CONTINUE_PROMPT = "Tiếp tục câu trả lời từ chỗ bị cắt.";
+
+/** Trạng thái gợi ý bắt đầu chat mới khi context đã lớn (Tier 4). */
+export type ContextWarning = { tokens: number; budget: number };
+
+/** Tỉ lệ contextTokens/contextBudget để bắt đầu gợi ý chat mới. */
+const CONTEXT_WARNING_RATIO = 0.8;
 
 // ── Helpers ──
 
@@ -159,6 +167,9 @@ export const ChatPage: React.FC = () => {
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [streaming, setStreaming] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [contextWarning, setContextWarning] = useState<ContextWarning | null>(
+    null,
+  );
   const endRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const loadedIdRef = useRef<string | null>(null);
@@ -443,6 +454,21 @@ export const ChatPage: React.FC = () => {
                   truncated: prev.truncated || e.truncated === true,
                 }));
               }
+              // Context lớn (Tier 4): Go gửi kích thước context ước tính ở
+              // cuối lượt + ngân sách qua event done. contextBudget=0/undefined
+              // nghĩa là MAX_CONTEXT_TOKENS chưa cấu hình (không giới hạn) —
+              // bỏ qua gợi ý trong trường hợp đó thay vì hiểu nhầm đã đầy.
+              if (
+                e.contextBudget &&
+                e.contextBudget > 0 &&
+                e.contextTokens !== undefined
+              ) {
+                setContextWarning(
+                  e.contextTokens / e.contextBudget >= CONTEXT_WARNING_RATIO
+                    ? { tokens: e.contextTokens, budget: e.contextBudget }
+                    : null,
+                );
+              }
               break;
           }
         },
@@ -575,6 +601,49 @@ export const ChatPage: React.FC = () => {
           <EmptyState onPick={(p) => send(p)} />
         )}
       </div>
+
+      {contextWarning && (
+        <div className="mx-auto w-full max-w-3xl shrink-0 px-4 pb-2 sm:px-6">
+          <div
+            role="status"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-indigo-500/30 bg-indigo-500/10 p-3.5 text-xs text-indigo-700 backdrop-blur-md sm:flex-nowrap dark:text-indigo-400"
+          >
+            <div className="flex min-w-0 items-center gap-2.5 font-semibold">
+              <SparklesIcon className="h-5 w-5 shrink-0" />
+              <span className="leading-snug">
+                Cuộc trò chuyện đã khá dài (
+                {Math.round(contextWarning.tokens / 1000)}K token) — bắt đầu
+                chat mới để có phản hồi nhanh và chính xác hơn. Các thông tin
+                quan trọng đã học vẫn được giữ lại.
+              </span>
+            </div>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => navigate("/")}
+                aria-label="Bắt đầu cuộc trò chuyện mới"
+                title="Bắt đầu cuộc trò chuyện mới"
+                className="gap-1.5 font-bold shadow-sm border-indigo-500/40 hover:bg-indigo-500/20"
+              >
+                <SparklesIcon className="h-3.5 w-3.5" />
+                <span>Bắt đầu chat mới</span>
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setContextWarning(null)}
+                aria-label="Đóng gợi ý"
+                title="Đóng"
+              >
+                <XMarkIcon className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="shrink-0">
         <Composer

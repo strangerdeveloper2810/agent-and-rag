@@ -134,6 +134,34 @@ describe("streamReply", () => {
     expect(repo.addMessage).toHaveBeenCalledWith("c1", "assistant", "một phần");
   });
 
+  // Tier 4: FE cần contextTokens/contextBudget (Go tính, gửi qua event done)
+  // để tự gợi ý bắt đầu chat mới khi context lớn.
+  it("metadata ghi nhận contextTokens + contextBudget từ event done", async () => {
+    vi.mocked(repo.getMessages).mockResolvedValue([
+      { role: "user", content: "hi" },
+    ] as never);
+
+    const result = await streamReply(
+      "c1",
+      undefined,
+      fakeAgent([
+        { type: "text", text: "Hello" },
+        {
+          type: "done",
+          agent: "general",
+          tokens: 42,
+          contextTokens: 82000,
+          contextBudget: 100000,
+        },
+      ]),
+    );
+
+    const { metadata } = await drain(result);
+
+    expect(metadata.contextTokens).toBe(82000);
+    expect(metadata.contextBudget).toBe(100000);
+  });
+
   it("metadata.truncated = true khi chỉ có cờ trên event done", async () => {
     vi.mocked(repo.getMessages).mockResolvedValue([] as never);
 

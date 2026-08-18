@@ -19,6 +19,10 @@ interface GoAgentEvent {
   totalTokens?: number;
   /** true khi câu trả lời bị cắt vì chạm giới hạn output token. */
   truncated?: boolean;
+  /** Kích thước ước tính (token) của context ở CUỐI lượt (Type=done). */
+  contextTokens?: number;
+  /** Ngân sách token context (Type=done). 0 = không giới hạn. */
+  contextBudget?: number;
 }
 
 // ----- Circuit Breaker -----
@@ -286,6 +290,11 @@ export const goAgentClient: AgentClient = {
                 usage: raw.usage,
                 totalTokens: raw.totalTokens ?? totalTokens,
                 truncated: raw.truncated === true,
+                // contextTokens/contextBudget: FE tự tính tỉ lệ để gợi ý bắt
+                // đầu chat mới khi context lớn (Tier 4) — không forward thì
+                // gợi ý này không bao giờ có dữ liệu dù Go đã tính đúng.
+                contextTokens: raw.contextTokens,
+                contextBudget: raw.contextBudget,
               } as AgentEvent;
               break;
             case "step":

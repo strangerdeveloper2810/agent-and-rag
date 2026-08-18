@@ -24,6 +24,10 @@ export interface StreamMetadata {
   tokensUsed: number;
   /** true khi câu trả lời bị cắt vì chạm giới hạn output token. */
   truncated: boolean;
+  /** Kích thước ước tính (token) của context ở CUỐI lượt (Go agent). */
+  contextTokens?: number;
+  /** Ngân sách token context (Go agent). 0/undefined = không giới hạn. */
+  contextBudget?: number;
 }
 
 /** Kết quả stream: generator + metadata promise hứa khi stream xong. */
@@ -120,6 +124,8 @@ export async function streamReply(
   let tokensUsed = 0;
   let truncated = false;
   let backend: string = config.AGENT_BACKEND;
+  let contextTokens: number | undefined;
+  let contextBudget: number | undefined;
 
   // Định danh model dùng cho CACHE KEY phải phản ánh thứ THỰC SỰ sinh câu trả
   // lời. Trước đây luôn lấy GOOGLE_MODEL/CLAUDE_MODEL của BFF, trong khi với
@@ -185,12 +191,14 @@ export async function streamReply(
           if (ev.agent) backend = ev.agent;
           if (ev.tokens) tokensUsed = ev.tokens;
           if (ev.truncated) truncated = true;
+          if (ev.contextTokens !== undefined) contextTokens = ev.contextTokens;
+          if (ev.contextBudget !== undefined) contextBudget = ev.contextBudget;
         }
 
         yield ev;
       }
     } finally {
-      metadataResolve({ backend, tokensUsed, truncated });
+      metadataResolve({ backend, tokensUsed, truncated, contextTokens, contextBudget });
 
       if (full.trim().length > 0) {
         await addMessage(conversationId, "assistant", full);
