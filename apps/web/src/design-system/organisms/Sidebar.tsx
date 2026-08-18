@@ -199,7 +199,7 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
         {/* Brand */}
         <div className="flex items-center justify-between px-4 py-3.5 border-b border-border">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-sm">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 to-blue-600 text-white shadow-xs">
               <SparklesIcon className="h-4 w-4" />
             </div>
             <div>
@@ -225,8 +225,8 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
         {/* New Session Button */}
         <div className="px-3.5 pt-3.5">
           <Button
-            variant="gradient"
-            className="w-full justify-start gap-2 text-xs font-bold"
+            variant="default"
+            className="w-full justify-start gap-2 text-xs font-semibold shadow-xs"
             onClick={onNew}
           >
             <PlusIcon className="h-4 w-4" />

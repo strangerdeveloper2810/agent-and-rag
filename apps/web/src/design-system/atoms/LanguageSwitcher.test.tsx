@@ -19,27 +19,35 @@ describe("LanguageSwitcher", () => {
     await i18n.changeLanguage("vi");
   });
 
-  it("shows the target language label and switches to English on click", async () => {
+  it("renders segmented VI and EN buttons and highlights active language", async () => {
     renderSwitcher();
 
-    const button = screen.getByRole("button");
-    expect(button).toHaveTextContent("EN");
+    const viBtn = screen.getByRole("button", { name: "Tiếng Việt" });
+    const enBtn = screen.getByRole("button", { name: "English" });
 
-    await userEvent.click(button);
+    expect(viBtn).toHaveAttribute("aria-pressed", "true");
+    expect(enBtn).toHaveAttribute("aria-pressed", "false");
+
+    await userEvent.click(enBtn);
 
     expect(i18n.language).toBe("en");
     expect(localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBe("en");
+    expect(enBtn).toHaveAttribute("aria-pressed", "true");
   });
 
   it("switches back to Vietnamese when already in English", async () => {
     await i18n.changeLanguage("en");
     renderSwitcher();
 
-    const button = screen.getByRole("button");
-    expect(button).toHaveTextContent("VI");
+    const viBtn = screen.getByRole("button", { name: "Tiếng Việt" });
+    const enBtn = screen.getByRole("button", { name: "English" });
 
-    await userEvent.click(button);
+    expect(enBtn).toHaveAttribute("aria-pressed", "true");
+
+    await userEvent.click(viBtn);
 
     expect(i18n.language).toBe("vi");
+    expect(localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBe("vi");
+    expect(viBtn).toHaveAttribute("aria-pressed", "true");
   });
 });

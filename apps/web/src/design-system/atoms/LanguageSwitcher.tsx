@@ -1,31 +1,57 @@
+import React from "react";
 import { useTranslation } from "react-i18next";
 import { persistLocale, type Locale } from "@/i18n/locale";
 
 /**
- * LanguageSwitcher — toggles UI language (vi/en), mirrors ThemeToggle's
- * "shows the target state" convention: label displays the language you'll
- * switch TO, not the current one.
+ * LanguageSwitcher — Segmented pill switch for VI / EN.
+ * Explicitly displays both languages with active pill highlight,
+ * eliminating any ambiguity on active vs target language.
  */
 export const LanguageSwitcher: React.FC = () => {
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const current: Locale = i18n.language === "en" ? "en" : "vi";
-  const target: Locale = current === "vi" ? "en" : "vi";
 
-  const toggle = () => {
-    i18n.changeLanguage(target);
-    persistLocale(target);
+  const setLocale = (locale: Locale) => {
+    if (current !== locale) {
+      i18n.changeLanguage(locale);
+      persistLocale(locale);
+    }
   };
 
   return (
-    <button
-      onClick={toggle}
-      aria-label={t("language.toggle")}
-      className="flex items-center gap-2 rounded-full px-3 py-1.5 text-xs transition hover:bg-muted text-muted-foreground hover:text-foreground"
+    <div
+      role="group"
+      aria-label="Language selection"
+      className="inline-flex items-center rounded-full bg-muted/60 p-0.5 border border-border/50 text-[11px] font-medium tracking-wide transition-all shadow-xs backdrop-blur-sm"
     >
-      <span className="hidden sm:inline tracking-wider uppercase text-[10px]">
-        {target.toUpperCase()}
-      </span>
-    </button>
+      <button
+        type="button"
+        onClick={() => setLocale("vi")}
+        aria-pressed={current === "vi"}
+        aria-label="Tiếng Việt"
+        className={`relative flex items-center justify-center rounded-full px-2.5 py-1 transition-all duration-200 ${
+          current === "vi"
+            ? "bg-background text-foreground font-bold shadow-xs border border-border/40"
+            : "text-muted-foreground hover:text-foreground hover:bg-background/40"
+        }`}
+      >
+        VI
+      </button>
+
+      <button
+        type="button"
+        onClick={() => setLocale("en")}
+        aria-pressed={current === "en"}
+        aria-label="English"
+        className={`relative flex items-center justify-center rounded-full px-2.5 py-1 transition-all duration-200 ${
+          current === "en"
+            ? "bg-background text-foreground font-bold shadow-xs border border-border/40"
+            : "text-muted-foreground hover:text-foreground hover:bg-background/40"
+        }`}
+      >
+        EN
+      </button>
+    </div>
   );
 };
 

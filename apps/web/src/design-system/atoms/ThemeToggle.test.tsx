@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { I18nextProvider } from "react-i18next";
 import { beforeEach, describe, expect, it } from "vitest";
 import i18n from "@/i18n";
@@ -18,14 +19,23 @@ describe("ThemeToggle", () => {
     await i18n.changeLanguage("vi");
   });
 
-  it("shows the Vietnamese label for the target theme", () => {
+  it("shows the Vietnamese aria-label for switching theme and toggles theme on click", async () => {
     renderToggle();
-    expect(screen.getByRole("button")).toHaveTextContent("Sáng");
+
+    const button = screen.getByRole("button");
+    expect(button).toHaveAttribute("aria-label", "Chuyển sang chế độ Sáng");
+
+    await userEvent.click(button);
+
+    expect(localStorage.getItem("jarvis-theme")).toBe("light");
+    expect(button).toHaveAttribute("aria-label", "Chuyển sang chế độ Tối");
   });
 
-  it("shows the English label when locale is en", async () => {
+  it("shows the English aria-label when locale is en", async () => {
     await i18n.changeLanguage("en");
     renderToggle();
-    expect(screen.getByRole("button")).toHaveTextContent("Light");
+
+    const button = screen.getByRole("button");
+    expect(button).toHaveAttribute("aria-label", "Switch to Light mode");
   });
 });

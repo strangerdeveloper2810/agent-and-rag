@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import {
@@ -7,14 +7,11 @@ import {
   CodeBracketIcon,
   MagnifyingGlassIcon,
   LightBulbIcon,
-  CpuChipIcon,
   ArrowRightIcon,
   ArrowPathIcon,
   BoltIcon,
 } from "@heroicons/react/24/outline";
 import type { EmptyStateProps } from "@/types";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 
 const PROMPT_CATEGORY_IDS = [
@@ -36,7 +33,7 @@ const PROMPT_CATEGORY_ICONS: Record<
   productivity: BoltIcon,
 };
 
-/** Builds the prompt-suggestion database (category label + question pool) for the current locale. */
+/** Builds the prompt-suggestion database for the current locale. */
 const buildPromptDatabase = (t: TFunction<"chat">) =>
   PROMPT_CATEGORY_IDS.map((id) => ({
     id,
@@ -57,12 +54,12 @@ const fetchSuggestionsApi = async (t: TFunction<"chat">): Promise<string[]> => {
     const randomPool = t("emptyState.randomPool", {
       returnObjects: true,
     }) as string[];
-    return [...randomPool].sort(() => Math.random() - 0.5).slice(0, 5);
+    return [...randomPool].sort(() => Math.random() - 0.5).slice(0, 4);
   }
 };
 
 /**
- * EmptyState — Giao diện khởi tạo cuộc trò chuyện với các gợi ý hoàn toàn Dynamic.
+ * EmptyState — Refined, Eye-Comfort & Friendly Initial Greeting View.
  */
 export const EmptyState: React.FC<EmptyStateProps> = ({ onPick }) => {
   const { t } = useTranslation("chat");
@@ -74,7 +71,6 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ onPick }) => {
 
   const PROMPT_DATABASE = useMemo(() => buildPromptDatabase(t), [t]);
 
-  // Lấy gợi ý từ Server API
   const loadSuggestions = useCallback(async () => {
     setLoadingSuggestions(true);
     try {
@@ -89,13 +85,11 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ onPick }) => {
     loadSuggestions();
   }, [loadSuggestions]);
 
-  // Chọn ngẫu nhiên 2 câu hỏi từ pool của danh mục đang chọn mỗi khi chuyển tab hoặc bấm làm mới
   const currentPrompts = useMemo(() => {
     void refreshSeed;
     const currentCategory = PROMPT_DATABASE[activeTab] ?? PROMPT_DATABASE[0];
     const pool = [...currentCategory.pool];
 
-    // Thuật toán xáo trộn Fisher-Yates dựa theo refreshSeed
     for (let i = pool.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [pool[i], pool[j]] = [pool[j], pool[i]];
@@ -115,139 +109,113 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ onPick }) => {
   };
 
   return (
-    <div className="mx-auto flex h-full max-w-4xl flex-col justify-center px-4 sm:px-8 py-6 relative animate-fade-in">
-      {/* Ambient background glow */}
-      <div className="pointer-events-none absolute left-1/2 top-1/4 -translate-x-1/2 -translate-y-1/2 h-[420px] w-[420px] rounded-full bg-primary/10 blur-[130px]" />
+    <div className="mx-auto flex h-full max-w-3xl flex-col justify-center px-4 sm:px-6 py-6 relative select-none animate-fade-in">
+      {/* Soft Ambient Radial Background */}
+      <div className="pointer-events-none absolute left-1/2 top-1/3 -translate-x-1/2 -translate-y-1/2 h-[380px] w-[380px] rounded-full bg-primary/6 blur-[110px]" />
 
-      {/* Centerpiece AI Hologram Header */}
-      <div className="mb-6 flex flex-col items-center text-center relative z-10">
-        <div className="relative mb-4 flex h-18 w-18 items-center justify-center rounded-2xl bg-card border border-primary/30 shadow-xl transition-all duration-300 hover:scale-105 group p-3">
-          <div className="absolute -inset-1 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 opacity-20 blur-md group-hover:opacity-40 transition duration-500" />
-
-          <div className="relative flex items-center justify-center h-full w-full bg-card rounded-2xl border border-border">
-            <CpuChipIcon className="h-9 w-9 text-primary animate-float-slow" />
-            <SparklesIcon className="absolute -top-1 -right-1 h-5 w-5 text-amber-400 animate-pulse" />
+      {/* Centerpiece Hero Greeting */}
+      <div className="mb-7 flex flex-col items-center text-center relative z-10">
+        {/* Sleek AI Glowing Avatar */}
+        <div className="relative mb-4.5 flex h-15 w-15 items-center justify-center rounded-2xl bg-card border border-border/70 shadow-sm transition-transform duration-300 hover:scale-105">
+          <div className="absolute -inset-0.5 rounded-2xl bg-gradient-to-tr from-primary/30 to-indigo-400/20 blur-xs" />
+          <div className="relative flex items-center justify-center h-full w-full bg-card rounded-2xl">
+            <SparklesIcon className="h-7 w-7 text-primary animate-pulse" />
           </div>
         </div>
 
-        <Badge
-          variant="accent"
-          className="mb-2.5 gap-1.5 py-1 px-3 text-xs font-bold"
-        >
+        {/* Pill Tag */}
+        <div className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 bg-primary/8 border border-primary/15 text-primary text-[11px] font-semibold tracking-wide mb-3">
           <SparklesIcon className="h-3.5 w-3.5" />
           <span>{t("emptyState.badge")}</span>
-        </Badge>
+        </div>
 
-        <h1 className="font-display text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
+        <h1 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
           {t("emptyState.title")}
         </h1>
-        <p className="mt-2 text-xs sm:text-sm max-w-lg leading-relaxed text-muted-foreground">
+        <p className="mt-2 text-xs sm:text-sm max-w-md leading-relaxed text-muted-foreground">
           {t("emptyState.subtitle")}
         </p>
       </div>
 
       {/* Categorized Smart Prompt Cards */}
-      <div className="relative z-10 space-y-4">
-        {/* Category Tabs with Dynamic Refresh Button */}
-        <div className="flex flex-wrap items-center justify-center gap-2">
+      <div className="relative z-10 space-y-3.5">
+        {/* Category Tabs */}
+        <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2">
           {PROMPT_DATABASE.map((cat, idx) => {
             const Icon = cat.icon;
             const active = idx === activeTab;
             return (
-              <Button
+              <button
                 key={cat.id}
                 type="button"
-                variant={active ? "secondary" : "outline"}
                 onClick={() => {
                   setActiveTab(idx);
                   setRefreshSeed((s) => s + 1);
                 }}
-                className={`gap-2 px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-xl transition-all ${
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-200 cursor-pointer ${
                   active
-                    ? "border-primary bg-primary/10 text-primary shadow-sm ring-1 ring-primary/20 font-bold"
-                    : "hover:bg-muted text-foreground"
+                    ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                    : "bg-card border border-border/70 text-muted-foreground hover:text-foreground hover:border-border hover:bg-muted/50"
                 }`}
               >
-                <Icon className="h-4 w-4 text-primary" />
+                <Icon className={`h-3.5 w-3.5 ${active ? "text-primary-foreground" : "text-primary/70"}`} />
                 <span>{cat.category}</span>
-              </Button>
+              </button>
             );
           })}
 
-          <Button
+          <button
             type="button"
-            variant="ghost"
-            size="sm"
             onClick={handleRefreshAll}
             title={t("emptyState.refreshAllTitle")}
-            className="gap-1.5 px-3 py-2 text-xs text-muted-foreground hover:text-primary rounded-xl transition-all"
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs text-muted-foreground hover:text-primary transition-colors rounded-full hover:bg-muted/50"
           >
             <ArrowPathIcon
               className={`h-3.5 w-3.5 ${loadingSuggestions ? "animate-spin text-primary" : ""}`}
             />
-            <span className="hidden sm:inline">{t("emptyState.refresh")}</span>
-          </Button>
+            <span className="text-[11px]">{t("emptyState.refresh")}</span>
+          </button>
         </div>
 
-        {/* Selected Dynamic Prompts List */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+        {/* Selected Dynamic Prompts Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
           {currentPrompts.map((promptText) => (
             <Card
               key={promptText}
               onClick={() => handlePick(promptText)}
-              className={`group cursor-pointer flex items-center justify-between p-4 sm:p-4.5 transition-all duration-200 hover:border-primary hover:bg-primary/5 hover:shadow-md ${
+              className={`group cursor-pointer flex items-center justify-between p-3.5 sm:p-4 rounded-xl border border-border/70 bg-card/90 backdrop-blur-xs transition-all duration-200 hover:border-primary/40 hover:bg-primary/[0.03] hover:shadow-sm ${
                 pickedPrompt === promptText
-                  ? "opacity-60 border-primary bg-primary/10 pointer-events-none"
+                  ? "opacity-50 border-primary bg-primary/10 pointer-events-none"
                   : ""
               }`}
             >
-              <div className="min-w-0 flex-1 pr-3">
-                <p className="text-xs sm:text-sm font-bold text-foreground leading-relaxed group-hover:text-primary transition">
-                  {promptText}
-                </p>
-              </div>
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground group-hover:bg-primary group-hover:text-primary-foreground transition-all shadow-sm">
-                <ArrowRightIcon className="h-3.5 w-3.5" />
+              <span className="text-xs sm:text-[13px] font-medium leading-snug text-foreground/90 group-hover:text-primary transition-colors line-clamp-2 pr-2">
+                {promptText}
+              </span>
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted/60 text-muted-foreground group-hover:bg-primary group-hover:text-primary-foreground transition-all duration-200">
+                <ArrowRightIcon className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
               </div>
             </Card>
           ))}
         </div>
 
-        {/* Dynamic Server Suggestions Badges */}
-        {suggestions && suggestions.length > 0 && (
-          <div className="pt-3 text-center">
-            <div className="flex items-center justify-center gap-2 mb-2.5">
-              <span className="text-[10.5px] font-extrabold uppercase tracking-wider text-muted-foreground/80">
-                {t("emptyState.autoSuggestionsLabel")}
-              </span>
-              <button
-                type="button"
-                onClick={loadSuggestions}
-                disabled={loadingSuggestions}
-                title={t("emptyState.refreshAiAria")}
-                aria-label={t("emptyState.refreshAiAria")}
-                className="text-muted-foreground hover:text-primary transition p-0.5 rounded"
-              >
-                <ArrowPathIcon
-                  className={`h-3 w-3 ${loadingSuggestions ? "animate-spin text-primary" : ""}`}
-                />
-              </button>
+        {/* Dynamic AI Suggested Pills */}
+        {suggestions.length > 0 && (
+          <div className="pt-2">
+            <div className="flex items-center justify-center gap-1.5 mb-2 text-[10px] uppercase font-bold tracking-wider text-muted-foreground/70">
+              <span>{t("emptyState.autoSuggestionsLabel")}</span>
             </div>
-
-            <div className="flex flex-wrap justify-center gap-2">
-              {suggestions.slice(0, 4).map((sug) => (
-                <Badge
-                  key={sug}
-                  variant="outline"
-                  onClick={() => handlePick(sug)}
-                  className={`cursor-pointer hover:border-primary hover:text-primary py-1 px-3 text-xs font-semibold transition shadow-sm bg-card/60 backdrop-blur-md ${
-                    pickedPrompt === sug
-                      ? "opacity-60 border-primary pointer-events-none"
-                      : ""
-                  }`}
+            <div className="flex flex-wrap items-center justify-center gap-1.5">
+              {suggestions.slice(0, 4).map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => handlePick(item)}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-card/70 px-3 py-1 text-[11px] text-muted-foreground hover:text-foreground hover:border-primary/30 hover:bg-primary/[0.04] transition-all duration-200 shadow-2xs"
                 >
-                  ✨ {sug}
-                </Badge>
+                  <span className="text-primary/70">✨</span>
+                  <span className="truncate max-w-[240px] sm:max-w-none">{item}</span>
+                </button>
               ))}
             </div>
           </div>
