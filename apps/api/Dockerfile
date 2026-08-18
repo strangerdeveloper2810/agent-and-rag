@@ -16,16 +16,15 @@ RUN pnpm install --frozen-lockfile --filter @app/api...
 
 # Build
 RUN pnpm --filter @app/api build
+RUN pnpm --filter @app/api --prod deploy --legacy /app/deploy
 
 # ── Runtime ──
 FROM node:22-alpine
 WORKDIR /app
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
-
-COPY --from=build /app/apps/api/dist ./dist
-COPY --from=build /app/apps/api/package.json ./
-COPY --from=build /app/apps/api/node_modules ./node_modules
+COPY --from=build /app/deploy/dist ./dist
+COPY --from=build /app/deploy/package.json ./
+COPY --from=build /app/deploy/node_modules ./node_modules
 
 EXPOSE 3001
 ENV NODE_ENV=production
