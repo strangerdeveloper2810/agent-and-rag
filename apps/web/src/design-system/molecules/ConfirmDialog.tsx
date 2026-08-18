@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 
 export interface ConfirmDialogProps {
@@ -19,12 +20,16 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   open,
   title,
   message,
-  confirmLabel = "Confirm",
-  cancelLabel = "Cancel",
+  confirmLabel,
+  cancelLabel,
   danger = false,
   onConfirm,
   onCancel,
 }) => {
+  const { t } = useTranslation("common");
+  const resolvedConfirmLabel = confirmLabel ?? t("confirm");
+  const resolvedCancelLabel = cancelLabel ?? t("cancel");
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -62,7 +67,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             onClick={onCancel}
             className="text-xs"
           >
-            {cancelLabel}
+            {resolvedCancelLabel}
           </Button>
           <Button
             type="button"
@@ -71,7 +76,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             onClick={onConfirm}
             className="text-xs font-bold shadow-md"
           >
-            {confirmLabel}
+            {resolvedConfirmLabel}
           </Button>
         </div>
       </div>
