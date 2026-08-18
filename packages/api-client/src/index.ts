@@ -111,11 +111,21 @@ export const streamChat = async (
   onEvent: (e: ChatEvent) => void,
   signal?: AbortSignal,
   attachments?: AttachmentPayload[],
+  /**
+   * Ngôn ngữ UI người dùng đang chọn (vd i18next `i18n.language`, "vi"|"en").
+   * Optional — không truyền giữ hành vi mặc định (BFF/agent-go trả lời tiếng
+   * Việt). Package này KHÔNG biết gì về i18n/react-i18next — chỉ nhận string
+   * từ caller và forward nguyên văn trong body request lên BFF.
+   */
+  lang?: string,
   client: HttpClient = defaultHttp,
 ): Promise<void> => {
   const body: Record<string, unknown> = { content };
   if (attachments && attachments.length > 0) {
     body.attachments = attachments;
+  }
+  if (lang) {
+    body.lang = lang;
   }
   const response = await client.stream(
     `/conversations/${conversationId}/chat`,

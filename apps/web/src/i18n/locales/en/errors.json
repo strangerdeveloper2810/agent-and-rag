@@ -1,1 +1,21 @@
-{}
+{
+  "UNAUTHORIZED": "Incorrect email or password.",
+  "FORBIDDEN": "This account has been disabled. Please contact support.",
+  "NOT_FOUND": "The requested resource could not be found.",
+  "CONFLICT": "This email is already registered.",
+  "EMAIL_NOT_VERIFIED": "This email hasn't been verified yet.",
+  "SERVICE_UNAVAILABLE": "The service is temporarily unavailable. Please try again later.",
+  "AGENT_UNAVAILABLE": "The AI agent is currently unavailable. Please try again later.",
+  "AGENT_TIMEOUT": "The AI agent took too long to respond. Please try again.",
+  "RATE_LIMITED": "Too many requests. Please try again in {{seconds}} seconds.",
+  "BAD_REQUEST": "Invalid request.",
+  "VALIDATION_ERROR": "Invalid data. Please check your input.",
+  "UNSUPPORTED_FILE": "This file format isn't supported.",
+  "EMPTY_CONTENT": "Couldn't extract any content from this file.",
+  "FILE_TOO_LARGE": "File is too large (25MB max).",
+  "INTERNAL": "Something went wrong. Please try again.",
+  "boundary": {
+    "title": "Something went wrong",
+    "description": "Sorry, an unexpected error occurred. Please try reloading the page. If the problem persists, please contact support."
+  }
+}

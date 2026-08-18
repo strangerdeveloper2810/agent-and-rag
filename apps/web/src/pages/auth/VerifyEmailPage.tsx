@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useTranslation } from "react-i18next";
 import {
   SparklesIcon,
   ShieldCheckIcon,
@@ -16,6 +17,7 @@ import {
 } from "@/lib/validation";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { ApiError } from "@/lib/http";
+import { translateApiError } from "@/lib/errors";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,10 +37,8 @@ export const VerifyEmailPage: React.FC = () => {
   const email = searchParams.get("email") ?? "";
   const { verifyEmail, resendOtp, isLoading } = useAuthStore();
   const toast = useToast();
-  useDocumentTitle(
-    "Xác minh Email",
-    "Nhập mã OTP 6 số để kích hoạt tài khoản J.A.R.V.I.S.",
-  );
+  const { t } = useTranslation("auth");
+  useDocumentTitle(t("verifyEmail.pageTitle"), t("verifyEmail.pageDescription"));
 
   const [cooldown, setCooldown] = useState(COOLDOWN_SECONDS);
   const [resending, setResending] = useState(false);
@@ -72,11 +72,10 @@ export const VerifyEmailPage: React.FC = () => {
   const onSubmit = async (data: VerifyEmailOtpFormValues) => {
     try {
       await verifyEmail(email, data.otp);
-      toast.success("Xác minh thành công!");
+      toast.success(t("verifyEmail.verifySuccess"));
       navigate("/", { replace: true });
     } catch (err) {
-      const apiErr = err as ApiError;
-      toast.error(apiErr?.message ?? "Xác minh thất bại. Vui lòng thử lại.");
+      toast.error(translateApiError(err, t, t("verifyEmail.verifyFailed")));
     }
   };
 
@@ -84,18 +83,18 @@ export const VerifyEmailPage: React.FC = () => {
     setResending(true);
     try {
       await resendOtp(email);
-      toast.success("Đã gửi lại mã OTP!");
+      toast.success(t("verifyEmail.resendSuccess"));
       setCooldown(COOLDOWN_SECONDS);
     } catch (err) {
-      const apiErr = err as ApiError;
-      if (apiErr instanceof ApiError && apiErr.status === 429) {
+      if (err instanceof ApiError && err.status === 429) {
         // Đồng bộ lại countdown theo server nếu client lệch giờ (vd mở lại tab cũ).
-        if (typeof apiErr.retryAfterSeconds === "number") {
-          setCooldown(apiErr.retryAfterSeconds);
-        }
-        toast.error(apiErr.message);
+        const seconds = err.retryAfterSeconds ?? COOLDOWN_SECONDS;
+        setCooldown(seconds);
+        toast.error(
+          translateApiError(err, t, t("verifyEmail.resendFailed"), { seconds }),
+        );
       } else {
-        toast.error(apiErr?.message ?? "Gửi lại mã thất bại.");
+        toast.error(translateApiError(err, t, t("verifyEmail.resendFailed")));
       }
     } finally {
       setResending(false);
@@ -119,9 +118,11 @@ export const VerifyEmailPage: React.FC = () => {
             <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
               <ShieldCheckIcon className="h-6 w-6" />
             </div>
-            <CardTitle className="text-2xl font-bold">Xác minh email</CardTitle>
+            <CardTitle className="text-2xl font-bold">
+              {t("verifyEmail.cardTitle")}
+            </CardTitle>
             <CardDescription>
-              Nhập mã 6 số vừa được gửi tới{" "}
+              {t("verifyEmail.cardDescription")}{" "}
               <span className="font-medium text-foreground">{email}</span>
             </CardDescription>
           </CardHeader>
@@ -139,7 +140,7 @@ export const VerifyEmailPage: React.FC = () => {
                   inputMode="numeric"
                   autoComplete="one-time-code"
                   maxLength={6}
-                  placeholder="000000"
+                  placeholder={t("verifyEmail.otpPlaceholder")}
                   className="text-center font-mono text-2xl tracking-[0.5em]"
                   {...register("otp")}
                 />
@@ -159,10 +160,10 @@ export const VerifyEmailPage: React.FC = () => {
                 {isLoading ? (
                   <span className="inline-flex items-center gap-2">
                     <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                    Đang xác minh...
+                    {t("verifyEmail.submitting")}
                   </span>
                 ) : (
-                  "Xác minh"
+                  t("verifyEmail.submitButton")
                 )}
               </Button>
             </form>
@@ -175,10 +176,10 @@ export const VerifyEmailPage: React.FC = () => {
               className="mt-3 w-full"
             >
               {cooldown > 0
-                ? `Gửi lại mã sau ${cooldown}s`
+                ? t("verifyEmail.resendCountdown", { seconds: cooldown })
                 : resending
-                  ? "Đang gửi..."
-                  : "Gửi lại mã"}
+                  ? t("verifyEmail.resending")
+                  : t("verifyEmail.resendButton")}
             </Button>
 
             <div className="mt-6 pt-4 text-center border-t border-border">
@@ -187,7 +188,7 @@ export const VerifyEmailPage: React.FC = () => {
                 className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
               >
                 <ArrowLeftIcon className="h-3 w-3" />
-                <span>Quay lại đăng nhập</span>
+                <span>{t("verifyEmail.backToLogin")}</span>
               </Link>
             </div>
           </CardContent>

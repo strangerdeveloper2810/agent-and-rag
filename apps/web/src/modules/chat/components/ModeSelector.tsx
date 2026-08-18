@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import {
   BoltIcon,
   CpuChipIcon,
@@ -20,32 +21,15 @@ export interface ModeOption {
   badge?: string;
 }
 
-export const MODE_OPTIONS: ModeOption[] = [
-  {
-    id: "auto",
-    label: "Auto (Smart Router)",
-    desc: "Tự động điều phối Agent phù hợp nhất theo câu hỏi",
-    icon: BoltIcon,
-    badge: "Khuyên dùng",
-  },
-  {
-    id: "reasoning",
-    label: "Deep Reasoning",
-    desc: "Suy luận đa bước chuyên sâu cho bài toán phức tạp",
-    icon: CpuChipIcon,
-  },
-  {
-    id: "rag",
-    label: "RAG Knowledge Search",
-    desc: "Ưu tiên tra cứu vector DB và tài liệu đã tải lên",
-    icon: MagnifyingGlassIcon,
-  },
-  {
-    id: "code",
-    label: "Code & Artifacts",
-    desc: "Tối ưu hóa lập trình, refactor & thực thi mã nguồn",
-    icon: CodeBracketIcon,
-  },
+const MODE_META: {
+  id: AIMode;
+  icon: React.ComponentType<{ className?: string }>;
+  hasBadge?: boolean;
+}[] = [
+  { id: "auto", icon: BoltIcon, hasBadge: true },
+  { id: "reasoning", icon: CpuChipIcon },
+  { id: "rag", icon: MagnifyingGlassIcon },
+  { id: "code", icon: CodeBracketIcon },
 ];
 
 interface ModeSelectorProps {
@@ -57,8 +41,19 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
   currentMode,
   onSelectMode,
 }) => {
+  const { t } = useTranslation("chat");
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const MODE_OPTIONS: ModeOption[] = MODE_META.map((meta) => ({
+    id: meta.id,
+    icon: meta.icon,
+    label: t(`modeSelector.modes.${meta.id}.label`),
+    desc: t(`modeSelector.modes.${meta.id}.desc`),
+    badge: meta.hasBadge
+      ? t(`modeSelector.modes.${meta.id}.badge`)
+      : undefined,
+  }));
 
   const activeOption =
     MODE_OPTIONS.find((m) => m.id === currentMode) ?? MODE_OPTIONS[0];
@@ -86,7 +81,7 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
         onClick={() => setOpen((p) => !p)}
         className="gap-2 bg-card/80 backdrop-blur-md border-border shadow-sm hover:bg-muted"
         aria-expanded={open}
-        aria-label="Chọn chế độ AI"
+        aria-label={t("modeSelector.selectAria")}
       >
         <ActiveIcon className="h-4 w-4 text-primary" />
         <span className="font-bold tracking-tight text-foreground">
@@ -103,7 +98,7 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
         <div className="glass absolute left-0 top-full z-50 mt-1.5 w-80 rounded-2xl p-2 shadow-2xl animate-scale-in bg-popover text-popover-foreground border border-border">
           <div className="px-3 py-1.5 mb-1.5 border-b border-border flex items-center justify-between">
             <p className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground">
-              CHẾ ĐỘ AI INTELLIGENCE
+              {t("modeSelector.menuLabel")}
             </p>
           </div>
 

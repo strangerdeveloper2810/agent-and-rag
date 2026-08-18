@@ -1,5 +1,6 @@
 import { Suspense, type FC } from "react";
 import { Outlet } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Sidebar } from "../organisms/Sidebar";
 import { Header } from "../organisms/Header";
 import {
@@ -8,6 +9,7 @@ import {
 } from "@/context/ConversationContext";
 
 const LayoutContent: FC = () => {
+  const { t } = useTranslation("layout");
   const { toggleSidebar } = useConversation();
 
   return (
@@ -35,7 +37,9 @@ const LayoutContent: FC = () => {
                   className="h-6 w-6 animate-spin rounded-full border-2 border-t-transparent"
                   style={{ borderColor: "var(--accent)" }}
                 />
-                <span className="text-xs">Loading application...</span>
+                <span className="text-xs">
+                  {t("appLayout.loadingApplication")}
+                </span>
               </div>
             </main>
           }

@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ClipboardDocumentIcon, CheckIcon } from "@heroicons/react/24/outline";
+import { useTranslation } from "react-i18next";
 
 function detectLanguage(code: string, givenLang?: string): string {
   if (givenLang && givenLang !== "code") return givenLang;
@@ -50,6 +51,7 @@ const CodeBlock: React.FC<{ language?: string; code: string }> = ({
   language,
   code,
 }) => {
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const detectedLang = detectLanguage(code, language);
 
@@ -73,12 +75,14 @@ const CodeBlock: React.FC<{ language?: string; code: string }> = ({
           {copied ? (
             <>
               <CheckIcon className="h-3.5 w-3.5 text-emerald-400" />
-              <span className="text-emerald-400 font-semibold">Copied</span>
+              <span className="text-emerald-400 font-semibold">
+                {t("copied")}
+              </span>
             </>
           ) : (
             <>
               <ClipboardDocumentIcon className="h-3.5 w-3.5" />
-              <span>Copy</span>
+              <span>{t("copy")}</span>
             </>
           )}
         </button>

@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ClipboardDocumentIcon,
   CheckIcon,
@@ -52,14 +53,25 @@ function TypingDots() {
 }
 
 function UsageFooter({ usage }: { usage: UsageData }) {
+  const { t } = useTranslation("chat");
   return (
     <div className="mt-3 border-t border-border pt-2 flex items-center gap-3 text-[10px] text-muted-foreground font-mono">
-      <span>Input: {usage.inputTokens.toLocaleString()} tokens</span>
+      <span>
+        {t("messageBubble.usage.input", {
+          value: usage.inputTokens.toLocaleString(),
+        })}
+      </span>
       <span>·</span>
-      <span>Output: {usage.outputTokens.toLocaleString()} tokens</span>
+      <span>
+        {t("messageBubble.usage.output", {
+          value: usage.outputTokens.toLocaleString(),
+        })}
+      </span>
       <span>·</span>
       <span className="text-primary font-semibold">
-        Tổng: {(usage.inputTokens + usage.outputTokens).toLocaleString()} tokens
+        {t("messageBubble.usage.total", {
+          value: (usage.inputTokens + usage.outputTokens).toLocaleString(),
+        })}
       </span>
     </div>
   );
@@ -71,6 +83,7 @@ function UsageFooter({ usage }: { usage: UsageData }) {
 const AttachmentList: React.FC<{ attachments: AttachmentMeta[] }> = ({
   attachments,
 }) => {
+  const { t } = useTranslation("chat");
   const [expandedUrl, setExpandedUrl] = useState<string | null>(null);
 
   const images = attachments.filter((a) => a.type === "image");
@@ -99,7 +112,7 @@ const AttachmentList: React.FC<{ attachments: AttachmentMeta[] }> = ({
                   key={`img-${i}`}
                   type="button"
                   onClick={() => setExpandedUrl(imgSrc)}
-                  aria-label={`Xem ${img.name}`}
+                  aria-label={t("messageBubble.viewImage", { name: img.name })}
                   className="h-20 w-20 overflow-hidden rounded-2xl border border-border bg-card transition hover:opacity-80 shadow-sm"
                 >
                   <img
@@ -145,7 +158,7 @@ const AttachmentList: React.FC<{ attachments: AttachmentMeta[] }> = ({
             variant="ghost"
             size="icon"
             onClick={() => setExpandedUrl(null)}
-            aria-label="Đóng ảnh"
+            aria-label={t("messageBubble.closeImage")}
             className="absolute right-4 top-4 text-white hover:bg-white/20 rounded-full"
           >
             <XMarkIcon className="h-5 w-5" />
@@ -196,6 +209,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   onRetryUser,
   onContinue,
 }) => {
+  const { t } = useTranslation("chat");
   const [copied, setCopied] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
@@ -238,12 +252,12 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             variant="ghost"
             size="sm"
             onClick={() => onRetryUser(message.content)}
-            aria-label="Thử lại tin nhắn này"
-            title="Gửi lại yêu cầu này cho Agent"
+            aria-label={t("messageBubble.retryAria")}
+            title={t("messageBubble.retryTitle")}
             className="opacity-0 group-hover/user:opacity-100 transition-opacity duration-150 h-8 px-2.5 text-xs text-muted-foreground hover:text-primary hover:bg-primary/10 gap-1.5 rounded-xl border border-transparent hover:border-primary/20"
           >
             <ArrowPathIcon className="h-3.5 w-3.5" />
-            <span>Thử lại</span>
+            <span>{t("messageBubble.retry")}</span>
           </Button>
         )}
         <div className="max-w-[85%] sm:max-w-[75%] rounded-[22px] rounded-tr-md px-5 py-3.5 text-sm sm:text-base leading-relaxed bg-[#f4f4f5] dark:bg-[#27272a] text-[#09090b] dark:text-[#f4f4f5] shadow-xs">
@@ -312,7 +326,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             <div className="flex items-center gap-2.5 font-semibold min-w-0">
               <ExclamationTriangleIcon className="h-5 w-5 shrink-0 text-destructive" />
               <span className="leading-snug">
-                Phản hồi gặp sự cố hoặc quá trình xử lý bị gián đoạn.
+                {t("messageBubble.errorBanner")}
               </span>
             </div>
             {onRegenerate && (
@@ -324,7 +338,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 className="gap-1.5 font-bold shadow-sm shrink-0"
               >
                 <ArrowPathIcon className="h-3.5 w-3.5" />
-                <span>Thử lại ngay</span>
+                <span>{t("messageBubble.retryNow")}</span>
               </Button>
             )}
           </div>
@@ -338,7 +352,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
             </span>
             <span className="font-semibold tracking-wide">
-              J.A.R.V.I.S. đang suy luận & xử lý dữ liệu...
+              {t("messageBubble.processing")}
             </span>
             <span className="inline-flex gap-1 ml-1">
               <span
@@ -366,7 +380,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             <div className="flex items-center gap-2.5 font-semibold min-w-0">
               <ExclamationTriangleIcon className="h-5 w-5 shrink-0" />
               <span className="leading-snug">
-                Câu trả lời bị cắt do chạm giới hạn độ dài tối đa.
+                {t("messageBubble.truncatedBanner")}
               </span>
             </div>
             {onContinue && (
@@ -375,12 +389,12 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 variant="outline"
                 size="sm"
                 onClick={onContinue}
-                aria-label="Yêu cầu agent viết tiếp câu trả lời"
-                title="Yêu cầu agent viết tiếp từ chỗ bị cắt"
+                aria-label={t("messageBubble.continueAria")}
+                title={t("messageBubble.continueTitle")}
                 className="gap-1.5 font-bold shadow-sm shrink-0 border-amber-500/40 hover:bg-amber-500/20"
               >
                 <ArrowPathIcon className="h-3.5 w-3.5" />
-                <span>Tiếp tục</span>
+                <span>{t("messageBubble.continue")}</span>
               </Button>
             )}
           </div>
@@ -403,19 +417,21 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               variant="outline"
               size="sm"
               onClick={copyMessage}
-              aria-label="Sao chép nội dung"
-              title="Sao chép câu trả lời"
+              aria-label={t("messageBubble.copyAria")}
+              title={t("messageBubble.copyTitle")}
               className="gap-1 h-7 text-[11px]"
             >
               {copied ? (
                 <>
                   <CheckIcon className="h-3.5 w-3.5 text-emerald-400" />
-                  <span className="text-emerald-400">Đã chép</span>
+                  <span className="text-emerald-400">
+                    {t("common:copied")}
+                  </span>
                 </>
               ) : (
                 <>
                   <ClipboardDocumentIcon className="h-3.5 w-3.5" />
-                  <span>Sao chép</span>
+                  <span>{t("common:copy")}</span>
                 </>
               )}
             </Button>
@@ -426,8 +442,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               variant={isSpeaking ? "secondary" : "outline"}
               size="sm"
               onClick={toggleSpeech}
-              aria-label="Đọc câu trả lời"
-              title="Đọc văn bản bằng giọng nói"
+              aria-label={t("messageBubble.readAloudAria")}
+              title={t("messageBubble.readAloudTitle")}
               className={`gap-1 h-7 text-[11px] ${isSpeaking ? "border-primary text-primary animate-pulse" : ""}`}
             >
               {isSpeaking ? (
@@ -435,7 +451,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               ) : (
                 <SpeakerWaveIcon className="h-3.5 w-3.5" />
               )}
-              <span>{isSpeaking ? "Dừng đọc" : "Đọc tiếng"}</span>
+              <span>
+                {isSpeaking
+                  ? t("messageBubble.stopReading")
+                  : t("messageBubble.readAloud")}
+              </span>
             </Button>
 
             {/* Regenerate button */}
@@ -445,12 +465,12 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 variant="outline"
                 size="sm"
                 onClick={onRegenerate}
-                aria-label="Tạo lại câu trả lời"
-                title="Yêu cầu AI trả lời lại"
+                aria-label={t("messageBubble.regenerateAria")}
+                title={t("messageBubble.regenerateTitle")}
                 className="gap-1 h-7 text-[11px]"
               >
                 <ArrowPathIcon className="h-3.5 w-3.5" />
-                <span>Tạo lại</span>
+                <span>{t("messageBubble.regenerate")}</span>
               </Button>
             )}
 
@@ -461,8 +481,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 variant="ghost"
                 size="iconSm"
                 onClick={() => setFeedback((f) => (f === "up" ? null : "up"))}
-                aria-label="Hài lòng"
-                title="Đánh giá tốt"
+                aria-label={t("messageBubble.feedbackUpAria")}
+                title={t("messageBubble.feedbackUpTitle")}
                 className={`h-7 w-7 ${feedback === "up" ? "text-emerald-400 bg-emerald-500/10" : "text-muted-foreground"}`}
               >
                 <HandThumbUpIcon className="h-3.5 w-3.5" />
@@ -474,8 +494,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 onClick={() =>
                   setFeedback((f) => (f === "down" ? null : "down"))
                 }
-                aria-label="Chưa hài lòng"
-                title="Đánh giá cần cải thiện"
+                aria-label={t("messageBubble.feedbackDownAria")}
+                title={t("messageBubble.feedbackDownTitle")}
                 className={`h-7 w-7 ${feedback === "down" ? "text-rose-400 bg-rose-500/10" : "text-muted-foreground"}`}
               >
                 <HandThumbDownIcon className="h-3.5 w-3.5" />

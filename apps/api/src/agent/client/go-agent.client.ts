@@ -179,6 +179,10 @@ export const goAgentClient: AgentClient = {
       history: chatHistory,
       userMessage,
       attachments: opts?.attachments ?? [],
+      // Optional — undefined bị JSON.stringify loại bỏ khỏi payload, agent-go
+      // (ChatRequest.Lang, json tag "lang,omitempty") mặc định tiếng Việt khi
+      // vắng mặt, giữ nguyên hành vi cũ.
+      lang: opts?.lang,
     });
 
     // 3. Gọi POST /chat với retry (chỉ retry khi lỗi TRƯỚC khi có response).

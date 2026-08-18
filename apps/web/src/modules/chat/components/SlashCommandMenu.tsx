@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   DocumentTextIcon,
   CodeBracketIcon,
@@ -15,43 +16,24 @@ export interface SlashCommand {
   prompt: string;
 }
 
-export const SLASH_COMMANDS: SlashCommand[] = [
-  {
-    cmd: "/summarize",
-    label: "Tóm tắt nhanh",
-    desc: "Tóm tắt ngắn gọn các điểm chính của tài liệu hoặc văn bản",
-    icon: DocumentTextIcon,
-    prompt: "Hãy tóm tắt ngắn gọn các ý chính của nội dung sau:",
-  },
-  {
-    cmd: "/code",
-    label: "Viết mã nguồn",
-    desc: "Tạo hoặc refactor mã nguồn chuẩn clean code",
-    icon: CodeBracketIcon,
-    prompt: "Hãy giúp tôi viết/refactor mã nguồn cho yêu cầu sau:",
-  },
-  {
-    cmd: "/search",
-    label: "Tra cứu Knowledge Base",
-    desc: "Tìm kiếm thông tin chính xác từ RAG vector DB",
-    icon: MagnifyingGlassIcon,
-    prompt: "Tra cứu trong cơ sở dữ liệu tri thức về:",
-  },
-  {
-    cmd: "/explain",
-    label: "Giải thích khái niệm",
-    desc: "Giải thích các vấn đề phức tạp theo cách dễ hiểu nhất",
-    icon: LightBulbIcon,
-    prompt: "Hãy giải thích chi tiết khái niệm sau một cách trực quan dễ hiểu:",
-  },
-  {
-    cmd: "/bug",
-    label: "Debug & Fix Error",
-    desc: "Phân tích nguyên nhân và đưa ra lời giải sửa lỗi",
-    icon: WrenchScrewdriverIcon,
-    prompt: "Phân tích nguyên nhân lỗi và sửa lại đoạn mã sau:",
-  },
-];
+const SLASH_COMMAND_IDS = [
+  "summarize",
+  "code",
+  "search",
+  "explain",
+  "bug",
+] as const;
+
+const SLASH_COMMAND_ICONS: Record<
+  (typeof SLASH_COMMAND_IDS)[number],
+  React.ComponentType<{ className?: string }>
+> = {
+  summarize: DocumentTextIcon,
+  code: CodeBracketIcon,
+  search: MagnifyingGlassIcon,
+  explain: LightBulbIcon,
+  bug: WrenchScrewdriverIcon,
+};
 
 interface SlashCommandMenuProps {
   filterText: string;
@@ -64,7 +46,16 @@ export const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
   onSelect,
   onClose,
 }) => {
+  const { t } = useTranslation("chat");
   const [selectedIndex, setSelectedIndex] = useState(0);
+
+  const SLASH_COMMANDS: SlashCommand[] = SLASH_COMMAND_IDS.map((id) => ({
+    cmd: `/${id}`,
+    label: t(`slashCommandMenu.commands.${id}.label`),
+    desc: t(`slashCommandMenu.commands.${id}.desc`),
+    prompt: t(`slashCommandMenu.commands.${id}.prompt`),
+    icon: SLASH_COMMAND_ICONS[id],
+  }));
 
   const filtered = SLASH_COMMANDS.filter(
     (c) =>
@@ -106,10 +97,10 @@ export const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
     <div className="glass absolute bottom-full left-0 z-50 mb-2 w-80 overflow-hidden rounded-2xl p-2 shadow-2xl animate-slide-up bg-popover text-popover-foreground border border-border">
       <div className="px-3 py-1.5 mb-1.5 border-b border-border flex items-center justify-between">
         <span className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground">
-          SMART COMMANDS (PHÍM TẮT `/`)
+          {t("slashCommandMenu.header")}
         </span>
         <span className="text-[9.5px] text-muted-foreground font-mono font-medium">
-          ↑↓ chọn · Enter dùng
+          {t("slashCommandMenu.hint")}
         </span>
       </div>
 

@@ -116,6 +116,8 @@ export async function streamReply(
     mimeType: string;
   }>,
   tenantId?: string,
+  /** Ngôn ngữ UI người dùng chọn (vd "en") — forward xuống agent.stream(). */
+  lang?: "vi" | "en",
 ): Promise<StreamResult> {
   const raw = (await getMessagesRepo(
     conversationId,
@@ -149,7 +151,12 @@ export async function streamReply(
   const cacheInput = {
     // CHAT_CACHE_VERSION là van xả tay: bump giá trị này để vô hiệu toàn bộ
     // cache sau khi đổi model bên Go agent hoặc đổi system prompt.
-    model: `v${config.CHAT_CACHE_VERSION}|${model}`,
+    //
+    // lang được ghép vào key: nếu không, cùng 1 câu hỏi hỏi bằng "vi" rồi đổi
+    // UI sang "en" (hoặc ngược lại) sẽ ăn trúng cache của lượt trước — trả về
+    // đúng NGÔN NGỮ CŨ dù agent chưa từng được gọi lại, vô hiệu hoá tính năng
+    // chọn ngôn ngữ này ngay khi cache còn nóng.
+    model: `v${config.CHAT_CACHE_VERSION}|${model}|lang=${lang ?? "vi"}`,
     temperature: 1.0,
     messages: history as unknown as Record<string, unknown>[],
   };
@@ -184,6 +191,7 @@ export async function streamReply(
         signal,
         attachments,
         tenantId,
+        lang,
       })) {
         if (ev.type === "text") full += ev.text;
 

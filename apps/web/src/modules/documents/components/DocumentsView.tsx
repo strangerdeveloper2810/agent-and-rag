@@ -1,4 +1,5 @@
 import { useEffect, useReducer, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import {
   listDocuments,
   uploadDocuments,
@@ -14,6 +15,7 @@ import { UploadIcon, DocIcon, TrashIcon, CloseIcon } from "@app/ui";
 import ConfirmDialog from "@/design-system/molecules/ConfirmDialog";
 import { useToast } from "@/design-system/molecules/Toast";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { translateApiError } from "@/lib/errors";
 
 interface State {
   docs: DocumentInfo[];
@@ -88,11 +90,9 @@ function reducer(state: State, action: Action): State {
  * multi-file upload dropzone, version history, and content inspection.
  */
 export const DocumentsView: React.FC = () => {
+  const { t } = useTranslation("documents");
   const toast = useToast();
-  useDocumentTitle(
-    "Kho Tài Liệu & RAG",
-    "Quản lý và tìm kiếm ngữ nghĩa tài liệu thông minh với RAG Vector Search.",
-  );
+  useDocumentTitle(t("pageTitle"), t("pageDescription"));
   const [state, dispatch] = useReducer(reducer, initialState);
   const {
     docs,
@@ -116,7 +116,7 @@ export const DocumentsView: React.FC = () => {
   const onUpload = async (files: File[]) => {
     if (files.length === 0) return;
     if (files.length > 7) {
-      toast.error("Max 7 files at a time.");
+      toast.error(t("toast.maxFiles"));
       if (fileRef.current) fileRef.current.value = "";
       return;
     }
@@ -128,16 +128,25 @@ export const DocumentsView: React.FC = () => {
       const failed = results.filter((r) => !r.ok);
       const failNames = failed.map((f) => f.filename).join(", ");
       if (failed.length === 0) {
-        toast.success(`Uploaded ${ok.length} documents.`);
+        toast.success(t("toast.uploaded", { count: ok.length }));
       } else if (ok.length === 0) {
-        toast.error(`Failed to upload ${failed.length} files: ${failNames}`);
+        toast.error(
+          t("toast.uploadFailedAll", {
+            count: failed.length,
+            names: failNames,
+          }),
+        );
       } else {
         toast.success(
-          `Uploaded ${ok.length}, ${failed.length} failed (${failNames}).`,
+          t("toast.uploadPartial", {
+            ok: ok.length,
+            failed: failed.length,
+            names: failNames,
+          }),
         );
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Upload failed.");
+      toast.error(translateApiError(e, t, t("toast.uploadFailedGeneric")));
     } finally {
       dispatch({ type: "SET_UPLOADING", payload: false });
       if (fileRef.current) fileRef.current.value = "";
@@ -150,9 +159,11 @@ export const DocumentsView: React.FC = () => {
       const res = await updateDocument(documentId, file);
       await refresh();
       if (openHistory === documentId) await loadHistory(documentId);
-      toast.success(`Updated ${res.source} -> v${res.version}.`);
+      toast.success(
+        t("toast.updated", { source: res.source, version: res.version }),
+      );
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Update failed.");
+      toast.error(translateApiError(e, t, t("toast.updateFailedGeneric")));
     } finally {
       dispatch({ type: "SET_UPDATING_ID", payload: null });
     }
@@ -162,11 +173,11 @@ export const DocumentsView: React.FC = () => {
     if (!confirming) return;
     const { documentId, source } = confirming;
     dispatch({ type: "REMOVE_DOC", payload: documentId });
-    toast.success(`Deleted ${source}.`);
+    toast.success(t("toast.deleted", { source }));
     try {
       await deleteDocument(documentId);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Delete failed.");
+      toast.error(translateApiError(e, t, t("toast.deleteFailedGeneric")));
       refresh();
     }
   };
@@ -203,14 +214,13 @@ export const DocumentsView: React.FC = () => {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <div>
               <h2 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-[var(--text)] to-[var(--accent)] bg-clip-text text-transparent">
-                Knowledge Base (RAG)
+                {t("heading")}
               </h2>
               <p
                 className="mt-1 text-xs leading-relaxed"
                 style={{ color: "var(--text-secondary)" }}
               >
-                Upload documents to empower J.A.R.V.I.S. vector search
-                capabilities.
+                {t("subtitle")}
               </p>
             </div>
 
@@ -224,7 +234,7 @@ export const DocumentsView: React.FC = () => {
                 }}
               >
                 <p className="text-[10px] font-mono uppercase text-[var(--text-tertiary)]">
-                  Documents
+                  {t("metrics.documents")}
                 </p>
                 <p className="text-lg font-bold font-mono text-[var(--accent)]">
                   {docs.length}
@@ -238,7 +248,7 @@ export const DocumentsView: React.FC = () => {
                 }}
               >
                 <p className="text-[10px] font-mono uppercase text-[var(--text-tertiary)]">
-                  Total Chunks
+                  {t("metrics.totalChunks")}
                 </p>
                 <p className="text-lg font-bold font-mono text-[var(--accent-violet)]">
                   {totalChunks}
@@ -285,11 +295,11 @@ export const DocumentsView: React.FC = () => {
                 style={{ color: "var(--text)" }}
               >
                 {uploading
-                  ? "Embedding & vectorizing documents..."
-                  : "Click or drag & drop files to upload"}
+                  ? t("upload.dropzoneUploading")
+                  : t("upload.dropzoneIdle")}
               </span>
               <p className="mt-1 text-[11px] text-[var(--text-tertiary)] font-mono">
-                Supported extensions:{" "}
+                {t("upload.supportedExtensions")}{" "}
                 <code className="text-[var(--accent)] bg-[var(--accent-bg)] px-1.5 py-0.5 rounded">
                   .txt
                 </code>{" "}
@@ -299,7 +309,7 @@ export const DocumentsView: React.FC = () => {
                 <code className="text-[var(--accent)] bg-[var(--accent-bg)] px-1.5 py-0.5 rounded">
                   .pdf
                 </code>{" "}
-                (max 7 files per batch)
+                {t("upload.maxFilesHint")}
               </p>
             </div>
           </label>
@@ -311,7 +321,7 @@ export const DocumentsView: React.FC = () => {
                 className="text-[11px] font-mono font-bold uppercase tracking-widest"
                 style={{ color: "var(--text-tertiary)" }}
               >
-                Indexed Files ({docs.length})
+                {t("list.indexedFiles", { count: docs.length })}
               </h3>
             </div>
 
@@ -324,8 +334,7 @@ export const DocumentsView: React.FC = () => {
                   border: "1px solid var(--border)",
                 }}
               >
-                No documents uploaded yet. Upload your first text or PDF
-                document above.
+                {t("list.empty")}
               </div>
             ) : (
               <ul className="space-y-2.5">
@@ -347,7 +356,7 @@ export const DocumentsView: React.FC = () => {
                           color: "var(--accent)",
                           border: "1px solid rgba(0,240,255,0.2)",
                         }}
-                        title="View document content"
+                        title={t("list.viewContentTitle")}
                       >
                         <DocIcon width={18} height={18} />
                       </div>
@@ -375,7 +384,7 @@ export const DocumentsView: React.FC = () => {
                           className="text-[10px] font-mono"
                           style={{ color: "var(--text-tertiary)" }}
                         >
-                          {d.chunks} vector chunks indexed
+                          {t("list.chunksIndexed", { count: d.chunks })}
                         </p>
                       </div>
 
@@ -389,7 +398,7 @@ export const DocumentsView: React.FC = () => {
                             borderColor: "var(--border)",
                           }}
                         >
-                          View
+                          {t("actions.view")}
                         </button>
 
                         <label
@@ -414,8 +423,8 @@ export const DocumentsView: React.FC = () => {
                             }}
                           />
                           {updatingId === d.documentId
-                            ? "Updating..."
-                            : "Update"}
+                            ? t("actions.updating")
+                            : t("actions.update")}
                         </label>
 
                         <button
@@ -427,7 +436,7 @@ export const DocumentsView: React.FC = () => {
                             borderColor: "var(--border)",
                           }}
                         >
-                          History
+                          {t("actions.history")}
                         </button>
 
                         <button
@@ -435,7 +444,9 @@ export const DocumentsView: React.FC = () => {
                           onClick={() =>
                             dispatch({ type: "SET_CONFIRMING", payload: d })
                           }
-                          aria-label={`Delete ${d.source}`}
+                          aria-label={t("actions.deleteAria", {
+                            name: d.source,
+                          })}
                           className="rounded-xl p-2 transition hover:bg-[var(--danger-bg)] hover:text-[var(--danger)] text-[var(--text-tertiary)]"
                         >
                           <TrashIcon width={14} height={14} />
@@ -449,7 +460,7 @@ export const DocumentsView: React.FC = () => {
                         style={{ borderColor: "var(--border)" }}
                       >
                         <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--text-tertiary)]">
-                          Version History
+                          {t("history.title")}
                         </p>
                         <ul className="space-y-1">
                           {versions.map((v) => (
@@ -481,7 +492,7 @@ export const DocumentsView: React.FC = () => {
                                     color: "var(--success)",
                                   }}
                                 >
-                                  Active
+                                  {t("history.active")}
                                 </span>
                               )}
                               <button
@@ -492,7 +503,7 @@ export const DocumentsView: React.FC = () => {
                                 className="rounded-lg px-2.5 py-1 text-[10px] font-medium transition hover:bg-[var(--accent-bg)]"
                                 style={{ color: "var(--accent)" }}
                               >
-                                Preview
+                                {t("actions.preview")}
                               </button>
                             </li>
                           ))}
@@ -540,7 +551,7 @@ export const DocumentsView: React.FC = () => {
               <button
                 type="button"
                 onClick={() => dispatch({ type: "SET_VIEWING", payload: null })}
-                aria-label="Close"
+                aria-label={t("common:close")}
                 className="rounded-xl p-2 transition hover:bg-[var(--bg-raised)] text-[var(--text-tertiary)]"
               >
                 <CloseIcon width={16} height={16} />
@@ -562,13 +573,14 @@ export const DocumentsView: React.FC = () => {
 
       <ConfirmDialog
         open={confirming !== null}
-        title="Delete document?"
+        title={t("deleteDialog.title")}
         message={
           confirming
-            ? `All versions of "${confirming.source}" will be permanently deleted. This action cannot be undone.`
+            ? t("deleteDialog.message", { name: confirming.source })
             : undefined
         }
-        confirmLabel="Delete"
+        confirmLabel={t("common:delete")}
+        cancelLabel={t("common:cancel")}
         danger
         onConfirm={onRemove}
         onCancel={() => dispatch({ type: "SET_CONFIRMING", payload: null })}

@@ -311,7 +311,7 @@ func setup() (config.Config, provider.Provider, *orchestrator.Orchestrator) {
 		Description:     "General-purpose assistant for everyday tasks and conversation",
 		Engine:          generalEngine,
 		TriggerKeywords: []string{},
-		SystemPrompt:    agent.BuildSystemPrompt(nil, skillSummaries),
+		SystemPrompt:    agent.BuildSystemPrompt(nil, skillSummaries, "vi"),
 	})
 	orch.Register(&orchestrator.AgentSpec{
 		Name:        "code",
@@ -319,7 +319,7 @@ func setup() (config.Config, provider.Provider, *orchestrator.Orchestrator) {
 		Engine:      codeEngine,
 		TriggerKeywords: []string{"code", "programming", "function", "bug", "debug",
 			"go", "python", "typescript", "javascript", "rust", "refactor", "test"},
-		SystemPrompt: agent.BuildSystemPrompt(nil, skillSummaries),
+		SystemPrompt: agent.BuildSystemPrompt(nil, skillSummaries, "vi"),
 	})
 	if err := orch.SetDefault("general"); err != nil {
 		slog.Error("orchestrator", "err", err)

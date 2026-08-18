@@ -42,6 +42,26 @@ const capturingAgent = (
   };
 };
 
+// AgentClient giả CÓ GHI LẠI opts nhận được — dùng để assert lang được forward
+// đúng từ streamReply xuống agent.stream (xem test "forward lang" bên dưới).
+const optsCapturingAgent = (
+  events: AgentEvent[],
+): {
+  agent: AgentClient;
+  getReceivedOpts: () => Parameters<AgentClient["stream"]>[1];
+} => {
+  let received: Parameters<AgentClient["stream"]>[1];
+  return {
+    agent: {
+      stream: (_history, opts) => {
+        received = opts;
+        return fakeStream(events);
+      },
+    },
+    getReceivedOpts: () => received,
+  };
+};
+
 const drain = async (
   result: Awaited<ReturnType<typeof streamReply | typeof continueReply>>,
 ) => {
@@ -197,6 +217,40 @@ describe("streamReply", () => {
 
     const { metadata } = await drain(result);
     expect(metadata.truncated).toBe(true);
+  });
+
+  // FE cho phép chọn ngôn ngữ UI (vi/en) — streamReply phải forward lựa chọn
+  // đó xuống agent.stream() để agent-go trả lời đúng ngôn ngữ.
+  it("forward lang xuống agent.stream() khi được truyền", async () => {
+    vi.mocked(repo.getMessages).mockResolvedValue([
+      { role: "user", content: "hi" },
+    ] as never);
+
+    const { agent, getReceivedOpts } = optsCapturingAgent([
+      { type: "text", text: "hello" },
+      { type: "done" },
+    ]);
+
+    await drain(
+      await streamReply("c1", undefined, agent, undefined, undefined, "en"),
+    );
+
+    expect(getReceivedOpts()?.lang).toBe("en");
+  });
+
+  it("lang là undefined khi không truyền (giữ hành vi mặc định)", async () => {
+    vi.mocked(repo.getMessages).mockResolvedValue([
+      { role: "user", content: "hi" },
+    ] as never);
+
+    const { agent, getReceivedOpts } = optsCapturingAgent([
+      { type: "text", text: "hello" },
+      { type: "done" },
+    ]);
+
+    await drain(await streamReply("c1", undefined, agent));
+
+    expect(getReceivedOpts()?.lang).toBeUndefined();
   });
 });
 

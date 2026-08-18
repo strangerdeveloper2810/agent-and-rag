@@ -41,6 +41,13 @@ type RunInput struct {
 	Attachments    []provider.Attachment // image/file attachments (multimodal)
 	Provider       string
 	MaxSteps       int
+
+	// Lang là ngôn ngữ UI người dùng chọn cho LƯỢT NÀY (vd "en", "vi"). Rỗng =
+	// không chỉ định → agent giữ hành vi mặc định (tiếng Việt) đã bake sẵn
+	// trong system prompt cacheable. Truyền qua RunInput (thay vì đổi system
+	// prompt của Engine) vì Engine dùng chung cho mọi request đồng thời —
+	// xem comment ở cmd/server/main.go và node_model.go.
+	Lang string
 }
 
 // Observation là kết quả của một lần chạy tool — lưu trong Scratchpad.
@@ -119,6 +126,12 @@ type State struct {
 	// recall results only reached the SSE stream for UI display and were
 	// never actually used by the model to answer the request.
 	RecalledMemories []string
+
+	// Lang là ngôn ngữ UI người dùng chọn cho lượt này — copy từ RunInput.Lang.
+	// nodeModel dùng field này để ghi đè chỉ dẫn ngôn ngữ trong system prompt
+	// riêng cho lượt chạy này (per-request), không đụng vào systemPrompt tĩnh
+	// dùng chung giữa các request khác.
+	Lang string
 }
 
 // newState khởi tạo State từ RunInput.
@@ -156,6 +169,7 @@ func newState(in RunInput) *State {
 	return &State{
 		Messages: messages,
 		MaxSteps: maxSteps,
+		Lang:     in.Lang,
 	}
 }
 

@@ -163,8 +163,16 @@ func main() {
 	// Khi bật, request phức tạp tốn thêm 1 LLM call trước token đầu tiên.
 	planningEnabled := cfg.EnablePlanning
 
+	// lang="vi" cứng ở đây vì BuildSystemPrompt được gọi MỘT LẦN lúc wiring,
+	// còn Engine (và system prompt của nó) được CHIA SẺ giữa mọi request đồng
+	// thời của mọi user — xem comment trong orchestrator.Register() giải
+	// thích tại sao KHÔNG được gọi SetSystemPrompt mỗi request (data race).
+	// Lựa chọn ngôn ngữ theo user (FE gửi field "lang" trong ChatRequest) được
+	// áp dụng RIÊNG cho từng lượt chạy qua RunInput.Lang → State.Lang, và
+	// nodeModel() ghi đè chỉ dẫn ngôn ngữ một cách an toàn (per-request, không
+	// đụng vào systemPrompt dùng chung) — xem node_model.go.
 	generalEngine := agent.NewEngine(prov, generalRegistry)
-	generalEngine.SetSystemPrompt(agent.BuildSystemPrompt(nil, skillSummaries))
+	generalEngine.SetSystemPrompt(agent.BuildSystemPrompt(nil, skillSummaries, "vi"))
 	generalEngine.SetDynamicThinking(dynThinking)
 	generalEngine.SetCircuitBreaker(cb)
 	generalEngine.SetMaxToolOutput(cfg.MaxToolOutput)
@@ -185,7 +193,7 @@ func main() {
 	}
 
 	codeEngine := agent.NewEngine(prov, codeRegistry)
-	codeEngine.SetSystemPrompt(agent.BuildSystemPrompt(nil, skillSummaries))
+	codeEngine.SetSystemPrompt(agent.BuildSystemPrompt(nil, skillSummaries, "vi"))
 	codeEngine.SetDynamicThinking(dynThinking)
 	codeEngine.SetCircuitBreaker(cb)
 	codeEngine.SetMaxToolOutput(cfg.MaxToolOutput)
@@ -206,7 +214,7 @@ func main() {
 	}
 
 	researchEngine := agent.NewEngine(prov, researchRegistry)
-	researchEngine.SetSystemPrompt(agent.BuildSystemPrompt(nil, skillSummaries))
+	researchEngine.SetSystemPrompt(agent.BuildSystemPrompt(nil, skillSummaries, "vi"))
 	researchEngine.SetDynamicThinking(dynThinking)
 	researchEngine.SetCircuitBreaker(cb)
 	researchEngine.SetMaxToolOutput(cfg.MaxToolOutput)
@@ -232,7 +240,7 @@ func main() {
 		Description:     "General-purpose assistant for everyday tasks and conversation",
 		Engine:          generalEngine,
 		TriggerKeywords: []string{},
-		SystemPrompt:    agent.BuildSystemPrompt(nil, skillSummaries),
+		SystemPrompt:    agent.BuildSystemPrompt(nil, skillSummaries, "vi"),
 	})
 	orch.Register(&orchestrator.AgentSpec{
 		Name:        "code",
@@ -254,7 +262,7 @@ func main() {
 			"viết hàm", "viết code", "sửa lỗi", "lỗi", "hàm", "biến", "thư viện",
 			"triển khai", "tối ưu", "mã nguồn",
 		},
-		SystemPrompt: agent.BuildSystemPrompt(nil, skillSummaries),
+		SystemPrompt: agent.BuildSystemPrompt(nil, skillSummaries, "vi"),
 	})
 	orch.Register(&orchestrator.AgentSpec{
 		Name:        "research",
@@ -265,7 +273,7 @@ func main() {
 			"what is", "who is", "when did", "how to", "latest", "tin tức",
 			"news", "kiến thức", "cho biết", "giải thích", "why", "tại sao",
 		},
-		SystemPrompt: agent.BuildSystemPrompt(nil, skillSummaries) + `
+		SystemPrompt: agent.BuildSystemPrompt(nil, skillSummaries, "vi") + `
 [BẠN LÀ RESEARCH AGENT]
 Bạn là chuyên gia nghiên cứu internet của JARVIS. Nhiệm vụ của bạn:
 

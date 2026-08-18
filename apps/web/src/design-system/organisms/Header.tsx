@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Bars3Icon,
   MagnifyingGlassIcon,
@@ -31,6 +32,7 @@ export const Header: React.FC<HeaderProps> = ({
   onExportChat,
   onToggleSearch,
 }) => {
+  const { t } = useTranslation("layout");
   const [currentMode, setCurrentMode] = useState<AIMode>("auto");
 
   return (
@@ -42,7 +44,7 @@ export const Header: React.FC<HeaderProps> = ({
           variant="outline"
           size="iconSm"
           onClick={onToggleSidebar}
-          aria-label="Toggle sidebar"
+          aria-label={t("header.toggleSidebar")}
           className="h-8 w-8"
         >
           <Bars3Icon className="h-4 w-4 text-foreground" />
@@ -57,7 +59,7 @@ export const Header: React.FC<HeaderProps> = ({
             className="hidden sm:flex items-center gap-1.5 font-mono text-[10px]"
           >
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            ONLINE
+            {t("header.onlineStatus")}
           </Badge>
         </div>
 
@@ -78,8 +80,8 @@ export const Header: React.FC<HeaderProps> = ({
             variant="ghost"
             size="iconSm"
             onClick={onToggleSearch}
-            aria-label="Search conversation"
-            title="Tìm kiếm trong cuộc hội thoại"
+            aria-label={t("header.searchConversation")}
+            title={t("header.searchConversation")}
             className="h-8 w-8"
           >
             <MagnifyingGlassIcon className="h-4 w-4 text-muted-foreground" />
@@ -92,8 +94,8 @@ export const Header: React.FC<HeaderProps> = ({
             variant="ghost"
             size="iconSm"
             onClick={onExportChat}
-            aria-label="Export chat log"
-            title="Xuất lịch sử chat (Markdown/JSON)"
+            aria-label={t("header.exportChat")}
+            title={t("header.exportChat")}
             className="h-8 w-8"
           >
             <ArrowDownTrayIcon className="h-4 w-4 text-muted-foreground" />
@@ -106,8 +108,8 @@ export const Header: React.FC<HeaderProps> = ({
             variant="ghost"
             size="iconSm"
             onClick={onClearChat}
-            aria-label="Clear chat"
-            title="Làm sạch cuộc hội thoại"
+            aria-label={t("header.clearChat")}
+            title={t("header.clearChat")}
             className="hidden sm:flex h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
           >
             <TrashIcon className="h-4 w-4" />
