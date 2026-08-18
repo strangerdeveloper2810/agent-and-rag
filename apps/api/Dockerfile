@@ -22,10 +22,12 @@ RUN pnpm --filter @app/api --prod deploy --legacy /app/deploy
 FROM node:22-alpine
 WORKDIR /app
 
-COPY --from=build /app/deploy/dist ./dist
 COPY --from=build /app/deploy/package.json ./
 COPY --from=build /app/deploy/node_modules ./node_modules
+COPY --from=build /app/apps/api/src ./src
+COPY --from=build /app/tsconfig.base.json ./
+COPY --from=build /app/packages ./packages
 
 EXPOSE 3001
 ENV NODE_ENV=production
-CMD ["node", "dist/server.js"]
+CMD ["./node_modules/.bin/tsx", "src/server.ts"]
