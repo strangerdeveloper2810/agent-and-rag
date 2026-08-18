@@ -6,6 +6,7 @@ import {
   TrashIcon,
 } from "@heroicons/react/24/outline";
 import ThemeToggle from "../atoms/ThemeToggle";
+import LanguageSwitcher from "../atoms/LanguageSwitcher";
 import ModeSelector, {
   type AIMode,
 } from "@/modules/chat/components/ModeSelector";
@@ -113,6 +114,7 @@ export const Header: React.FC<HeaderProps> = ({
           </Button>
         )}
 
+        <LanguageSwitcher />
         <ThemeToggle />
       </div>
     </header>
