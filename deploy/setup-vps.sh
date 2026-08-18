@@ -63,6 +63,12 @@ preflight() {
     exit 1
   fi
   log "Docker Compose: $(docker compose version)"
+
+  if ! command -v rsync &>/dev/null; then
+    info "rsync chưa có trên VPS, đang tự động cài đặt..."
+    apt-get update -qq && apt-get install -y -qq rsync
+  fi
+  log "rsync đã có: $(rsync --version | head -n1)"
 }
 
 setup_dirs() {
