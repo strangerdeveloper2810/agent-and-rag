@@ -11,6 +11,7 @@ import { authModule } from "./modules/auth/auth.module";
 import { usersModule } from "./modules/users/users.module";
 import { getPgPool } from "./database/index.js";
 import { registerErrorFilter } from "./common/filters/error.filter";
+import { rateLimitKeyGenerator } from "./common/guards/rate-limit-key";
 import { getDb } from "./lib/mongo";
 import { config } from "./config";
 import { checkGoAgentHealth } from "./agent/client";
@@ -35,6 +36,15 @@ export function buildApp(): FastifyInstance {
   const app = Fastify({
     logger: config.NODE_ENV !== "test",
     bodyLimit: 50 * 1024 * 1024, // 50MB — attachments + long conversation history
+    // Số HOP proxy tin được, tính từ phía server: web(nginx container) → api là
+    // 1, reverse proxy ngoài cùng là 2. Fastify sẽ bỏ qua 2 entry cuối của
+    // X-Forwarded-For và lấy entry trước đó làm req.ip.
+    //
+    // Cố tình KHÔNG dùng `trustProxy: true`: khi tin tất cả các hop, Fastify lấy
+    // entry ngoài cùng bên trái của X-Forwarded-For — mà client tự gửi được
+    // header đó, nên bất kỳ ai cũng bơm được IP giả để reset hạn mức rate limit.
+    // Đếm hop thì con số lấy ra luôn là IP mà proxy đầu tiên THỰC SỰ thấy.
+    trustProxy: 2,
   });
 
   // ---- Cross-cutting plugins ----
@@ -55,7 +65,13 @@ export function buildApp(): FastifyInstance {
   app.register(cookie);
 
   // Rate limiting chống abuse/DoS — in-memory (đủ cho single instance).
-  app.register(rateLimit, { max: 120, timeWindow: "1 minute" });
+  // keyGenerator: khoá theo user đã đăng nhập, chỉ rơi về IP khi chưa đăng nhập
+  // (xem rate-limit-key.ts — trước đây mọi user dùng chung một bucket).
+  app.register(rateLimit, {
+    max: 120,
+    timeWindow: "1 minute",
+    keyGenerator: rateLimitKeyGenerator,
+  });
 
   // Error filter tập trung (thay thế middleware/error-handler.ts cũ).
   registerErrorFilter(app);

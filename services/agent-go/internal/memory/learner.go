@@ -51,6 +51,13 @@ func (l *Learner) LearnFromConversation(ctx context.Context, messages []provider
 		return
 	}
 
+	// Lượt tán gẫu không có gì để học, nhưng reflection vẫn là một lượt gọi LLM
+	// đầy đủ — tức mỗi câu "xin chào" đang trả tiền hai lần. Bỏ qua sớm.
+	if !worthLearning(messages) {
+		slog.Debug("learner: bỏ qua lượt tán gẫu (không có gì để học)")
+		return
+	}
+
 	tenantID := middleware.GetTenantID(ctx)
 
 	// Copy messages to avoid race conditions with parent caller

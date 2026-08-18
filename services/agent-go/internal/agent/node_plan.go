@@ -66,19 +66,34 @@ User request:
 	}
 
 	var response strings.Builder
+	var stepInput, stepOutput int
+	var streamErr error
 	for chunk := range stream {
 		switch chunk.Kind {
 		case provider.ChunkText:
 			response.WriteString(chunk.Text)
 		case provider.ChunkUsage:
 			if chunk.Usage != nil {
-				s.Usage.InputTokens += chunk.Usage.InputTokens
-				s.Usage.OutputTokens += chunk.Usage.OutputTokens
+				// Snapshot cộng dồn của lượt gọi, không phải delta — xem giải
+				// thích dài ở node_model.go (Gemini gửi lại promptTokenCount ở
+				// mọi chunk nên cộng dồn sẽ nhân token lên nhiều lần).
+				stepInput = max(stepInput, chunk.Usage.InputTokens)
+				stepOutput = max(stepOutput, chunk.Usage.OutputTokens)
 			}
 		case provider.ChunkError:
-			slog.Warn("plan: LLM stream error, skipping", "err", chunk.Err)
-			return NodeModel, nil
+			// Ghi nhận lỗi nhưng vẫn đọc hết stream: token của bước plan đã bị
+			// tiêu rồi nên phải tính, và không bỏ stream giữa đường cho provider.
+			streamErr = chunk.Err
 		}
+	}
+
+	s.Usage.InputTokens += stepInput
+	s.Usage.OutputTokens += stepOutput
+	s.TotalTokens = s.Usage.InputTokens + s.Usage.OutputTokens
+
+	if streamErr != nil {
+		slog.Warn("plan: LLM stream error, skipping", "err", streamErr)
+		return NodeModel, nil
 	}
 
 	planText := strings.TrimSpace(response.String())
@@ -99,7 +114,6 @@ User request:
 
 	s.Plan = steps
 	s.PlanStep = 0
-	s.TotalTokens = s.Usage.InputTokens + s.Usage.OutputTokens
 
 	slog.Info("plan: generated", "steps", len(steps))
 	emit(PlanEvent(steps))

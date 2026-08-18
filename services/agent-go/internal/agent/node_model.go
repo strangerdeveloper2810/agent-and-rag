@@ -183,10 +183,20 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 
 		case provider.ChunkUsage:
 			if chunk.Usage != nil {
-				s.Usage.InputTokens += chunk.Usage.InputTokens
-				s.Usage.OutputTokens += chunk.Usage.OutputTokens
-				stepInput += chunk.Usage.InputTokens
-				stepOutput += chunk.Usage.OutputTokens
+				// ChunkUsage là SNAPSHOT CỘNG DỒN của lượt gọi này, KHÔNG phải delta.
+				//
+				// Gemini gửi usageMetadata kèm promptTokenCount ĐẦY ĐỦ ở MỌI chunk
+				// stream (gemini.go: emit ChunkUsage trong vòng lặp), nên cộng dồn
+				// sẽ nhân input token với số chunk. Đo thực tế trên production:
+				// một câu chat gửi ~5.200 token bị báo thành 41.400 (×8), câu dài
+				// hơn thành 90.528 (×17). Anthropic/DeepSeek chỉ gửi một lần ở cuối
+				// nên lấy max hoạt động đúng cho cả hai kiểu.
+				//
+				// Hệ quả của bug cũ không chỉ là log sai: totalTokens chảy ra tận
+				// UI và vào contextTokens/contextBudget mà FE dùng để gợi ý "nên
+				// bắt đầu chat mới", nên người dùng bị nhắc tạo chat mới quá sớm.
+				stepInput = max(stepInput, chunk.Usage.InputTokens)
+				stepOutput = max(stepOutput, chunk.Usage.OutputTokens)
 			}
 
 		case provider.ChunkError:
@@ -208,6 +218,12 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 		slog.Warn("model: response truncated by max output tokens", "provider", prov.Name(), "content_len", content.Len())
 		emit(TruncatedEvent())
 	}
+
+	// Cộng usage của BƯỚC này vào tổng của cả lượt chạy. Cộng ở đây (một lần
+	// cho mỗi lượt gọi provider) chứ không cộng trong vòng lặp stream — xem
+	// giải thích ở case ChunkUsage.
+	s.Usage.InputTokens += stepInput
+	s.Usage.OutputTokens += stepOutput
 
 	// Sync cumulative total and emit per-step usage event.
 	s.TotalTokens = s.Usage.InputTokens + s.Usage.OutputTokens

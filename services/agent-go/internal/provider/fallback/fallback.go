@@ -74,7 +74,7 @@ func (p *Provider) Generate(ctx context.Context, req provider.GenerateRequest) (
 			np.coolUntil.Store(0) // cooldown expired
 		}
 
-		stream, err := np.prov.Generate(ctx, req)
+		stream, err := np.prov.Generate(ctx, scopeModel(req, np.name))
 		if err != nil {
 			if !isRetryable(err) {
 				return nil, err
@@ -121,6 +121,49 @@ func (p *Provider) Generate(ctx context.Context, req provider.GenerateRequest) (
 	}
 
 	return nil, fmt.Errorf("fallback: all %d providers failed: %w", len(p.chain), lastErr)
+}
+
+// modelFamily suy ra provider nào sở hữu một tên model. Trả "" khi không nhận ra
+// (khi đó ta để nguyên override, vì có thể là model tự host / tên tuỳ biến).
+func modelFamily(model string) string {
+	m := strings.ToLower(strings.TrimPrefix(model, "models/"))
+	switch {
+	case m == "":
+		return ""
+	case strings.HasPrefix(m, "gemini"), strings.HasPrefix(m, "gemma"):
+		return "gemini"
+	case strings.HasPrefix(m, "deepseek"):
+		return "deepseek"
+	case strings.HasPrefix(m, "claude"):
+		return "anthropic"
+	}
+	return ""
+}
+
+// scopeModel bỏ Options.Model khi tên model KHÔNG thuộc provider đang được gọi.
+//
+// Lý do: tên model là thứ riêng của từng provider, nhưng cả chuỗi fallback dùng
+// chung một GenerateRequest. Caller nào xin model "nhanh/rẻ" (learner,
+// SummarizeMessages, trimContext — xem cmd/server/main.go:fastModel) sẽ set
+// Options.Model="deepseek-v4-flash"; gemini.Client lại tôn trọng override đó
+// (gemini.go: `if req.Options.Model != ""`) nên nó gọi Gemini API với một model
+// không tồn tại, chắc chắn lỗi, rồi mới rơi xuống DeepSeek.
+//
+// Đo trên production: mỗi lượt chat đốt thêm 2 request Gemini vô ích như vậy —
+// vừa tốn quota free tier, vừa cộng nhiễu vào circuit breaker/cooldown làm
+// provider chính bị đánh dấu "hỏng" oan.
+//
+// Bỏ override cho provider khác họ = provider đó dùng model mặc định của chính
+// nó (cũng là model rẻ), đúng ý "dùng model nhanh nhất có sẵn" mà không tốn
+// request rác.
+func scopeModel(req provider.GenerateRequest, providerName string) provider.GenerateRequest {
+	fam := modelFamily(req.Options.Model)
+	if fam == "" || fam == providerName {
+		return req
+	}
+	scoped := req
+	scoped.Options.Model = ""
+	return scoped
 }
 
 func (p *Provider) recordFailure(np *namedProvider, err error) {

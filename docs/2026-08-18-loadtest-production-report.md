@@ -157,7 +157,10 @@ Nên bật `trustProxy` một mình là vô tác dụng — phải sửa cả ha
 rate limit theo IP vẫn chưa đúng: user đã đăng nhập nên nên khoá theo `sub` của
 JWT, mới đúng ý "mỗi người 20 tin/phút".
 
-### 5.2 Context 41.000–96.000 token cho một câu chat đơn giản — TỐN TIỀN
+### 5.2 Con số token bị phồng ~8 lần — LỖI ĐO, không phải context phình
+
+> **Đã sửa** — xem `docs/2026-08-18-cost-and-ratelimit-fixes.md`. Phần dưới giữ
+> lại nguyên trạng quá trình lần ra nguyên nhân, kèm kết luận đúng.
 
 Log `jarvis-agent-go` với prompt "Xin chào, bạn là ai và làm được gì?":
 
@@ -167,13 +170,45 @@ model: LLM response tokens_in=41400 tokens_out=2506 elapsed_ms=2860
 engine: run done steps=1 tokens_in=41400 tokens_out=2506 total_tokens=43906
 ```
 
-Một request khác lên tới `tokens_in=90528`. Trung bình 67k–96k token/request
-(đo trên 50 request: 4,06 triệu token). Nguồn phình: system prompt + skill
-injection (`skill activated skill=learning-tutor`) + memory recall — nạp hết
-bất kể câu hỏi có cần hay không.
+Một request khác báo tới `tokens_in=90528`. Ban đầu tôi đọc đây là context phình
+(skills + memory nạp vô điều kiện). **Đo lại thì không phải.**
 
-Đây là đòn tiết kiệm lớn nhất còn bỏ ngỏ: giảm 41k → 10k token/request là giảm
-~75% chi phí LLM, đồng thời giảm luôn latency (input càng dài, TTFT càng chậm).
+`cmd/promptsize` dựng đúng payload mà agent gửi lên và cân từng phần:
+
+| Thành phần | Byte | ≈ token |
+|---|---|---|
+| base system prompt | 6.042 | 1.726 |
+| danh sách 30 skill (name + description) | 3.833 | 1.095 |
+| skill được kích hoạt (learning-tutor, full SKILL.md) | 7.097 | 2.027 |
+| tool schema sau filter (4 tool) | 1.333 | 380 |
+| tin nhắn user | 58 | 16 |
+| **TỔNG** | **18.413** | **≈5.260** |
+
+Agent gửi ~5.260 token nhưng log báo 41.400 — chênh đúng 8 lần, và request dài
+hơn thì chênh 17 lần. Nguyên nhân nằm ở `node_model.go`:
+
+```go
+case provider.ChunkUsage:
+    s.Usage.InputTokens += chunk.Usage.InputTokens   // ← cộng dồn
+```
+
+Gemini gửi `usageMetadata` kèm `promptTokenCount` **đầy đủ ở MỌI chunk stream**
+(`gemini.go`: emit `ChunkUsage` bên trong vòng lặp) — mỗi chunk là một SNAPSHOT
+cộng dồn, không phải delta. Cộng chúng lại = nhân input token với số chunk.
+Anthropic và DeepSeek chỉ gửi usage một lần ở cuối nên không lộ ra bug này.
+
+Hệ quả không chỉ là log sai:
+
+- `totalTokens` chảy ra UI và vào `contextTokens`/`contextBudget` mà FE dùng để
+  gợi ý "nên bắt đầu chat mới" → người dùng bị nhắc tạo chat mới quá sớm.
+- Mọi ước lượng chi phí (kể cả ước lượng trong bản đầu của báo cáo này) đều sai
+  theo hướng phóng đại.
+
+Điều KHÔNG bị ảnh hưởng: `trimContext` tự ước lượng token từ `s.Messages`
+(`estimateTokens`) chứ không đọc `s.Usage`, nên compaction vẫn chạy đúng ngưỡng.
+
+Kết luận đúng: context ~5,3k token/request là hợp lý cho một agent có tool +
+skill, **không phải chỗ cần cắt gấp**. Chỗ thật sự đốt tiền là §5.4.
 
 ### 5.3 Chat cache không phân theo tenant
 
@@ -185,6 +220,32 @@ Rủi ro rò rỉ ở đây thấp (chỉ trùng khi toàn bộ `messages` giố
 thường khác), nhưng nó cũng làm **sai lệch mọi bài load test** nếu prompt lặp
 lại: request thứ hai trả về từ Redis trong 258ms thay vì gọi LLM 3,1s. Vì vậy
 `tools/loadtest` có cờ `-unique` (mặc định bật) gắn mã tham chiếu vào mỗi prompt.
+
+### 5.4 Mỗi lượt learner/summarize đốt 2 request Gemini chắc chắn thất bại — TỐN TIỀN THẬT
+
+> **Đã sửa** — xem `docs/2026-08-18-cost-and-ratelimit-fixes.md`.
+
+Log production, đọc kỹ mới thấy điều vô lý:
+
+```
+gemini:   calling API model=deepseek-v4-flash ...   ← provider gemini, model deepseek?!
+gemini:   calling API model=deepseek-v4-flash ...
+deepseek: calling API model=deepseek-v4-flash ...
+```
+
+Chuỗi nguyên nhân:
+
+1. `cmd/server/main.go:fastModel()` trả `deepseek-v4-flash` khi có DeepSeek key —
+   dùng cho learner (`ReflectAndExtract`) và `SummarizeMessages`.
+2. Tên model đó đi vào `GenerateRequest.Options.Model` và `fallback.Provider`
+   truyền **nguyên request** cho từng provider trong chuỗi.
+3. `gemini.go` lại tôn trọng override: `if req.Options.Model != "" { model = ... }`
+   → gọi Gemini API với một model không tồn tại. Chắc chắn lỗi.
+
+Nên mỗi lần learner chạy (tức **sau mỗi câu trả lời**) hệ thống bắn 2 request
+Gemini vô ích trước khi rơi xuống DeepSeek. Ba thứ mất cùng lúc: quota free tier
+Gemini, độ trễ, và — tệ nhất — 2 lỗi giả đó cộng vào circuit breaker/cooldown nên
+Gemini bị đánh dấu "hỏng" oan, đẩy cả traffic thật sang provider trả tiền.
 
 ## 6. Vậy chịu được bao nhiêu user đồng thời?
 
@@ -218,9 +279,9 @@ Trả lời trực tiếp câu hỏi ban đầu: **không lăn đùng ra tèo �
    mỗi người" — tức là từ ~20 user lên ~200–300 user, không cần thêm một đồng
    hạ tầng nào.
 
-2. **Cắt context 41k token** (§5.2). Chỉ nạp skill khi router thấy cần; giới hạn
-   memory recall theo budget token; đo lại `tokens_in` sau khi sửa. Tác động
-   trực tiếp lên hoá đơn LLM và lên latency.
+2. **Sửa đếm token + chặn model override rò rỉ** (§5.2, §5.4). Không sửa được
+   đếm token thì mọi nỗ lực tối ưu cost đều là đoán; không chặn override thì mỗi
+   câu trả lời vẫn kèm 2 request Gemini rác.
 
 3. **Backpressure thay vì để user chờ rồi timeout.** Khi số request đang chạy
    vượt ngưỡng (ví dụ 30), trả 429 kèm `Retry-After` ngay lập tức. Chờ 120 giây
@@ -260,7 +321,9 @@ trả lời thay LLM và mọi số liệu đều đẹp giả.
 - Binary test đã được xoá khỏi `/tmp` của VPS sau khi đo.
 - Không container nào restart; `hr-api-staging` giữ nguyên uptime 8 ngày →
   stack dùng chung không bị gián đoạn.
-- Chi phí LLM thực tế: ~4,06 triệu token trên 50 request (chủ yếu
-  gemini-3.1-flash-lite, một phần deepseek-v4-flash).
+- Chi phí LLM: log báo ~4,06 triệu token trên 50 request, nhưng con số đó bị
+  phồng ~8–17 lần do bug đếm ở §5.2. Thực tế vào khoảng 300–500 nghìn token
+  (~5,3k input mỗi request cộng output), chủ yếu trên gemini-3.1-flash-lite và
+  một phần deepseek-v4-flash.
 - Phần 1000 concurrent **với LLM thật** không được chạy (sẽ tốn 60–90M token);
   con số ở §6 là ngoại suy từ throughput đo được, đã ghi rõ là ước lượng.
