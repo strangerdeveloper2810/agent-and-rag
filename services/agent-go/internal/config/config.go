@@ -20,8 +20,9 @@ type Config struct {
 	Provider             string // "gemini" | "anthropic" | "ollama" | "deepseek"
 	GeminiKey            string
 	GeminiModel          string
-	GeminiSecondaryModel string // fallback model khi primary bị rate limit (vd: "gemini-3.5-flash-lite")
-	ThinkingLevel        string // OFF|LOW|MEDIUM|HIGH (Gemini 3.x)
+	GeminiSecondaryModel string   // fallback model khi primary bị rate limit (vd: "gemini-3.5-flash-lite")
+	GeminiFallbackModels []string // danh sách các model Gemini fallback theo thứ tự ưu tiên
+	ThinkingLevel        string   // OFF|LOW|MEDIUM|HIGH (Gemini 3.x)
 	AnthropicKey         string
 	AnthropicModel       string
 	DeepSeekKey          string
@@ -159,6 +160,7 @@ func Load() (Config, error) {
 		GeminiKey:             envOr("GEMINI_API_KEY", os.Getenv("GOOGLE_API_KEY")),
 		GeminiModel:           envOr("GEMINI_MODEL", "gemini-3.1-flash-lite"),
 		GeminiSecondaryModel:  envOr("GEMINI_SECONDARY_MODEL", "gemini-3.5-flash-lite"),
+		GeminiFallbackModels: splitCSV(envOr("GEMINI_FALLBACK_MODELS", "gemini-3.5-flash-lite,gemini-3.7-flash,gemini-3.6-flash,gemini-3.5-flash,gemini-3-flash,gemini-2.5-flash-lite,gemini-2.5-flash")),
 		ThinkingLevel:         envOr("GOOGLE_THINKING_LEVEL", "OFF"),
 		AnthropicKey:          os.Getenv("ANTHROPIC_API_KEY"),
 		AnthropicModel:        envOr("CLAUDE_MODEL", "claude-haiku-4-5-20251001"),

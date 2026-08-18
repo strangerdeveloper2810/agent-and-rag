@@ -80,11 +80,7 @@ func (p *Provider) Generate(ctx context.Context, req provider.GenerateRequest) (
 				return nil, err
 			}
 			lastErr = err
-			fails := np.failures.Add(1)
-			if p.cooldown > 0 {
-				cd := p.cooldown * (1 << min(int(fails)-1, 4))
-				np.coolUntil.Store(time.Now().Add(cd).UnixNano())
-			}
+			p.recordFailure(np, err)
 			continue
 		}
 
@@ -112,11 +108,7 @@ func (p *Provider) Generate(ctx context.Context, req provider.GenerateRequest) (
 		}
 		if firstChunk.Kind == provider.ChunkError && isRetryable(firstChunk.Err) {
 			lastErr = firstChunk.Err
-			fails := np.failures.Add(1)
-			if p.cooldown > 0 {
-				cd := p.cooldown * (1 << min(int(fails)-1, 4))
-				np.coolUntil.Store(time.Now().Add(cd).UnixNano())
-			}
+			p.recordFailure(np, firstChunk.Err)
 			// Drain the wrapper goroutine
 			for range wrapped {
 			}
@@ -129,6 +121,21 @@ func (p *Provider) Generate(ctx context.Context, req provider.GenerateRequest) (
 	}
 
 	return nil, fmt.Errorf("fallback: all %d providers failed: %w", len(p.chain), lastErr)
+}
+
+func (p *Provider) recordFailure(np *namedProvider, err error) {
+	fails := np.failures.Add(1)
+	if p.cooldown <= 0 {
+		return
+	}
+	cd := p.cooldown * (1 << min(int(fails)-1, 4))
+	if isDailyQuotaExhausted(err) {
+		// Day-lock: 2 hours cooldown when daily quota is exhausted
+		cd = 2 * time.Hour
+	} else if cd > 5*time.Minute {
+		cd = 5 * time.Minute
+	}
+	np.coolUntil.Store(time.Now().Add(cd).UnixNano())
 }
 
 // Status returns health status of all providers.
@@ -206,4 +213,16 @@ func isRetryable(err error) bool {
 
 	// Unknown error → retry (safety: rather retry than fail silently)
 	return true
+}
+
+func isDailyQuotaExhausted(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "per day") ||
+		strings.Contains(msg, "daily") ||
+		strings.Contains(msg, "day limit") ||
+		strings.Contains(msg, "free_tier_requests_per_day") ||
+		strings.Contains(msg, "rpd")
 }
