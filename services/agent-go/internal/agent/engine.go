@@ -273,7 +273,15 @@ func (e *Engine) Run(ctx context.Context, in RunInput, emit EmitFunc) (provider.
 
 	slog.Info("engine: run done", "steps", s.Step, "total_ms", time.Since(start).Milliseconds(),
 		"tokens_in", s.Usage.InputTokens, "tokens_out", s.Usage.OutputTokens, "total_tokens", s.TotalTokens)
-	emit(DoneEvent(s.Usage, s.TotalTokens, s.Truncated))
+
+	// contextTokens: kích thước s.Messages ở CUỐI lượt chạy — đúng bằng những
+	// gì client sẽ gửi lại làm history ở lượt kế tiếp (xem comment
+	// Event.ContextTokens). Tính riêng ở đây thay vì trong DoneEvent() vì cần
+	// s.Messages (đã qua trimContext) SAU KHI dispatch loop kết thúc.
+	done := DoneEvent(s.Usage, s.TotalTokens, s.Truncated)
+	done.ContextTokens = estimateTokens(s.Messages)
+	done.ContextBudget = e.maxContextTokens
+	emit(done)
 	return s.Usage, nil
 }
 

@@ -173,6 +173,7 @@ func main() {
 	generalEngine.SetOwnerTenants(cfg.OwnerTenantIDs)
 	generalEngine.SetAllowDestructiveTools(cfg.AllowDestructiveTools)
 	generalEngine.SetSkillLoader(skillLoader)
+	generalEngine.SetMaxContextTokens(cfg.MaxContextTokens)
 	generalEngine.SetFastModel(fastModel(cfg))
 	generalEngine.SetMemoryNodes(
 		memory.RecallNode(store),
@@ -193,6 +194,7 @@ func main() {
 	codeEngine.SetOwnerTenants(cfg.OwnerTenantIDs)
 	codeEngine.SetAllowDestructiveTools(cfg.AllowDestructiveTools)
 	codeEngine.SetSkillLoader(skillLoader)
+	codeEngine.SetMaxContextTokens(cfg.MaxContextTokens)
 	codeEngine.SetFastModel(fastModel(cfg))
 	codeEngine.SetMemoryNodes(
 		memory.RecallNode(store),
@@ -213,6 +215,7 @@ func main() {
 	researchEngine.SetOwnerTenants(cfg.OwnerTenantIDs)
 	researchEngine.SetAllowDestructiveTools(cfg.AllowDestructiveTools)
 	researchEngine.SetSkillLoader(skillLoader)
+	researchEngine.SetMaxContextTokens(cfg.MaxContextTokens)
 	researchEngine.SetFastModel(fastModel(cfg))
 	researchEngine.SetMemoryNodes(
 		memory.RecallNode(store),

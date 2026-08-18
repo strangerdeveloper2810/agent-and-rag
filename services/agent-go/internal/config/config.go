@@ -72,8 +72,17 @@ type Config struct {
 	// nên request thật gửi max_tokens=0 → API dùng mặc định của nó, không có
 	// trần nào. Log dev thật: một câu trả lời 15.858 ký tự / 4.747 token mất 44
 	// giây. 0 = không giới hạn; đặt qua MAX_OUTPUT_TOKENS.
-	MaxTokens        int
-	MaxContextTokens int // max context tokens before trimming. default: 100000
+	MaxTokens int
+	// MaxContextTokens là ngân sách token context trước khi trimContext kích
+	// hoạt (Tier 2) — cũng chính là ContextBudget gửi cho FE qua event done để
+	// tự gợi ý bắt đầu chat mới khi context lớn (Tier 4). Trước đây field này
+	// là CONFIG CHẾT tương tự MaxTokens ở trên: hardcode 100000 khi khởi tạo
+	// (không đọc MAX_CONTEXT_TOKENS), và main.go không hề gọi
+	// Engine.SetMaxContextTokens(cfg.MaxContextTokens) — Engine luôn dùng
+	// default nội bộ của riêng nó (cũng 100000, nên trùng hợp "chạy đúng"
+	// nhưng đặt biến môi trường khác đi không có tác dụng gì). 0 = không giới
+	// hạn (trimContext không bao giờ kích hoạt).
+	MaxContextTokens int
 	MaxToolOutput    int // max chars from tool output MỖI tool call. default: 24000
 	// MaxTotalToolOutput giới hạn TỔNG số ký tự tool output cộng dồn qua TẤT CẢ
 	// bước của một lượt chạy (không phải từng tool call riêng lẻ).
@@ -170,7 +179,7 @@ func Load() (Config, error) {
 		EnableHyDE:            envOr("ENABLE_HYDE", "false") == "true",
 		MaxSteps:              12,
 		MaxTokens:             intEnvOr("MAX_OUTPUT_TOKENS", defaultMaxOutputTokens),
-		MaxContextTokens:      100000,
+		MaxContextTokens:      intEnvOr("MAX_CONTEXT_TOKENS", 100000),
 		MaxToolOutput:         24000,
 		MaxTotalToolOutput:    intEnvOr("MAX_TOTAL_TOOL_OUTPUT", defaultMaxTotalToolOutput),
 		ShellTimeout:          30,

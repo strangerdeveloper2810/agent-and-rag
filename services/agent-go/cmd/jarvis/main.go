@@ -286,6 +286,7 @@ func setup() (config.Config, provider.Provider, *orchestrator.Orchestrator) {
 	// General agent.
 	generalEngine := agent.NewEngine(prov, registry)
 	generalEngine.SetSkillLoader(skillLoader)
+	generalEngine.SetMaxContextTokens(cfg.MaxContextTokens)
 	generalEngine.SetFastModel(fastModel(cfg))
 	generalEngine.SetMemoryNodes(
 		memory.RecallNode(store),
@@ -296,6 +297,7 @@ func setup() (config.Config, provider.Provider, *orchestrator.Orchestrator) {
 	// Code agent.
 	codeEngine := agent.NewEngine(prov, registry)
 	codeEngine.SetSkillLoader(skillLoader)
+	codeEngine.SetMaxContextTokens(cfg.MaxContextTokens)
 	codeEngine.SetFastModel(fastModel(cfg))
 	codeEngine.SetMemoryNodes(
 		memory.RecallNode(store),

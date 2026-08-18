@@ -97,6 +97,33 @@ describe("goAgentClient.stream — map SSE của Go sang AgentEvent", () => {
     expect(done!.agent, "agent phải là tên thật từ event agent").toBe("code");
   });
 
+  // Tier 4: FE cần contextTokens/contextBudget để tự gợi ý bắt đầu chat mới
+  // khi context lớn — trước fix, 2 field này không nằm trong danh sách được
+  // forward ở nhánh case "done" nên luôn undefined dù Go gửi đúng.
+  it("event done forward contextTokens + contextBudget", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        sseResponse([
+          JSON.stringify({ type: "text", text: "hi" }),
+          JSON.stringify({
+            type: "done",
+            contextTokens: 82000,
+            contextBudget: 100000,
+          }),
+        ]),
+      ),
+    );
+
+    const events = await drain(goAgentClient.stream(history));
+    const done = events.find((e) => e.type === "done") as
+      | { contextTokens?: number; contextBudget?: number }
+      | undefined;
+
+    expect(done?.contextTokens).toBe(82000);
+    expect(done?.contextBudget).toBe(100000);
+  });
+
   it('agent mặc định là "go" khi Go không gửi event agent', async () => {
     vi.stubGlobal(
       "fetch",

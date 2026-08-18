@@ -91,6 +91,12 @@ export const postChat = async (req: FastifyRequest, reply: FastifyReply) => {
       agent: meta.backend,
       tokens: meta.tokensUsed,
       truncated: meta.truncated,
+      // contextTokens/contextBudget: FE dùng để gợi ý bắt đầu chat mới khi
+      // context lớn (Tier 4) — trước fix, controller tự dựng payload done
+      // riêng (không forward event done gốc từ agent) nên 2 field này bị rơi
+      // mất dù go-agent.client/chat.service đã forward đúng.
+      contextTokens: meta.contextTokens,
+      contextBudget: meta.contextBudget,
     });
   } catch (err) {
     // Client chủ động ngắt (AbortError) là bình thường — không phải lỗi.

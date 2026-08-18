@@ -175,6 +175,51 @@ func TestEngineRun_TextOnlyEmitsStepsThenDone(t *testing.T) {
 	}
 }
 
+// TestEngineRun_DoneEventCarriesContextTokens khoá Tier 4: FE cần biết kích
+// thước ước tính (token) của context ở CUỐI lượt so với ngân sách để tự quyết
+// định gợi ý bắt đầu chat mới — Go chỉ báo số liệu, KHÔNG hardcode ngưỡng.
+func TestEngineRun_DoneEventCarriesContextTokens(t *testing.T) {
+	e := NewEngine(provider.NewFake(
+		provider.StreamChunk{Kind: provider.ChunkText, Text: "chào"},
+		provider.StreamChunk{Kind: provider.ChunkDone, FinishReason: provider.FinishStop},
+	), tools.NewRegistry())
+	e.SetMaxContextTokens(500)
+
+	events, _, err := collectEvents(t, e, RunInput{UserMessage: "hi"})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	done := hasEvent(events, "done")
+	if done.ContextBudget != 500 {
+		t.Errorf("done.ContextBudget = %d, want 500", done.ContextBudget)
+	}
+	if done.ContextTokens <= 0 {
+		t.Errorf("done.ContextTokens = %d, want > 0 (Messages có nội dung)", done.ContextTokens)
+	}
+}
+
+// ContextBudget=0 (MAX_CONTEXT_TOKENS chưa cấu hình, không giới hạn) — FE
+// phải nhận đúng 0 để biết BỎ QUA gợi ý, thay vì chia cho 0 hoặc hiểu nhầm
+// context đã đầy 100%.
+func TestEngineRun_DoneEventContextBudgetZeroWhenUnset(t *testing.T) {
+	e := NewEngine(provider.NewFake(
+		provider.StreamChunk{Kind: provider.ChunkText, Text: "chào"},
+		provider.StreamChunk{Kind: provider.ChunkDone, FinishReason: provider.FinishStop},
+	), tools.NewRegistry())
+	e.SetMaxContextTokens(0)
+
+	events, _, err := collectEvents(t, e, RunInput{UserMessage: "hi"})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	done := hasEvent(events, "done")
+	if done.ContextBudget != 0 {
+		t.Errorf("done.ContextBudget = %d, want 0 (không giới hạn)", done.ContextBudget)
+	}
+}
+
 // Vòng đầy đủ: model gọi tool → tools chạy → model trả lời cuối.
 func TestEngineRun_ToolLoop(t *testing.T) {
 	reg := tools.NewRegistry()

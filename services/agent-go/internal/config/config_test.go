@@ -107,6 +107,41 @@ func TestLoad_Defaults(t *testing.T) {
 		}
 	})
 
+	// MAX_CONTEXT_TOKENS trước đây hardcode 100000, không đọc env — Engine
+	// luôn dùng default nội bộ riêng nên "chạy đúng" tình cờ, nhưng đặt biến
+	// môi trường khác đi không có tác dụng gì (Tier 4: giá trị này cũng chính
+	// là ContextBudget gửi cho FE).
+	t.Run("MAX_CONTEXT_TOKENS từ env", func(t *testing.T) {
+		t.Setenv("MAX_CONTEXT_TOKENS", "50000")
+		got, err := Load()
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if got.MaxContextTokens != 50000 {
+			t.Errorf("MaxContextTokens = %d, want 50000", got.MaxContextTokens)
+		}
+	})
+	t.Run("MAX_CONTEXT_TOKENS rác → dùng mặc định", func(t *testing.T) {
+		t.Setenv("MAX_CONTEXT_TOKENS", "nhiều lắm")
+		got, err := Load()
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if got.MaxContextTokens != 100000 {
+			t.Errorf("MaxContextTokens = %d, want 100000 (fallback khi parse lỗi)", got.MaxContextTokens)
+		}
+	})
+	t.Run("MAX_CONTEXT_TOKENS=0 nghĩa là không giới hạn", func(t *testing.T) {
+		t.Setenv("MAX_CONTEXT_TOKENS", "0")
+		got, err := Load()
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if got.MaxContextTokens != 0 {
+			t.Errorf("MaxContextTokens = %d, want 0", got.MaxContextTokens)
+		}
+	})
+
 	// Bool defaults: hybrid search + rerank BẬT, dynamic thinking + planning TẮT.
 	if !c.EnableHybridSearch || !c.EnableRerank {
 		t.Errorf("EnableHybridSearch=%v EnableRerank=%v, want both true", c.EnableHybridSearch, c.EnableRerank)
