@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+const isUrlOrRelativePath = (val: string) =>
+  val === "" || val.startsWith("/") || /^https?:\/\//i.test(val);
+
 export const updateSettingsSchema = z.object({
   persona_preset: z
     .enum(["default", "coder", "business", "creative", "custom"])
@@ -10,7 +13,7 @@ export const updateSettingsSchema = z.object({
   custom_instructions: z.string().max(2000, "Tối đa 2000 ký tự").optional(),
   agent_avatar_url: z
     .string()
-    .url("URL ảnh agent không hợp lệ")
+    .refine(isUrlOrRelativePath, "URL ảnh agent không hợp lệ")
     .optional()
     .nullable(),
 });
