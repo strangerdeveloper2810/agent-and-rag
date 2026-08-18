@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useTranslation } from "react-i18next";
 import { CheckIcon, CloseIcon } from "@app/ui";
 
 type ToastType = "success" | "error" | "info" | "warning";
@@ -80,6 +81,7 @@ const Toast: React.FC<{ toast: ToastItem; onClose: () => void }> = ({
   toast,
   onClose,
 }) => {
+  const { t } = useTranslation("common");
   useEffect(() => {
     const timer = setTimeout(onClose, DURATION);
     return () => clearTimeout(timer);
@@ -129,7 +131,7 @@ const Toast: React.FC<{ toast: ToastItem; onClose: () => void }> = ({
       <button
         type="button"
         onClick={onClose}
-        aria-label="Dismiss"
+        aria-label={t("dismiss")}
         className="rounded-full p-1.5 transition hover:bg-[var(--bg-raised)]"
         style={{ color: "var(--text-tertiary)" }}
       >
