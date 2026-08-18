@@ -23,25 +23,50 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Configure SSH Key
+      - name: Configure SSH Key & Host
         env:
           SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_KEY }}
           VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_PORT: ${{ secrets.VPS_PORT || '22' }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
         run: |
           mkdir -p ~/.ssh
-          echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/deploy_key
+          chmod 700 ~/.ssh
+
+          # Ghi private key với newline cuối dòng hợp lệ
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          sed -i -e '$a\' ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -p "${VPS_PORT:-22}" -H "$VPS_HOST" >> ~/.ssh/known_hosts
+
+          # Làm sạch hostname (loại bỏ http://, https://, whitespace, trailing slash)
+          CLEAN_HOST=$(echo "$VPS_HOST" | sed -e 's|^[^/]*//||' -e 's|/.*$||' -e 's|:.*$||' | tr -d ' \n\r\t')
+          CLEAN_USER=$(echo "${VPS_USER:-root}" | tr -d ' \n\r\t')
+          CLEAN_PORT=$(echo "${VPS_PORT:-22}" | tr -d ' \n\r\t')
+
+          if [ -z "$CLEAN_HOST" ]; then
+            echo "❌ Lỗi: Secret VPS_HOST chưa được cấu hình hoặc rỗng!"
+            exit 1
+          fi
+
+          # Cấu hình SSH client profile cho target VPS
+          cat <<EOF > ~/.ssh/config
+          Host vps-target
+            HostName $CLEAN_HOST
+            User $CLEAN_USER
+            Port $CLEAN_PORT
+            IdentityFile ~/.ssh/deploy_key
+            StrictHostKeyChecking accept-new
+            ServerAliveInterval 30
+            ServerAliveCountMax 5
+          EOF
+          chmod 600 ~/.ssh/config
+
+          # Quét known_hosts trước
+          ssh-keyscan -p "$CLEAN_PORT" -H "$CLEAN_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Sync source code to VPS (Rsync)
-        env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER || 'root' }}
-          VPS_PORT: ${{ secrets.VPS_PORT || '22' }}
         run: |
           rsync -avz --delete \
-            -e "ssh -i ~/.ssh/deploy_key -p $VPS_PORT" \
             --exclude '.git' \
             --exclude 'node_modules' \
             --exclude '.turbo' \
@@ -49,15 +74,11 @@ jobs:
             --exclude 'coverage' \
             --exclude 'env/.env*' \
             --exclude '.claude' \
-            ./ "$VPS_USER@$VPS_HOST:/opt/jarvis/"
+            ./ vps-target:/opt/jarvis/
 
       - name: Build & Restart Docker Services
-        env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER || 'root' }}
-          VPS_PORT: ${{ secrets.VPS_PORT || '22' }}
         run: |
-          ssh -i ~/.ssh/deploy_key -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" "
+          ssh vps-target "
             cd /opt/jarvis && \
             WEB_HOST_PORT=8090 docker compose -f docker/deployment/docker-compose.yml up -d --build && \
             docker image prune -f
@@ -66,8 +87,8 @@ jobs:
       - name: Verify Live Service Health
         run: |
           echo "Kiểm tra endpoint production sau khi deploy..."
-          sleep 5
-          for i in {1..6}; do
+          sleep 8
+          for i in {1..8}; do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://ai.ethansoftwaredeveloper.com/api/healthz || true)
             if [ "$STATUS" = "200" ]; then
               echo "✅ Healthcheck passed: HTTP 200 OK"
