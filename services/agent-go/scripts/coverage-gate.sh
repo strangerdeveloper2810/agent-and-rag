@@ -23,6 +23,7 @@ GATES=$(
 internal/agent	90
 internal/memory	85
 internal/provider/fallback	90
+internal/skills	90
 EOF
 )
 

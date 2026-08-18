@@ -55,7 +55,10 @@ func main() {
 
 	// Skill được kích hoạt: toàn bộ SKILL.md được nối vào prompt.
 	if sk := loader.MatchSkill("giải thích giúp tôi RAG là gì cho người mới học"); sk != nil {
-		line("skill kích hoạt: "+sk.Name, len(sk.Content))
+		// PromptBody() = đúng thứ production chèn vào prompt (đã bỏ frontmatter
+		// và gọt theo skills.MaxPromptBytes), không phải nội dung file thô.
+		line("skill kích hoạt: "+sk.Name, len(sk.PromptBody()))
+		line("  (file gốc, chưa gọt)", len(sk.Content))
 	}
 
 	// Tool schema — đây là phần thường bị bỏ qua khi tính token.
@@ -110,7 +113,7 @@ func main() {
 	fmt.Printf("\n═══ Tổng một request chat đơn giản ═══\n")
 	sys := base
 	if sk := loader.MatchSkill("giải thích giúp tôi RAG là gì cho người mới học"); sk != nil {
-		sys += "\n\n[KỸ NĂNG ĐANG KÍCH HOẠT: " + sk.Name + "]\n" + sk.Content
+		sys += "\n\n[KỸ NĂNG ĐANG KÍCH HOẠT: " + sk.Name + "]\n" + sk.PromptBody()
 	}
 	msgs := []provider.Message{{Role: provider.RoleUser, Content: "Giải thích ngắn gọn RAG là gì cho người mới."}}
 	mb := 0

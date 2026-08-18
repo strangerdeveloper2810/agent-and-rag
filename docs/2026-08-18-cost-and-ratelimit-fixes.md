@@ -164,13 +164,16 @@ không giảm**. Phần này mới là cắt chi phí.
 |---|---|---|---|
 | base system prompt | 1.726 | 1.726 | giữ (là quy tắc hành vi) |
 | danh sách 30 skill | **1.095** | **186** | chỉ còn tên |
-| skill được kích hoạt | 2.027 | 2.027 | giữ (chỉ nạp khi khớp) |
+| skill được kích hoạt | **2.027** | **1.151** | bỏ frontmatter + trần token |
 | tool schema (đã filter) | 380 | 380 | giữ |
-| **→ lượt gọi model** | **5.260** | **4.352** | **−17%** |
+| **→ lượt gọi model** | **5.260** | **3.475** | **−34%** |
 | reflection system prompt | 683 | 683 | giữ |
 | transcript gửi cho learner | **~2.286** | **~203** | chỉ lượt cuối |
 | **→ lượt gọi learner** | **~2.969** | **886** | **−70%** |
-| **TỔNG input một lượt chat** | **~8.229** | **5.238** | **−36%** |
+| **TỔNG input một lượt chat** | **~8.229** | **4.362** | **−47%** |
+
+> Bảng trên là kết quả cuối sau cả 5a–5f. Mốc trung gian sau 5a–5d là 5.238
+> token (−36%); 5e và 5f cắt tiếp phần skill được kích hoạt.
 
 ### 5a. Danh sách skill: bỏ description, giữ tên (−909 token/request)
 
@@ -212,6 +215,35 @@ tập con của `promptTokenCount` và được tính giá rẻ hơn nhiều —
 này thì không biết prompt caching có ăn hay không, tức là mù về khoản lớn nhất
 trong hoá đơn (system prompt ~4k token lặp lại mọi request).
 
+### 5e. Skill không còn kéo YAML frontmatter vào prompt (−161 token/lượt có skill)
+
+`skills.Loader` gán `skill.Content = raw` — tức **toàn bộ file, gồm cả YAML
+frontmatter**. Mỗi lần skill kích hoạt, prompt nhận thêm `name`, `description`,
+`when_to_use`, `tools`, và `triggers` — danh sách 20+ từ khoá chỉ dùng cho
+`MatchSkill` bên Go (learning-tutor: ~564 byte frontmatter).
+
+Vừa tốn token, vừa dở về chất lượng: nhét một danh sách từ khoá vào prompt dễ
+làm model nhắc lại chúng. Giờ `Content` chỉ còn phần thân.
+
+### 5f. Trần token cho thân skill (−715 token/lượt có skill)
+
+Nội dung skill được chèn lại ở **mỗi** lượt chat có skill khớp:
+`State.activatedSkills` chỉ chặn chèn lặp trong CÙNG một lượt chạy, lượt sau là
+State mới nên chèn lại từ đầu. Mà SKILL.md dao động 2.000–11.600 byte.
+
+`skills.MaxPromptBytes = 4500` (≈1.285 token), cắt theo **ranh giới section**
+(`## `) chứ không theo số byte — một hướng dẫn bị chặt giữa câu còn tệ hơn là
+không có. Ca biên đã xử lý: nếu chính section đầu đã vượt trần thì giữ một phần
+nó (cắt theo dòng) thay vì chỉ còn lại tiêu đề; và cắt cứng thì cắt theo rune để
+không hỏng ký tự tiếng Việt. Có thêm dòng ghi chú nói thẳng với model là phần sau
+đã được lược, thay vì im lặng cắt.
+
+**Đánh đổi, nói rõ:** 12 trong ~30 skill vượt trần, `devops` (11.604 byte) mất
+~60% thân. Skill bị gọt nhiều nghĩa là nên viết lại SKILL.md cho phần cốt lõi lên
+đầu — vì vậy log `model: skill activated` giờ có thêm `body_bytes` và
+`truncated`, để biết skill nào đang bị cắt chứ không mất đuôi âm thầm. Muốn nới
+thì sửa một hằng số.
+
 ### Còn có thể cắt tiếp (chưa làm)
 
 - `reflectionSystemPrompt` 683 token/lượt learner — rút gọn được nhưng đánh đổi
@@ -219,6 +251,8 @@ trong hoá đơn (system prompt ~4k token lặp lại mọi request).
 - base system prompt 1.726 token — phần lớn là quy tắc format bảng + quy tắc
   chọn RAG/web. Sửa là đổi hành vi, phải có eval.
 - `datetime` tool schema 249 token, lớn nhất trong 4 tool của chat thường.
+- Viết lại 12 SKILL.md đang bị gọt cho gọn (hoặc tóm tắt một lần lúc load) — vừa
+  lấy lại phần nội dung đang bị cắt, vừa giảm token thêm.
 
 ## Công cụ đo đi kèm
 

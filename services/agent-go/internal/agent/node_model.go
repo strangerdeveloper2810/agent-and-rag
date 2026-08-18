@@ -73,8 +73,20 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 	if sl := eng.getSkillLoader(); sl != nil {
 		if matched := sl.MatchSkill(userInput); matched != nil && !s.activatedSkills[matched.Name] {
 			s.activatedSkills[matched.Name] = true
-			systemPrompt += "\n\n[KỸ NĂNG ĐANG KÍCH HOẠT: " + matched.Name + "]\n" + matched.Content
-			slog.Info("model: skill activated", "skill", matched.Name, "skill_tools", matched.Tools)
+			// PromptBody: thân skill đã bỏ frontmatter và gọt vừa ngân sách token
+			// (skills.MaxPromptBytes) — nội dung này được chèn lại ở MỖI lượt chat
+			// có skill khớp, nên độ dài của nó là chi phí lặp.
+			body := matched.PromptBody()
+			systemPrompt += "\n\n[KỸ NĂNG ĐANG KÍCH HOẠT: " + matched.Name + "]\n" + body
+			// Log kèm kích thước + có bị gọt hay không: skill bị gọt nhiều là tín
+			// hiệu nên viết lại SKILL.md cho phần cốt lõi lên đầu, chứ không phải
+			// cứ để nó âm thầm mất đuôi.
+			slog.Info("model: skill activated",
+				"skill", matched.Name,
+				"skill_tools", matched.Tools,
+				"body_bytes", len(body),
+				"truncated", len(body) < len(matched.Content),
+			)
 			emit(MemoryEvent("Kích hoạt kỹ năng: " + matched.Name + " — " + matched.Description))
 			skillTools = matched.Tools
 		}

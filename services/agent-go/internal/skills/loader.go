@@ -24,7 +24,7 @@ type Skill struct {
 	Description string   // Mô tả ngắn
 	WhenToUse   string   // Khi nào kích hoạt skill này
 	Tools       []string // Danh sách tool liên quan
-	Content     string   // Toàn bộ nội dung SKILL.md, bao gồm cả frontmatter
+	Content     string   // Thân SKILL.md (KHÔNG gồm frontmatter — xem parseSkill)
 
 	// Triggers là các cụm từ kích hoạt TƯỜNG MINH (frontmatter `triggers:`),
 	// hỗ trợ cả tiếng Việt. Đây là tín hiệu MẠNH, ngang với việc gọi thẳng tên
@@ -230,7 +230,15 @@ func parseSkill(raw string) (*Skill, error) {
 	}
 
 	fm := strings.TrimSpace(parts[1])
-	skill.Content = strings.TrimSpace(raw)
+
+	// Content = THÂN skill, KHÔNG gồm frontmatter.
+	//
+	// Trước đây gán cả `raw` nên mỗi lần skill được kích hoạt, toàn bộ YAML
+	// frontmatter đi vào system prompt — trong đó có `triggers` (danh sách 20+
+	// từ khoá chỉ dùng cho MatchSkill bên Go) và `tools`. Vừa tốn token mỗi
+	// request có skill (learning-tutor: ~600 byte frontmatter), vừa dở về chất
+	// lượng: đưa một danh sách từ khoá vào prompt dễ làm model nhắc lại chúng.
+	skill.Content = strings.TrimSpace(parts[2])
 
 	lines := strings.Split(fm, "\n")
 	for _, line := range lines {
