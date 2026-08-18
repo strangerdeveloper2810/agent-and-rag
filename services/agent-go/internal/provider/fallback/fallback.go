@@ -10,6 +10,7 @@ package fallback
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -74,13 +75,16 @@ func (p *Provider) Generate(ctx context.Context, req provider.GenerateRequest) (
 			np.coolUntil.Store(0) // cooldown expired
 		}
 
-		stream, err := np.prov.Generate(ctx, scopeModel(req, np.name))
+		scoped := scopeModel(req, np.name)
+
+		stream, err := np.prov.Generate(ctx, scoped)
 		if err != nil {
 			if !isRetryable(err) {
 				return nil, err
 			}
 			lastErr = err
 			p.recordFailure(np, err)
+			p.logFailure(np, scoped, i, err, "generate")
 			continue
 		}
 
@@ -109,6 +113,7 @@ func (p *Provider) Generate(ctx context.Context, req provider.GenerateRequest) (
 		if firstChunk.Kind == provider.ChunkError && isRetryable(firstChunk.Err) {
 			lastErr = firstChunk.Err
 			p.recordFailure(np, firstChunk.Err)
+			p.logFailure(np, scoped, i, firstChunk.Err, "stream")
 			// Drain the wrapper goroutine
 			for range wrapped {
 			}
@@ -117,10 +122,52 @@ func (p *Provider) Generate(ctx context.Context, req provider.GenerateRequest) (
 
 		// Success — return a stream that replays first chunk then continues
 		np.failures.Store(0)
+		// Chỉ log khi đã phải bỏ qua provider nào đó: lượt gọi thành công ngay ở
+		// provider đầu là đường bình thường, log nữa chỉ làm nhiễu.
+		if i > 0 {
+			slog.Info("fallback: provider phục vụ sau khi bỏ qua provider trước",
+				"provider", np.name,
+				"model", modelOf(scoped, np.name),
+				"chain_index", i,
+				"skipped", i,
+			)
+		}
 		return replayStream(firstChunk, wrapped), nil
 	}
 
 	return nil, fmt.Errorf("fallback: all %d providers failed: %w", len(p.chain), lastErr)
+}
+
+// logFailure ghi lại việc một provider bị bỏ qua.
+//
+// Vì sao cần: trước đây package này KHÔNG log gì cả — `recordFailure` chỉ đếm và
+// đặt cooldown. Log production vì thế chỉ thấy một loạt dòng "gemini: calling API"
+// rồi im lặng, không biết provider nào lỗi, lỗi gì, và cuối cùng ai trả lời. Phân
+// tích sự cố phải suy từ mốc thời gian, tức là đoán.
+//
+// Dùng WARN (không phải ERROR) vì chuỗi fallback vẫn đang làm đúng việc của nó;
+// chỉ khi TẤT CẢ provider fail thì Generate mới trả lỗi ra ngoài.
+func (p *Provider) logFailure(np *namedProvider, req provider.GenerateRequest, idx int, err error, phase string) {
+	slog.Warn("fallback: provider lỗi, thử provider kế tiếp",
+		"provider", np.name,
+		"model", modelOf(req, np.name),
+		"chain_index", idx,
+		"phase", phase, // "generate" = lỗi ngay khi gọi; "stream" = lỗi ở chunk đầu
+		"consecutive_failures", np.failures.Load(),
+		"daily_quota_exhausted", isDailyQuotaExhausted(err),
+		"err", err,
+	)
+}
+
+// modelOf trả tên model THẬT SỰ được yêu cầu cho lượt gọi này. Options.Model rỗng
+// nghĩa là provider dùng model mặc định của chính nó (xem scopeModel) — lúc đó tên
+// cụ thể nằm bên trong client, nên ghi rõ là "default" để đọc log không nhầm là
+// thiếu dữ liệu.
+func modelOf(req provider.GenerateRequest, providerName string) string {
+	if req.Options.Model != "" {
+		return req.Options.Model
+	}
+	return providerName + ":default"
 }
 
 // modelFamily suy ra provider nào sở hữu một tên model. Trả "" khi không nhận ra
