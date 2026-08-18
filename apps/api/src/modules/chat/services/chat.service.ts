@@ -124,7 +124,12 @@ export async function streamReply(
     verbosity?: string;
     customInstructions?: string;
   },
-  mcpServers?: Array<{ name: string; url: string; apiKey?: string }>,
+  mcpServers?: Array<{
+    name: string;
+    url: string;
+    apiKey?: string;
+    transport?: "http" | "sse";
+  }>,
   disabledSkills?: string[],
   customSkills?: Array<{
     name: string;

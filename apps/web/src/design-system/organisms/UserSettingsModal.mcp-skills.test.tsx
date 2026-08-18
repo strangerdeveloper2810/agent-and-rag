@@ -38,13 +38,15 @@ const toastApi = {
   warning: vi.fn(),
 };
 
+// has_auth: false + khong co field token - dung API contract moi (API khong
+// bao gio tra lai token da luu, chi bao co auth hay khong qua co boolean).
 const mcpServer: McpServer = {
   id: "mcp-1",
   name: "Notion",
   transport: "sse",
   url: "https://notion.example.com/sse",
-  api_key: null,
   enabled: true,
+  has_auth: false,
 };
 
 const customSkill: UserSkill = {
@@ -192,7 +194,7 @@ describe("UserSettingsModal - avatar upload, MCP servers, skills", () => {
     });
   });
 
-  it("adds a new MCP server via the form", async () => {
+  it("adds a new MCP server via the form with the default Streamable HTTP transport", async () => {
     renderModal("mcp");
     const user = userEvent.setup();
 
@@ -201,17 +203,63 @@ describe("UserSettingsModal - avatar upload, MCP servers, skills", () => {
       "My Server",
     );
     await user.type(
-      screen.getByPlaceholderText("https://example.com/sse"),
-      "https://my-server.example.com/sse",
+      screen.getByPlaceholderText("https://example.com/mcp"),
+      "https://my-server.example.com/mcp",
+    );
+    await user.click(screen.getByRole("button", { name: "Thêm server" }));
+
+    // Transport mac dinh la "http" (Streamable HTTP) va khong gui auth_token
+    // vi user khong nhap token nao.
+    await waitFor(() =>
+      expect(userStoreState.createMcpServer).toHaveBeenCalledWith({
+        name: "My Server",
+        transport: "http",
+        url: "https://my-server.example.com/mcp",
+      }),
+    );
+  });
+
+  it("adds a new MCP server with SSE transport and an auth token", async () => {
+    renderModal("mcp");
+    const user = userEvent.setup();
+
+    await user.type(
+      screen.getByPlaceholderText("Ví dụ: Notion, Github MCP..."),
+      "Legacy Server",
+    );
+    await user.selectOptions(
+      screen.getByLabelText("Giao thức kết nối (Transport)"),
+      "sse",
+    );
+    await user.type(
+      screen.getByPlaceholderText("https://example.com/mcp"),
+      "https://legacy.example.com/sse",
+    );
+    await user.type(
+      screen.getByPlaceholderText("Dán access token của server MCP..."),
+      "secret-token-123",
     );
     await user.click(screen.getByRole("button", { name: "Thêm server" }));
 
     await waitFor(() =>
       expect(userStoreState.createMcpServer).toHaveBeenCalledWith({
-        name: "My Server",
-        url: "https://my-server.example.com/sse",
+        name: "Legacy Server",
+        transport: "sse",
+        url: "https://legacy.example.com/sse",
+        auth_token: "secret-token-123",
       }),
     );
+  });
+
+  it('shows a "Có auth" badge only for servers that have a saved token', () => {
+    userStoreState.mcpServers = [
+      mcpServer,
+      { ...mcpServer, id: "mcp-2", name: "GitHub", has_auth: true },
+    ];
+    renderModal("mcp");
+
+    // Chi 1 server (GitHub) co has_auth true nen chi co 1 badge "Có auth".
+    expect(screen.getAllByText("Có auth")).toHaveLength(1);
   });
 
   it("deletes an MCP server after confirming the dialog", async () => {
@@ -258,6 +306,36 @@ describe("UserSettingsModal - avatar upload, MCP servers, skills", () => {
     expect(
       screen.getByRole("switch", { name: "Bật skill api-designer" }),
     ).toBeInTheDocument();
+    // Trang thai tat phai nhin ra ngay qua badge, khong chi dua vao mau toggle.
+    expect(screen.getByText("Đã tắt")).toBeInTheDocument();
+  });
+
+  it("filters builtin skills by name via the search input", async () => {
+    renderModal("skills");
+    const user = userEvent.setup();
+
+    expect(screen.getByText("api-designer")).toBeInTheDocument();
+
+    await user.type(
+      screen.getByPlaceholderText("Tìm skill theo tên..."),
+      "code-review",
+    );
+
+    expect(screen.getByText("code-review")).toBeInTheDocument();
+    expect(screen.queryByText("api-designer")).not.toBeInTheDocument();
+  });
+
+  it('shows more builtin skills after clicking "Xem tất cả"', async () => {
+    renderModal("skills");
+    const user = userEvent.setup();
+
+    // "debug" la skill thu 9 (ngoai 8 skill hien mac dinh) - phai an luc dau.
+    expect(screen.queryByText("debug")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Xem tất cả" }));
+
+    expect(screen.getByText("debug")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Thu gọn" })).toBeInTheDocument();
   });
 
   it("shows the empty state when there are no custom skills", () => {
@@ -290,9 +368,36 @@ describe("UserSettingsModal - avatar upload, MCP servers, skills", () => {
     );
   });
 
+  it('opens and closes the "Tạo skill mới" form via the toggle button', async () => {
+    renderModal("skills");
+    const user = userEvent.setup();
+
+    // Form thu gon mac dinh - khong co field nao cua form hien dien.
+    expect(
+      screen.queryByPlaceholderText("Ví dụ: weekly-report"),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "+ Tạo skill" }));
+
+    expect(
+      screen.getByPlaceholderText("Ví dụ: weekly-report"),
+    ).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "Đóng form tạo skill" }),
+    );
+
+    expect(
+      screen.queryByPlaceholderText("Ví dụ: weekly-report"),
+    ).not.toBeInTheDocument();
+  });
+
   it("adds a new custom skill via the form with comma-separated triggers", async () => {
     renderModal("skills");
     const user = userEvent.setup();
+
+    // Form thu gon mac dinh nen phai bam "+ Tạo skill" truoc khi thao tac.
+    await user.click(screen.getByRole("button", { name: "+ Tạo skill" }));
 
     await user.type(
       screen.getByPlaceholderText("Ví dụ: weekly-report"),

@@ -8,25 +8,49 @@ describe("createMcpServerSchema", () => {
   it("chấp nhận input hợp lệ", () => {
     const result = createMcpServerSchema.safeParse({
       name: "my-server_01",
+      transport: "http",
       url: "https://mcp.example.com/sse",
-      api_key: "secret",
+      auth_token: "secret",
     });
     expect(result.success).toBe(true);
   });
 
-  it("chấp nhận không có api_key (optional)", () => {
+  it("transport mặc định là 'http' khi không truyền", () => {
     const result = createMcpServerSchema.safeParse({
       name: "my-server",
       url: "https://mcp.example.com/sse",
     });
     expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.transport).toBe("http");
+    }
   });
 
-  it("chấp nhận api_key = null", () => {
+  it("chấp nhận transport = 'sse' (legacy, tương thích ngược)", () => {
+    const result = createMcpServerSchema.safeParse({
+      name: "my-server",
+      transport: "sse",
+      url: "https://mcp.example.com/sse",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.transport).toBe("sse");
+    }
+  });
+
+  it("từ chối transport không hợp lệ (vd 'stdio', 'websocket')", () => {
+    const result = createMcpServerSchema.safeParse({
+      name: "my-server",
+      transport: "stdio",
+      url: "https://mcp.example.com/sse",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("chấp nhận không có auth_token (optional)", () => {
     const result = createMcpServerSchema.safeParse({
       name: "my-server",
       url: "https://mcp.example.com/sse",
-      api_key: null,
     });
     expect(result.success).toBe(true);
   });
@@ -68,13 +92,22 @@ describe("createMcpServerSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("từ chối api_key dài hơn 500 ký tự", () => {
+  it("từ chối auth_token dài hơn 4096 ký tự", () => {
     const result = createMcpServerSchema.safeParse({
       name: "my-server",
       url: "https://mcp.example.com/sse",
-      api_key: "a".repeat(501),
+      auth_token: "a".repeat(4097),
     });
     expect(result.success).toBe(false);
+  });
+
+  it("chấp nhận auth_token = chuỗi rỗng (tương đương không có token)", () => {
+    const result = createMcpServerSchema.safeParse({
+      name: "my-server",
+      url: "https://mcp.example.com/sse",
+      auth_token: "",
+    });
+    expect(result.success).toBe(true);
   });
 });
 
@@ -103,6 +136,42 @@ describe("updateMcpServerSchema", () => {
 
   it("từ chối name không khớp regex khi có truyền", () => {
     const result = updateMcpServerSchema.safeParse({ name: "có dấu cách" });
+    expect(result.success).toBe(false);
+  });
+
+  it("từ chối transport không hợp lệ khi có truyền", () => {
+    const result = updateMcpServerSchema.safeParse({ transport: "stdio" });
+    expect(result.success).toBe(false);
+  });
+
+  it("chấp nhận transport = 'http' hoặc 'sse' khi có truyền", () => {
+    expect(updateMcpServerSchema.safeParse({ transport: "http" }).success).toBe(
+      true,
+    );
+    expect(updateMcpServerSchema.safeParse({ transport: "sse" }).success).toBe(
+      true,
+    );
+  });
+
+  // auth_token: "" nghĩa là XOÁ token (semantics xử lý ở repository, không
+  // phải ở DTO) — DTO chỉ cần CHẤP NHẬN chuỗi rỗng, không được reject.
+  it("chấp nhận auth_token = chuỗi rỗng (ý nghĩa: xoá token hiện có)", () => {
+    const result = updateMcpServerSchema.safeParse({ auth_token: "" });
+    expect(result.success).toBe(true);
+  });
+
+  it("không truyền auth_token → field vắng mặt trong kết quả parse (giữ nguyên token cũ)", () => {
+    const result = updateMcpServerSchema.safeParse({ name: "renamed" });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect("auth_token" in result.data).toBe(false);
+    }
+  });
+
+  it("từ chối auth_token dài hơn 4096 ký tự", () => {
+    const result = updateMcpServerSchema.safeParse({
+      auth_token: "a".repeat(4097),
+    });
     expect(result.success).toBe(false);
   });
 });

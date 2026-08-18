@@ -17,9 +17,16 @@ export interface McpServerRow {
   id: string;
   user_id: string;
   name: string;
-  transport: "sse";
+  transport: "http" | "sse";
   url: string;
-  api_key: string | null;
+  // auth_token: token xác thực (Authorization: Bearer <token>) gửi cho MCP
+  // server remote. LƯU Ý: đây là secret, đang lưu PLAINTEXT tại rest (nợ kỹ
+  // thuật tạm chấp nhận -- nên mã hoá ở bước sau, vd pgcrypto/KMS). Repository
+  // trả field này ra vì code NỘI BỘ (chat.controller.ts) cần giá trị thật để
+  // forward xuống agent-go; TẦNG CONTROLLER của chính module users (public
+  // API) phải luôn strip field này và chỉ trả `has_auth: boolean` -- xem
+  // users.controller.ts toPublicMcpServer().
+  auth_token: string | null;
   enabled: boolean;
   created_at: Date;
   updated_at: Date;
@@ -179,10 +186,15 @@ export class UsersRepository {
 
   // ── MCP Servers ──
 
+  // Cột SELECT tường minh (không dùng SELECT *) để không vô tình rò rỉ cột
+  // api_key cũ (migration 003, đã bị thay bởi auth_token -- xem migration 004).
+  private static readonly MCP_SERVER_COLUMNS =
+    "id, user_id, name, transport, url, auth_token, enabled, created_at, updated_at";
+
   /** Lấy danh sách MCP servers của user. */
   findMcpServers = async (userId: string): Promise<McpServerRow[]> => {
     const { rows } = await this.pg.query<McpServerRow>(
-      `SELECT * FROM user_mcp_servers WHERE user_id = $1 ORDER BY created_at ASC`,
+      `SELECT ${UsersRepository.MCP_SERVER_COLUMNS} FROM user_mcp_servers WHERE user_id = $1 ORDER BY created_at ASC`,
       [userId],
     );
     return rows;
@@ -194,7 +206,7 @@ export class UsersRepository {
     id: string,
   ): Promise<McpServerRow | null> => {
     const { rows } = await this.pg.query<McpServerRow>(
-      `SELECT * FROM user_mcp_servers WHERE id = $1 AND user_id = $2`,
+      `SELECT ${UsersRepository.MCP_SERVER_COLUMNS} FROM user_mcp_servers WHERE id = $1 AND user_id = $2`,
       [id, userId],
     );
     return rows[0] ?? null;
@@ -203,13 +215,22 @@ export class UsersRepository {
   /** Thêm MCP server cho user. */
   createMcpServer = async (
     userId: string,
-    data: { name: string; url: string; api_key?: string | null },
+    data: {
+      name: string;
+      transport: "http" | "sse";
+      url: string;
+      auth_token?: string | null;
+    },
   ): Promise<McpServerRow> => {
+    // "" (chuỗi rỗng) coi như không có token, giống null -- tránh has_auth
+    // (tính từ !!auth_token ở tầng controller) lệch với ý định người dùng khi
+    // họ gửi auth_token: "" lúc tạo mới.
+    const authToken = data.auth_token ? data.auth_token : null;
     const { rows } = await this.pg.query<McpServerRow>(
-      `INSERT INTO user_mcp_servers (user_id, name, url, api_key)
-       VALUES ($1, $2, $3, $4)
-       RETURNING *`,
-      [userId, data.name, data.url, data.api_key ?? null],
+      `INSERT INTO user_mcp_servers (user_id, name, transport, url, auth_token)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING ${UsersRepository.MCP_SERVER_COLUMNS}`,
+      [userId, data.name, data.transport, data.url, authToken],
     );
     return rows[0];
   };
@@ -220,8 +241,14 @@ export class UsersRepository {
     id: string,
     data: {
       name?: string;
+      transport?: "http" | "sse";
       url?: string;
-      api_key?: string | null;
+      // auth_token: undefined = GIỮ NGUYÊN token cũ (field không nằm trong
+      // câu UPDATE); "" = XOÁ token (set NULL); chuỗi khác rỗng = token mới.
+      // TUYỆT ĐỐI không coi undefined như "" -- sẽ vô tình xoá token cũ mỗi
+      // khi PATCH các field khác (vd chỉ đổi `enabled`) mà không gửi kèm
+      // auth_token.
+      auth_token?: string;
       enabled?: boolean;
     },
   ): Promise<McpServerRow | null> => {
@@ -233,13 +260,17 @@ export class UsersRepository {
       fields.push(`name = $${idx++}`);
       values.push(data.name);
     }
+    if (data.transport !== undefined) {
+      fields.push(`transport = $${idx++}`);
+      values.push(data.transport);
+    }
     if (data.url !== undefined) {
       fields.push(`url = $${idx++}`);
       values.push(data.url);
     }
-    if (data.api_key !== undefined) {
-      fields.push(`api_key = $${idx++}`);
-      values.push(data.api_key);
+    if (data.auth_token !== undefined) {
+      fields.push(`auth_token = $${idx++}`);
+      values.push(data.auth_token === "" ? null : data.auth_token);
     }
     if (data.enabled !== undefined) {
       fields.push(`enabled = $${idx++}`);
@@ -255,7 +286,7 @@ export class UsersRepository {
       `UPDATE user_mcp_servers
        SET ${fields.join(", ")}
        WHERE id = $${idx} AND user_id = $${idx + 1}
-       RETURNING *`,
+       RETURNING ${UsersRepository.MCP_SERVER_COLUMNS}`,
       values,
     );
     return rows[0] ?? null;

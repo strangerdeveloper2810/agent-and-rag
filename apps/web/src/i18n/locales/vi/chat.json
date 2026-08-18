@@ -45,7 +45,6 @@
     "stopGenerationAria": "Dừng sinh câu trả lời",
     "sendAria": "Gửi tin nhắn",
     "shiftEnterHint": "Shift + Enter để xuống dòng",
-    "charCount": "{{length}} ký tự",
     "removeAttachmentAria": "Xóa {{name}}",
     "attachmentsCount": "{{images}}/{{maxImages}} ảnh, {{files}}/{{maxFiles}} file",
     "errors": {
@@ -65,6 +64,7 @@
     "badge": "J.A.R.V.I.S. Core Intelligence",
     "title": "Tôi có thể giúp gì cho bạn hôm nay?",
     "subtitle": "Bắt đầu trò chuyện, yêu cầu tra cứu tài liệu doanh nghiệp hoặc thực thi quy trình làm việc thông minh.",
+    "refresh": "Đổi gợi ý",
     "refreshAllTitle": "Đổi bộ gợi ý ngẫu nhiên mới",
     "autoSuggestionsLabel": "Gợi ý thông minh từ AI Agent",
     "agentSuggestionsLabel": "Gợi ý thông minh từ AI Agent",

@@ -13,6 +13,7 @@ import {
 } from "@heroicons/react/24/outline";
 import type { EmptyStateProps } from "@/types";
 import { Card } from "@/components/ui/card";
+import { useUserStore } from "@/stores/user.store";
 
 const PROMPT_CATEGORY_IDS = [
   "creative",
@@ -69,6 +70,16 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ onPick }) => {
   const [pickedPrompt, setPickedPrompt] = useState<string | null>(null);
   const [refreshSeed, setRefreshSeed] = useState(0);
 
+  // Avatar agent do user tự cấu hình (settings.agent_avatar_url). Đọc từ store
+  // toàn cục — Sidebar đã fetchSettings() một lần khi app mount nên ở đây chỉ
+  // đọc, không fetch lại. Ảnh do user upload có thể 404 nên phải fallback êm về
+  // icon mặc định thay vì để khung hero trống.
+  const agentAvatarUrl = useUserStore((s) => s.settings?.agent_avatar_url);
+  const [agentAvatarError, setAgentAvatarError] = useState(false);
+  useEffect(() => {
+    setAgentAvatarError(false);
+  }, [agentAvatarUrl]);
+
   const PROMPT_DATABASE = useMemo(() => buildPromptDatabase(t), [t]);
 
   const loadSuggestions = useCallback(async () => {
@@ -118,8 +129,17 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ onPick }) => {
         {/* Sleek AI Glowing Avatar */}
         <div className="relative mb-3.5 flex h-14 w-14 items-center justify-center rounded-2xl bg-card border border-border/80 shadow-xs transition-transform duration-300 hover:scale-105">
           <div className="absolute -inset-0.5 rounded-2xl bg-gradient-to-tr from-primary/30 to-indigo-400/20 blur-xs" />
-          <div className="relative flex items-center justify-center h-full w-full bg-card rounded-2xl">
-            <SparklesIcon className="h-7 w-7 text-primary animate-pulse" />
+          <div className="relative flex items-center justify-center h-full w-full bg-card rounded-2xl overflow-hidden">
+            {agentAvatarUrl && !agentAvatarError ? (
+              <img
+                src={agentAvatarUrl}
+                alt={t("emptyState.badge")}
+                className="h-full w-full rounded-2xl object-cover"
+                onError={() => setAgentAvatarError(true)}
+              />
+            ) : (
+              <SparklesIcon className="h-7 w-7 text-primary animate-pulse" />
+            )}
           </div>
         </div>
 

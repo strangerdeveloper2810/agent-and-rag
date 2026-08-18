@@ -66,11 +66,15 @@ type ChatRequest struct {
 	CustomSkills   []CustomSkillInput `json:"customSkills,omitempty"`
 }
 
-// McpServerInput là MCP server (SSE) do user cấu hình, forward từ BFF.
+// McpServerInput là MCP server (remote) do user cấu hình, forward từ BFF.
 type McpServerInput struct {
 	Name   string `json:"name"`
 	URL    string `json:"url"`
 	APIKey string `json:"apiKey,omitempty"`
+	// Transport: "http" (Streamable HTTP, mặc định) hoặc "sse" (legacy).
+	// Xem agent.McpServer.Transport — hiện chỉ nhận/giữ lại, chưa dùng để
+	// rẽ nhánh hành vi.
+	Transport string `json:"transport,omitempty"`
 }
 
 // CustomSkillInput là custom skill (prompt instruction text) do user định nghĩa.
@@ -160,7 +164,7 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Map per-user MCP servers + skills sang agent types.
 	mcpServers := make([]agent.McpServer, len(req.McpServers))
 	for i, m := range req.McpServers {
-		mcpServers[i] = agent.McpServer{Name: m.Name, URL: m.URL, APIKey: m.APIKey}
+		mcpServers[i] = agent.McpServer{Name: m.Name, URL: m.URL, APIKey: m.APIKey, Transport: m.Transport}
 	}
 	customSkills := make([]agent.CustomSkill, len(req.CustomSkills))
 	for i, cs := range req.CustomSkills {

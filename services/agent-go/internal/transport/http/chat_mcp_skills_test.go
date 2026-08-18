@@ -20,7 +20,7 @@ func TestChatHandler_MapsMcpServersDisabledSkillsCustomSkills(t *testing.T) {
 	runner := &fakeRunner{}
 	body := `{
 		"userMessage": "hi",
-		"mcpServers": [{"name": "weather", "url": "https://mcp.example.com/sse", "apiKey": "secret-key"}],
+		"mcpServers": [{"name": "weather", "url": "https://mcp.example.com/sse", "apiKey": "secret-key", "transport": "http"}],
 		"disabledSkills": ["code-review", "debug"],
 		"customSkills": [{"name": "invoice", "description": "mô tả", "whenToUse": "khi nào", "content": "nội dung", "triggers": ["hoá đơn"]}]
 	}`
@@ -39,7 +39,8 @@ func TestChatHandler_MapsMcpServersDisabledSkillsCustomSkills(t *testing.T) {
 	}
 	if in.McpServers[0].Name != "weather" ||
 		in.McpServers[0].URL != "https://mcp.example.com/sse" ||
-		in.McpServers[0].APIKey != "secret-key" {
+		in.McpServers[0].APIKey != "secret-key" ||
+		in.McpServers[0].Transport != "http" {
 		t.Errorf("McpServers[0] = %+v", in.McpServers[0])
 	}
 

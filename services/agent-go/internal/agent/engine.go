@@ -240,6 +240,12 @@ func (e *Engine) Run(ctx context.Context, in RunInput, emit EmitFunc) (provider.
 	if len(in.McpServers) > 0 {
 		cfg := make([]mcp.ServerConfig, 0, len(in.McpServers))
 		for _, srv := range in.McpServers {
+			// srv.Transport (http/sse) KHÔNG được truyền vào ServerConfig: cả 2
+			// giá trị đều dùng chung mcp.SSEClient (Streamable HTTP với fallback
+			// đọc response JSON hoặc SSE) — xem comment McpServer.Transport ở
+			// state.go. APIKey là phần THỰC SỰ quan trọng ở đây: đây là token user
+			// cấu hình cho server remote (Notion/GitHub/Linear/Sentry...), được
+			// SSEClient gửi thành header Authorization: Bearer <APIKey>.
 			cfg = append(cfg, mcp.ServerConfig{Name: srv.Name, URL: srv.URL, APIKey: srv.APIKey})
 		}
 		reg, clients, err := mcp.DiscoverSSE(ctx, cfg)

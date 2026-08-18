@@ -65,11 +65,18 @@ type RunInput struct {
 	CustomSkills []CustomSkill
 }
 
-// McpServer là cấu hình một MCP server (SSE remote) do user tự thêm.
+// McpServer là cấu hình một MCP server (remote) do user tự thêm.
 type McpServer struct {
 	Name   string
 	URL    string
 	APIKey string
+	// Transport: "http" (Streamable HTTP, mặc định) hoặc "sse" (giá trị
+	// legacy). Hiện KHÔNG ảnh hưởng hành vi kết nối: mcp.SSEClient
+	// (internal/mcp/sse.go) đã implement Streamable HTTP và xử lý đúng cả
+	// response JSON thuần lẫn SSE cho CẢ 2 giá trị transport — trường này chỉ
+	// được nhận/giữ lại để tương thích tương lai (vd nếu sau này cần phân
+	// biệt hành vi theo transport, hoặc thêm "stdio").
+	Transport string
 }
 
 // CustomSkill là một skill tuỳ chỉnh do user định nghĩa.

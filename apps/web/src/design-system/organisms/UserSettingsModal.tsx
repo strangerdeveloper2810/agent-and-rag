@@ -86,6 +86,10 @@ const PRESET_OPTIONS = [
   },
 ];
 
+// Số builtin skill hiện mặc định trước khi bấm "Xem tất cả" - tránh tab Skills
+// dài vô tận khi có tới 32 skill (xem BUILTIN_SKILLS).
+const BUILTIN_VISIBLE_COUNT = 8;
+
 /**
  * ToggleSwitch — công tắc bật/tắt dùng chung cho MCP server & skill.
  * Design-system hiện chưa có component Switch riêng nên dựng tạm bằng button + span,
@@ -102,13 +106,18 @@ const ToggleSwitch: React.FC<{
     aria-checked={checked}
     aria-label={label}
     onClick={onChange}
-    className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${
-      checked ? "bg-primary" : "bg-muted"
+    className={`inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-card ${
+      checked ? "bg-primary border-primary" : "bg-muted border-border"
     }`}
   >
+    {/* Knob là flex child, KHÔNG absolute: absolute mà thiếu neo left/inset thì
+        vị trí ngang phụ thuộc static position của button rỗng nên núm không hiện
+        (đúng lỗi đã report). translate-x dịch trong khung 44px: 2px khi tắt,
+        22px khi bật (44 - 20 - 2). */}
     <span
-      className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${
-        checked ? "translate-x-4" : "translate-x-0.5"
+      aria-hidden="true"
+      className={`pointer-events-none block h-5 w-5 rounded-full bg-white shadow-sm ring-1 ring-black/5 transition-transform duration-200 ${
+        checked ? "translate-x-[22px]" : "translate-x-[2px]"
       }`}
     />
   </button>
@@ -167,7 +176,12 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
 
   // MCP form state
   const [mcpName, setMcpName] = useState("");
+  // Transport mặc định "http" (Streamable HTTP) theo khuyến nghị của spec MCP
+  // 2026-07-28; "sse" chỉ còn giữ cho server legacy chưa nâng cấp transport.
+  const [mcpTransport, setMcpTransport] = useState<"http" | "sse">("http");
   const [mcpUrl, setMcpUrl] = useState("");
+  // Token nhập qua input password - write-only, API không bao giờ trả lại token đã lưu.
+  const [mcpAuthToken, setMcpAuthToken] = useState("");
 
   // Custom skill form state
   const [skillName, setSkillName] = useState("");
@@ -175,6 +189,13 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
   const [skillWhenToUse, setSkillWhenToUse] = useState("");
   const [skillContent, setSkillContent] = useState("");
   const [skillTriggers, setSkillTriggers] = useState("");
+  // Form "Tạo skill mới" mặc định đóng để tab không dài thêm nữa (32 builtin skill
+  // đã chiếm nhiều chỗ) - bấm nút "+ Tạo skill" mới mở.
+  const [isCreateSkillOpen, setIsCreateSkillOpen] = useState(false);
+  // Ô tìm kiếm để filter 32 builtin skill theo tên thay vì bắt cuộn qua toàn bộ.
+  const [skillSearch, setSkillSearch] = useState("");
+  // Mặc định chỉ hiện BUILTIN_VISIBLE_COUNT skill đầu; bấm "Xem tất cả" mới hiện hết.
+  const [showAllBuiltinSkills, setShowAllBuiltinSkills] = useState(false);
 
   // Xác nhận xoá (dùng chung ConfirmDialog) - lưu cả id lẫn name để hiện
   // message mà không cần tra lại list (list có thể đã đổi sau khi xoá xong)
@@ -229,6 +250,24 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
   }, [isOpen, initialTab, user, fetchSettings, fetchMcpServers, fetchSkills]);
 
   if (!isOpen) return null;
+
+  // Lọc builtin skill theo tên (không dấu-nhạy phân biệt hoa/thường) để filter
+  // hoạt động tốt cho cả tên tiếng Anh (vd "code-review").
+  const normalizedSkillSearch = skillSearch.trim().toLowerCase();
+  const filteredBuiltinSkills = normalizedSkillSearch
+    ? BUILTIN_SKILLS.filter((skill) =>
+        skill.name.toLowerCase().includes(normalizedSkillSearch),
+      )
+    : BUILTIN_SKILLS;
+  // Khi đang tìm kiếm thì hiện hết kết quả filter (thường đã ít) - không áp dụng
+  // giới hạn "Xem tất cả" nữa vì sẽ ẩn mất kết quả người dùng đang tìm.
+  const displayedBuiltinSkills =
+    showAllBuiltinSkills || normalizedSkillSearch
+      ? filteredBuiltinSkills
+      : filteredBuiltinSkills.slice(0, BUILTIN_VISIBLE_COUNT);
+  const canToggleShowAllBuiltinSkills =
+    !normalizedSkillSearch &&
+    filteredBuiltinSkills.length > BUILTIN_VISIBLE_COUNT;
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -296,9 +335,18 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
     e.preventDefault();
     if (!mcpName.trim() || !mcpUrl.trim()) return;
     try {
-      await createMcpServer({ name: mcpName.trim(), url: mcpUrl.trim() });
+      await createMcpServer({
+        name: mcpName.trim(),
+        transport: mcpTransport,
+        url: mcpUrl.trim(),
+        // Chỉ gửi auth_token khi user thực sự nhập - contract chỉ coi chuỗi
+        // rỗng là "xoá token" cho PATCH, không áp dụng khi tạo mới (POST).
+        ...(mcpAuthToken.trim() ? { auth_token: mcpAuthToken.trim() } : {}),
+      });
       setMcpName("");
       setMcpUrl("");
+      setMcpTransport("http");
+      setMcpAuthToken("");
       toast.success(t("mcp.addSuccess"));
     } catch (err: any) {
       toast.error(err?.message || "Lỗi thêm MCP server");
@@ -340,6 +388,8 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
       setSkillWhenToUse("");
       setSkillContent("");
       setSkillTriggers("");
+      // Đóng form lại sau khi tạo thành công - đúng luồng "bấm mới mở" của form thu gọn.
+      setIsCreateSkillOpen(false);
       toast.success(t("skills.addSuccess"));
     } catch (err: any) {
       toast.error(err?.message || "Lỗi thêm skill");
@@ -1090,16 +1140,55 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
-                      {t("mcp.urlLabel")}
+                    <label
+                      htmlFor="mcp-transport-select"
+                      className="block text-[11px] font-semibold text-muted-foreground mb-1"
+                    >
+                      {t("mcp.transportLabel")}
                     </label>
-                    <Input
-                      type="text"
-                      value={mcpUrl}
-                      onChange={(e) => setMcpUrl(e.target.value)}
-                      placeholder={t("mcp.urlPlaceholder")}
-                    />
+                    {/* Native <select> vì design-system chưa có component Select riêng -
+                        chỉ 2 lựa chọn nên select thường là đủ, không cần thêm dependency. */}
+                    <select
+                      id="mcp-transport-select"
+                      value={mcpTransport}
+                      onChange={(e) =>
+                        setMcpTransport(e.target.value as "http" | "sse")
+                      }
+                      className="flex h-10 w-full rounded-xl border border-input bg-background/60 px-3.5 py-2 text-sm text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 backdrop-blur-md transition duration-150"
+                    >
+                      <option value="http">{t("mcp.transport.http")}</option>
+                      <option value="sse">{t("mcp.transport.sse")}</option>
+                    </select>
                   </div>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                    {t("mcp.urlLabel")}
+                  </label>
+                  <Input
+                    type="text"
+                    value={mcpUrl}
+                    onChange={(e) => setMcpUrl(e.target.value)}
+                    placeholder={t("mcp.urlPlaceholder")}
+                  />
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    {t("mcp.urlHint")}
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                    {t("mcp.authTokenLabel")}
+                  </label>
+                  <Input
+                    type="password"
+                    value={mcpAuthToken}
+                    onChange={(e) => setMcpAuthToken(e.target.value)}
+                    placeholder={t("mcp.authTokenPlaceholder")}
+                    autoComplete="off"
+                  />
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    {t("mcp.authTokenHint")}
+                  </p>
                 </div>
                 <div className="flex justify-end">
                   <Button
@@ -1138,25 +1227,50 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                     {mcpServers.map((server) => (
                       <div
                         key={server.id}
-                        className="flex items-center gap-3 p-3 rounded-xl bg-card border border-border"
+                        className={`flex items-center gap-3 p-3 rounded-xl bg-card border border-border transition ${
+                          server.enabled ? "" : "opacity-60"
+                        }`}
                       >
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-1.5">
                             <span className="text-xs font-bold text-foreground truncate">
                               {server.name}
                             </span>
                             <Badge
-                              variant={server.enabled ? "success" : "outline"}
+                              variant="accent"
                               className="text-[10px] uppercase shrink-0"
                             >
-                              {server.enabled
-                                ? t("mcp.statusEnabled")
-                                : t("mcp.statusDisabled")}
+                              {server.transport === "http"
+                                ? t("mcp.transportBadge.http")
+                                : t("mcp.transportBadge.sse")}
                             </Badge>
+                            {server.has_auth && (
+                              <Badge
+                                variant="success"
+                                className="text-[10px] uppercase shrink-0"
+                              >
+                                {t("mcp.hasAuthBadge")}
+                              </Badge>
+                            )}
+                            {/* Không hiện badge riêng khi enabled - row bị làm mờ
+                                (opacity-60) khi tắt là đủ để phân biệt trạng thái. */}
+                            {!server.enabled && (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] uppercase shrink-0"
+                              >
+                                {t("mcp.statusDisabled")}
+                              </Badge>
+                            )}
                           </div>
                           <p className="text-[11px] text-muted-foreground truncate mt-0.5">
                             {server.url}
                           </p>
+                          {typeof server.tool_count === "number" && (
+                            <p className="text-[11px] text-muted-foreground mt-0.5">
+                              {t("mcp.toolCount", { count: server.tool_count })}
+                            </p>
+                          )}
                         </div>
                         <ToggleSwitch
                           checked={server.enabled}
@@ -1206,9 +1320,24 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
 
               {/* Builtin skills */}
               <div>
-                <h4 className="text-xs font-bold text-foreground mb-2">
-                  {t("skills.builtinTitle")}
-                </h4>
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <h4 className="text-xs font-bold text-foreground">
+                    {t("skills.builtinTitle")}
+                  </h4>
+                  <span className="text-[11px] text-muted-foreground shrink-0">
+                    {t("skills.builtinCount", { count: BUILTIN_SKILLS.length })}
+                  </span>
+                </div>
+
+                {/* Ô tìm kiếm/filter theo tên - tránh bắt cuộn qua 32 skill có sẵn */}
+                <Input
+                  type="text"
+                  value={skillSearch}
+                  onChange={(e) => setSkillSearch(e.target.value)}
+                  placeholder={t("skills.searchPlaceholder")}
+                  className="mb-2"
+                />
+
                 {isLoadingSkills ? (
                   <div
                     className="space-y-2"
@@ -1219,40 +1348,78 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                     <Skeleton className="h-12 w-full" />
                     <Skeleton className="h-12 w-full" />
                   </div>
-                ) : (
-                  <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                    {BUILTIN_SKILLS.map((skill) => {
-                      const enabled = !disabledBuiltinSkills.includes(
-                        skill.name,
-                      );
-                      return (
-                        <div
-                          key={skill.name}
-                          className="flex items-center gap-3 p-3 rounded-xl bg-card border border-border"
-                        >
-                          <div className="min-w-0 flex-1">
-                            <span className="text-xs font-bold text-foreground">
-                              {skill.name}
-                            </span>
-                            <p className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5">
-                              {skill.description}
-                            </p>
-                          </div>
-                          <ToggleSwitch
-                            checked={enabled}
-                            onChange={() =>
-                              handleToggleBuiltinSkill(skill.name, !enabled)
-                            }
-                            label={
-                              enabled
-                                ? t("skills.disableAria", { name: skill.name })
-                                : t("skills.enableAria", { name: skill.name })
-                            }
-                          />
-                        </div>
-                      );
-                    })}
+                ) : filteredBuiltinSkills.length === 0 ? (
+                  <div className="py-6 text-center rounded-xl border border-dashed border-border text-xs text-muted-foreground">
+                    {t("skills.noResults")}
                   </div>
+                ) : (
+                  <>
+                    {/* Bỏ hộp scroll cụt cao cố định (max-h-64 overflow-y-auto): modal
+                        body đã tự scroll ở ngoài (flex-1 overflow-y-auto), lồng thêm
+                        1 lớp scroll bên trong khiến item bị cắt ngang giữa chừng mà
+                        không có dấu hiệu còn nội dung bên dưới - đây chính là bug đã
+                        report. Thay bằng show-8-đầu + nút "Xem tất cả". */}
+                    <div className="space-y-2">
+                      {displayedBuiltinSkills.map((skill) => {
+                        const enabled = !disabledBuiltinSkills.includes(
+                          skill.name,
+                        );
+                        return (
+                          <div
+                            key={skill.name}
+                            className={`flex items-center gap-3 p-3 rounded-xl bg-card border border-border transition ${
+                              enabled ? "" : "opacity-60"
+                            }`}
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold text-foreground truncate">
+                                  {skill.name}
+                                </span>
+                                {!enabled && (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[10px] uppercase shrink-0"
+                                  >
+                                    {t("skills.disabledBadge")}
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5">
+                                {skill.description}
+                              </p>
+                            </div>
+                            <ToggleSwitch
+                              checked={enabled}
+                              onChange={() =>
+                                handleToggleBuiltinSkill(skill.name, !enabled)
+                              }
+                              label={
+                                enabled
+                                  ? t("skills.disableAria", {
+                                      name: skill.name,
+                                    })
+                                  : t("skills.enableAria", { name: skill.name })
+                              }
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {canToggleShowAllBuiltinSkills && (
+                      <div className="flex justify-center mt-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowAllBuiltinSkills((v) => !v)}
+                          className="text-[11px] font-semibold text-primary hover:underline"
+                        >
+                          {showAllBuiltinSkills
+                            ? t("skills.showLess")
+                            : t("skills.showAll")}
+                        </button>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
 
@@ -1278,12 +1445,24 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                     {skills.map((skill) => (
                       <div
                         key={skill.id}
-                        className="flex items-center gap-3 p-3 rounded-xl bg-card border border-border"
+                        className={`flex items-center gap-3 p-3 rounded-xl bg-card border border-border transition ${
+                          skill.enabled ? "" : "opacity-60"
+                        }`}
                       >
                         <div className="min-w-0 flex-1">
-                          <span className="text-xs font-bold text-foreground">
-                            {skill.name}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-foreground truncate">
+                              {skill.name}
+                            </span>
+                            {!skill.enabled && (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] uppercase shrink-0"
+                              >
+                                {t("skills.disabledBadge")}
+                              </Badge>
+                            )}
+                          </div>
                           {skill.description && (
                             <p className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5">
                               {skill.description}
@@ -1322,86 +1501,112 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                 )}
               </div>
 
-              {/* Form thêm custom skill mới */}
-              <form
-                onSubmit={handleAddSkill}
-                className="space-y-3 p-4 rounded-xl bg-muted/20 border border-border"
-              >
-                <h4 className="text-xs font-bold text-foreground">
-                  {t("skills.addTitle")}
-                </h4>
-                <div>
-                  <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
-                    {t("skills.nameLabel")}
-                  </label>
-                  <Input
-                    type="text"
-                    value={skillName}
-                    onChange={(e) => setSkillName(e.target.value)}
-                    placeholder={t("skills.namePlaceholder")}
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
-                    {t("skills.descriptionLabel")}
-                  </label>
-                  <Input
-                    type="text"
-                    value={skillDescription}
-                    onChange={(e) => setSkillDescription(e.target.value)}
-                    placeholder={t("skills.descriptionPlaceholder")}
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
-                    {t("skills.whenToUseLabel")}
-                  </label>
-                  <Input
-                    type="text"
-                    value={skillWhenToUse}
-                    onChange={(e) => setSkillWhenToUse(e.target.value)}
-                    placeholder={t("skills.whenToUsePlaceholder")}
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
-                    {t("skills.contentLabel")}
-                  </label>
-                  <textarea
-                    rows={4}
-                    value={skillContent}
-                    onChange={(e) => setSkillContent(e.target.value)}
-                    placeholder={t("skills.contentPlaceholder")}
-                    className="w-full rounded-xl bg-background border border-border p-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition resize-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
-                    {t("skills.triggersLabel")}
-                  </label>
-                  <Input
-                    type="text"
-                    value={skillTriggers}
-                    onChange={(e) => setSkillTriggers(e.target.value)}
-                    placeholder={t("skills.triggersPlaceholder")}
-                  />
-                  <p className="text-[11px] text-muted-foreground mt-1">
-                    {t("skills.triggersHint")}
-                  </p>
-                </div>
-                <div className="flex justify-end">
+              {/* Form thêm custom skill mới - thu gọn mặc định, bấm "+ Tạo skill"
+                  mới mở, tránh tab dài vô tận khi cộng dồn với 32 builtin skill. */}
+              {!isCreateSkillOpen ? (
+                <div className="flex justify-center pt-2">
                   <Button
-                    type="submit"
-                    variant="gradient"
+                    type="button"
+                    variant="outline"
                     size="sm"
-                    disabled={!skillName.trim() || !skillContent.trim()}
+                    onClick={() => setIsCreateSkillOpen(true)}
                     className="flex items-center gap-1.5"
                   >
                     <PlusIcon className="h-4 w-4" />
-                    <span>{t("skills.addButton")}</span>
+                    <span>{t("skills.createToggleOpen")}</span>
                   </Button>
                 </div>
-              </form>
+              ) : (
+                <form
+                  onSubmit={handleAddSkill}
+                  className="space-y-3 p-4 rounded-xl bg-muted/20 border border-border"
+                >
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-foreground">
+                      {t("skills.addTitle")}
+                    </h4>
+                    <button
+                      type="button"
+                      onClick={() => setIsCreateSkillOpen(false)}
+                      aria-label={t("skills.closeFormAria")}
+                      className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition"
+                    >
+                      <XMarkIcon className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                      {t("skills.nameLabel")}
+                    </label>
+                    <Input
+                      type="text"
+                      value={skillName}
+                      onChange={(e) => setSkillName(e.target.value)}
+                      placeholder={t("skills.namePlaceholder")}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                      {t("skills.descriptionLabel")}
+                    </label>
+                    <Input
+                      type="text"
+                      value={skillDescription}
+                      onChange={(e) => setSkillDescription(e.target.value)}
+                      placeholder={t("skills.descriptionPlaceholder")}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                      {t("skills.whenToUseLabel")}
+                    </label>
+                    <Input
+                      type="text"
+                      value={skillWhenToUse}
+                      onChange={(e) => setSkillWhenToUse(e.target.value)}
+                      placeholder={t("skills.whenToUsePlaceholder")}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                      {t("skills.contentLabel")}
+                    </label>
+                    <textarea
+                      rows={4}
+                      value={skillContent}
+                      onChange={(e) => setSkillContent(e.target.value)}
+                      placeholder={t("skills.contentPlaceholder")}
+                      className="w-full rounded-xl bg-background border border-border p-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition resize-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                      {t("skills.triggersLabel")}
+                    </label>
+                    <Input
+                      type="text"
+                      value={skillTriggers}
+                      onChange={(e) => setSkillTriggers(e.target.value)}
+                      placeholder={t("skills.triggersPlaceholder")}
+                    />
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      {t("skills.triggersHint")}
+                    </p>
+                  </div>
+                  <div className="flex justify-end">
+                    <Button
+                      type="submit"
+                      variant="gradient"
+                      size="sm"
+                      disabled={!skillName.trim() || !skillContent.trim()}
+                      className="flex items-center gap-1.5"
+                    >
+                      <PlusIcon className="h-4 w-4" />
+                      <span>{t("skills.addButton")}</span>
+                    </Button>
+                  </div>
+                </form>
+              )}
             </div>
           )}
         </div>

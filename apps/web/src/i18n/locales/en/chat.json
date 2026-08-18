@@ -45,7 +45,6 @@
     "stopGenerationAria": "Stop generating response",
     "sendAria": "Send message",
     "shiftEnterHint": "Shift + Enter for a new line",
-    "charCount": "{{length}} characters",
     "removeAttachmentAria": "Remove {{name}}",
     "attachmentsCount": "{{images}}/{{maxImages}} images, {{files}}/{{maxFiles}} files",
     "errors": {
@@ -65,6 +64,7 @@
     "badge": "J.A.R.V.I.S. Core Intelligence",
     "title": "How can I help you today?",
     "subtitle": "Start a conversation, ask for enterprise document lookups, or run a smart workflow.",
+    "refresh": "Shuffle",
     "refreshAllTitle": "Refresh random suggestions",
     "autoSuggestionsLabel": "Smart Suggestions from AI Agent",
     "agentSuggestionsLabel": "Smart Suggestions from AI Agent",

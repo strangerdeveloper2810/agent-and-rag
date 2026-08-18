@@ -25,6 +25,25 @@ type ServerConfig struct {
 }
 
 const (
+	// mcpProtocolVersion: CỐ TÌNH giữ "2024-11-05" thay vì bump lên bản mới
+	// hơn (vd "2026-07-28").
+	//
+	// Lý do: Connect() gửi protocolVersion này trong "initialize" nhưng KHÔNG
+	// đọc/kiểm tra protocolVersion server trả về (result bị bỏ qua, chỉ check
+	// err) — tức client hiện tại không thực sự "negotiate" gì cả, chỉ tuyên bố
+	// version của mình rồi tiếp tục bất kể server đồng ý hay không. Một số SDK
+	// MCP server strict validate protocolVersion trong initialize và trả lỗi
+	// JSON-RPC ngay nếu gặp version lạ mà chúng chưa biết — với MCP server
+	// remote thật đang cần fix (Notion, GitHub, Linear, Sentry...), các server
+	// này được xây trước khi có version mới hơn nên nhiều khả năng KHÔNG nhận
+	// diện được version rất mới, dẫn tới initialize thất bại và toàn bộ mục
+	// tiêu của thay đổi này (làm MCP server thật hoạt động) bị phá.
+	// "2024-11-05" là baseline cũ nhất, được hỗ trợ rộng nhất bởi các server
+	// hiện có → an toàn nhất cho mục tiêu "chạy được với server thật hôm nay".
+	//
+	// Cải tiến đúng đắn hơn (không làm trong đợt này để tránh rủi ro ngoài
+	// phạm vi): đọc protocolVersion server trả về trong response của
+	// "initialize" và log/adapt theo đó, thay vì hardcode 1 version gửi mù.
 	mcpProtocolVersion = "2024-11-05"
 	mcpClientName      = "jarvis-go"
 	mcpClientVersion   = "0.1.0"

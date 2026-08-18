@@ -1,4 +1,4 @@
-import type { ZodSchema } from "zod";
+import type { ZodType } from "zod";
 import { ValidationError } from "../errors/app-errors";
 
 /**
@@ -13,7 +13,13 @@ import { ValidationError } from "../errors/app-errors";
  * @returns Dữ liệu đã parse + ép kiểu.
  * @throws  {ValidationError} nếu dữ liệu không hợp lệ.
  */
-export const validate = <T>(schema: ZodSchema<T>, data: unknown): T => {
+// Tham số dùng ZodType<T, any, any> (thay vì ZodSchema<T> = ZodType<T, Def, T>)
+// -- ZodSchema<T> ép Input PHẢI trùng Output, nên với schema có `.default()`
+// (Input optional, Output có giá trị mặc định, KHÁC nhau -- vd
+// transport: z.enum([...]).default("http")), TS suy luận T bị lệch về phía
+// Input (optional) thay vì Output (đã áp default) → sai kiểu ở call site.
+// Nới Input thành `any` để chỉ ràng buộc đúng Output = T, không đụng Input.
+export const validate = <T>(schema: ZodType<T, any, any>, data: unknown): T => {
   const result = schema.safeParse(data);
   if (!result.success) {
     // Gom lỗi theo field path (dùng path.join('.') để tạo key).

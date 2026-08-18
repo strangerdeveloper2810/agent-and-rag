@@ -1,5 +1,6 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
 import type { UsersService } from "./users.service";
+import type { McpServerRow } from "./users.repository";
 import { validate } from "../../common/pipes/validation.pipe";
 import { updateProfileSchema, avatarUrlSchema } from "./dto/update-profile.dto";
 import { changePasswordSchema } from "./dto/change-password.dto";
@@ -13,6 +14,29 @@ import {
   updateUserSkillSchema,
   toggleSkillSchema,
 } from "./dto/user-skill.dto";
+
+// ── MCP Server: public response shape ──
+//
+// auth_token là secret -- API KHÔNG BAO GIỜ trả token ra ngoài (GET/POST/
+// PATCH đều đi qua hàm này). Chỉ trả `has_auth: boolean` để FE biết server đã
+// cấu hình token hay chưa, không bao giờ thấy giá trị thật.
+export interface PublicMcpServer {
+  id: string;
+  name: string;
+  transport: "http" | "sse";
+  url: string;
+  enabled: boolean;
+  has_auth: boolean;
+}
+
+const toPublicMcpServer = (row: McpServerRow): PublicMcpServer => ({
+  id: row.id,
+  name: row.name,
+  transport: row.transport,
+  url: row.url,
+  enabled: row.enabled,
+  has_auth: Boolean(row.auth_token),
+});
 
 // ── Users Controller ──
 
@@ -75,7 +99,7 @@ export class UsersController {
   listMcpServers = async (req: FastifyRequest, reply: FastifyReply) => {
     const userId = req.user!.sub;
     const servers = await this.service.listMcpServers(userId);
-    return reply.status(200).send({ servers });
+    return reply.status(200).send({ servers: servers.map(toPublicMcpServer) });
   };
 
   /** POST /api/user/mcp-servers */
@@ -83,7 +107,7 @@ export class UsersController {
     const userId = req.user!.sub;
     const input = validate(createMcpServerSchema, req.body);
     const server = await this.service.createMcpServer(userId, input);
-    return reply.status(201).send({ server });
+    return reply.status(201).send({ server: toPublicMcpServer(server) });
   };
 
   /** PATCH /api/user/mcp-servers/:id */
@@ -92,7 +116,7 @@ export class UsersController {
     const { id } = req.params as { id: string };
     const input = validate(updateMcpServerSchema, req.body);
     const server = await this.service.updateMcpServer(userId, id, input);
-    return reply.status(200).send({ server });
+    return reply.status(200).send({ server: toPublicMcpServer(server) });
   };
 
   /** DELETE /api/user/mcp-servers/:id */

@@ -160,6 +160,35 @@ describe("goAgentClient.stream — map SSE của Go sang AgentEvent", () => {
     expect(sentBody.lang).toBeUndefined();
   });
 
+  // Sửa lỗi "user tự thêm MCP server không dùng được với server thật": token
+  // (auth_token) + transport phải THỰC SỰ có mặt trong body JSON gửi lên
+  // agent-go — chứ không chỉ được lưu trong DB rồi không bao giờ tới nơi cần.
+  it("forward mcpServers (kèm apiKey + transport) trong body JSON gửi lên agent-go", async () => {
+    const fetchMock = vi.fn(async () =>
+      sseResponse([JSON.stringify({ type: "done" })]),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const mcpServers = [
+      {
+        name: "notion",
+        url: "https://mcp.notion.com",
+        apiKey: "secret-notion-token",
+        transport: "http" as const,
+      },
+    ];
+
+    await drain(goAgentClient.stream(history, { mcpServers }));
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [, init] = fetchMock.mock.calls[0] as unknown as [
+      string,
+      RequestInit,
+    ];
+    const sentBody = JSON.parse(init.body as string);
+    expect(sentBody.mcpServers).toEqual(mcpServers);
+  });
+
   it('agent mặc định là "go" khi Go không gửi event agent', async () => {
     vi.stubGlobal(
       "fetch",

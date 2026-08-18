@@ -15,10 +15,16 @@ export interface UserSettings {
 export interface McpServer {
   id: string;
   name: string;
-  transport: "sse";
+  // Spec MCP 2026-07-28 chỉ còn 2 transport: "http" (Streamable HTTP,
+  // khuyến nghị) và "sse" (legacy, giữ lại để tương thích ngược).
+  transport: "http" | "sse";
   url: string;
-  api_key: string | null;
   enabled: boolean;
+  // API không bao giờ trả lại token đã lưu (chỉ ghi, không đọc) - chỉ báo
+  // biết server có auth hay không qua cờ boolean này.
+  has_auth: boolean;
+  // Số tool đã discovery được từ server (nếu backend đã kết nối thành công).
+  tool_count?: number;
 }
 
 export interface UserSkill {
@@ -58,16 +64,20 @@ interface UserState {
   fetchMcpServers: () => Promise<McpServer[]>;
   createMcpServer: (data: {
     name: string;
+    transport: "http" | "sse";
     url: string;
-    api_key?: string;
+    // Optional: chỉ gửi khi user nhập; API sẽ lưu và không bao giờ trả lại.
+    auth_token?: string;
   }) => Promise<void>;
   updateMcpServer: (
     id: string,
     data: {
       name?: string;
+      transport?: "http" | "sse";
       url?: string;
-      api_key?: string | null;
       enabled?: boolean;
+      // Gửi chuỗi rỗng "" nghĩa là xoá token đã lưu (theo contract API).
+      auth_token?: string;
     },
   ) => Promise<void>;
   deleteMcpServer: (id: string) => Promise<void>;

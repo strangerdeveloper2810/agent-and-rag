@@ -1,7 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
 import { beforeEach, describe, expect, it } from "vitest";
 import i18n from "@/i18n";
+import { useUserStore } from "@/stores/user.store";
 import { EmptyState } from "./EmptyState";
 
 const renderEmptyState = () =>
@@ -43,5 +44,45 @@ describe("EmptyState", () => {
     expect(
       await screen.findByText("Smart Suggestions from AI Agent"),
     ).toBeInTheDocument();
+  });
+
+  // User upload avatar cho agent nhưng khung chat không đổi gì — vì lúc chưa có
+  // tin nhắn nào thì MessageBubble chưa render, mà hero của EmptyState lại
+  // hardcode icon. Nhóm test này khoá lại hành vi đó.
+  describe("avatar agent ở hero", () => {
+    beforeEach(() => {
+      useUserStore.setState({ settings: null });
+    });
+
+    it("hiện icon mặc định khi user chưa cấu hình avatar agent", () => {
+      renderEmptyState();
+      expect(screen.queryByRole("img")).not.toBeInTheDocument();
+    });
+
+    it("hiện ảnh thật khi settings có agent_avatar_url", () => {
+      useUserStore.setState({
+        settings: {
+          agent_avatar_url: "https://cdn.example.com/agent.png",
+        } as never,
+      });
+
+      renderEmptyState();
+
+      const img = screen.getByRole("img");
+      expect(img).toHaveAttribute("src", "https://cdn.example.com/agent.png");
+    });
+
+    it("ảnh lỗi 404 thì fallback về icon, không để khung trống", () => {
+      useUserStore.setState({
+        settings: {
+          agent_avatar_url: "https://cdn.example.com/hong.png",
+        } as never,
+      });
+
+      renderEmptyState();
+      fireEvent.error(screen.getByRole("img"));
+
+      expect(screen.queryByRole("img")).not.toBeInTheDocument();
+    });
   });
 });

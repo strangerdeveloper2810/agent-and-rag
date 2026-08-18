@@ -80,7 +80,13 @@ export const postChat = async (req: FastifyRequest, reply: FastifyReply) => {
     const userId = (req.user as { sub?: string } | undefined)?.sub;
 
     let mcpServers:
-      Array<{ name: string; url: string; apiKey?: string }> | undefined;
+      | Array<{
+          name: string;
+          url: string;
+          apiKey?: string;
+          transport?: "http" | "sse";
+        }>
+      | undefined;
     let disabledSkills: string[] | undefined;
     let customSkills:
       | Array<{
@@ -102,7 +108,7 @@ export const postChat = async (req: FastifyRequest, reply: FastifyReply) => {
               [userId],
             ),
             pg.query(
-              "SELECT name, url, api_key FROM user_mcp_servers WHERE user_id = $1 AND enabled = TRUE ORDER BY created_at ASC",
+              "SELECT name, url, transport, auth_token FROM user_mcp_servers WHERE user_id = $1 AND enabled = TRUE ORDER BY created_at ASC",
               [userId],
             ),
             pg.query(
@@ -126,10 +132,17 @@ export const postChat = async (req: FastifyRequest, reply: FastifyReply) => {
           };
         }
 
+        // apiKey: field JSON nội bộ gửi xuống agent-go (giữ tên cũ để khớp
+        // Go McpServerInput.APIKey/json:"apiKey" -- xem
+        // services/agent-go/internal/transport/http/chat.go), nguồn dữ liệu
+        // giờ là cột auth_token (thay api_key cũ -- xem migration 004). Đây
+        // KHÔNG phải response công khai cho FE nên forward giá trị thật của
+        // token là đúng ý (agent-go cần nó để build header Authorization).
         mcpServers = mcpRes.rows.map((r) => ({
           name: r.name,
           url: r.url,
-          apiKey: r.api_key ?? undefined,
+          apiKey: r.auth_token ?? undefined,
+          transport: r.transport as "http" | "sse" | undefined,
         }));
         disabledSkills = disabledRes.rows.map((r) => r.skill_name);
         customSkills = skillsRes.rows.map((r) => ({

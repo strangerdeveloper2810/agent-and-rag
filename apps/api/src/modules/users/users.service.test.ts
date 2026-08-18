@@ -35,8 +35,13 @@ describe("UsersService — MCP servers", () => {
     expect(repo.findMcpServers).toHaveBeenCalledWith(userId);
   });
 
-  it("createMcpServer: forward userId + input xuống repo", async () => {
-    const input = { name: "n", url: "https://x", api_key: null };
+  it("createMcpServer: forward userId + input (transport, auth_token) xuống repo nguyên vẹn", async () => {
+    const input = {
+      name: "n",
+      transport: "http" as const,
+      url: "https://x",
+      auth_token: "secret",
+    };
     repo.createMcpServer.mockResolvedValue({ id: "1", ...input });
     await service.createMcpServer(userId, input);
     expect(repo.createMcpServer).toHaveBeenCalledWith(userId, input);

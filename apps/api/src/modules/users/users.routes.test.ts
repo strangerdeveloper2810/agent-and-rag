@@ -124,9 +124,79 @@ describe("users routes — MCP servers + Skills (auth, validate DTO, CRUD, scope
     expect(params).toEqual([userAId]);
   });
 
-  it("POST /api/user/mcp-servers hợp lệ → 201, INSERT gắn user_id của người gọi", async () => {
+  // ── SECURITY: token KHÔNG BAO GIỜ được trả ra ngoài (chỉ has_auth boolean) ──
+
+  it("GET /api/user/mcp-servers → response trả has_auth đúng theo auth_token, KHÔNG BAO GIỜ trả giá trị token thật", async () => {
     pgQuery.mockResolvedValueOnce({
-      rows: [{ id: "s1", user_id: userAId, name: "weather", url: "https://x" }],
+      rows: [
+        {
+          id: "s1",
+          user_id: userAId,
+          name: "weather",
+          transport: "http",
+          url: "https://x",
+          enabled: true,
+          auth_token: "super-secret-token-value",
+        },
+        {
+          id: "s2",
+          user_id: userAId,
+          name: "no-auth-server",
+          transport: "sse",
+          url: "https://y",
+          enabled: true,
+          auth_token: null,
+        },
+      ],
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/user/mcp-servers",
+      headers: cookieFor(userAId),
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.servers).toEqual([
+      {
+        id: "s1",
+        name: "weather",
+        transport: "http",
+        url: "https://x",
+        enabled: true,
+        has_auth: true,
+      },
+      {
+        id: "s2",
+        name: "no-auth-server",
+        transport: "sse",
+        url: "https://y",
+        enabled: true,
+        has_auth: false,
+      },
+    ]);
+
+    // Chứng minh TRỰC TIẾP trên toàn bộ response body (không chỉ field cụ
+    // thể) -- phòng trường hợp thêm field mới sau này quên strip token.
+    const rawBody = JSON.stringify(body);
+    expect(rawBody).not.toContain("super-secret-token-value");
+    expect(rawBody).not.toContain("auth_token");
+  });
+
+  it("POST /api/user/mcp-servers hợp lệ → 201, INSERT gắn user_id của người gọi, transport mặc định 'http'", async () => {
+    pgQuery.mockResolvedValueOnce({
+      rows: [
+        {
+          id: "s1",
+          user_id: userAId,
+          name: "weather",
+          transport: "http",
+          url: "https://x",
+          enabled: true,
+          auth_token: null,
+        },
+      ],
     });
 
     const res = await app.inject({
@@ -140,6 +210,59 @@ describe("users routes — MCP servers + Skills (auth, validate DTO, CRUD, scope
     const [sql, params] = pgQuery.mock.calls[0];
     expect(sql).toContain("INSERT INTO user_mcp_servers");
     expect(params[0]).toBe(userAId);
+    // Tham số transport (vị trí thứ 3, sau user_id + name) phải là 'http' dù
+    // client không gửi transport -- default áp dụng ở tầng DTO (zod .default()).
+    expect(params[2]).toBe("http");
+    expect(res.json().server.has_auth).toBe(false);
+  });
+
+  it("POST /api/user/mcp-servers kèm auth_token → 201, response has_auth=true nhưng KHÔNG trả giá trị token thật", async () => {
+    pgQuery.mockResolvedValueOnce({
+      rows: [
+        {
+          id: "s1",
+          user_id: userAId,
+          name: "notion",
+          transport: "http",
+          url: "https://mcp.notion.com",
+          enabled: true,
+          auth_token: "notion-secret-abc",
+        },
+      ],
+    });
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/user/mcp-servers",
+      headers: { "content-type": "application/json", ...cookieFor(userAId) },
+      payload: {
+        name: "notion",
+        url: "https://mcp.notion.com",
+        auth_token: "notion-secret-abc",
+      },
+    });
+
+    expect(res.statusCode).toBe(201);
+    const body = res.json();
+    expect(body.server.has_auth).toBe(true);
+    expect(JSON.stringify(body)).not.toContain("notion-secret-abc");
+    expect(JSON.stringify(body)).not.toContain("auth_token");
+
+    // Token thật PHẢI được gửi xuống DB (INSERT) -- chỉ không xuất hiện lại
+    // trong response HTTP.
+    const [, params] = pgQuery.mock.calls[0];
+    expect(params).toContain("notion-secret-abc");
+  });
+
+  it("POST /api/user/mcp-servers với transport lạ → 422 (chỉ chấp nhận 'http'/'sse')", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/user/mcp-servers",
+      headers: { "content-type": "application/json", ...cookieFor(userAId) },
+      payload: { name: "srv", url: "https://x", transport: "stdio" },
+    });
+    expect(res.statusCode).toBe(422);
+    expect(pgQuery).not.toHaveBeenCalled();
   });
 
   // ── SCOPE: user A KHÔNG được sửa/xoá MCP server của user B ──
@@ -181,7 +304,17 @@ describe("users routes — MCP servers + Skills (auth, validate DTO, CRUD, scope
 
   it("PATCH /api/user/mcp-servers/:id với id thuộc CHÍNH user gọi → 200 (đối chứng — chặn cross-user không phải chặn luôn mọi update)", async () => {
     pgQuery.mockResolvedValueOnce({
-      rows: [{ id: "own-server", user_id: userAId, name: "renamed" }],
+      rows: [
+        {
+          id: "own-server",
+          user_id: userAId,
+          name: "renamed",
+          transport: "http",
+          url: "https://x",
+          enabled: true,
+          auth_token: null,
+        },
+      ],
     });
 
     const res = await app.inject({
@@ -192,6 +325,69 @@ describe("users routes — MCP servers + Skills (auth, validate DTO, CRUD, scope
     });
 
     expect(res.statusCode).toBe(200);
+  });
+
+  it("PATCH /api/user/mcp-servers/:id với auth_token: '' → gửi NULL xuống DB (xoá token), UPDATE không gửi auth_token → giữ nguyên (không update cột đó)", async () => {
+    pgQuery.mockResolvedValueOnce({
+      rows: [
+        {
+          id: "own-server",
+          user_id: userAId,
+          name: "srv",
+          transport: "http",
+          url: "https://x",
+          enabled: true,
+          auth_token: null,
+        },
+      ],
+    });
+
+    const res = await app.inject({
+      method: "PATCH",
+      url: "/api/user/mcp-servers/own-server",
+      headers: { "content-type": "application/json", ...cookieFor(userAId) },
+      payload: { auth_token: "" },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const [sql, params] = pgQuery.mock.calls[0];
+    expect(sql).toContain("auth_token = $1");
+    expect(params[0]).toBeNull();
+    expect(res.json().server.has_auth).toBe(false);
+  });
+
+  it("PATCH /api/user/mcp-servers/:id chỉ đổi 'enabled' (không gửi auth_token) → câu UPDATE KHÔNG động tới cột auth_token", async () => {
+    pgQuery.mockResolvedValueOnce({
+      rows: [
+        {
+          id: "own-server",
+          user_id: userAId,
+          name: "srv",
+          transport: "http",
+          url: "https://x",
+          enabled: false,
+          auth_token: "still-there",
+        },
+      ],
+    });
+
+    const res = await app.inject({
+      method: "PATCH",
+      url: "/api/user/mcp-servers/own-server",
+      headers: { "content-type": "application/json", ...cookieFor(userAId) },
+      payload: { enabled: false },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const [sql] = pgQuery.mock.calls[0];
+    // RETURNING luôn liệt kê auth_token (đọc lại dòng đầy đủ) -- assert cụ
+    // thể mệnh đề SET không gán cột này.
+    expect(sql).not.toContain("auth_token =");
+    // Token cũ vẫn còn ở DB (được repo trả về) nhưng response vẫn PHẢI chỉ
+    // hiện has_auth, không lộ giá trị "still-there".
+    const body = res.json();
+    expect(body.server.has_auth).toBe(true);
+    expect(JSON.stringify(body)).not.toContain("still-there");
   });
 
   // ── Validate DTO: custom skill ──

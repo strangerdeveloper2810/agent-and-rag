@@ -438,13 +438,10 @@ export const Composer: React.FC<{
         </div>
 
         {/* Input Bar Footer hint */}
-        <div className="mt-1.5 flex items-center justify-between px-2 text-[10px] text-muted-foreground">
+        <div className="mt-1.5 flex items-center px-2 text-[10px] text-muted-foreground">
           <span className="flex items-center gap-1">
             <SparklesIcon className="h-3 w-3 text-primary" />
             <span>{t("composer.shiftEnterHint")}</span>
-          </span>
-          <span className="font-mono">
-            {t("composer.charCount", { length: value.length })}
           </span>
         </div>
       </div>

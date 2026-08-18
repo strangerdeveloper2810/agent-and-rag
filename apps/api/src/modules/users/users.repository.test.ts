@@ -47,15 +47,45 @@ describe("UsersRepository — MCP servers", () => {
     expect(params).toEqual(["server-of-b", userA]);
   });
 
-  it("createMcpServer: INSERT gắn đúng user_id của người tạo", async () => {
+  it("createMcpServer: INSERT gắn đúng user_id của người tạo, kèm transport + auth_token", async () => {
     pool.query.mockResolvedValue({
       rows: [{ id: "srv-1", user_id: userA, name: "n", url: "u" }],
     });
-    await repo.createMcpServer(userA, { name: "n", url: "u", api_key: "k" });
+    await repo.createMcpServer(userA, {
+      name: "n",
+      transport: "http",
+      url: "u",
+      auth_token: "k",
+    });
 
     const [sql, params] = pool.query.mock.calls[0];
     expect(sql).toContain("INSERT INTO user_mcp_servers");
-    expect(params).toEqual([userA, "n", "u", "k"]);
+    expect(params).toEqual([userA, "n", "http", "u", "k"]);
+  });
+
+  it("createMcpServer: auth_token rỗng ('') được lưu như null (không có token), không phải chuỗi rỗng", async () => {
+    pool.query.mockResolvedValue({ rows: [{ id: "srv-1" }] });
+    await repo.createMcpServer(userA, {
+      name: "n",
+      transport: "http",
+      url: "u",
+      auth_token: "",
+    });
+
+    const [, params] = pool.query.mock.calls[0];
+    expect(params).toEqual([userA, "n", "http", "u", null]);
+  });
+
+  it("createMcpServer: không truyền auth_token → lưu null", async () => {
+    pool.query.mockResolvedValue({ rows: [{ id: "srv-1" }] });
+    await repo.createMcpServer(userA, {
+      name: "n",
+      transport: "http",
+      url: "u",
+    });
+
+    const [, params] = pool.query.mock.calls[0];
+    expect(params).toEqual([userA, "n", "http", "u", null]);
   });
 
   it("updateMcpServer: UPDATE ... WHERE id = $x AND user_id = $x+1 (2 tham số cuối là id, userId gọi)", async () => {
@@ -75,6 +105,46 @@ describe("UsersRepository — MCP servers", () => {
     const [sql, params] = pool.query.mock.calls[0];
     expect(sql).toContain("WHERE id = $1 AND user_id = $2");
     expect(params).toEqual(["srv-1", userA]);
+  });
+
+  // ── Semantics auth_token khi PATCH: "" = xoá, undefined = giữ nguyên ──
+
+  it("updateMcpServer: auth_token = '' (chuỗi rỗng) → set NULL (XOÁ token)", async () => {
+    pool.query.mockResolvedValue({ rows: [] });
+    await repo.updateMcpServer(userA, "srv-1", { auth_token: "" });
+
+    const [sql, params] = pool.query.mock.calls[0];
+    expect(sql).toContain("auth_token = $1");
+    expect(params[0]).toBeNull();
+  });
+
+  it("updateMcpServer: auth_token không được truyền (undefined) và chỉ update field khác → KHÔNG động tới cột auth_token (giữ nguyên token cũ)", async () => {
+    pool.query.mockResolvedValue({ rows: [] });
+    await repo.updateMcpServer(userA, "srv-1", { enabled: false });
+
+    const [sql] = pool.query.mock.calls[0];
+    // Câu SQL luôn liệt kê auth_token trong RETURNING (đọc lại dòng đầy đủ),
+    // nên phải assert cụ thể mệnh đề SET không gán cột này — không phải toàn
+    // bộ câu SQL không chứa chuỗi "auth_token" (sẽ luôn false-negative).
+    expect(sql).not.toContain("auth_token =");
+  });
+
+  it("updateMcpServer: auth_token = chuỗi thật → set giá trị mới", async () => {
+    pool.query.mockResolvedValue({ rows: [] });
+    await repo.updateMcpServer(userA, "srv-1", { auth_token: "new-token" });
+
+    const [sql, params] = pool.query.mock.calls[0];
+    expect(sql).toContain("auth_token = $1");
+    expect(params[0]).toBe("new-token");
+  });
+
+  it("updateMcpServer: cho phép đổi transport", async () => {
+    pool.query.mockResolvedValue({ rows: [] });
+    await repo.updateMcpServer(userA, "srv-1", { transport: "sse" });
+
+    const [sql, params] = pool.query.mock.calls[0];
+    expect(sql).toContain("transport = $1");
+    expect(params[0]).toBe("sse");
   });
 
   it("deleteMcpServer: DELETE ... WHERE id = $1 AND user_id = $2 (userId của người gọi, không phải từ input khác)", async () => {
