@@ -513,8 +513,7 @@ export const ChatPage: React.FC = () => {
       // nếu không dọn, card tool hiển thị "Đang thực thi N công cụ..." kèm
       // spinner VĨNH VIỄN dù đã dừng từ lâu.
       updateMeta(assistantIndex, (prev) => {
-        if (!prev.toolCalls.some((tc) => tc.status === "running"))
-          return prev;
+        if (!prev.toolCalls.some((tc) => tc.status === "running")) return prev;
         return {
           ...prev,
           toolCalls: prev.toolCalls.map((tc) =>

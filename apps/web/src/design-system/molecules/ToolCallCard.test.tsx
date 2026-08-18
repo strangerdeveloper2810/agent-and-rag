@@ -41,9 +41,7 @@ describe("ToolCallGroup", () => {
   it("shows English header + tool meta when locale is en", async () => {
     await i18n.changeLanguage("en");
     renderGroup();
-    expect(
-      screen.getByText("Completed 1 execution steps"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Completed 1 execution steps")).toBeInTheDocument();
 
     await userEvent.click(
       screen.getByRole("button", { name: "Tool call list" }),

@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { LANGUAGE_STORAGE_KEY, getInitialLocale, persistLocale } from "./locale";
+import {
+  LANGUAGE_STORAGE_KEY,
+  getInitialLocale,
+  persistLocale,
+} from "./locale";
 
 describe("getInitialLocale", () => {
   const originalLanguage = window.navigator.language;

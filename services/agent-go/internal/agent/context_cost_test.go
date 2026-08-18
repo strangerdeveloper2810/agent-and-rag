@@ -24,7 +24,7 @@ func sampleSummaries(n int) []skills.SkillSummary {
 // model không tham gia — xem comment ở buildSkillCatalogue.
 func TestBuildSystemPrompt_KhongGuiDescriptionCuaSkill(t *testing.T) {
 	summaries := sampleSummaries(30)
-	prompt := BuildSystemPrompt(nil, summaries)
+	prompt := BuildSystemPrompt(nil, summaries, "vi")
 
 	if strings.Contains(prompt, "mô tả dài dòng") {
 		t.Error("description của skill vẫn được gửi — tốn token mỗi request mà model không dùng để chọn skill")
@@ -54,7 +54,7 @@ func TestBuildSkillCatalogue_GomNhieuTenTrenMotDong(t *testing.T) {
 }
 
 func TestBuildSkillCatalogue_RongThiKhongCoMuc(t *testing.T) {
-	prompt := BuildSystemPrompt(nil, nil)
+	prompt := BuildSystemPrompt(nil, nil, "vi")
 	if strings.Contains(prompt, "[KỸ NĂNG]") {
 		t.Error("không có skill nào thì không được in mục [KỸ NĂNG] rỗng")
 	}
@@ -64,8 +64,8 @@ func TestBuildSkillCatalogue_RongThiKhongCoMuc(t *testing.T) {
 // Trước khi sửa, cùng bộ 30 skill này chiếm hơn 3.000 rune (~1.100 token).
 func TestBuildSystemPrompt_ChiPhiDanhSachSkillBiChanTran(t *testing.T) {
 	summaries := sampleSummaries(30)
-	withSkills := len([]rune(BuildSystemPrompt(nil, summaries)))
-	without := len([]rune(BuildSystemPrompt(nil, nil)))
+	withSkills := len([]rune(BuildSystemPrompt(nil, summaries, "vi")))
+	without := len([]rune(BuildSystemPrompt(nil, nil, "vi")))
 
 	cost := withSkills - without
 	const maxCost = 450 // gồm cả header của mục

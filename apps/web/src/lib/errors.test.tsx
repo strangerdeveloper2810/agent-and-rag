@@ -35,18 +35,26 @@ describe("translateApiError", () => {
       new ApiError(401, "raw backend message", "UNAUTHORIZED"),
       "fallback",
     );
-    expect(await screen.findByText("Email hoặc mật khẩu không đúng.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Email hoặc mật khẩu không đúng."),
+    ).toBeInTheDocument();
     vi_.unmount();
 
     await i18n.changeLanguage("en");
-    renderProbe(new ApiError(401, "raw backend message", "UNAUTHORIZED"), "fallback");
+    renderProbe(
+      new ApiError(401, "raw backend message", "UNAUTHORIZED"),
+      "fallback",
+    );
     expect(
       await screen.findByText("Incorrect email or password."),
     ).toBeInTheDocument();
   });
 
   it("falls back to the provided string when the code is unknown", () => {
-    renderProbe(new ApiError(400, "raw", "SOME_UNMAPPED_CODE"), "Trang chủ fallback");
+    renderProbe(
+      new ApiError(400, "raw", "SOME_UNMAPPED_CODE"),
+      "Trang chủ fallback",
+    );
     expect(screen.getByText("Trang chủ fallback")).toBeInTheDocument();
   });
 
@@ -56,18 +64,21 @@ describe("translateApiError", () => {
   });
 
   it("never surfaces the raw backend message", () => {
-    renderProbe(new ApiError(500, "raw backend message", "INTERNAL"), "fallback");
+    renderProbe(
+      new ApiError(500, "raw backend message", "INTERNAL"),
+      "fallback",
+    );
     expect(screen.queryByText("raw backend message")).not.toBeInTheDocument();
   });
 
   it("supports interpolation values together with the error code", async () => {
-    renderProbe(
-      new ApiError(429, "raw", "RATE_LIMITED"),
-      "fallback",
-      { seconds: 42 },
-    );
+    renderProbe(new ApiError(429, "raw", "RATE_LIMITED"), "fallback", {
+      seconds: 42,
+    });
     expect(
-      await screen.findByText("Quá nhiều yêu cầu. Vui lòng thử lại sau 42 giây."),
+      await screen.findByText(
+        "Quá nhiều yêu cầu. Vui lòng thử lại sau 42 giây.",
+      ),
     ).toBeInTheDocument();
   });
 });

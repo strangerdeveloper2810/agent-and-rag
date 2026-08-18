@@ -144,9 +144,7 @@ export const Composer: React.FC<{
       setIsRecording(true);
       toast.info(t("composer.voice.listening"));
       setTimeout(() => {
-        onChange(
-          (value ? `${value} ` : "") + t("composer.voice.sampleText"),
-        );
+        onChange((value ? `${value} ` : "") + t("composer.voice.sampleText"));
         setIsRecording(false);
         toast.success(t("composer.voice.transcribed"));
       }, 3000);
@@ -256,9 +254,7 @@ export const Composer: React.FC<{
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
             </span>
-            <span>
-              {t("composer.stopPill", { seconds: elapsedSeconds })}
-            </span>
+            <span>{t("composer.stopPill", { seconds: elapsedSeconds })}</span>
             <span className="h-3 border-r border-border mx-1" />
             <XMarkIcon className="h-3.5 w-3.5" />
             <span className="font-bold">{t("composer.stop")}</span>

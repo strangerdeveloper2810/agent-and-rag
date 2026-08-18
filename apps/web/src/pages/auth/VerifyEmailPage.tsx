@@ -38,7 +38,10 @@ export const VerifyEmailPage: React.FC = () => {
   const { verifyEmail, resendOtp, isLoading } = useAuthStore();
   const toast = useToast();
   const { t } = useTranslation("auth");
-  useDocumentTitle(t("verifyEmail.pageTitle"), t("verifyEmail.pageDescription"));
+  useDocumentTitle(
+    t("verifyEmail.pageTitle"),
+    t("verifyEmail.pageDescription"),
+  );
 
   const [cooldown, setCooldown] = useState(COOLDOWN_SECONDS);
   const [resending, setResending] = useState(false);

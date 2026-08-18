@@ -56,9 +56,7 @@ describe("MessageBubble", () => {
 
     // Error banner
     expect(
-      screen.getByText(
-        "Phản hồi gặp sự cố hoặc quá trình xử lý bị gián đoạn.",
-      ),
+      screen.getByText("Phản hồi gặp sự cố hoặc quá trình xử lý bị gián đoạn."),
     ).toBeInTheDocument();
     expect(screen.getByText("Thử lại ngay")).toBeInTheDocument();
 
@@ -67,7 +65,9 @@ describe("MessageBubble", () => {
       screen.getByText("Câu trả lời bị cắt do chạm giới hạn độ dài tối đa."),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Yêu cầu agent viết tiếp câu trả lời" }),
+      screen.getByRole("button", {
+        name: "Yêu cầu agent viết tiếp câu trả lời",
+      }),
     ).toBeInTheDocument();
     expect(screen.getByText("Tiếp tục")).toBeInTheDocument();
 
@@ -84,7 +84,9 @@ describe("MessageBubble", () => {
       screen.getByRole("button", { name: "Tạo lại câu trả lời" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Tạo lại")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Hài lòng" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Hài lòng" }),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Chưa hài lòng" }),
     ).toBeInTheDocument();
@@ -118,7 +120,9 @@ describe("MessageBubble", () => {
     expect(screen.getByText("Retry now")).toBeInTheDocument();
 
     expect(
-      screen.getByText("The response was cut off due to the maximum length limit."),
+      screen.getByText(
+        "The response was cut off due to the maximum length limit.",
+      ),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", {
@@ -139,7 +143,9 @@ describe("MessageBubble", () => {
       screen.getByRole("button", { name: "Regenerate the response" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Regenerate")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Satisfied" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Satisfied" }),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Not satisfied" }),
     ).toBeInTheDocument();

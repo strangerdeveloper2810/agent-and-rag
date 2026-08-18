@@ -50,9 +50,7 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
     icon: meta.icon,
     label: t(`modeSelector.modes.${meta.id}.label`),
     desc: t(`modeSelector.modes.${meta.id}.desc`),
-    badge: meta.hasBadge
-      ? t(`modeSelector.modes.${meta.id}.badge`)
-      : undefined,
+    badge: meta.hasBadge ? t(`modeSelector.modes.${meta.id}.badge`) : undefined,
   }));
 
   const activeOption =

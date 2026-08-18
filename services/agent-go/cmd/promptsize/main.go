@@ -46,10 +46,10 @@ func main() {
 	summaries := loader.ListSkills()
 
 	fmt.Printf("\n═══ Thành phần system prompt ═══\n")
-	base := agent.BuildSystemPrompt(nil, summaries)
+	base := agent.BuildSystemPrompt(nil, summaries, "vi")
 	line(fmt.Sprintf("base prompt + %d skill summary", len(summaries)), len(base))
 
-	bare := agent.BuildSystemPrompt(nil, nil)
+	bare := agent.BuildSystemPrompt(nil, nil, "vi")
 	line("chỉ base prompt (không skill list)", len(bare))
 	line("phần skill summary", len(base)-len(bare))
 

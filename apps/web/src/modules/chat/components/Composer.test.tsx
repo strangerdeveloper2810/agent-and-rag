@@ -31,7 +31,9 @@ describe("Composer", () => {
     const { container } = renderComposer(true);
 
     expect(
-      screen.getByPlaceholderText("Hỏi J.A.R.V.I.S... (gõ / để xem lệnh nhanh)"),
+      screen.getByPlaceholderText(
+        "Hỏi J.A.R.V.I.S... (gõ / để xem lệnh nhanh)",
+      ),
     ).toBeInTheDocument();
     expect(
       screen.getByText(/J\.A\.R\.V\.I\.S\. đang suy luận \(0s\)\.\.\./),

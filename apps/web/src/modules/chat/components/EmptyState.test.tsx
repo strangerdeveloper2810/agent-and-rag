@@ -23,7 +23,9 @@ describe("EmptyState", () => {
       screen.getByText("Tôi có thể giúp gì cho bạn hôm nay?"),
     ).toBeInTheDocument();
     expect(screen.getByText("Ý tưởng & Kế hoạch")).toBeInTheDocument();
-    expect(screen.getByTitle("Đổi bộ gợi ý ngẫu nhiên mới")).toBeInTheDocument();
+    expect(
+      screen.getByTitle("Đổi bộ gợi ý ngẫu nhiên mới"),
+    ).toBeInTheDocument();
 
     expect(
       await screen.findByText("GỢI Ý TỰ ĐỘNG TỪ AI AGENT"),
@@ -34,9 +36,7 @@ describe("EmptyState", () => {
     await i18n.changeLanguage("en");
     renderEmptyState();
 
-    expect(
-      screen.getByText("How can I help you today?"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("How can I help you today?")).toBeInTheDocument();
     expect(screen.getByText("Ideas & Planning")).toBeInTheDocument();
     expect(screen.getByTitle("Refresh random suggestions")).toBeInTheDocument();
 

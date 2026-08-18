@@ -4,7 +4,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "@/i18n";
 import { ConfirmDialog } from "./ConfirmDialog";
 
-const renderDialog = (props: Partial<React.ComponentProps<typeof ConfirmDialog>> = {}) =>
+const renderDialog = (
+  props: Partial<React.ComponentProps<typeof ConfirmDialog>> = {},
+) =>
   render(
     <I18nextProvider i18n={i18n}>
       <ConfirmDialog
@@ -25,7 +27,9 @@ describe("ConfirmDialog", () => {
   it("falls back to translated Vietnamese confirm/cancel labels when none are provided", () => {
     renderDialog();
     expect(screen.getByRole("button", { name: "Hủy" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Xác nhận" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Xác nhận" }),
+    ).toBeInTheDocument();
   });
 
   it("falls back to translated English confirm/cancel labels when none are provided", async () => {

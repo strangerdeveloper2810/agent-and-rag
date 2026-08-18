@@ -87,9 +87,10 @@ describe("Sidebar", () => {
     expect(
       screen.getByRole("button", { name: "Xóa cuộc trò chuyện" }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Đăng xuất" }),
-    ).toHaveAttribute("title", "Đăng xuất tài khoản");
+    expect(screen.getByRole("button", { name: "Đăng xuất" })).toHaveAttribute(
+      "title",
+      "Đăng xuất tài khoản",
+    );
     expect(screen.getByText("Hôm nay")).toBeInTheDocument();
   });
 
@@ -110,9 +111,10 @@ describe("Sidebar", () => {
     expect(
       screen.getByRole("button", { name: "Delete conversation" }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Log out" }),
-    ).toHaveAttribute("title", "Log out of account");
+    expect(screen.getByRole("button", { name: "Log out" })).toHaveAttribute(
+      "title",
+      "Log out of account",
+    );
     expect(screen.getByText("Today")).toBeInTheDocument();
   });
 
@@ -193,9 +195,7 @@ describe("Sidebar", () => {
     await user.click(screen.getByRole("button", { name: "Đăng xuất" }));
 
     await waitFor(() =>
-      expect(toastApi.success).toHaveBeenCalledWith(
-        "Đã đăng xuất thành công!",
-      ),
+      expect(toastApi.success).toHaveBeenCalledWith("Đã đăng xuất thành công!"),
     );
   });
 

@@ -4,7 +4,11 @@ import { I18nextProvider } from "react-i18next";
 import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import i18n from "@/i18n";
 import { ToastProvider } from "@/design-system/molecules/Toast";
-import type { DocumentInfo, DocumentVersion, VersionContent } from "@app/api-client";
+import type {
+  DocumentInfo,
+  DocumentVersion,
+  VersionContent,
+} from "@app/api-client";
 import { DocumentsView } from "./DocumentsView";
 
 vi.mock("@/modules/documents/documents.api", () => ({
@@ -73,9 +77,7 @@ describe("DocumentsView", () => {
   it("renders translated header, subtitle, metrics and empty state in Vietnamese", async () => {
     renderView();
 
-    expect(
-      await screen.findByText("Cơ Sở Tri Thức (RAG)"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Cơ Sở Tri Thức (RAG)")).toBeInTheDocument();
     expect(
       screen.getByText(
         "Tải tài liệu lên để nâng cao khả năng tìm kiếm vector của J.A.R.V.I.S.",
@@ -103,9 +105,7 @@ describe("DocumentsView", () => {
     await i18n.changeLanguage("en");
     renderView();
 
-    expect(
-      await screen.findByText("Knowledge Base (RAG)"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Knowledge Base (RAG)")).toBeInTheDocument();
     expect(
       screen.getByText(
         "Upload documents to boost J.A.R.V.I.S. vector search capabilities.",

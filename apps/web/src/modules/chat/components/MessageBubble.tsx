@@ -424,9 +424,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               {copied ? (
                 <>
                   <CheckIcon className="h-3.5 w-3.5 text-emerald-400" />
-                  <span className="text-emerald-400">
-                    {t("common:copied")}
-                  </span>
+                  <span className="text-emerald-400">{t("common:copied")}</span>
                 </>
               ) : (
                 <>

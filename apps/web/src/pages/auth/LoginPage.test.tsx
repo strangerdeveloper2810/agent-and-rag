@@ -44,9 +44,7 @@ describe("LoginPage", () => {
         name: "Đăng nhập nhanh với tài khoản Demo",
       }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByPlaceholderText("name@company.com"),
-    ).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("name@company.com")).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: /Đăng ký ngay/ }),
     ).toBeInTheDocument();
@@ -58,9 +56,7 @@ describe("LoginPage", () => {
     expect(
       screen.getByRole("button", { name: "Quick sign-in with Demo account" }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByPlaceholderText("name@company.com"),
-    ).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("name@company.com")).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: /Sign up now/ }),
     ).toBeInTheDocument();

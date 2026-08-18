@@ -30,9 +30,7 @@ describe("ErrorBoundary", () => {
   it("shows the Vietnamese fallback UI", () => {
     renderBoundary();
     expect(screen.getByText("Đã xảy ra lỗi")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Thử lại" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Thử lại" })).toBeInTheDocument();
   });
 
   it("shows the English fallback UI", async () => {

@@ -6,9 +6,7 @@ import { ToastProvider, useToast } from "./Toast";
 
 const Trigger: React.FC = () => {
   const toast = useToast();
-  return (
-    <button onClick={() => toast.info("hello")}>fire</button>
-  );
+  return <button onClick={() => toast.info("hello")}>fire</button>;
 };
 
 const renderToast = () =>

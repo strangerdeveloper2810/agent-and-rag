@@ -43,14 +43,22 @@ const checkPasswordStrength = (pass: string, t: TFunction<"auth">) => {
   if (/[^A-Za-z0-9]/.test(pass)) score++;
 
   if (score <= 1)
-    return { score: 1, label: t("register.passwordStrength.weak"), color: "#f87171" };
+    return {
+      score: 1,
+      label: t("register.passwordStrength.weak"),
+      color: "#f87171",
+    };
   if (score === 2 || score === 3)
     return {
       score: 2,
       label: t("register.passwordStrength.medium"),
       color: "#fbbf24",
     };
-  return { score: 3, label: t("register.passwordStrength.strong"), color: "#34d399" };
+  return {
+    score: 3,
+    label: t("register.passwordStrength.strong"),
+    color: "#34d399",
+  };
 };
 
 export const RegisterPage: React.FC = () => {
@@ -108,9 +116,7 @@ export const RegisterPage: React.FC = () => {
               <CardTitle className="text-2xl font-bold">
                 {t("register.cardTitle")}
               </CardTitle>
-              <CardDescription>
-                {t("register.cardDescription")}
-              </CardDescription>
+              <CardDescription>{t("register.cardDescription")}</CardDescription>
             </CardHeader>
 
             <CardContent>
