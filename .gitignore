@@ -5,6 +5,10 @@ dist
 *-credentials.env
 # Cho phép env dev (safe defaults) — file production env/.env vẫn bị ignore
 !env/.env.development
+# Seed local cho deploy/deploy-to-vps.sh — chứa API key thật + secret hạ tầng
+# đã sinh, KHÔNG BAO GIỜ commit (xem deploy/README.md).
+env/.env.production
+env/.env.production.secrets
 .turbo
 *.log
 .DS_Store

@@ -11,8 +11,11 @@ services:
     image: postgres:17-alpine
     container_name: jarvis-postgres
     restart: unless-stopped
-    ports:
-      - "5432:5432"
+    # Không publish port ra host: chỉ service khác trong compose (api) cần nối
+    # tới, qua network `jarvis` nội bộ là đủ. Tránh publish "5432:5432" trên
+    # VPS dùng chung — Docker tự chèn rule iptables CÓ THỂ đi vòng qua UFW,
+    # lộ DB ra internet dù UFW không cho phép port đó (lỗ hổng Docker+UFW đã
+    # biết); cũng tránh đụng port với service khác trên cùng VPS.
     env_file:
       - ../../env/.env
     volumes:
@@ -31,8 +34,7 @@ services:
     image: redis:7-alpine
     container_name: jarvis-redis
     restart: unless-stopped
-    ports:
-      - "6379:6379"
+    # Không publish port ra host — xem giải thích ở service postgres.
     volumes:
       - redis_data:/data
     healthcheck:
@@ -49,9 +51,9 @@ services:
     image: minio/minio:latest
     container_name: jarvis-minio
     restart: unless-stopped
-    ports:
-      - "9000:9000"
-      - "9001:9001"
+    # Không publish port ra host. Cần vào console quản trị (9001) thì SSH
+    # tunnel tạm: `ssh -L 9001:localhost:9001 hr-vps` rồi mở localhost:9001 —
+    # an toàn hơn mở vĩnh viễn ra internet trên VPS dùng chung.
     env_file:
       - ../../env/.env
     volumes:
@@ -74,8 +76,8 @@ services:
     image: jarvis-agent-go:latest
     container_name: jarvis-agent-go
     restart: unless-stopped
-    ports:
-      - "3002:3002"
+    # Không publish port ra host — chỉ `api` và `web` (qua /suggestions) gọi
+    # tới nội bộ qua network `jarvis`, không cần truy cập trực tiếp từ ngoài.
     env_file:
       - ../../env/.env
     environment:
@@ -101,8 +103,8 @@ services:
     image: jarvis-api:latest
     container_name: jarvis-api
     restart: unless-stopped
-    ports:
-      - "3001:3001"
+    # Không publish port ra host — `web` (nginx trong container) đã proxy
+    # /api/ tới api:3001 nội bộ qua network `jarvis` (xem apps/web/nginx.conf).
     env_file:
       - ../../env/.env
     environment:
@@ -135,8 +137,10 @@ services:
     image: jarvis-web:latest
     container_name: jarvis-web
     restart: unless-stopped
+    # 80/443 đã bị chiếm bởi hr-nginx (VPS dùng chung) — dùng port riêng.
+    # Đổi qua env WEB_HOST_PORT nếu VPS khác cần port khác.
     ports:
-      - "80:80"
+      - "${WEB_HOST_PORT:-8090}:80"
     depends_on:
       - api
     networks:

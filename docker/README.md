@@ -35,44 +35,66 @@ pnpm docker:dev:down
 
 ## Deployment (production)
 
-Full stack: PostgreSQL + Redis + Go Agent + API BFF + Frontend.
+Full stack: PostgreSQL + Redis + MinIO + Go Agent + API BFF + Frontend.
+
+### Deploy lên VPS (khuyến nghị — script tự động)
+
+```bash
+# 1 lần duy nhất trên VPS (Docker đã cài sẵn):
+scp deploy/setup-vps.sh your-vps:/tmp/ && ssh your-vps sudo bash /tmp/setup-vps.sh
+
+# Từ máy local, mỗi lần deploy:
+./deploy/deploy-to-vps.sh
+```
+
+`deploy-to-vps.sh` tự rsync code (không cần VPS có quyền pull GitHub riêng),
+ghép `env/.env.production` (bạn tự điền, KHÔNG commit git) với secret hạ tầng
+tự sinh 1 lần, rồi build + `up -d` từ xa qua SSH. Xem chi tiết + biến môi
+trường (`JARVIS_SSH_HOST`, `WEB_HOST_PORT`) trong header của script.
+
+**Chỉ `web` được publish port ra host** (mặc định `8090`, đổi qua
+`WEB_HOST_PORT` nếu VPS dùng chung với app khác đã chiếm port đó) —
+postgres/redis/minio/agent-go/api chỉ giao tiếp NỘI BỘ qua Docker network,
+không publish ra host (tránh lộ ra internet trên VPS dùng chung, và tránh
+đụng port với service khác — xem comment trong `docker-compose.yml`).
+
+### Chạy thủ công (VPS riêng, không dùng chung)
 
 ```bash
 # 1. Tạo env file từ template
 cp env/.env.example env/.env
 # → Sửa giá trị thật trong env/.env
 
-# 2. Build & start
-pnpm docker:up
-
-# Hoặc thủ công:
-docker compose -f docker/deployment/docker-compose.yml up -d --build
+# 2. Build & start (đổi port web nếu 80 đã bị chiếm)
+WEB_HOST_PORT=80 docker compose -f docker/deployment/docker-compose.yml up -d --build
 
 # View logs
 docker compose -f docker/deployment/docker-compose.yml logs -f
 
 # Stop
-pnpm docker:down
+docker compose -f docker/deployment/docker-compose.yml down
 ```
 
-| Service | Port | Image | Size |
+| Service | Port ra host | Image | Size |
 |---|---|---|---|
-| **postgres** | 5432 | postgres:17-alpine | ~10MB |
-| **redis** | 6379 | redis:7-alpine | ~10MB |
-| **agent-go** (Go engine) | 3002 | jarvis-agent-go | ~12MB |
-| **api** (Fastify/TS BFF) | 3001 | jarvis-api | ~200MB |
-| **web** (nginx + React) | 80 | jarvis-web | ~30MB |
+| **postgres** | *(nội bộ, không publish)* | postgres:17-alpine | ~10MB |
+| **redis** | *(nội bộ, không publish)* | redis:7-alpine | ~10MB |
+| **minio** | *(nội bộ, không publish)* | minio/minio | — |
+| **agent-go** (Go engine) | *(nội bộ, không publish)* | jarvis-agent-go | ~12MB |
+| **api** (Fastify/TS BFF) | *(nội bộ, không publish)* | jarvis-api | ~200MB |
+| **web** (nginx + React) | `${WEB_HOST_PORT:-8090}` | jarvis-web | ~30MB |
 
 ## Architecture (deployment)
 
 ```
-Browser :80 → nginx (React SPA)
-              ├── /api/* → api:3001 (SSE proxy → agent-go:3002)
-              └── /suggestions → agent-go:3002
+Browser :${WEB_HOST_PORT} → nginx (React SPA, trong container web)
+              ├── /api/* → api:3001 (SSE proxy → agent-go:3002, network nội bộ)
+              └── /suggestions → agent-go:3002 (network nội bộ)
 
-api:3001 → postgres:5432 (auth data)
-         → redis:6379 (cache + rate limit)
-         → MongoDB Atlas (AI data: chat, documents, tasks)
+api:3001 → postgres:5432 (network nội bộ — auth data)
+         → redis:6379 (network nội bộ — cache + rate limit)
+         → minio:9000 (network nội bộ — object storage)
+         → MongoDB Atlas (AI data: chat, documents, tasks — không phải container)
 ```
 
 ## Volumes
