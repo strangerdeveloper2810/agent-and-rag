@@ -5,6 +5,7 @@ import {
   createConversation,
   getMessages,
   streamChat,
+  streamContinue,
   type Message,
   type ChatEvent,
   type ToolCallState,
@@ -31,9 +32,6 @@ export type MessageMeta = {
   /** true khi câu trả lời bị cắt vì chạm giới hạn output token. */
   truncated: boolean;
 };
-
-/** Prompt gửi khi user bấm "Tiếp tục" trên một câu trả lời bị cắt. */
-const CONTINUE_PROMPT = "Tiếp tục câu trả lời từ chỗ bị cắt.";
 
 /** Trạng thái gợi ý bắt đầu chat mới khi context đã lớn (Tier 4). */
 export type ContextWarning = { tokens: number; budget: number };
@@ -236,6 +234,137 @@ export const ChatPage: React.FC = () => {
     [],
   );
 
+  // Xử lý 1 ChatEvent từ stream, cập nhật messages[assistantIndex] + meta
+  // tương ứng. Tách riêng khỏi send()/handleContinue để 2 luồng (gửi tin nhắn
+  // mới vs tiếp tục câu trả lời bị cắt) dùng chung ĐÚNG 1 logic — tránh lệch
+  // hành vi khi sau này sửa 1 trong 2 chỗ mà quên chỗ còn lại.
+  const handleStreamEvent = useCallback(
+    (e: ChatEvent, assistantIndex: number) => {
+      switch (e.type) {
+        case "step":
+          break;
+        case "text":
+          setMessages((m) => appendToAssistant(m, e.text ?? ""));
+          break;
+        case "tool_start":
+          updateMeta(assistantIndex, (prev) => ({
+            ...prev,
+            toolCalls: [
+              ...prev.toolCalls,
+              { name: e.name ?? "unknown", status: "running" },
+            ],
+          }));
+          break;
+        case "tool_end":
+          updateMeta(assistantIndex, (prev) => {
+            const tools = [...prev.toolCalls];
+            let idx = -1;
+            for (let i = tools.length - 1; i >= 0; i--) {
+              if (
+                tools[i].name === e.name &&
+                tools[i].status === "running"
+              ) {
+                idx = i;
+                break;
+              }
+            }
+            if (idx >= 0) {
+              tools[idx] = {
+                ...tools[idx],
+                status: e.message ? "error" : "done",
+                result: e.message ? undefined : (e.text ?? "Completed"),
+                error: e.message,
+              };
+            }
+            return { ...prev, toolCalls: tools };
+          });
+          break;
+        case "citation":
+          try {
+            const citations: CitationData[] = e.text
+              ? JSON.parse(e.text)
+              : [];
+            updateMeta(assistantIndex, (prev) => ({
+              ...prev,
+              citations,
+            }));
+          } catch {
+            // ignore
+          }
+          break;
+        case "memory":
+          break;
+        case "agent":
+          updateMeta(assistantIndex, (prev) => ({
+            ...prev,
+            agent: e.name ?? null,
+          }));
+          break;
+        case "interrupt":
+          // Guardrails chặn một tool destructive (vd shell.exec). Phần giải
+          // thích chi tiết do Go gửi qua event text nên đã nằm trong nội
+          // dung câu trả lời; ở đây chỉ báo nổi cho user biết vì sao agent
+          // dừng giữa đường.
+          toast.warning(
+            `Đã dừng: công cụ "${e.name ?? "không rõ"}" cần được xác nhận trước khi chạy.`,
+          );
+          break;
+        case "error":
+          toast.error(
+            "Đang có sự cố với dịch vụ AI, chúng tôi sẽ khắc phục trong giây lát. Vui lòng thử lại.",
+          );
+          userScrolledUpRef.current = false;
+          break;
+        case "usage":
+          // Go phát usage sau MỖI lần gọi LLM, với Usage là số của RIÊNG
+          // bước đó → cộng dồn để ra tổng cả lượt.
+          if (e.usage) {
+            updateMeta(assistantIndex, (prev) => ({
+              ...prev,
+              usage: {
+                inputTokens:
+                  (prev.usage?.inputTokens ?? 0) + e.usage!.inputTokens,
+                outputTokens:
+                  (prev.usage?.outputTokens ?? 0) + e.usage!.outputTokens,
+              },
+            }));
+          }
+          break;
+        case "truncated":
+          updateMeta(assistantIndex, (prev) => ({
+            ...prev,
+            truncated: true,
+          }));
+          break;
+        case "done":
+          if (e.usage || e.truncated) {
+            updateMeta(assistantIndex, (prev) => ({
+              ...prev,
+              usage: e.usage ?? prev.usage,
+              truncated: prev.truncated || e.truncated === true,
+            }));
+          }
+          // Context lớn (Tier 4): Go gửi kích thước context ước tính ở cuối
+          // lượt + ngân sách qua event done. contextBudget=0/undefined nghĩa
+          // là MAX_CONTEXT_TOKENS chưa cấu hình (không giới hạn) — bỏ qua
+          // gợi ý trong trường hợp đó thay vì hiểu nhầm đã đầy.
+          if (
+            e.contextBudget &&
+            e.contextBudget > 0 &&
+            e.contextTokens !== undefined
+          ) {
+            setContextWarning(
+              e.contextTokens / e.contextBudget >= CONTEXT_WARNING_RATIO
+                ? { tokens: e.contextTokens, budget: e.contextBudget }
+                : null,
+            );
+          }
+          break;
+      }
+    },
+    [appendToAssistant, updateMeta, toast],
+  );
+
   useEffect(() => {
     if (!id) {
       if (!isCreatingNewConvRef.current) {
@@ -335,142 +464,7 @@ export const ChatPage: React.FC = () => {
         content,
         (e: ChatEvent) => {
           if (loadedIdRef.current !== convId) return;
-
-          switch (e.type) {
-            case "step":
-              break;
-            case "text":
-              setMessages((m) => appendToAssistant(m, e.text ?? ""));
-              break;
-            case "tool_start":
-              updateMeta(assistantIndex, (prev) => ({
-                ...prev,
-                toolCalls: [
-                  ...prev.toolCalls,
-                  { name: e.name ?? "unknown", status: "running" },
-                ],
-              }));
-              break;
-            case "tool_end":
-              updateMeta(assistantIndex, (prev) => {
-                const tools = [...prev.toolCalls];
-                let idx = -1;
-                for (let i = tools.length - 1; i >= 0; i--) {
-                  if (
-                    tools[i].name === e.name &&
-                    tools[i].status === "running"
-                  ) {
-                    idx = i;
-                    break;
-                  }
-                }
-                if (idx >= 0) {
-                  tools[idx] = {
-                    ...tools[idx],
-                    status: e.message ? "error" : "done",
-                    result: e.message ? undefined : (e.text ?? "Completed"),
-                    error: e.message,
-                  };
-                }
-                return { ...prev, toolCalls: tools };
-              });
-              break;
-            case "citation":
-              try {
-                const citations: CitationData[] = e.text
-                  ? JSON.parse(e.text)
-                  : [];
-                updateMeta(assistantIndex, (prev) => ({
-                  ...prev,
-                  citations,
-                }));
-              } catch {
-                // ignore
-              }
-              break;
-            case "memory":
-              break;
-            case "agent":
-              updateMeta(assistantIndex, (prev) => ({
-                ...prev,
-                agent: e.name ?? null,
-              }));
-              break;
-            case "interrupt":
-              // Guardrails chặn một tool destructive (vd shell.exec). Phần giải
-              // thích chi tiết do Go gửi qua event text nên đã nằm trong nội
-              // dung câu trả lời; ở đây chỉ báo nổi cho user biết vì sao agent
-              // dừng giữa đường. Trước đây case này rỗng nên user không có
-              // manh mối nào.
-              toast.warning(
-                `Đã dừng: công cụ "${e.name ?? "không rõ"}" cần được xác nhận trước khi chạy.`,
-              );
-              break;
-            case "error":
-              setMessages((m) => {
-                if (m.length > 0 && m[m.length - 1].role === "assistant") {
-                  const copy = [...m];
-                  copy[copy.length - 1] = {
-                    ...copy[copy.length - 1],
-                    content: copy[copy.length - 1].content,
-                  };
-                  return copy;
-                }
-                return m;
-              });
-              toast.error(
-                "Đang có sự cố với dịch vụ AI, chúng tôi sẽ khắc phục trong giây lát. Vui lòng thử lại.",
-              );
-              userScrolledUpRef.current = false;
-              break;
-            case "usage":
-              // Go phát usage sau MỖI lần gọi LLM, với Usage là số của RIÊNG
-              // bước đó → cộng dồn để ra tổng cả lượt. Trước đây FE không hề
-              // xử lý event này (và BFF cũng drop nó), nên UsageFooter không
-              // bao giờ có số dù backend tính đúng.
-              if (e.usage) {
-                updateMeta(assistantIndex, (prev) => ({
-                  ...prev,
-                  usage: {
-                    inputTokens:
-                      (prev.usage?.inputTokens ?? 0) + e.usage!.inputTokens,
-                    outputTokens:
-                      (prev.usage?.outputTokens ?? 0) + e.usage!.outputTokens,
-                  },
-                }));
-              }
-              break;
-            case "truncated":
-              updateMeta(assistantIndex, (prev) => ({
-                ...prev,
-                truncated: true,
-              }));
-              break;
-            case "done":
-              if (e.usage || e.truncated) {
-                updateMeta(assistantIndex, (prev) => ({
-                  ...prev,
-                  usage: e.usage ?? prev.usage,
-                  truncated: prev.truncated || e.truncated === true,
-                }));
-              }
-              // Context lớn (Tier 4): Go gửi kích thước context ước tính ở
-              // cuối lượt + ngân sách qua event done. contextBudget=0/undefined
-              // nghĩa là MAX_CONTEXT_TOKENS chưa cấu hình (không giới hạn) —
-              // bỏ qua gợi ý trong trường hợp đó thay vì hiểu nhầm đã đầy.
-              if (
-                e.contextBudget &&
-                e.contextBudget > 0 &&
-                e.contextTokens !== undefined
-              ) {
-                setContextWarning(
-                  e.contextTokens / e.contextBudget >= CONTEXT_WARNING_RATIO
-                    ? { tokens: e.contextTokens, budget: e.contextBudget }
-                    : null,
-                );
-              }
-              break;
-          }
+          handleStreamEvent(e, assistantIndex);
         },
         ctrl.signal,
         attachmentPayloads.length > 0 ? attachmentPayloads : undefined,
@@ -552,12 +546,61 @@ export const ChatPage: React.FC = () => {
     [streaming],
   );
 
-  // Câu trả lời bị cắt vì chạm giới hạn output token → gửi prompt yêu cầu
-  // agent viết tiếp (phần đã nhận vẫn nằm trong history nên agent có ngữ cảnh).
-  const handleContinue = useCallback(() => {
-    if (streaming) return;
-    send(CONTINUE_PROMPT);
-  }, [streaming]);
+  // Câu trả lời bị cắt vì chạm giới hạn output token → tiếp tục sinh thêm.
+  //
+  // Khác gửi tin nhắn thường (send()): KHÔNG tạo message user/assistant mới —
+  // nối text mới thẳng vào CUỐI message assistant đã có (dùng lại
+  // appendToAssistant, vốn luôn nối vào message cuối cùng trong mảng). Trước
+  // đây gọi send(CONTINUE_PROMPT) tạo ra 1 cặp user+assistant message HOÀN
+  // TOÀN MỚI, làm code/văn bản dài bị tách đôi — cả trên UI lẫn (quan trọng
+  // hơn) trong chính DB, nên F5 lại trang vẫn thấy tách đôi. Endpoint
+  // /continue (streamContinue) xử lý đúng ở phía BFF: không lưu user turn
+  // mới, nối response vào đúng document Mongo cũ.
+  const handleContinue = useCallback(async () => {
+    if (streaming || !id) return;
+
+    const assistantIndex = messages.length - 1;
+    if (assistantIndex < 0 || messages[assistantIndex]?.role !== "assistant") {
+      return;
+    }
+
+    setStreaming(true);
+    const ctrl = new AbortController();
+    streamCtrlRef.current = ctrl;
+
+    // Xoá cờ truncated ngay khi bắt đầu tiếp tục — event truncated/done sẽ tự
+    // set lại true nếu response mới cũng bị cắt.
+    updateMeta(assistantIndex, (prev) => ({ ...prev, truncated: false }));
+
+    try {
+      await streamContinue(
+        id,
+        (e: ChatEvent) => {
+          if (loadedIdRef.current !== id) return;
+          handleStreamEvent(e, assistantIndex);
+        },
+        ctrl.signal,
+      );
+    } catch (err) {
+      if ((err as Error)?.name !== "AbortError") {
+        toast.error("Không thể tiếp tục câu trả lời. Vui lòng thử lại.");
+      }
+    } finally {
+      streamCtrlRef.current = null;
+      setStreaming(false);
+      updateMeta(assistantIndex, (prev) => {
+        if (!prev.toolCalls.some((t) => t.status === "running")) return prev;
+        return {
+          ...prev,
+          toolCalls: prev.toolCalls.map((t) =>
+            t.status === "running"
+              ? { ...t, status: "error", error: "Đã dừng trước khi hoàn tất" }
+              : t,
+          ),
+        };
+      });
+    }
+  }, [streaming, id, messages, updateMeta, handleStreamEvent, toast]);
 
   const hasMessages = messages.length > 0;
 

@@ -108,3 +108,79 @@ export const postChat = async (req: FastifyRequest, reply: FastifyReply) => {
 
   if (!reply.raw.writableEnded) reply.raw.end();
 };
+
+/**
+ * Tiếp tục 1 câu trả lời assistant bị cắt vì chạm giới hạn output token, qua
+ * SSE giống postChat — nhưng KHÔNG nhận content/attachments (không phải 1
+ * user turn mới) và response được NỐI vào cuối message cũ (xem
+ * chatService.continueReply) thay vì tạo message mới, để lịch sử liền mạch
+ * cả sau khi F5 lại trang.
+ */
+export const postContinue = async (
+  req: FastifyRequest,
+  reply: FastifyReply,
+) => {
+  const { id } = req.params as { id: string };
+  const tenantId = (req as unknown as Record<string, unknown>).tenantId as
+    | string
+    | undefined;
+
+  const ac = new AbortController();
+
+  // continueReply validate sớm (throw BadRequestError nếu không có assistant
+  // message để tiếp tục) TRƯỚC khi hijack -> lỗi này vẫn trả HTTP JSON bình
+  // thường qua error handler chung, giống appendUserMessage ở postChat.
+  const { events, metadata } = await chatService.continueReply(
+    id,
+    ac.signal,
+    undefined,
+    tenantId,
+  );
+
+  reply.hijack();
+  req.raw.on("close", () => ac.abort());
+
+  reply.raw.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive",
+  });
+
+  const write = (payload: unknown) => {
+    if (!reply.raw.writableEnded) {
+      reply.raw.write(`data: ${JSON.stringify(payload)}\n\n`);
+    }
+  };
+
+  try {
+    for await (const ev of events) {
+      if (ev.type === "text") {
+        write({ token: ev.text });
+      } else if (ev.type === "done") {
+        // Controller tự gửi event done cuối cùng, giống postChat.
+      } else {
+        write(ev);
+      }
+    }
+
+    const meta = await metadata;
+    write({
+      done: true,
+      agent: meta.backend,
+      tokens: meta.tokensUsed,
+      truncated: meta.truncated,
+      contextTokens: meta.contextTokens,
+      contextBudget: meta.contextBudget,
+    });
+  } catch (err) {
+    if (!ac.signal.aborted) {
+      req.log.error(err);
+      write({
+        type: "error",
+        message: "Đã xảy ra lỗi khi tiếp tục câu trả lời.",
+      });
+    }
+  }
+
+  if (!reply.raw.writableEnded) reply.raw.end();
+};

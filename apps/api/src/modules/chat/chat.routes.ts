@@ -29,4 +29,13 @@ export const chatRoutes = async (app: FastifyInstance) => {
     },
     ctrl.postChat,
   );
+  // Tiếp tục câu trả lời bị cắt — cũng gọi LLM nên chung mức giới hạn với chat.
+  app.post(
+    "/conversations/:id/continue",
+    {
+      preHandler: [authGuard],
+      config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    },
+    ctrl.postContinue,
+  );
 };

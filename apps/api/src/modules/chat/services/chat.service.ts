@@ -3,6 +3,7 @@ import {
   listConversations as listConversationsRepo,
   getMessages as getMessagesRepo,
   addMessage,
+  appendToLastAssistantMessage,
   deleteConversation as deleteConversationRepo,
 } from "../repositories";
 import {
@@ -13,6 +14,7 @@ import type { AgentEvent } from "../../../agent/graph/index";
 import { config } from "../../../config";
 import type { MessageRole } from "../../../schemas/message";
 import { getChatCache, setChatCache } from "../../../common/cache/index";
+import { BadRequestError } from "../../../lib/errors";
 
 type ChatMessage = { role: MessageRole; content: string };
 
@@ -210,6 +212,107 @@ export async function streamReply(
         } catch {
           // Redis không khả dụng → bỏ qua
         }
+      }
+    }
+  }
+
+  return { events: generator(), metadata };
+}
+
+/**
+ * Instruction NỘI BỘ gửi cho agent khi tiếp tục 1 câu trả lời bị cắt — KHÔNG
+ * BAO GIỜ hiển thị cho user hay lưu vào DB (khác prompt "Tiếp tục..." cũ ở
+ * FE, vốn là 1 user message thật, tạo ra cặp user+assistant message MỚI).
+ * Vì response được NỐI TRỰC TIẾP vào cuối nội dung cũ
+ * (appendToLastAssistantMessage), model phải TUYỆT ĐỐI không thêm lời dẫn/
+ * tiêu đề/mở lại code fence — nếu không nội dung merge sẽ hỏng (đúng lỗi đã
+ * thấy trong log dev: model tự thêm "Dưới đây là phần tiếp theo:...").
+ */
+const CONTINUE_INSTRUCTION =
+  "Phản hồi trước của bạn bị cắt giữa chừng do chạm giới hạn độ dài. Hãy viết " +
+  "TIẾP TỤC từ CHÍNH XÁC vị trí bị cắt, sao cho khi nối trực tiếp vào cuối " +
+  "nội dung cũ (không thêm khoảng trắng hay xuống dòng thừa ở đầu) tạo thành " +
+  "1 văn bản liền mạch duy nhất. TUYỆT ĐỐI KHÔNG lặp lại nội dung đã có, " +
+  "KHÔNG thêm lời dẫn/tiêu đề/giải thích, KHÔNG mở lại dấu ``` nếu đang ở " +
+  "giữa 1 khối code — chỉ xuất ra phần nội dung tiếp theo thuần tuý.";
+
+/**
+ * Tiếp tục 1 câu trả lời assistant bị cắt vì chạm giới hạn output token.
+ *
+ * Khác streamReply: KHÔNG gọi appendUserMessage — không tạo user turn mới
+ * trong DB. Nếu chỉ ẩn bubble user ở FE mà vẫn lưu 2 message tách rời trong
+ * Mongo, F5 lại trang sẽ thấy văn bản/code dài bị TÁCH ĐÔI VĨNH VIỄN. Thay
+ * vào đó: CONTINUE_INSTRUCTION chỉ tồn tại TẠM THỜI trong request gửi agent
+ * (nối vào cuối history, không persist), và response được NỐI vào cuối
+ * assistant message cũ qua appendToLastAssistantMessage thay vì tạo message
+ * mới — đúng 1 message liền mạch trong DB, giống hệt những gì user thấy.
+ *
+ * Không dùng chat cache (khác streamReply): cache key dựa trên history+model,
+ * mà history ở đây luôn kết thúc bằng CONTINUE_INSTRUCTION cố định — cache
+ * gần như không bao giờ hit thật (mỗi lượt continue là tiếp nối 1 ngữ cảnh
+ * riêng biệt), thêm cache chỉ tăng phức tạp không lợi ích.
+ */
+export async function continueReply(
+  conversationId: string,
+  signal?: AbortSignal,
+  agent: AgentClient = defaultAgent,
+  tenantId?: string,
+): Promise<StreamResult> {
+  const raw = (await getMessagesRepo(
+    conversationId,
+  )) as unknown as ChatMessage[];
+
+  if (raw.length === 0 || raw[raw.length - 1].role !== "assistant") {
+    throw new BadRequestError(
+      "Không có câu trả lời nào để tiếp tục — hội thoại trống hoặc tin nhắn cuối không phải của assistant.",
+    );
+  }
+
+  const history = [
+    ...toAnthropicMessages(raw),
+    { role: "user" as const, content: CONTINUE_INSTRUCTION },
+  ];
+
+  let full = "";
+  let tokensUsed = 0;
+  let truncated = false;
+  let backend: string = config.AGENT_BACKEND;
+  let contextTokens: number | undefined;
+  let contextBudget: number | undefined;
+
+  let metadataResolve!: (meta: StreamMetadata) => void;
+  const metadata = new Promise<StreamMetadata>((resolve) => {
+    metadataResolve = resolve;
+  });
+
+  async function* generator(): AsyncGenerator<AgentEvent> {
+    try {
+      for await (const ev of agent.stream(history, { signal, tenantId })) {
+        if (ev.type === "text") full += ev.text;
+
+        if (ev.type === "truncated") truncated = true;
+
+        if (ev.type === "done") {
+          if (ev.agent) backend = ev.agent;
+          if (ev.tokens) tokensUsed = ev.tokens;
+          if (ev.truncated) truncated = true;
+          if (ev.contextTokens !== undefined) contextTokens = ev.contextTokens;
+          if (ev.contextBudget !== undefined) contextBudget = ev.contextBudget;
+        }
+
+        yield ev;
+      }
+    } finally {
+      metadataResolve({
+        backend,
+        tokensUsed,
+        truncated,
+        contextTokens,
+        contextBudget,
+      });
+
+      if (full.trim().length > 0) {
+        await appendToLastAssistantMessage(conversationId, full);
       }
     }
   }
