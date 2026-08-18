@@ -1,9 +1,5 @@
 # ── J.A.R.V.I.S. — Deployment Stack ──
-# Env vars: env/.env (copy từ env/.env.example và điền giá trị thật)
-#
-# Start: docker compose -f docker/deployment/docker-compose.yml up -d
-# Stop:  docker compose -f docker/deployment/docker-compose.yml down
-# Logs:  docker compose -f docker/deployment/docker-compose.yml logs -f
+name: jarvis
 
 services:
   # ── PostgreSQL (Auth DB: users, credentials, refresh tokens) ──
@@ -197,16 +193,22 @@ services:
 
 networks:
   jarvis:
-    driver: bridge
+    name: deployment_jarvis
+    external: true
 
 volumes:
   jarvis_data:
-    driver: local
+    name: deployment_jarvis_data
+    external: true
   pgdata:
-    driver: local
+    name: deployment_pgdata
+    external: true
   redis_data:
-    driver: local
+    name: deployment_redis_data
+    external: true
   minio_data:
-    driver: local
+    name: deployment_minio_data
+    external: true
   vlogs_data:
-    driver: local
+    name: deployment_vlogs_data
+    external: true
