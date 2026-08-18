@@ -5,33 +5,45 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"sync"
 
 	"github.com/ai-agent-tut/agent-go/internal/middleware"
 )
 
-// memoryStore is an in-memory key-value store shared across memory tools.
-// Each tenant has its own isolated namespace.
-type memoryStore struct {
-	mu   sync.RWMutex
-	data map[string]map[string]string // tenantID -> key -> value
+// memoryBackend là interface tối thiểu mà memory.save/recall/list cần.
+//
+// Trước đây 3 tool này dùng 1 kho riêng (globalMemoryStore, package-level var
+// trong file này), HOÀN TOÀN tách biệt với internal/memory.Store — kho mà
+// RecallNode/ExtractNode/Learner dùng để tự động bơm "[BỘ NHỚ]" vào system
+// prompt mỗi lượt. Hệ quả: model chủ động gọi memory.save để "nhớ giúp" 1
+// điều gì đó, nhưng lượt sau RecallNode không hề thấy nó — dữ liệu chỉ đọc
+// lại được nếu model TÌNH CỜ tự gọi memory.recall, không đáng tin cậy.
+//
+// Khai báo interface CỤC BỘ (thay vì import internal/memory.Store trực tiếp)
+// để tránh import cycle: internal/memory → internal/agent → internal/tools.
+// *memory.Store đã thoả interface này qua structural typing (đúng 3 method
+// bên dưới) — không cần đổi gì ở package memory ngoài thêm All(). Wiring
+// thực tế (cùng 1 *memory.Store cho cả recall pipeline lẫn 3 tool này) nằm ở
+// cmd/server/main.go, nơi cả 2 package đã được import sẵn nên không có cycle.
+type memoryBackend interface {
+	Set(tenantID, key, value string)
+	Search(tenantID, query string) map[string]string
+	All(tenantID string) map[string]string
 }
 
-var globalMemoryStore = &memoryStore{data: make(map[string]map[string]string)}
-
 // ---------------------------------------------------------------------------
-// SaveMemoryTool — lưu key+value vào in-memory store
+// SaveMemoryTool — lưu key+value vào memoryBackend dùng chung
 // ---------------------------------------------------------------------------
 
-// saveMemoryTool saves a key-value pair to the in-memory store.
+// saveMemoryTool saves a key-value pair into the shared memory backend.
 // Kind=KindWrite.
 type saveMemoryTool struct {
-	store *memoryStore
+	store memoryBackend
 }
 
-// NewSaveMemoryTool creates a save-memory tool.
-func NewSaveMemoryTool() Tool {
-	return &saveMemoryTool{store: globalMemoryStore}
+// NewSaveMemoryTool creates a save-memory tool. store PHẢI là cùng 1 instance
+// truyền cho memory.RecallNode/ExtractNode/Learner — xem doc memoryBackend.
+func NewSaveMemoryTool(store memoryBackend) Tool {
+	return &saveMemoryTool{store: store}
 }
 
 func (t *saveMemoryTool) Name() string { return "memory.save" }
@@ -70,13 +82,7 @@ func (t *saveMemoryTool) Execute(ctx context.Context, rawArgs json.RawMessage) (
 	}
 
 	tenantID := middleware.GetTenantID(ctx)
-
-	t.store.mu.Lock()
-	if t.store.data[tenantID] == nil {
-		t.store.data[tenantID] = make(map[string]string)
-	}
-	t.store.data[tenantID][args.Key] = args.Value
-	t.store.mu.Unlock()
+	t.store.Set(tenantID, args.Key, args.Value)
 
 	out, _ := json.Marshal(map[string]any{
 		"key":    args.Key,
@@ -92,12 +98,14 @@ func (t *saveMemoryTool) Execute(ctx context.Context, rawArgs json.RawMessage) (
 // recallMemoryTool searches memories by keyword (case-insensitive substring match).
 // Kind=KindRead.
 type recallMemoryTool struct {
-	store *memoryStore
+	store memoryBackend
 }
 
-// NewRecallMemoryTool creates a recall-memory tool.
-func NewRecallMemoryTool() Tool {
-	return &recallMemoryTool{store: globalMemoryStore}
+// NewRecallMemoryTool creates a recall-memory tool. store PHẢI là cùng 1
+// instance truyền cho memory.RecallNode/ExtractNode/Learner — xem doc
+// memoryBackend.
+func NewRecallMemoryTool(store memoryBackend) Tool {
+	return &recallMemoryTool{store: store}
 }
 
 func (t *recallMemoryTool) Name() string { return "memory.recall" }
@@ -131,17 +139,11 @@ func (t *recallMemoryTool) Execute(ctx context.Context, rawArgs json.RawMessage)
 	}
 
 	tenantID := middleware.GetTenantID(ctx)
-	keyword := strings.ToLower(args.Keyword)
 
-	t.store.mu.RLock()
-	defer t.store.mu.RUnlock()
-
-	matches := make([]map[string]string, 0)
-	tenantData := t.store.data[tenantID]
-	for k, v := range tenantData {
-		if strings.Contains(strings.ToLower(k), keyword) || strings.Contains(strings.ToLower(v), keyword) {
-			matches = append(matches, map[string]string{"key": k, "value": v})
-		}
+	found := t.store.Search(tenantID, args.Keyword)
+	matches := make([]map[string]string, 0, len(found))
+	for k, v := range found {
+		matches = append(matches, map[string]string{"key": k, "value": v})
 	}
 
 	out, _ := json.Marshal(map[string]any{
@@ -159,12 +161,14 @@ func (t *recallMemoryTool) Execute(ctx context.Context, rawArgs json.RawMessage)
 // listMemoriesTool lists all stored memories.
 // Kind=KindRead.
 type listMemoriesTool struct {
-	store *memoryStore
+	store memoryBackend
 }
 
-// NewListMemoriesTool creates a list-memories tool.
-func NewListMemoriesTool() Tool {
-	return &listMemoriesTool{store: globalMemoryStore}
+// NewListMemoriesTool creates a list-memories tool. store PHẢI là cùng 1
+// instance truyền cho memory.RecallNode/ExtractNode/Learner — xem doc
+// memoryBackend.
+func NewListMemoriesTool(store memoryBackend) Tool {
+	return &listMemoriesTool{store: store}
 }
 
 func (t *listMemoriesTool) Name() string { return "memory.list" }
@@ -194,10 +198,7 @@ func (t *listMemoriesTool) Execute(ctx context.Context, rawArgs json.RawMessage)
 
 	tenantID := middleware.GetTenantID(ctx)
 
-	t.store.mu.RLock()
-	defer t.store.mu.RUnlock()
-
-	tenantData := t.store.data[tenantID]
+	tenantData := t.store.All(tenantID)
 	items := make([]map[string]string, 0, len(tenantData))
 	for k, v := range tenantData {
 		items = append(items, map[string]string{"key": k, "value": v})

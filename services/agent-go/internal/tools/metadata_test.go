@@ -25,9 +25,9 @@ func allTools(t *testing.T) []Tool {
 		NewGitTool(dir),
 		NewNotesSearchTool(dir),
 		NewNotesCreateTool(dir),
-		NewSaveMemoryTool(),
-		NewRecallMemoryTool(),
-		NewListMemoriesTool(),
+		NewSaveMemoryTool(newFakeMemoryStore()),
+		NewRecallMemoryTool(newFakeMemoryStore()),
+		NewListMemoriesTool(newFakeMemoryStore()),
 		NewJSONTool(),
 		NewTimerTool(),
 		NewShellTool([]string{"echo"}),
@@ -87,7 +87,7 @@ func TestToolKinds(t *testing.T) {
 	writeTools := map[string]Tool{
 		"file.write":   NewFileWriteTool([]string{dir}),
 		"notes.create": NewNotesCreateTool(dir),
-		"memory.save":  NewSaveMemoryTool(),
+		"memory.save":  NewSaveMemoryTool(newFakeMemoryStore()),
 	}
 	for name, tool := range writeTools {
 		if tool.Kind() == KindRead {
@@ -98,7 +98,7 @@ func TestToolKinds(t *testing.T) {
 	readTools := map[string]Tool{
 		"echo":          NewEchoTool(),
 		"calculator":    NewCalculatorTool(),
-		"memory.recall": NewRecallMemoryTool(),
+		"memory.recall": NewRecallMemoryTool(newFakeMemoryStore()),
 	}
 	for name, tool := range readTools {
 		if tool.Kind() != KindRead {

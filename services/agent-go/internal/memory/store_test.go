@@ -394,6 +394,111 @@ func TestStore_TenantIsolation_SemanticSearch(t *testing.T) {
 	}
 }
 
+func TestStore_All(t *testing.T) {
+	s := NewStore()
+	s.Set("t1", "a", "1")
+	s.Set("t1", "b", "2")
+	s.Set("t2", "a", "khác tenant")
+
+	got := s.All("t1")
+	if len(got) != 2 || got["a"] != "1" || got["b"] != "2" {
+		t.Fatalf("All(t1) = %v, want {a:1 b:2}", got)
+	}
+
+	// Tenant chưa từng ghi gì → map rỗng, không phải nil (an toàn cho caller
+	// duyệt range mà không cần check nil).
+	empty := s.All("chưa-từng-ghi")
+	if empty == nil || len(empty) != 0 {
+		t.Fatalf("All(tenant lạ) = %v, want map rỗng khác nil", empty)
+	}
+}
+
+func TestStore_All_TenantIsolation(t *testing.T) {
+	s := NewStore()
+	s.Set("tenant-a", "food", "pizza")
+	s.Set("tenant-b", "food", "burger")
+
+	if got := s.All("tenant-a"); len(got) != 1 || got["food"] != "pizza" {
+		t.Fatalf("All(tenant-a) = %v, want chỉ {food: pizza}", got)
+	}
+}
+
+func TestStore_ApplyLoadedDocs(t *testing.T) {
+	s := NewStore()
+	docs := []memoryDoc{
+		{Key: "user_name", Value: "Linh", TenantID: "t1", Embedding: []float64{1, 0}},
+		{Key: "user_job", Value: "engineer", TenantID: "t1"},
+		{Key: "food", Value: "pho", TenantID: "t2"},
+		{Key: "", Value: "bỏ qua vì key rỗng", TenantID: "t1"},
+		{Key: "bỏ-qua", Value: "", TenantID: "t1"},
+		{Key: "bỏ-qua-2", Value: "x", TenantID: ""},
+	}
+
+	n := s.applyLoadedDocs(docs)
+	if n != 3 {
+		t.Fatalf("applyLoadedDocs = %d, want 3 (bỏ qua 3 doc thiếu field)", n)
+	}
+	if v, ok := s.Get("t1", "user_name"); !ok || v != "Linh" {
+		t.Fatalf("Get(t1,user_name) = (%q,%v), want (Linh,true)", v, ok)
+	}
+	if v, ok := s.Get("t2", "food"); !ok || v != "pho" {
+		t.Fatalf("Get(t2,food) = (%q,%v), want (pho,true)", v, ok)
+	}
+	if s.Len("t1") != 2 {
+		t.Fatalf("Len(t1) = %d, want 2", s.Len("t1"))
+	}
+
+	// Embedding đã tải phải được giữ nguyên (dùng lại được cho SemanticSearch
+	// mà không cần embed lại toàn bộ Store lúc khởi động).
+	s.SetEmbedder(&stubEmbedder{vectors: map[string][]float64{"query": {1, 0}}})
+	res, err := s.SemanticSearch("t1", "query", 5)
+	if err != nil {
+		t.Fatalf("SemanticSearch: %v", err)
+	}
+	found := false
+	for _, r := range res {
+		if r.Key == "user_name" && len(r.Embedding) == 2 {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("SemanticSearch = %+v, want tìm thấy user_name với embedding đã nạp", res)
+	}
+}
+
+func TestStore_ApplyLoadedDocs_MergesWithExisting(t *testing.T) {
+	s := NewStore()
+	s.Set("t1", "user_name", "giá trị cũ trong RAM")
+
+	// Doc tải từ Mongo cùng key → GHI ĐÈ (Mongo là nguồn "đã học" bền vững hơn
+	// giá trị mặc định/rỗng lúc mới khởi tạo Store).
+	n := s.applyLoadedDocs([]memoryDoc{
+		{Key: "user_name", Value: "Linh", TenantID: "t1"},
+	})
+	if n != 1 {
+		t.Fatalf("applyLoadedDocs = %d, want 1", n)
+	}
+	if v, _ := s.Get("t1", "user_name"); v != "Linh" {
+		t.Fatalf("Get(t1,user_name) = %q, want Linh (đè bởi doc tải từ Mongo)", v)
+	}
+}
+
+// LoadFromMongo(nil) — Mongo không được cấu hình → no-op, không lỗi, không
+// chặn khởi động server.
+func TestStore_LoadFromMongo_NilClientIsNoop(t *testing.T) {
+	s := NewStore()
+	n, err := s.LoadFromMongo(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("LoadFromMongo(nil) err = %v, want nil", err)
+	}
+	if n != 0 {
+		t.Fatalf("LoadFromMongo(nil) count = %d, want 0", n)
+	}
+	if s.Len("t1") != 0 {
+		t.Fatal("Store không được có dữ liệu sau LoadFromMongo(nil)")
+	}
+}
+
 func TestStore_ConcurrentAccess(t *testing.T) {
 	s := NewStore()
 	var wg sync.WaitGroup

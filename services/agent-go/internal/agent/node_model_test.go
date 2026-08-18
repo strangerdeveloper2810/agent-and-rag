@@ -207,8 +207,9 @@ func TestNodeModel_FiltersToolsByLatestUserMessage(t *testing.T) {
 	reg.Register(tools.NewFileReadTool(nil))
 	reg.Register(tools.NewShellTool(nil))
 	reg.Register(tools.NewCalculatorTool())
-	reg.Register(tools.NewRecallMemoryTool())
-	reg.Register(tools.NewSaveMemoryTool())
+	memStore := newFakeToolMemoryStore()
+	reg.Register(tools.NewRecallMemoryTool(memStore))
+	reg.Register(tools.NewSaveMemoryTool(memStore))
 	reg.Register(tools.NewRAGSearchTool(nil, "test", "", nil, tools.RAGSearchConfig{}))
 
 	fake := newCapturingProvider(
@@ -255,8 +256,9 @@ func TestNodeModel_LatestMessageDoesNotLeakRAGForGenericQuestion(t *testing.T) {
 	reg.Register(tools.NewFileReadTool(nil))
 	reg.Register(tools.NewShellTool(nil))
 	reg.Register(tools.NewCalculatorTool())
-	reg.Register(tools.NewRecallMemoryTool())
-	reg.Register(tools.NewSaveMemoryTool())
+	memStore := newFakeToolMemoryStore()
+	reg.Register(tools.NewRecallMemoryTool(memStore))
+	reg.Register(tools.NewSaveMemoryTool(memStore))
 	reg.Register(tools.NewRAGSearchTool(nil, "test", "", nil, tools.RAGSearchConfig{}))
 
 	fake := newCapturingProvider(
@@ -309,6 +311,18 @@ func TestNodeModel_NoRecalledMemories_NoMemorySection(t *testing.T) {
 // --- helpers cho test ---
 
 var nilEmit EmitFunc = func(Event) {}
+
+// fakeToolMemoryStore implements the unexported tools.memoryBackend interface
+// (Set/Search/All) qua structural typing — chỉ cần để tools.NewSaveMemoryTool/
+// NewRecallMemoryTool có tham số hợp lệ trong các test ở đây, vốn chỉ quan
+// tâm tool có mặt trong FilterToolDefs, không quan tâm dữ liệu bên trong.
+type fakeToolMemoryStore struct{}
+
+func newFakeToolMemoryStore() *fakeToolMemoryStore { return &fakeToolMemoryStore{} }
+
+func (*fakeToolMemoryStore) Set(tenantID, key, value string)                 {}
+func (*fakeToolMemoryStore) Search(tenantID, query string) map[string]string { return nil }
+func (*fakeToolMemoryStore) All(tenantID string) map[string]string           { return nil }
 
 func collectTexts(events []Event) []string {
 	var texts []string

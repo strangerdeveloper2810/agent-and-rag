@@ -2,9 +2,13 @@ package memory
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"strings"
 	"sync"
+
+	"github.com/ai-agent-tut/agent-go/internal/mongo"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 type storeEntry struct {
@@ -157,6 +161,81 @@ func (s *Store) Len(tenantID string) int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return len(s.data[tenantID])
+}
+
+// All trả về TOÀN BỘ key-value đã lưu cho 1 tenant — dùng bởi tool
+// memory.list để agent tự liệt kê được những gì đã "nhớ", thay vì phải đoán
+// đúng keyword để memory.recall tìm ra (cùng lý do rag.list được thêm cho
+// RAG trước đây).
+func (s *Store) All(tenantID string) map[string]string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	out := make(map[string]string, len(s.data[tenantID]))
+	for k, v := range s.data[tenantID] {
+		out[k] = v.value
+	}
+	return out
+}
+
+// memoryDoc ánh xạ 1 document trong collection "memories" (ghi bởi
+// Learner.saveFactToMongo) — dùng để nạp lại vào Store lúc khởi động.
+type memoryDoc struct {
+	Key       string    `bson:"key"`
+	Value     string    `bson:"value"`
+	TenantID  string    `bson:"tenantId"`
+	Embedding []float64 `bson:"embedding"`
+}
+
+// applyLoadedDocs điền các fact đã tải từ Mongo vào Store, bỏ qua document
+// thiếu key/value/tenantId. Tách khỏi LoadFromMongo để test được logic thuần
+// (merge/skip) mà không cần kết nối Mongo thật.
+func (s *Store) applyLoadedDocs(docs []memoryDoc) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	loaded := 0
+	for _, d := range docs {
+		if d.Key == "" || d.Value == "" || d.TenantID == "" {
+			continue
+		}
+		if s.data[d.TenantID] == nil {
+			s.data[d.TenantID] = make(map[string]storeEntry)
+		}
+		s.data[d.TenantID][d.Key] = storeEntry{value: d.Value, embedding: d.Embedding}
+		loaded++
+	}
+	return loaded
+}
+
+// LoadFromMongo nạp lại toàn bộ fact đã học từ collection "memories" (ghi bởi
+// Learner.saveFactToMongo) vào Store trong RAM — gọi 1 lần lúc server khởi
+// động.
+//
+// Trước fix này: saveFactToMongo ghi bền xuống Mongo nhưng KHÔNG có bước đọc
+// ngược nào ở bất kỳ đâu trong codebase, nên mọi fact "đã học" chỉ sống tới
+// lần restart/deploy kế tiếp — kho bền chỉ để ghi, không bao giờ được đọc lại.
+//
+// mongoClient=nil (Mongo không được cấu hình) → no-op, không lỗi, không chặn
+// khởi động server.
+func (s *Store) LoadFromMongo(ctx context.Context, mongoClient *mongo.Client) (int, error) {
+	if mongoClient == nil {
+		return 0, nil
+	}
+
+	coll := mongoClient.Collection("memories")
+	cursor, err := coll.Find(ctx, bson.M{})
+	if err != nil {
+		return 0, fmt.Errorf("memory: load from mongo: find: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var docs []memoryDoc
+	if err := cursor.All(ctx, &docs); err != nil {
+		return 0, fmt.Errorf("memory: load from mongo: decode: %w", err)
+	}
+
+	return s.applyLoadedDocs(docs), nil
 }
 
 func cosineSimilarity(a, b []float64) float64 {
