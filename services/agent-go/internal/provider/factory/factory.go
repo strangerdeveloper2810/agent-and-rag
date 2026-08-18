@@ -58,30 +58,44 @@ func newDeepSeek(cfg config.Config) (provider.Provider, error) {
 
 // newAuto tạo provider chain thông minh:
 //
-//	Order: DeepSeek (primary cost-effective) → Gemini (fast secondary) → Claude (last resort)
+//	Order: Gemini 3.1 Flash Lite (500 RPD free) → Gemini 3.5 Flash Lite (500 RPD free) → DeepSeek (siêu rẻ) → Claude (chốt chặn)
 //	Chỉ cần ít nhất 1 provider có key.
 func newAuto(cfg config.Config) (provider.Provider, error) {
-	hasDeepSeek := cfg.DeepSeekKey != ""
 	hasGemini := cfg.GeminiKey != ""
+	hasDeepSeek := cfg.DeepSeekKey != ""
 	hasClaude := cfg.AnthropicKey != ""
 
-	providers := make([]provider.Provider, 0, 3)
+	providers := make([]provider.Provider, 0, 4)
 
+	if hasGemini {
+		// 1. Primary Gemini model (e.g. gemini-3.1-flash-lite: 500 RPD)
+		g1, err := newGemini(cfg)
+		if err != nil {
+			return nil, err
+		}
+		providers = append(providers, g1)
+
+		// 2. Secondary Gemini model (e.g. gemini-3.5-flash-lite: 500 RPD)
+		secModel := cfg.GeminiSecondaryModel
+		if secModel != "" && secModel != cfg.GeminiModel {
+			secCfg := cfg
+			secCfg.GeminiModel = secModel
+			g2, err := newGemini(secCfg)
+			if err == nil {
+				providers = append(providers, g2)
+			}
+		}
+	}
 	if hasDeepSeek {
+		// 3. DeepSeek (primary cost-effective pay-as-you-go)
 		d, err := newDeepSeek(cfg)
 		if err != nil {
 			return nil, err
 		}
 		providers = append(providers, d)
 	}
-	if hasGemini {
-		g, err := newGemini(cfg)
-		if err != nil {
-			return nil, err
-		}
-		providers = append(providers, g)
-	}
 	if hasClaude {
+		// 4. Claude (last resort fallback)
 		c, err := newAnthropic(cfg)
 		if err != nil {
 			return nil, err

@@ -11,7 +11,7 @@ import (
 
 func baseCfg() config.Config {
 	return config.Config{
-		GeminiModel:        "gemini-2.5-flash",
+		GeminiModel:        "gemini-3.1-flash-lite",
 		AnthropicModel:     "claude-haiku-4-5-20251001",
 		DeepSeekFlashModel: "deepseek-v4-flash",
 		DeepSeekProModel:   "deepseek-v4-pro",
@@ -97,7 +97,7 @@ func TestNew_UnknownProvider(t *testing.T) {
 	}
 }
 
-// auto + đúng 1 key → trả provider đơn, KHÔNG bọc fallback (fallback cần >= 2).
+// auto + đúng 1 key (không cấu hình secondary model) → trả provider đơn, KHÔNG bọc fallback.
 func TestNew_AutoSingleKeyReturnsPlainProvider(t *testing.T) {
 	cases := map[string]func(*config.Config){
 		"deepseek":  func(c *config.Config) { c.DeepSeekKey = "dk" },
@@ -122,12 +122,12 @@ func TestNew_AutoSingleKeyReturnsPlainProvider(t *testing.T) {
 	}
 }
 
-// auto + nhiều key → fallback chain theo thứ tự DeepSeek → Gemini → Claude.
+// auto + nhiều key → fallback chain theo thứ tự Gemini → DeepSeek → Claude.
 func TestNew_AutoChainOrder(t *testing.T) {
 	cfg := baseCfg()
 	cfg.Provider = "auto"
-	cfg.DeepSeekKey = "dk"
 	cfg.GeminiKey = "gk"
+	cfg.DeepSeekKey = "dk"
 	cfg.AnthropicKey = "ak"
 
 	p, err := New(cfg)
@@ -135,7 +135,26 @@ func TestNew_AutoChainOrder(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 
-	want := "fallback[deepseek→gemini→anthropic]"
+	want := "fallback[gemini→deepseek→anthropic]"
+	if p.Name() != want {
+		t.Errorf("Name() = %q, want %q", p.Name(), want)
+	}
+}
+
+// auto + dual Gemini models → fallback chain Gemini Primary → Gemini Secondary.
+func TestNew_AutoDualGeminiModels(t *testing.T) {
+	cfg := baseCfg()
+	cfg.Provider = "auto"
+	cfg.GeminiKey = "gk"
+	cfg.GeminiSecondaryModel = "gemini-3.5-flash-lite"
+	cfg.DeepSeekKey = "dk"
+
+	p, err := New(cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	want := "fallback[gemini→gemini→deepseek]"
 	if p.Name() != want {
 		t.Errorf("Name() = %q, want %q", p.Name(), want)
 	}

@@ -78,10 +78,7 @@ const consumeSSEStream = async (
       const trimmed = line.trim();
       if (!trimmed.startsWith("data: ")) continue;
       try {
-        const parsed = JSON.parse(trimmed.slice(6)) as Record<
-          string,
-          unknown
-        >;
+        const parsed = JSON.parse(trimmed.slice(6)) as Record<string, unknown>;
         const event = normalizeEvent(parsed);
         if (event) onEvent(event);
       } catch {

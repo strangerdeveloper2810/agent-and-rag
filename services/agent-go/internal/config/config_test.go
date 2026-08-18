@@ -12,7 +12,7 @@ func clearEnv(t *testing.T) {
 	t.Helper()
 	for _, k := range []string{
 		"PORT", "LLM_PROVIDER", "GEMINI_API_KEY", "GOOGLE_API_KEY", "GEMINI_MODEL",
-		"GOOGLE_THINKING_LEVEL", "ANTHROPIC_API_KEY", "CLAUDE_MODEL",
+		"GEMINI_SECONDARY_MODEL", "GOOGLE_THINKING_LEVEL", "ANTHROPIC_API_KEY", "CLAUDE_MODEL",
 		"OLLAMA_URL", "OLLAMA_MODEL", "DEEPSEEK_API_KEY", "DEEPSEEK_FLASH_MODEL",
 		"DEEPSEEK_PRO_MODEL", "JARVIS_DB_PATH", "JARVIS_SKILLS_DIR",
 		"MONGODB_URI", "MONGODB_DB", "VOYAGE_API_KEY", "EMBED_MODEL",
@@ -49,18 +49,19 @@ func TestLoad_Defaults(t *testing.T) {
 	}
 
 	checks := map[string]struct{ got, want string }{
-		"Port":               {c.Port, "3002"},
-		"GeminiModel":        {c.GeminiModel, "gemini-2.5-flash"},
-		"ThinkingLevel":      {c.ThinkingLevel, "OFF"},
-		"AnthropicModel":     {c.AnthropicModel, "claude-haiku-4-5-20251001"},
-		"OllamaURL":          {c.OllamaURL, "http://localhost:11434"},
-		"OllamaModel":        {c.OllamaModel, "llama3.1:8b"},
-		"DeepSeekFlashModel": {c.DeepSeekFlashModel, "deepseek-v4-flash"},
-		"DeepSeekProModel":   {c.DeepSeekProModel, "deepseek-v4-pro"},
-		"DBPath":             {c.DBPath, "jarvis.db"},
-		"SkillsDir":          {c.SkillsDir, "./skills"},
-		"MongoDB":            {c.MongoDB, "ai_agent_tut"},
-		"EmbedModel":         {c.EmbedModel, "nomic-embed-text"},
+		"Port":                 {c.Port, "3002"},
+		"GeminiModel":          {c.GeminiModel, "gemini-3.1-flash-lite"},
+		"GeminiSecondaryModel": {c.GeminiSecondaryModel, "gemini-3.5-flash-lite"},
+		"ThinkingLevel":        {c.ThinkingLevel, "OFF"},
+		"AnthropicModel":       {c.AnthropicModel, "claude-haiku-4-5-20251001"},
+		"OllamaURL":            {c.OllamaURL, "http://localhost:11434"},
+		"OllamaModel":          {c.OllamaModel, "llama3.1:8b"},
+		"DeepSeekFlashModel":   {c.DeepSeekFlashModel, "deepseek-v4-flash"},
+		"DeepSeekProModel":     {c.DeepSeekProModel, "deepseek-v4-pro"},
+		"DBPath":               {c.DBPath, "jarvis.db"},
+		"SkillsDir":            {c.SkillsDir, "./skills"},
+		"MongoDB":              {c.MongoDB, "ai_agent_tut"},
+		"EmbedModel":           {c.EmbedModel, "nomic-embed-text"},
 	}
 	for name, ck := range checks {
 		if ck.got != ck.want {
