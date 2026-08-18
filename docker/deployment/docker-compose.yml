@@ -155,6 +155,33 @@ services:
     networks:
       - jarvis
 
+  # ── VictoriaLogs (Engine lưu trữ log nén 15x + Web UI) ──
+  victorialogs:
+    image: victoriametrics/victoria-logs:latest
+    container_name: jarvis-victorialogs
+    restart: unless-stopped
+    command:
+      - "-storageDataPath=/vlogs-data"
+      - "-retentionPeriod=90d"
+      - "-httpListenAddr=:9428"
+    volumes:
+      - vlogs_data:/vlogs-data
+    networks:
+      - jarvis
+
+  # ── Vector (Log Collector: Gom toàn bộ Docker container logs) ──
+  vector:
+    image: timberio/vector:0.43.0-alpine
+    container_name: jarvis-vector
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./vector.yaml:/etc/vector/vector.yaml:ro
+    depends_on:
+      - victorialogs
+    networks:
+      - jarvis
+
 networks:
   jarvis:
     driver: bridge
@@ -167,4 +194,6 @@ volumes:
   redis_data:
     driver: local
   minio_data:
+    driver: local
+  vlogs_data:
     driver: local

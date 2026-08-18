@@ -1,0 +1,31 @@
+# Vector configuration for Docker container logs ingestion into VictoriaLogs
+
+sources:
+  docker_logs:
+    type: docker_logs
+    exclude_containers:
+      - jarvis-vector
+
+transforms:
+  format_logs:
+    type: remap
+    inputs:
+      - docker_logs
+    source: |
+      .container = .container_name
+      .image = .image
+      .stream = .stream
+      .host = .host
+
+sinks:
+  victorialogs:
+    type: http
+    inputs:
+      - format_logs
+    uri: "http://jarvis-victorialogs:9428/insert/jsonline?_msg_field=message&_time_field=timestamp&_stream_fields=container,image,stream,host"
+    encoding:
+      codec: json
+    framing:
+      method: newline_delimited
+    request:
+      retry_attempts: 5
