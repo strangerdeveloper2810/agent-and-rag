@@ -272,4 +272,15 @@ export class AuthService {
   async logoutAll(userId: string): Promise<void> {
     await this.tokenService.revokeAll(userId);
   }
+
+  // ── Profile / Current User ──
+
+  async getMe(userId: string): Promise<UserRow> {
+    const user = await this.repo.findUserById(userId);
+    if (!user || user.status === "disabled") {
+      throw new UnauthorizedError("User không tồn tại hoặc đã bị vô hiệu hoá.");
+    }
+    return user;
+  }
 }
+

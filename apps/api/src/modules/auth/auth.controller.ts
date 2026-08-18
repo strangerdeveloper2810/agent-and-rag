@@ -98,6 +98,7 @@ export class AuthController {
 
   /** GET /api/auth/me — thông tin user hiện tại (cần authGuard) */
   me = async (req: FastifyRequest, reply: FastifyReply) => {
-    return reply.status(200).send({ user: req.user });
+    const user = await this.authService.getMe(req.user.sub);
+    return reply.status(200).send({ user });
   };
 }
