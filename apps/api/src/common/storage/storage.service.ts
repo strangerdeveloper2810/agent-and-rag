@@ -12,6 +12,8 @@ import {
   GetObjectCommand,
   DeleteObjectCommand,
   HeadObjectCommand,
+  HeadBucketCommand,
+  CreateBucketCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { createPresignedPost } from "@aws-sdk/s3-presigned-post";
@@ -43,6 +45,30 @@ const URL_EXPIRY = 3600; // Presigned download URL hết hạn sau 1 giờ
 const UPLOAD_EXPIRY = 300; // Presigned upload URL hết hạn sau 5 phút
 
 const s3 = () => getS3Client();
+
+let isBucketEnsured = false;
+/** Đảm bảo bucket đã tồn tại trên MinIO/S3 (tự tạo nếu chưa có). */
+export const ensureBucketExists = async (): Promise<void> => {
+  if (isBucketEnsured) return;
+  try {
+    await s3().send(new HeadBucketCommand({ Bucket: BUCKET }));
+    isBucketEnsured = true;
+  } catch (err: unknown) {
+    const error = err as { $metadata?: { httpStatusCode?: number }; name?: string };
+    if (
+      error?.$metadata?.httpStatusCode === 404 ||
+      error?.name === "NotFound" ||
+      error?.name === "NoSuchBucket"
+    ) {
+      try {
+        await s3().send(new CreateBucketCommand({ Bucket: BUCKET }));
+        isBucketEnsured = true;
+      } catch (createErr) {
+        console.warn("Could not auto-create S3/MinIO bucket:", createErr);
+      }
+    }
+  }
+};
 
 // ── Helpers ──
 
@@ -87,6 +113,8 @@ export const uploadFile = async (
   body: Buffer | Uint8Array | string,
   contentType?: string,
 ): Promise<UploadResult> => {
+  await ensureBucketExists();
+
   const key = objectKey(tenantId, category, filename);
   const ct = contentType ?? guessContentType(filename);
 
@@ -98,6 +126,7 @@ export const uploadFile = async (
       ContentType: ct,
     }),
   );
+
 
   const url = await getSignedUrl(
     s3(),
