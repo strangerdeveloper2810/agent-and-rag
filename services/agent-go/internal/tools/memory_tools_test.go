@@ -7,16 +7,47 @@ import (
 	"testing"
 )
 
-func clearMemoryStore() {
-	globalMemoryStore.mu.Lock()
-	globalMemoryStore.data = make(map[string]map[string]string)
-	globalMemoryStore.mu.Unlock()
+// fakeMemoryStore là 1 backend tối giản implement memoryBackend cho test —
+// mỗi test tự tạo instance riêng, khác trước đây khi cả 3 tool dùng chung 1
+// globalMemoryStore và mỗi test phải tự gọi clearMemoryStore() để dọn dẹp
+// trạng thái do test trước để lại.
+type fakeMemoryStore struct {
+	data map[string]map[string]string // tenantID -> key -> value
+}
+
+func newFakeMemoryStore() *fakeMemoryStore {
+	return &fakeMemoryStore{data: make(map[string]map[string]string)}
+}
+
+func (s *fakeMemoryStore) Set(tenantID, key, value string) {
+	if s.data[tenantID] == nil {
+		s.data[tenantID] = make(map[string]string)
+	}
+	s.data[tenantID][key] = value
+}
+
+func (s *fakeMemoryStore) Search(tenantID, query string) map[string]string {
+	lower := strings.ToLower(query)
+	out := make(map[string]string)
+	for k, v := range s.data[tenantID] {
+		if strings.Contains(strings.ToLower(k), lower) || strings.Contains(strings.ToLower(v), lower) {
+			out[k] = v
+		}
+	}
+	return out
+}
+
+func (s *fakeMemoryStore) All(tenantID string) map[string]string {
+	out := make(map[string]string, len(s.data[tenantID]))
+	for k, v := range s.data[tenantID] {
+		out[k] = v
+	}
+	return out
 }
 
 func TestSaveMemoryTool(t *testing.T) {
-	clearMemoryStore()
-
-	tool := NewSaveMemoryTool()
+	store := newFakeMemoryStore()
+	tool := NewSaveMemoryTool(store)
 
 	t.Run("save valid key-value", func(t *testing.T) {
 		args, _ := json.Marshal(map[string]string{
@@ -43,7 +74,8 @@ func TestSaveMemoryTool(t *testing.T) {
 	})
 
 	t.Run("save overwrites existing key", func(t *testing.T) {
-		clearMemoryStore()
+		store := newFakeMemoryStore()
+		tool := NewSaveMemoryTool(store)
 
 		args1, _ := json.Marshal(map[string]string{"key": "x", "value": "first"})
 		tool.Execute(context.Background(), args1)
@@ -63,11 +95,7 @@ func TestSaveMemoryTool(t *testing.T) {
 		}
 
 		// Verify value was overwritten (uses "default" tenant since no X-Tenant-ID in test context)
-		globalMemoryStore.mu.RLock()
-		tenantData := globalMemoryStore.data["default"]
-		val := tenantData["x"]
-		globalMemoryStore.mu.RUnlock()
-		if val != "second" {
+		if val := store.data["default"]["x"]; val != "second" {
 			t.Errorf("expected 'second', got %q", val)
 		}
 	})
@@ -96,10 +124,10 @@ func TestSaveMemoryTool(t *testing.T) {
 }
 
 func TestRecallMemoryTool(t *testing.T) {
-	clearMemoryStore()
+	store := newFakeMemoryStore()
 
 	// Seed data
-	save := NewSaveMemoryTool()
+	save := NewSaveMemoryTool(store)
 	seeds := []map[string]string{
 		{"key": "greeting", "value": "hello world"},
 		{"key": "farewell", "value": "goodbye everyone"},
@@ -111,7 +139,7 @@ func TestRecallMemoryTool(t *testing.T) {
 		save.Execute(context.Background(), args)
 	}
 
-	tool := NewRecallMemoryTool()
+	tool := NewRecallMemoryTool(store)
 
 	t.Run("recall by keyword in value", func(t *testing.T) {
 		args, _ := json.Marshal(map[string]string{"keyword": "hello"})
@@ -198,10 +226,10 @@ func TestRecallMemoryTool(t *testing.T) {
 }
 
 func TestListMemoriesTool(t *testing.T) {
-	clearMemoryStore()
+	store := newFakeMemoryStore()
 
 	// Seed data
-	save := NewSaveMemoryTool()
+	save := NewSaveMemoryTool(store)
 	seeds := []map[string]string{
 		{"key": "a", "value": "alpha"},
 		{"key": "b", "value": "beta"},
@@ -212,7 +240,7 @@ func TestListMemoriesTool(t *testing.T) {
 		save.Execute(context.Background(), args)
 	}
 
-	tool := NewListMemoriesTool()
+	tool := NewListMemoriesTool(store)
 
 	t.Run("list all memories", func(t *testing.T) {
 		res, err := tool.Execute(context.Background(), json.RawMessage(`{}`))
@@ -235,7 +263,8 @@ func TestListMemoriesTool(t *testing.T) {
 	})
 
 	t.Run("list empty store", func(t *testing.T) {
-		clearMemoryStore()
+		emptyStore := newFakeMemoryStore()
+		tool := NewListMemoriesTool(emptyStore)
 
 		res, err := tool.Execute(context.Background(), json.RawMessage(`{}`))
 		if err != nil {
@@ -254,8 +283,10 @@ func TestListMemoriesTool(t *testing.T) {
 }
 
 func TestMemoryToolsInterface(t *testing.T) {
+	store := newFakeMemoryStore()
+
 	t.Run("SaveMemoryTool interface", func(t *testing.T) {
-		var tool Tool = NewSaveMemoryTool()
+		var tool Tool = NewSaveMemoryTool(store)
 		if tool.Name() != "memory.save" {
 			t.Errorf("Name: got %q, want %q", tool.Name(), "memory.save")
 		}
@@ -271,7 +302,7 @@ func TestMemoryToolsInterface(t *testing.T) {
 	})
 
 	t.Run("RecallMemoryTool interface", func(t *testing.T) {
-		var tool Tool = NewRecallMemoryTool()
+		var tool Tool = NewRecallMemoryTool(store)
 		if tool.Name() != "memory.recall" {
 			t.Errorf("Name: got %q, want %q", tool.Name(), "memory.recall")
 		}
@@ -287,7 +318,7 @@ func TestMemoryToolsInterface(t *testing.T) {
 	})
 
 	t.Run("ListMemoriesTool interface", func(t *testing.T) {
-		var tool Tool = NewListMemoriesTool()
+		var tool Tool = NewListMemoriesTool(store)
 		if tool.Name() != "memory.list" {
 			t.Errorf("Name: got %q, want %q", tool.Name(), "memory.list")
 		}
@@ -304,10 +335,10 @@ func TestMemoryToolsInterface(t *testing.T) {
 }
 
 func TestSaveRecallFlow(t *testing.T) {
-	clearMemoryStore()
+	store := newFakeMemoryStore()
 
-	save := NewSaveMemoryTool()
-	recall := NewRecallMemoryTool()
+	save := NewSaveMemoryTool(store)
+	recall := NewRecallMemoryTool(store)
 
 	// Save a memory
 	saveArgs, _ := json.Marshal(map[string]string{
@@ -343,5 +374,29 @@ func TestSaveRecallFlow(t *testing.T) {
 	}
 	if out.Matches[0].Value != "Q3 report due August 15th" {
 		t.Errorf("unexpected value: %q", out.Matches[0].Value)
+	}
+}
+
+// Model tự gọi memory.save (không phải chỉ pipeline auto-extract) vẫn PHẢI
+// hiển thị lại qua memory.list — khoá đúng bug đã fix: trước đây memory.save/
+// recall/list dùng globalMemoryStore, TÁCH BIỆT hoàn toàn với store dùng bởi
+// RecallNode/ExtractNode/Learner, nên chỉ có thể phát hiện qua wiring thật ở
+// cmd/server (memoryBackend là interface, không thể assert type ở đây).
+func TestSaveMemoryTool_VisibleViaListImmediately(t *testing.T) {
+	store := newFakeMemoryStore()
+	save := NewSaveMemoryTool(store)
+	list := NewListMemoriesTool(store)
+
+	args, _ := json.Marshal(map[string]string{"key": "user_name", "value": "Linh"})
+	if _, err := save.Execute(context.Background(), args); err != nil {
+		t.Fatalf("save failed: %v", err)
+	}
+
+	res, err := list.Execute(context.Background(), json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatalf("list failed: %v", err)
+	}
+	if !strings.Contains(res.Content, "user_name") || !strings.Contains(res.Content, "Linh") {
+		t.Errorf("list content = %q, want chứa fact vừa save", res.Content)
 	}
 }

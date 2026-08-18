@@ -37,7 +37,7 @@ func toolNames(t *testing.T, defs []provider.ToolDef) map[string]bool {
 
 func TestBuildRegistries_ScopedPerSpecialty(t *testing.T) {
 	cfg := config.Config{AllowedPaths: []string{t.TempDir()}}
-	code, research, general := buildRegistries(cfg)
+	code, research, general := buildRegistries(cfg, memory.NewStore())
 
 	codeTools := toolNames(t, code.ToolDefs())
 	for _, want := range []string{"file.read", "file.write", "shell.exec", "git", "version"} {
@@ -67,13 +67,50 @@ func TestBuildRegistries_ScopedPerSpecialty(t *testing.T) {
 		}
 	}
 
-	// Tool memory phải có ở cả 3 agent.
+	// Tool memory phải có ở cả 3 agent — kể cả memory.list, trước đây định
+	// nghĩa xong nhưng KHÔNG BAO GIỜ được đăng ký ở đâu cả (dead code), khiến
+	// model không có cách nào liệt kê những gì đã "nhớ" (cùng loại thiếu sót
+	// đã fix cho rag.list trước đây).
 	for name, names := range map[string]map[string]bool{
 		"code": codeTools, "research": researchTools, "general": generalTools,
 	} {
-		if !names["memory.save"] || !names["memory.recall"] {
+		if !names["memory.save"] || !names["memory.recall"] || !names["memory.list"] {
 			t.Errorf("%s registry thiếu tool memory: %v", name, names)
 		}
+	}
+}
+
+// TestBuildRegistries_MemoryToolsShareStoreWithRecallPipeline khoá đúng fix:
+// trước đây memory.save/recall/list dùng 1 kho HOÀN TOÀN TÁCH BIỆT
+// (globalMemoryStore trong internal/tools) với *memory.Store mà
+// RecallNode/ExtractNode/Learner dùng để tự động bơm "[BỘ NHỚ]" vào system
+// prompt — model chủ động gọi memory.save để "nhớ giúp" điều gì đó, nhưng
+// lượt sau RecallNode không hề thấy nó.
+//
+// Test này dựng registry với 1 *memory.Store thật (không phải fake), gọi
+// memory.save qua tool, rồi xác nhận CHÍNH *memory.Store đó (không phải qua
+// tool memory.recall) đã thấy dữ liệu — chứng minh 2 nơi dùng chung 1 kho.
+func TestBuildRegistries_MemoryToolsShareStoreWithRecallPipeline(t *testing.T) {
+	cfg := config.Config{AllowedPaths: []string{t.TempDir()}}
+	store := memory.NewStore()
+	general, _, _ := buildRegistries(cfg, store)
+	_ = general
+
+	code, _, _ := buildRegistries(cfg, store)
+	saveTool, ok := code.Get("memory.save")
+	if !ok {
+		t.Fatal("registry thiếu memory.save")
+	}
+
+	args, _ := json.Marshal(map[string]string{"key": "user_name", "value": "Linh"})
+	if _, err := saveTool.Execute(context.Background(), args); err != nil {
+		t.Fatalf("memory.save Execute: %v", err)
+	}
+
+	// Đọc TRỰC TIẾP từ *memory.Store (không qua tool memory.recall) — đây
+	// chính là kho RecallNode sẽ đọc ở lượt sau.
+	if v, found := store.Get("default", "user_name"); !found || v != "Linh" {
+		t.Fatalf("store.Get(default,user_name) = (%q,%v), want (Linh,true) — memory.save phải ghi vào CÙNG Store với RecallNode", v, found)
 	}
 }
 
@@ -83,7 +120,7 @@ func TestBuildRegistries_ScopedPerSpecialty(t *testing.T) {
 // registerRAGAndCodeExtras phải cấp web.search/web.fetch cho codeRegistry.
 func TestRegisterRAGAndCodeExtras_CodeGetsWebTools(t *testing.T) {
 	cfg := config.Config{AllowedPaths: []string{t.TempDir()}}
-	code, research, general := buildRegistries(cfg)
+	code, research, general := buildRegistries(cfg, memory.NewStore())
 
 	ragTool := tools.NewRAGSearchTool(nil, "db", "", nil, tools.RAGSearchConfig{})
 	ragReadTool := tools.NewRAGReadTool(nil, "db")

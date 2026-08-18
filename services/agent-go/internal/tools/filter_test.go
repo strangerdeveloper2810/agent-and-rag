@@ -16,8 +16,9 @@ func filterTestRegistry() *Registry {
 	r.Register(NewFileReadTool(nil))
 	r.Register(NewShellTool(nil))
 	r.Register(NewCalculatorTool())
-	r.Register(NewSaveMemoryTool())
-	r.Register(NewRecallMemoryTool())
+	store := newFakeMemoryStore()
+	r.Register(NewSaveMemoryTool(store))
+	r.Register(NewRecallMemoryTool(store))
 	return r
 }
 
@@ -254,7 +255,7 @@ func TestFilterToolDefs_SmallRegistryKeepsAll(t *testing.T) {
 	r := NewRegistry()
 	r.Register(NewEchoTool())
 	r.Register(NewCalculatorTool())
-	r.Register(NewSaveMemoryTool())
+	r.Register(NewSaveMemoryTool(newFakeMemoryStore()))
 
 	defs := r.FilterToolDefs("tìm kiếm gì đó", 0)
 	if len(defs) != 3 {

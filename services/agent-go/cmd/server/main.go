@@ -43,9 +43,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// --- Wire Scoped Tool Registries per Agent Specialty ---
-	codeRegistry, researchRegistry, generalRegistry := buildRegistries(cfg)
-
 	// --- Wire MongoDB (optional — for RAG document search) ---
 	var mongoClient *mongo.Client
 	if cfg.MongoURI != "" {
@@ -60,6 +57,33 @@ func main() {
 			}()
 		}
 	}
+
+	// --- Wire Memory Store ---
+	// Tạo TRƯỚC buildRegistries: tool memory.save/recall/list (bên trong
+	// buildRegistries) và pipeline recall/extract/learn tự động phải dùng
+	// CHUNG 1 Store — trước đây 2 kho tách biệt hoàn toàn (xem comment tại
+	// tools.NewSaveMemoryTool).
+	store := memory.NewStore()
+
+	// Nạp lại fact đã học từ lần chạy trước (collection "memories", ghi bởi
+	// Learner.saveFactToMongo) — trước fix này, Store chỉ sống trong RAM nên
+	// mọi thứ agent "học" được biến mất sau mỗi lần restart/deploy dù đã ghi
+	// bền xuống Mongo (kho bền chỉ để ghi, không ai đọc lại). Không có Mongo
+	// → no-op, không chặn khởi động.
+	if mongoClient != nil {
+		loadCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		n, err := store.LoadFromMongo(loadCtx, mongoClient)
+		cancel()
+		if err != nil {
+			slog.Warn("memory: nạp fact từ mongo thất bại — bắt đầu với Store rỗng", "err", err)
+		} else {
+			slog.Info("memory: đã nạp fact từ mongo", "count", n)
+		}
+	}
+
+	// --- Wire Scoped Tool Registries per Agent Specialty ---
+	codeRegistry, researchRegistry, generalRegistry := buildRegistries(cfg, store)
+
 	// RAG tools (register to all registries)
 	ragTool := tools.NewRAGSearchTool(mongoClient, cfg.MongoDB, cfg.VoyageKey, prov, tools.RAGSearchConfig{
 		EnableHybridSearch:    cfg.EnableHybridSearch,
@@ -88,9 +112,6 @@ func main() {
 
 	// --- Wire Circuit Breaker ---
 	cb := guardrails.NewCircuitBreaker(3)
-
-	// --- Wire Memory Store ---
-	store := memory.NewStore()
 
 	// Wire embedding provider for semantic memory recall.
 	if cfg.VoyageKey != "" {
@@ -326,7 +347,11 @@ Bạn là chuyên gia nghiên cứu internet của JARVIS. Nhiệm vụ của b�
 
 // buildRegistries dựng 3 registry tool theo chuyên môn agent (code, research,
 // general). Tách khỏi main để test được danh sách tool của từng agent.
-func buildRegistries(cfg config.Config) (code, research, general *tools.Registry) {
+//
+// store dùng CHUNG cho memory.save/recall/list và pipeline recall/extract/
+// learn tự động (RecallNode/ExtractNode/Learner) — xem comment tại
+// tools.NewSaveMemoryTool cho lý do tại sao 2 nơi này PHẢI cùng 1 Store.
+func buildRegistries(cfg config.Config, store *memory.Store) (code, research, general *tools.Registry) {
 	code = tools.NewRegistry()
 	code.Register(tools.NewFileSearchTool(cfg.AllowedPaths))
 	code.Register(tools.NewFileReadTool(cfg.AllowedPaths))
@@ -334,16 +359,18 @@ func buildRegistries(cfg config.Config) (code, research, general *tools.Registry
 	code.Register(tools.NewShellToolWithTimeout(nil, time.Duration(cfg.ShellTimeout)*time.Second))
 	code.Register(tools.NewGitTool("."))
 	code.Register(tools.NewVersionTool())
-	code.Register(tools.NewSaveMemoryTool())
-	code.Register(tools.NewRecallMemoryTool())
+	code.Register(tools.NewSaveMemoryTool(store))
+	code.Register(tools.NewRecallMemoryTool(store))
+	code.Register(tools.NewListMemoriesTool(store))
 
 	research = tools.NewRegistry()
 	research.Register(tools.NewWebSearchTool(nil))
 	research.Register(tools.NewWebFetchTool(nil))
 	research.Register(tools.NewNotesSearchTool("."))
 	research.Register(tools.NewNotesCreateTool("."))
-	research.Register(tools.NewSaveMemoryTool())
-	research.Register(tools.NewRecallMemoryTool())
+	research.Register(tools.NewSaveMemoryTool(store))
+	research.Register(tools.NewRecallMemoryTool(store))
+	research.Register(tools.NewListMemoriesTool(store))
 
 	general = tools.NewRegistry()
 	general.Register(tools.NewEchoTool())
@@ -356,8 +383,9 @@ func buildRegistries(cfg config.Config) (code, research, general *tools.Registry
 	general.Register(tools.NewTranslateTool(nil))
 	general.Register(tools.NewCalculatorTool())
 	general.Register(tools.NewDateTimeTool())
-	general.Register(tools.NewSaveMemoryTool())
-	general.Register(tools.NewRecallMemoryTool())
+	general.Register(tools.NewSaveMemoryTool(store))
+	general.Register(tools.NewRecallMemoryTool(store))
+	general.Register(tools.NewListMemoriesTool(store))
 
 	return code, research, general
 }
