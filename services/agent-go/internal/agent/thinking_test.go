@@ -121,8 +121,13 @@ func TestBuildSystemPrompt_WithSkillsAndMemories(t *testing.T) {
 		[]skills.SkillSummary{{Name: "pdf", Description: "đọc PDF"}},
 	)
 
-	if !strings.Contains(prompt, "[KỸ NĂNG]") || !strings.Contains(prompt, "pdf: đọc PDF") {
+	// Chỉ tên skill, không description — xem buildSkillCatalogue (skill do code
+	// Go chọn nên description trong prompt là token trả không mua được gì).
+	if !strings.Contains(prompt, "[KỸ NĂNG]") || !strings.Contains(prompt, "pdf") {
 		t.Error("thiếu mục kỹ năng")
+	}
+	if strings.Contains(prompt, "đọc PDF") {
+		t.Error("description của skill vẫn bị gửi trong system prompt")
 	}
 	if !strings.Contains(prompt, "[BỘ NHỚ]") || !strings.Contains(prompt, "user tên là Trinh") {
 		t.Error("thiếu mục bộ nhớ")

@@ -8,6 +8,39 @@ import (
 	"github.com/ai-agent-tut/agent-go/internal/skills"
 )
 
+// skillNamesPerLine gom nhiều tên skill trên một dòng để bớt token phụ trợ
+// (mỗi dòng "- " + newline tốn token mà không mang thông tin).
+const skillNamesPerLine = 6
+
+// buildSkillCatalogue liệt kê TÊN skill, KHÔNG kèm description.
+//
+// Vì sao bỏ được description: skill KHÔNG do model chọn. `skills.Loader.MatchSkill`
+// chấm điểm bằng code Go trên input người dùng (khớp tên + trigger trong
+// frontmatter) rồi node_model nạp NGUYÊN VĂN SKILL.md của skill thắng vào prompt.
+// Model không có vai trò gì trong việc kích hoạt, nên 30 dòng description gửi
+// kèm MỌI request (~1.100 token, ~21% input của một lượt chat) không mua được
+// khả năng nào — nó chỉ giúp model trả lời câu "bạn làm được gì", và danh sách
+// tên là đủ cho việc đó.
+//
+// Vẫn giữ danh sách trong prompt (thay vì bỏ hẳn) để phần đầu prompt còn ổn
+// định, phục vụ prompt caching — chèn động theo câu hỏi sẽ phá cache prefix.
+func buildSkillCatalogue(summaries []skills.SkillSummary) string {
+	var b strings.Builder
+	for i, s := range summaries {
+		switch {
+		case i == 0:
+			b.WriteString("- ")
+		case i%skillNamesPerLine == 0:
+			b.WriteString("\n- ")
+		default:
+			b.WriteString(", ")
+		}
+		b.WriteString(s.Name)
+	}
+	b.WriteString("\n")
+	return b.String()
+}
+
 // BuildSystemPrompt lắp ráp system prompt theo thứ tự cố định.
 // Các phần ổn định được đặt lên đầu để tận dụng prompt caching (P6).
 //
@@ -67,9 +100,7 @@ func BuildSystemPrompt(memories []string, skillSummaries []skills.SkillSummary) 
 	// 2. Skills list — cacheable section (progressive disclosure: name + description only)
 	if len(skillSummaries) > 0 {
 		b.WriteString("[KỸ NĂNG] — Các kỹ năng có thể kích hoạt khi cần:\n")
-		for _, s := range skillSummaries {
-			b.WriteString(fmt.Sprintf("- %s: %s\n", s.Name, s.Description))
-		}
+		b.WriteString(buildSkillCatalogue(skillSummaries))
 		b.WriteString("Khi người dùng yêu cầu một trong các kỹ năng trên, hãy thông báo sẽ kích hoạt kỹ năng đó.\n\n")
 	}
 

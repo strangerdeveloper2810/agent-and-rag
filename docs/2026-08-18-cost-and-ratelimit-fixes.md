@@ -3,7 +3,11 @@
 Đi kèm `docs/2026-08-18-loadtest-production-report.md`. Bản load test tìm ra
 vấn đề; bản này sửa chúng.
 
-Ba fix, mỗi fix có test hồi quy đã kiểm chứng là **fail khi chưa sửa**.
+Năm fix, mỗi fix có test hồi quy đã kiểm chứng là **fail khi chưa sửa**.
+
+Fix 1–4 sửa bug (rate limit gộp cả hệ thống, đếm token phồng 8 lần, request
+Gemini rác, learner chạy cho lượt tán gẫu). **Fix 5 mới là phần giảm tiền thật:
+input mỗi lượt chat 8.229 → 5.238 token, −36%.**
 
 ---
 
@@ -148,6 +152,73 @@ cộng hai test hành vi: lượt tán gẫu **không** gọi provider, lượt 
 ("tôi tên An") **vẫn** gọi.
 
 ---
+
+## Fix 5 — Cắt token thật mỗi lượt chat: −36% input
+
+Bốn fix trên chặn phí quota và sửa số đo, nhưng **tiền token mỗi lượt gần như
+không giảm**. Phần này mới là cắt chi phí.
+
+Đo trước bằng `cmd/promptsize` để biết cắt ở đâu, thay vì cắt theo cảm giác:
+
+| Thành phần | Trước | Sau | |
+|---|---|---|---|
+| base system prompt | 1.726 | 1.726 | giữ (là quy tắc hành vi) |
+| danh sách 30 skill | **1.095** | **186** | chỉ còn tên |
+| skill được kích hoạt | 2.027 | 2.027 | giữ (chỉ nạp khi khớp) |
+| tool schema (đã filter) | 380 | 380 | giữ |
+| **→ lượt gọi model** | **5.260** | **4.352** | **−17%** |
+| reflection system prompt | 683 | 683 | giữ |
+| transcript gửi cho learner | **~2.286** | **~203** | chỉ lượt cuối |
+| **→ lượt gọi learner** | **~2.969** | **886** | **−70%** |
+| **TỔNG input một lượt chat** | **~8.229** | **5.238** | **−36%** |
+
+### 5a. Danh sách skill: bỏ description, giữ tên (−909 token/request)
+
+Phát hiện quyết định: **skill KHÔNG do model chọn.** `skills.Loader.MatchSkill`
+chấm điểm bằng code Go trên input người dùng (khớp tên + `triggers` trong
+frontmatter), rồi `node_model` nạp nguyên văn SKILL.md của skill thắng.
+
+Nghĩa là 30 dòng description gửi kèm **mọi** request không mua được khả năng nào
+— model không dùng chúng để kích hoạt gì cả. Chúng chỉ giúp model trả lời câu
+"bạn làm được gì", và danh sách tên là đủ cho việc đó.
+
+Vẫn giữ danh sách trong prompt (thay vì bỏ hẳn) để prefix đầu prompt còn ổn định
+cho prompt caching — chèn động theo câu hỏi sẽ phá cache.
+
+### 5b. Learner chỉ nhận lượt trao đổi cuối (−2.083 token/lượt)
+
+Learner chạy sau **mỗi** câu trả lời, nhưng trước đây nhận cả transcript (cắt ở
+8.000 rune). Các lượt cũ đã được reflect ở những lần gọi trước → gửi lại là trả
+tiền nhiều lần cho cùng một đoạn text.
+
+Giờ chỉ lấy `maxReflectionMessages = 4` tin nhắn cuối (2 cặp trao đổi: lượt hiện
+tại + 1 lượt trước làm ngữ cảnh cho câu kiểu "cái đó tên là X"), trần rune hạ
+8.000 → 2.500. Lọc user/assistant **trước** khi cắt, nếu không một lượt nhiều
+tool call sẽ đẩy hết hội thoại thật ra ngoài — có test cho đúng ca này.
+
+### 5c. Bỏ gọi embedding khi không cần (−1 API call/lượt)
+
+`RecallNode` gọi `SemanticSearch` → API embedding (Voyage) cho **mọi** câu user,
+kể cả khi lookup theo keyword và full-text đã tìm được đúng fact — kết quả
+semantic sau đó bị bỏ qua vì vòng lặp chỉ thêm key CHƯA có. Giờ chỉ gọi khi hai
+bước rẻ không ra gì (đúng lúc semantic search có giá trị: câu hỏi diễn đạt khác
+cách fact được lưu). Tiền embedding nhỏ, nhưng cũng bớt 100–300ms latency và một
+điểm lỗi mỗi lượt.
+
+### 5d. Cho thấy phần chi phí đang bị che
+
+`gemini.go` giờ log `cached` và `thoughts` token ở chunk cuối. `cached_tokens` là
+tập con của `promptTokenCount` và được tính giá rẻ hơn nhiều — không thấy con số
+này thì không biết prompt caching có ăn hay không, tức là mù về khoản lớn nhất
+trong hoá đơn (system prompt ~4k token lặp lại mọi request).
+
+### Còn có thể cắt tiếp (chưa làm)
+
+- `reflectionSystemPrompt` 683 token/lượt learner — rút gọn được nhưng đánh đổi
+  chất lượng trích xuất, cần eval trước khi sửa.
+- base system prompt 1.726 token — phần lớn là quy tắc format bảng + quy tắc
+  chọn RAG/web. Sửa là đổi hành vi, phải có eval.
+- `datetime` tool schema 249 token, lớn nhất trong 4 tool của chat thường.
 
 ## Công cụ đo đi kèm
 

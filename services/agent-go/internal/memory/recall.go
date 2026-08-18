@@ -65,14 +65,26 @@ func RecallNode(store *Store) agent.Node {
 			results[k] = v
 		}
 
-		// Step 3: Embedding-based semantic search (optional).
-		semResults, err := store.SemanticSearch(tenantID, query, 5)
-		if err != nil {
-			slog.Warn("memory: semantic search failed, continuing with keyword results", "err", err)
-		}
-		for _, item := range semResults {
-			if _, exists := results[item.Key]; !exists {
-				results[item.Key] = item.Value
+		// Step 3: Embedding-based semantic search — CHỈ khi 2 bước rẻ ở trên
+		// không ra gì.
+		//
+		// SemanticSearch gọi API embedding (Voyage) cho mọi câu user, mỗi lượt
+		// chat một lần, kể cả khi lookup theo key và full-text đã tìm được đúng
+		// thứ cần. Đó là tiền + ~100-300ms latency trả cho một kết quả bị ghi đè
+		// ngay sau đó (vòng lặp dưới chỉ thêm key CHƯA có).
+		//
+		// Giữ nguyên hành vi ở ca quan trọng: khi keyword không khớp gì (câu hỏi
+		// diễn đạt khác với cách fact được lưu) thì semantic search vẫn chạy —
+		// đúng lúc nó có giá trị.
+		if len(results) == 0 {
+			semResults, err := store.SemanticSearch(tenantID, query, 5)
+			if err != nil {
+				slog.Warn("memory: semantic search failed, continuing with keyword results", "err", err)
+			}
+			for _, item := range semResults {
+				if _, exists := results[item.Key]; !exists {
+					results[item.Key] = item.Value
+				}
 			}
 		}
 

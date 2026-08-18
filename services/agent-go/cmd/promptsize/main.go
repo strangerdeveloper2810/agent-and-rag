@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/ai-agent-tut/agent-go/internal/agent"
@@ -119,11 +120,26 @@ func main() {
 	line("system (base + skill)", len(sys))
 	line("messages", mb)
 	line("tool schema (đã filter)", totalFiltered)
-	total := len(sys) + mb + totalFiltered
-	line("TỔNG", total)
+	modelCall := len(sys) + mb + totalFiltered
+	line("→ lượt gọi MODEL", modelCall)
 
-	fmt.Printf("\n  Production log báo tokens_in=41400 cho request tương đương.\n")
-	fmt.Printf("  Ước lượng từ code: ≈%d token.\n", approxTokens(total))
-	fmt.Printf("  Chênh lệch: %+d token → nếu chênh lớn thì phần phình nằm ở\n", 41400-approxTokens(total))
-	fmt.Printf("  tầng provider (cách gemini/deepseek dựng payload), không phải ở agent.\n\n")
+	// Learner (reflection) chạy nền sau MỖI câu trả lời — nó là một lượt gọi LLM
+	// nữa mà người dùng không thấy, nên phải tính vào chi phí một lượt chat.
+	fmt.Printf("\n═══ Chi phí ẩn: learner chạy nền mỗi lượt ═══\n")
+	reflectionSys := len(memory.ReflectionSystemPromptForSizing())
+	// Transcript thực tế: chỉ maxReflectionMessages tin nhắn cuối (đã cắt), lấy
+	// một cặp trao đổi cỡ trung bình làm mẫu.
+	sampleExchange := "USER: Giải thích ngắn gọn RAG là gì cho người mới.\n\n" +
+		"ASSISTANT: " + strings.Repeat("RAG là kỹ thuật cho model tra cứu tài liệu trước khi trả lời. ", 8) + "\n\n"
+	line("system prompt reflection", reflectionSys)
+	line("transcript (đã cắt còn lượt cuối)", len(sampleExchange))
+	learnerCall := reflectionSys + len(sampleExchange)
+	line("→ lượt gọi LEARNER", learnerCall)
+
+	fmt.Printf("\n═══ TỔNG INPUT MỘT LƯỢT CHAT ═══\n")
+	line("model + learner", modelCall+learnerCall)
+	fmt.Printf("\n  Ghi chú: đây là ƯỚC LƯỢNG từ code (≈3,5 byte/token). Số thật lấy\n")
+	fmt.Printf("  từ log production sau khi deploy — dòng `engine: run done tokens_in=...`\n")
+	fmt.Printf("  giờ đã đếm đúng (trước đây phồng 8-17 lần), và dòng\n")
+	fmt.Printf("  `gemini: chi tiết token` cho biết bao nhiêu token được cache (rẻ hơn ~4x).\n\n")
 }

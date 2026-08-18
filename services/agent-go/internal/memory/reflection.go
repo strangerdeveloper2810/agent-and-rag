@@ -50,7 +50,27 @@ const reflectionPerAttemptTimeout = 40 * time.Second
 
 // maxReflectionConvRunes giới hạn độ dài transcript đưa vào prompt, tính theo
 // RUNE (không phải byte) để không chẻ giữa ký tự tiếng Việt.
-const maxReflectionConvRunes = 8000
+//
+// Hạ 8000 → 2500: đây là TRẦN CUỐI, phần cắt chính đã nằm ở
+// maxReflectionMessages bên dưới.
+const maxReflectionConvRunes = 2500
+
+// maxReflectionMessages giới hạn số tin nhắn cuối được đưa vào prompt reflection.
+//
+// Trước đây reflection nhận TOÀN BỘ hội thoại mỗi lượt. Nhưng learner chạy sau
+// MỖI câu trả lời, nên các lượt cũ đã được reflect ở những lần trước rồi — gửi
+// lại chúng là trả tiền nhiều lần cho cùng một đoạn text. Đo trên production:
+// transcript chiếm ~2.300 trong ~3.000 token input của mỗi lượt learner, tức
+// ~36% tổng input token của một lượt chat.
+//
+// 4 = 2 cặp trao đổi: lượt hiện tại + 1 lượt trước làm ngữ cảnh (để hiểu câu
+// kiểu "cái đó tên là X" tham chiếu về câu hỏi trước).
+const maxReflectionMessages = 4
+
+// ReflectionSystemPromptForSizing expose system prompt của reflection để công cụ
+// đo chi phí (cmd/promptsize) tính được phần input của lượt learner. Không dùng
+// trong đường chạy production.
+func ReflectionSystemPromptForSizing() string { return reflectionSystemPrompt }
 
 // UserFact represents a learned preference, technology choice, or biographical fact about the user.
 type UserFact struct {
@@ -118,12 +138,21 @@ func ReflectAndExtract(ctx context.Context, p provider.Provider, model string, m
 		return &ReflectionResult{}, nil
 	}
 
-	// Format conversation transcript for reflection
-	var convText strings.Builder
+	// Chỉ lấy các tin nhắn CUỐI: lượt cũ đã được reflect ở những lần gọi trước
+	// (learner chạy sau mỗi câu trả lời) nên gửi lại là trả tiền lặp.
+	// Lọc user/assistant TRƯỚC khi cắt, nếu không tool message sẽ chiếm hết slot.
+	var dialogue []provider.Message
 	for _, m := range messages {
-		if m.Role != provider.RoleUser && m.Role != provider.RoleAssistant {
-			continue
+		if m.Role == provider.RoleUser || m.Role == provider.RoleAssistant {
+			dialogue = append(dialogue, m)
 		}
+	}
+	if len(dialogue) > maxReflectionMessages {
+		dialogue = dialogue[len(dialogue)-maxReflectionMessages:]
+	}
+
+	var convText strings.Builder
+	for _, m := range dialogue {
 		convText.WriteString(fmt.Sprintf("%s: %s\n\n", strings.ToUpper(string(m.Role)), m.Content))
 	}
 

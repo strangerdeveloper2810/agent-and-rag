@@ -52,7 +52,12 @@ func TestBuildSystemPrompt_MentionsRAGList(t *testing.T) {
 	}
 }
 
-// Danh sách skill (nếu có) phải được liệt kê để model biết mình có kỹ năng gì.
+// Danh sách skill (nếu có) phải được liệt kê để model biết mình có kỹ năng gì —
+// nhưng chỉ TÊN, không kèm description.
+//
+// Trước đây test này đòi cả description. Đã đổi có chủ ý: skill do
+// skills.Loader.MatchSkill (code Go, khớp tên + trigger) chọn, model không tham
+// gia, nên description gửi kèm mọi request chỉ tốn token. Xem buildSkillCatalogue.
 func TestBuildSystemPrompt_ListsSkills(t *testing.T) {
 	prompt := BuildSystemPrompt(nil, []skills.SkillSummary{
 		{Name: "personal-finance", Description: "Quản lý chi tiêu"},
@@ -61,7 +66,7 @@ func TestBuildSystemPrompt_ListsSkills(t *testing.T) {
 	if !strings.Contains(prompt, "personal-finance") {
 		t.Error("prompt thiếu tên skill được truyền vào")
 	}
-	if !strings.Contains(prompt, "Quản lý chi tiêu") {
-		t.Error("prompt thiếu description của skill")
+	if strings.Contains(prompt, "Quản lý chi tiêu") {
+		t.Error("description của skill không được gửi trong mọi request")
 	}
 }

@@ -288,6 +288,22 @@ func (c *Client) Generate(ctx context.Context, req provider.GenerateRequest) (<-
 			}
 
 			if u := resp.UsageMetadata; u != nil {
+				// Log phần cấu thành chi phí mà provider.Usage không mang được.
+				// Chỉ log ở chunk CUỐI (khi có finishReason) để không spam mỗi chunk.
+				//
+				// cached_tokens là tập CON của promptTokenCount (theo doc SDK) và
+				// được tính giá rẻ hơn nhiều — không thấy con số này thì không thể
+				// biết prompt caching có ăn hay không, tức là mù về khoản lớn nhất
+				// trong hoá đơn (system prompt ~4.9k token lặp lại mọi request).
+				if finish != "" && (u.CachedContentTokenCount > 0 || u.ThoughtsTokenCount > 0) {
+					slog.Info("gemini: chi tiết token",
+						"prompt", u.PromptTokenCount,
+						"cached", u.CachedContentTokenCount,
+						"thoughts", u.ThoughtsTokenCount,
+						"candidates", u.CandidatesTokenCount,
+					)
+				}
+
 				if !emit(provider.StreamChunk{
 					Kind: provider.ChunkUsage,
 					Usage: &provider.Usage{
