@@ -2,10 +2,10 @@ import { v4 as uuid } from "uuid";
 import {
   uploadFile,
   createUploadUrl,
-  getPublicUrl,
   getFileStream as storageGetFileStream,
   deleteFile,
 } from "../../common/storage/storage.service";
+
 import type { StorageCategory } from "../../common/storage/storage.service";
 import { config } from "../../config";
 import {
@@ -117,4 +117,3 @@ export const removeUpload = async (tenantId: string, key: string) => {
   await deleteFile(key);
   await deleteByKey(tenantId, key);
 };
-

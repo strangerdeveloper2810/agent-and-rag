@@ -1,15 +1,4 @@
-import api from "@/lib/http";
-
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
-
-const MIME_BY_EXT: Record<string, string> = {
-  png: "image/png",
-  jpg: "image/jpeg",
-  jpeg: "image/jpeg",
-  gif: "image/gif",
-  webp: "image/webp",
-  svg: "image/svg+xml",
-};
 
 /**
  * Upload ảnh (avatar/agent logo) lên server / MinIO qua API Gateway:
@@ -43,4 +32,3 @@ export async function uploadImage(file: File): Promise<string> {
   const data = (await res.json()) as { url: string; key: string };
   return data.url;
 }
-

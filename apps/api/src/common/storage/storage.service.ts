@@ -54,7 +54,10 @@ export const ensureBucketExists = async (): Promise<void> => {
     await s3().send(new HeadBucketCommand({ Bucket: BUCKET }));
     isBucketEnsured = true;
   } catch (err: unknown) {
-    const error = err as { $metadata?: { httpStatusCode?: number }; name?: string };
+    const error = err as {
+      $metadata?: { httpStatusCode?: number };
+      name?: string;
+    };
     if (
       error?.$metadata?.httpStatusCode === 404 ||
       error?.name === "NotFound" ||
@@ -126,7 +129,6 @@ export const uploadFile = async (
       ContentType: ct,
     }),
   );
-
 
   const url = await getSignedUrl(
     s3(),
@@ -275,4 +277,3 @@ export const getPublicUrl = async (key: string): Promise<string> => {
     { expiresIn: URL_EXPIRY },
   );
 };
-

@@ -151,4 +151,3 @@ export const uploadRoutes = async (app: FastifyInstance): Promise<void> => {
     return reply.status(200).send({ deleted: key });
   });
 };
-
