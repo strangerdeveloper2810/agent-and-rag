@@ -1,0 +1,109 @@
+{
+  "base": "http://172.18.0.2:3002",
+  "mode": "agent",
+  "started_at": "2026-08-18T20:54:31+07:00",
+  "stages": [
+    {
+      "stage": 1,
+      "concurrency": 5,
+      "total": 5,
+      "wall_ms": 5750,
+      "req_per_sec": 0.8695088257366538,
+      "ok": 5,
+      "success_rate": 100,
+      "outcomes": {
+        "ok": 5
+      },
+      "ttfb_ms": {
+        "p50": 5,
+        "p90": 5,
+        "p95": 5,
+        "p99": 5,
+        "max": 5,
+        "avg": 4.2
+      },
+      "latency_ms": {
+        "p50": 3829,
+        "p90": 5013.200000000001,
+        "p95": 5381.599999999999,
+        "p99": 5676.32,
+        "max": 5750,
+        "avg": 4181
+      },
+      "tokens_sum": 337648
+    },
+    {
+      "stage": 2,
+      "concurrency": 15,
+      "total": 15,
+      "wall_ms": 39125,
+      "req_per_sec": 0.38338102982816924,
+      "ok": 14,
+      "success_rate": 93.33333333333333,
+      "outcomes": {
+        "ok": 14,
+        "sse_error_event": 1
+      },
+      "ttfb_ms": {
+        "p50": 11.5,
+        "p90": 14,
+        "p95": 14,
+        "p99": 14,
+        "max": 14,
+        "avg": 9.857142857142858
+      },
+      "latency_ms": {
+        "p50": 6216,
+        "p90": 17259.2,
+        "p95": 25312.799999999992,
+        "p99": 36361.75999999998,
+        "max": 39124,
+        "avg": 9931.07142857143
+      },
+      "tokens_sum": 1448545,
+      "error_samples": [
+        "sse_error_event → model: empty response from provider \"fallback[gemini→gemini→deepseek→anthropic]\" (no text, no tool calls, finish=\"stop\")"
+      ]
+    },
+    {
+      "stage": 3,
+      "concurrency": 30,
+      "total": 30,
+      "wall_ms": 24583,
+      "req_per_sec": 1.2203541797284523,
+      "ok": 29,
+      "success_rate": 96.66666666666667,
+      "outcomes": {
+        "ok": 29,
+        "sse_error_event": 1
+      },
+      "ttfb_ms": {
+        "p50": 33,
+        "p90": 41,
+        "p95": 41.599999999999994,
+        "p99": 42.72,
+        "max": 43,
+        "avg": 28.517241379310345
+      },
+      "latency_ms": {
+        "p50": 4356,
+        "p90": 14566.199999999993,
+        "p95": 21717.999999999996,
+        "p99": 23888.96,
+        "max": 24580,
+        "avg": 6893.241379310345
+      },
+      "tokens_sum": 2274020,
+      "error_samples": [
+        "sse_error_event → model: provider error: Error 503, Message: This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later., Status: UNAVAILABLE, Details: []"
+      ]
+    }
+  ],
+  "canary": {
+    "samples": 99,
+    "failures": 0,
+    "p50_ms": 0,
+    "p99_ms": 1.059999999999988,
+    "max_ms": 4
+  }
+}
