@@ -40,6 +40,12 @@ interface AuthState {
   register: (email: string, password: string, name: string) => Promise<void>;
   verifyEmail: (email: string, otp: string) => Promise<void>;
   resendOtp: (email: string) => Promise<void>;
+  forgotPassword: (email: string) => Promise<void>;
+  resetPassword: (
+    email: string,
+    otp: string,
+    newPassword: string,
+  ) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -123,6 +129,34 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   /** Gửi lại OTP — không đổi isLoading (dùng state riêng ở component page). */
   resendOtp: async (email: string) => {
     await api.post("/api/auth/resend-otp", { email });
+  },
+
+  /** Yêu cầu OTP đặt lại mật khẩu */
+  forgotPassword: async (email: string) => {
+    set({ isLoading: true });
+    try {
+      await api.post<{ email: string }>("/api/auth/forgot-password", { email });
+      set({ isLoading: false });
+    } catch (err) {
+      set({ isLoading: false });
+      throw err;
+    }
+  },
+
+  /** Đặt lại mật khẩu mới bằng OTP */
+  resetPassword: async (email: string, otp: string, newPassword: string) => {
+    set({ isLoading: true });
+    try {
+      await api.post<{ message: string }>("/api/auth/reset-password", {
+        email,
+        otp,
+        newPassword,
+      });
+      set({ isLoading: false });
+    } catch (err) {
+      set({ isLoading: false });
+      throw err;
+    }
   },
 
   /**

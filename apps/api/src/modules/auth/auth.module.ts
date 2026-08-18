@@ -39,6 +39,8 @@ export const authModule = async (
   app.post("/api/auth/register", controller.register);
   app.post("/api/auth/verify-email", controller.verifyEmail);
   app.post("/api/auth/resend-otp", controller.resendOtp);
+  app.post("/api/auth/forgot-password", controller.forgotPassword);
+  app.post("/api/auth/reset-password", controller.resetPassword);
   app.post("/api/auth/login", controller.login);
   app.get("/api/auth/google", controller.googleRedirect);
   app.get("/api/auth/google/callback", controller.googleCallback);

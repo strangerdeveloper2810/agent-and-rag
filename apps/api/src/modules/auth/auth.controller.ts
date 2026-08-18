@@ -6,6 +6,8 @@ import { registerSchema } from "./dto/register.dto";
 import { loginSchema } from "./dto/login.dto";
 import { verifyEmailSchema } from "./dto/verify-email.dto";
 import { resendOtpSchema } from "./dto/resend-otp.dto";
+import { forgotPasswordSchema } from "./dto/forgot-password.dto";
+import { resetPasswordSchema } from "./dto/reset-password.dto";
 import { config } from "../../config";
 
 export class AuthController {
@@ -37,6 +39,23 @@ export class AuthController {
     const input = validate(resendOtpSchema, req.body);
     await this.authService.resendOtp(input.email);
     return reply.status(200).send({ message: "OTP đã được gửi lại." });
+  };
+
+  /** POST /api/auth/forgot-password */
+  forgotPassword = async (req: FastifyRequest, reply: FastifyReply) => {
+    const input = validate(forgotPasswordSchema, req.body);
+    const result = await this.authService.forgotPassword(input);
+    return reply.status(200).send({
+      email: result.email,
+      message: "Mã xác thực đặt lại mật khẩu đã được gửi đến email.",
+    });
+  };
+
+  /** POST /api/auth/reset-password */
+  resetPassword = async (req: FastifyRequest, reply: FastifyReply) => {
+    const input = validate(resetPasswordSchema, req.body);
+    const result = await this.authService.resetPassword(input);
+    return reply.status(200).send({ message: result.message });
   };
 
   /** POST /api/auth/login */

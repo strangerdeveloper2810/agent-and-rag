@@ -14,6 +14,9 @@ const DocumentsView = lazy(
 const LoginPage = lazy(() => import("@/pages/auth/LoginPage"));
 const RegisterPage = lazy(() => import("@/pages/auth/RegisterPage"));
 const VerifyEmailPage = lazy(() => import("@/pages/auth/VerifyEmailPage"));
+const ForgotPasswordPage = lazy(
+  () => import("@/pages/auth/ForgotPasswordPage"),
+);
 
 /**
  * Main application component configuring React Router routes with lazy loading & code splitting.
@@ -44,6 +47,14 @@ export const App: React.FC = () => {
           element={
             <GuestGuard>
               <VerifyEmailPage />
+            </GuestGuard>
+          }
+        />
+        <Route
+          path="/forgot-password"
+          element={
+            <GuestGuard>
+              <ForgotPasswordPage />
             </GuestGuard>
           }
         />

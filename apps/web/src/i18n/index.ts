@@ -8,6 +8,7 @@ import viAuth from "./locales/vi/auth.json";
 import viDocuments from "./locales/vi/documents.json";
 import viLayout from "./locales/vi/layout.json";
 import viErrors from "./locales/vi/errors.json";
+import viSettings from "./locales/vi/settings.json";
 
 import enCommon from "./locales/en/common.json";
 import enChat from "./locales/en/chat.json";
@@ -15,6 +16,7 @@ import enAuth from "./locales/en/auth.json";
 import enDocuments from "./locales/en/documents.json";
 import enLayout from "./locales/en/layout.json";
 import enErrors from "./locales/en/errors.json";
+import enSettings from "./locales/en/settings.json";
 
 export const defaultNS = "common";
 
@@ -26,6 +28,7 @@ export const resources = {
     documents: viDocuments,
     layout: viLayout,
     errors: viErrors,
+    settings: viSettings,
   },
   en: {
     common: enCommon,
@@ -34,6 +37,7 @@ export const resources = {
     documents: enDocuments,
     layout: enLayout,
     errors: enErrors,
+    settings: enSettings,
   },
 } as const;
 

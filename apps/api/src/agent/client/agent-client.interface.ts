@@ -23,6 +23,10 @@ export type AgentStreamOptions = {
    * ghi đè chỉ dẫn ngôn ngữ trong system prompt cho riêng lượt chạy này.
    */
   lang?: "vi" | "en";
+  personaPreset?: string;
+  formality?: string;
+  verbosity?: string;
+  customInstructions?: string;
 };
 
 /**

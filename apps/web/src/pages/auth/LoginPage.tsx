@@ -254,12 +254,20 @@ export const LoginPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label
-                    htmlFor="login-password"
-                    className="mb-1.5 block text-xs font-medium text-muted-foreground"
-                  >
-                    {t("login.passwordLabel")}
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label
+                      htmlFor="login-password"
+                      className="block text-xs font-medium text-muted-foreground"
+                    >
+                      {t("login.passwordLabel")}
+                    </label>
+                    <Link
+                      to="/forgot-password"
+                      className="text-xs text-primary hover:underline font-medium"
+                    >
+                      {t("login.forgotPasswordLink")}
+                    </Link>
+                  </div>
                   <div className="relative">
                     <Input
                       id="login-password"

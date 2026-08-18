@@ -118,6 +118,12 @@ export async function streamReply(
   tenantId?: string,
   /** Ngôn ngữ UI người dùng chọn (vd "en") — forward xuống agent.stream(). */
   lang?: "vi" | "en",
+  personaSettings?: {
+    personaPreset?: string;
+    formality?: string;
+    verbosity?: string;
+    customInstructions?: string;
+  },
 ): Promise<StreamResult> {
   const raw = (await getMessagesRepo(
     conversationId,
@@ -156,7 +162,7 @@ export async function streamReply(
     // UI sang "en" (hoặc ngược lại) sẽ ăn trúng cache của lượt trước — trả về
     // đúng NGÔN NGỮ CŨ dù agent chưa từng được gọi lại, vô hiệu hoá tính năng
     // chọn ngôn ngữ này ngay khi cache còn nóng.
-    model: `v${config.CHAT_CACHE_VERSION}|${model}|lang=${lang ?? "vi"}`,
+    model: `v${config.CHAT_CACHE_VERSION}|${model}|lang=${lang ?? "vi"}|p=${personaSettings?.personaPreset ?? "default"}`,
     temperature: 1.0,
     messages: history as unknown as Record<string, unknown>[],
   };
@@ -171,11 +177,11 @@ export async function streamReply(
     try {
       const cached = await getChatCache(cacheInput);
       if (cached) {
-        console.log(`[chat-cache] hit (model=${model})`);
+        console.log(`[chat-cache] HIT (model=${model})`);
         full = cached;
         yield { type: "text", text: cached };
         metadataResolve({
-          backend: backend + "+cache",
+          backend: "cache",
           tokensUsed: 0,
           truncated: false,
         });
@@ -192,6 +198,10 @@ export async function streamReply(
         attachments,
         tenantId,
         lang,
+        personaPreset: personaSettings?.personaPreset,
+        formality: personaSettings?.formality,
+        verbosity: personaSettings?.verbosity,
+        customInstructions: personaSettings?.customInstructions,
       })) {
         if (ev.type === "text") full += ev.text;
 

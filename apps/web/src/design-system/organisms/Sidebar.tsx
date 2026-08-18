@@ -12,11 +12,13 @@ import {
   MagnifyingGlassIcon,
   ArrowRightOnRectangleIcon,
   SparklesIcon,
+  Cog6ToothIcon,
 } from "@heroicons/react/24/outline";
 
 import { useAuthStore } from "@/stores/auth.store";
 import { useToast } from "@/design-system/molecules/Toast";
 import ConfirmDialog from "@/design-system/molecules/ConfirmDialog";
+import UserSettingsModal from "@/design-system/organisms/UserSettingsModal";
 import type { Conversation } from "@/modules/chat/chat.api";
 import { useConversation } from "@/context/ConversationContext";
 import { useNavigate } from "react-router-dom";
@@ -123,6 +125,7 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
 
   const { user, logout } = useAuthStore();
   const toast = useToast();
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Conversation | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -394,36 +397,60 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
         {/* ── User Profile & Logout Footer ── */}
         <div className="p-3 shrink-0 border-t border-border bg-card/40">
           <div className="flex items-center justify-between gap-2 rounded-xl p-2 bg-background border border-border">
-            <div className="flex items-center gap-2.5 min-w-0 flex-1">
-              <Avatar className="h-8 w-8">
+            <button
+              type="button"
+              onClick={() => setIsSettingsOpen(true)}
+              className="flex items-center gap-2.5 min-w-0 flex-1 text-left rounded-lg p-0.5 hover:bg-muted/60 transition group"
+              title="Cài đặt & AI Persona"
+            >
+              <Avatar className="h-8 w-8 shrink-0">
                 <AvatarFallback className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-bold text-xs">
                   {userInitials}
                 </AvatarFallback>
               </Avatar>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-bold text-foreground">
+                <p className="truncate text-xs font-bold text-foreground group-hover:text-primary transition">
                   {user?.name || t("sidebar.defaultUserName")}
                 </p>
                 <p className="truncate text-[10px] text-muted-foreground">
                   {user?.email || "user@javis.ai"}
                 </p>
               </div>
-            </div>
+            </button>
 
-            <Button
-              type="button"
-              variant="ghost"
-              size="iconSm"
-              onClick={handleLogout}
-              aria-label={t("common:logout")}
-              title={t("sidebar.logoutAccount")}
-              className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-8 w-8"
-            >
-              <ArrowRightOnRectangleIcon className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center gap-0.5 shrink-0">
+              <Button
+                type="button"
+                variant="ghost"
+                size="iconSm"
+                onClick={() => setIsSettingsOpen(true)}
+                aria-label="Settings"
+                title="Cài đặt & AI Persona"
+                className="text-muted-foreground hover:text-foreground hover:bg-muted h-8 w-8"
+              >
+                <Cog6ToothIcon className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="iconSm"
+                onClick={handleLogout}
+                aria-label={t("common:logout")}
+                title={t("sidebar.logoutAccount")}
+                className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-8 w-8"
+              >
+                <ArrowRightOnRectangleIcon className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </div>
       </aside>
+
+      <UserSettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        conversationId={activeId || undefined}
+      />
 
       <ConfirmDialog
         open={pendingDelete !== null}

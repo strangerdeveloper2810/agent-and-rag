@@ -34,9 +34,32 @@ export const verifyEmailOtpSchema = z.object({
     .regex(/^\d{6}$/, "Mã OTP chỉ gồm chữ số."),
 });
 
+export const forgotPasswordSchema = z.object({
+  email: z
+    .string()
+    .min(1, "Vui lòng nhập email.")
+    .email("Email không đúng định dạng."),
+});
+
+export const resetPasswordSchema = z
+  .object({
+    otp: z
+      .string()
+      .length(6, "Mã OTP phải gồm 6 chữ số.")
+      .regex(/^\d{6}$/, "Mã OTP chỉ gồm chữ số."),
+    newPassword: z.string().min(8, "Mật khẩu mới phải từ 8 ký tự trở lên."),
+    confirmPassword: z.string().min(1, "Vui lòng xác nhận mật khẩu."),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: "Mật khẩu xác nhận không khớp.",
+    path: ["confirmPassword"],
+  });
+
 export type LoginFormValues = z.infer<typeof loginSchema>;
 export type RegisterFormValues = z.infer<typeof registerSchema>;
 export type VerifyEmailOtpFormValues = z.infer<typeof verifyEmailOtpSchema>;
+export type ForgotPasswordFormValues = z.infer<typeof forgotPasswordSchema>;
+export type ResetPasswordFormValues = z.infer<typeof resetPasswordSchema>;
 
 // ── Composer / Chat input ──
 

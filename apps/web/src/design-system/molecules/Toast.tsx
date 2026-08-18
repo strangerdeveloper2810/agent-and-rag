@@ -23,15 +23,21 @@ type ToastApi = {
 
 const ToastContext = createContext<ToastApi | null>(null);
 
+const dummyToast: ToastApi = {
+  success: () => {},
+  error: () => {},
+  info: () => {},
+  warning: () => {},
+};
+
 /**
  * Custom hook to access toast notification API.
  *
- * @returns ToastApi object with success and error methods
+ * @returns ToastApi object with success, error, info, warning methods
  */
 export const useToast = (): ToastApi => {
   const ctx = useContext(ToastContext);
-  if (!ctx) throw new Error("useToast must be used inside <ToastProvider>");
-  return ctx;
+  return ctx ?? dummyToast;
 };
 
 const DURATION = 3500;

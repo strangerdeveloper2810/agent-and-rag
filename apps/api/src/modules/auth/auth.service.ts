@@ -4,7 +4,7 @@ import type { AuthRepository, UserRow } from "./auth.repository";
 import { TokenService } from "./strategies/token.service";
 import { GoogleStrategy } from "./strategies/google.strategy";
 import { OtpService } from "./otp.service";
-import { sendOtpEmail } from "../../common/email/email.service";
+import { sendOtpEmail, sendPasswordResetOtpEmail } from "../../common/email/email.service";
 import {
   ConflictError,
   UnauthorizedError,
@@ -16,6 +16,8 @@ import { RateLimitError } from "../../lib/errors";
 import type { RegisterInput } from "./dto/register.dto";
 import type { LoginInput } from "./dto/login.dto";
 import type { VerifyEmailInput } from "./dto/verify-email.dto";
+import type { ForgotPasswordInput } from "./dto/forgot-password.dto";
+import type { ResetPasswordInput } from "./dto/reset-password.dto";
 
 const BCRYPT_ROUNDS = 12;
 
@@ -282,4 +284,59 @@ export class AuthService {
     }
     return user;
   }
+
+  // ── Forgot Password ──
+
+  async forgotPassword(input: ForgotPasswordInput): Promise<{ email: string }> {
+    const user = await this.repo.findUserByEmail(input.email);
+    if (!user || user.status === "disabled") {
+      // Bảo mật: Không làm lộ tài khoản có tồn tại hay không, trả về email
+      return { email: input.email };
+    }
+
+    const remaining = await this.otp.cooldownRemaining(user.email);
+    if (remaining > 0) {
+      throw new RateLimitError(
+        `Vui lòng chờ ${remaining} giây trước khi gửi lại OTP.`,
+      );
+    }
+
+    const otpCode = await this.otp.issue(user.email);
+    await sendPasswordResetOtpEmail(user.email, user.name, otpCode);
+
+    return { email: user.email };
+  }
+
+  // ── Reset Password ──
+
+  async resetPassword(
+    input: ResetPasswordInput,
+  ): Promise<{ message: string }> {
+    const user = await this.repo.findUserByEmail(input.email);
+    if (!user || user.status === "disabled") {
+      throw new ValidationError("Yêu cầu không hợp lệ hoặc tài khoản bị khóa.");
+    }
+
+    const result = await this.otp.verify(input.email, input.otp);
+    if (result === "expired") {
+      throw new ValidationError("Mã OTP đã hết hạn. Vui lòng yêu cầu lại.");
+    }
+    if (result === "locked") {
+      throw new ValidationError(
+        "Nhập sai quá nhiều lần. Mã OTP này đã bị hủy.",
+      );
+    }
+    if (result === "invalid") {
+      throw new ValidationError("Mã OTP không đúng.");
+    }
+
+    const hash = await bcrypt.hash(input.newPassword, BCRYPT_ROUNDS);
+    await this.repo.updateEmailCredential(user.id, hash);
+    await this.repo.deleteAllUserRefreshTokens(user.id);
+
+    return {
+      message: "Đặt lại mật khẩu thành công. Vui lòng đăng nhập với mật khẩu mới.",
+    };
+  }
 }
+

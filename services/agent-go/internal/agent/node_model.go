@@ -130,6 +130,27 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 		systemPrompt += "\n\n[NGÔN NGỮ TRẢ LỜI CHO LƯỢT NÀY]\nALWAYS respond in English for this turn (the user selected English in the UI language setting) — this overrides any earlier Vietnamese-default instruction above.\n"
 	}
 
+	// Per-user Custom Instructions
+	if s.CustomInstructions != "" {
+		systemPrompt += "\n\n[CHỈ THỊ RIÊNG TỪ NGƯỜI DÙNG]\n" + s.CustomInstructions + "\n"
+	}
+
+	// Per-user Persona & Style
+	if s.PersonaPreset != "" || s.Formality != "" || s.Verbosity != "" {
+		var pb strings.Builder
+		pb.WriteString("\n\n[PHONG CÁCH & ĐỊNH HƯỚNG PERSONA CHO LƯỢT NÀY]\n")
+		if s.PersonaPreset != "" && s.PersonaPreset != "default" {
+			pb.WriteString(fmt.Sprintf("- Định hướng vai trò: %s\n", s.PersonaPreset))
+		}
+		if s.Formality != "" {
+			pb.WriteString(fmt.Sprintf("- Giọng điệu giao tiếp: %s\n", s.Formality))
+		}
+		if s.Verbosity != "" {
+			pb.WriteString(fmt.Sprintf("- Độ chi tiết câu trả lời: %s\n", s.Verbosity))
+		}
+		systemPrompt += pb.String()
+	}
+
 	// Register tool theo task: bước đầu (step 0) chỉ gửi tool liên quan
 	// intent người dùng (3-8 tool thay vì toàn bộ registry) — giảm token +
 	// latency + nhiễu tool-call. Từ bước 1 trở đi gửi toàn bộ để cho phép

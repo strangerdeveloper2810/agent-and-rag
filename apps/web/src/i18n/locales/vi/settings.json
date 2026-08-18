@@ -1,0 +1,96 @@
+{
+  "modal": {
+    "title": "Cài đặt & Cá nhân hóa",
+    "subtitle": "Tùy chỉnh tài khoản, trí tuệ AI và trải nghiệm không gian làm việc của bạn",
+    "tabs": {
+      "profile": "Hồ sơ cá nhân",
+      "persona": "AI Persona & Giọng điệu",
+      "security": "Bảo mật",
+      "preferences": "Tùy chọn"
+    },
+    "save": "Lưu thay đổi",
+    "saving": "Đang lưu...",
+    "cancel": "Hủy",
+    "close": "Đóng"
+  },
+  "profile": {
+    "title": "Thông tin tài khoản",
+    "desc": "Quản lý tên hiển thị và định danh của bạn trong hệ thống",
+    "nameLabel": "Tên hiển thị",
+    "namePlaceholder": "Nhập họ tên của bạn",
+    "emailLabel": "Địa chỉ Email",
+    "roleLabel": "Vai trò",
+    "userRole": "Thành viên",
+    "adminRole": "Quản trị viên (Admin)",
+    "success": "Đã cập nhật thông tin cá nhân!"
+  },
+  "persona": {
+    "title": "Định hướng AI Persona",
+    "desc": "Tùy chỉnh phong cách trả lời, vai trò chuyên môn và chỉ thị riêng biệt cho J.A.R.V.I.S.",
+    "presetLabel": "Chọn vai trò định hướng (Preset)",
+    "presets": {
+      "default": {
+        "title": "J.A.R.V.I.S. Chuẩn",
+        "desc": "Cân bằng, thông minh, hỗ trợ toàn diện công việc hàng ngày."
+      },
+      "coder": {
+        "title": "Chuyên gia Lập trình",
+        "desc": "Tối ưu code sạch, phân tích kỹ thuật chuyên sâu, ngắn gọn & chuẩn xác."
+      },
+      "business": {
+        "title": "Cố vấn Chiến lược",
+        "desc": "Phân tích số liệu, tư duy logic kinh doanh và lập kế hoạch rõ ràng."
+      },
+      "creative": {
+        "title": "Sáng tạo & Ý tưởng",
+        "desc": "Gợi mở ý tưởng đột phá, ngôn từ sinh động và phong phú."
+      },
+      "custom": {
+        "title": "Tùy chỉnh cá nhân",
+        "desc": "Hoàn toàn tuân thủ theo chỉ thị riêng bên dưới của bạn."
+      }
+    },
+    "formalityLabel": "Giọng điệu giao tiếp (Formality)",
+    "formality": {
+      "casual": "Thân thiện & Gần gũi",
+      "neutral": "Trung tính & Chuẩn mực",
+      "formal": "Trang trọng & Chuyên nghiệp"
+    },
+    "verbosityLabel": "Độ chi tiết câu trả lời (Verbosity)",
+    "verbosity": {
+      "concise": "Ngắn gọn, súc tích (Bullet points)",
+      "normal": "Vừa phải (Tiêu chuẩn)",
+      "detailed": "Chi tiết & Giải thích cặn kẽ"
+    },
+    "customInstructionsLabel": "Chỉ thị riêng cho J.A.R.V.I.S. (Custom System Instructions)",
+    "customInstructionsPlaceholder": "Ví dụ: 'Luôn gọi tôi là Ethan, trả lời bằng tiếng Việt, ưu tiên code TypeScript và tóm tắt theo bảng...'",
+    "customInstructionsHint": "Chỉ thị này sẽ được nạp trực tiếp vào Prompt của mọi phiên trò chuyện.",
+    "success": "Đã lưu cài đặt AI Persona thành công!"
+  },
+  "security": {
+    "title": "Bảo mật tài khoản",
+    "desc": "Đổi mật khẩu định kỳ để bảo vệ tài khoản của bạn",
+    "oldPasswordLabel": "Mật khẩu hiện tại",
+    "oldPasswordPlaceholder": "Nhập mật khẩu hiện tại",
+    "newPasswordLabel": "Mật khẩu mới",
+    "newPasswordPlaceholder": "Tối thiểu 8 ký tự",
+    "confirmPasswordLabel": "Xác nhận mật khẩu mới",
+    "confirmPasswordPlaceholder": "Nhập lại mật khẩu mới",
+    "changePasswordButton": "Cập nhật mật khẩu",
+    "success": "Đổi mật khẩu thành công!"
+  },
+  "preferences": {
+    "title": "Giao diện & Ngôn ngữ",
+    "desc": "Tùy biến môi trường hiển thị cho thị giác thoải mái nhất",
+    "themeLabel": "Chế độ giao diện",
+    "theme": {
+      "dark": "Chế độ Tối (Eye-Comfort Dark)",
+      "light": "Chế độ Sáng (Clean Light)",
+      "system": "Theo hệ thống"
+    },
+    "languageLabel": "Ngôn ngữ hiển thị",
+    "exportChat": "Xuất lịch sử hội thoại hiện tại",
+    "exportMarkdown": "Tải về file Markdown (.md)",
+    "exportJson": "Tải về file JSON (.json)"
+  }
+}

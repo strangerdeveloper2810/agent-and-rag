@@ -1,6 +1,17 @@
+import bcrypt from "bcrypt";
 import type { UserRow } from "../auth/auth.repository";
-import { UsersRepository } from "./users.repository";
-import { NotFoundError, ForbiddenError } from "../../common/errors/app-errors";
+import { UsersRepository, type UserSettingsRow } from "./users.repository";
+import {
+  NotFoundError,
+  ForbiddenError,
+  ValidationError,
+  UnauthorizedError,
+} from "../../common/errors/app-errors";
+import type { UpdateProfileInput } from "./dto/update-profile.dto";
+import type { ChangePasswordInput } from "./dto/change-password.dto";
+import type { UpdateSettingsInput } from "./dto/update-settings.dto";
+
+const BCRYPT_ROUNDS = 12;
 
 // ── Users Service ──
 
@@ -19,6 +30,67 @@ export class UsersService {
       throw new NotFoundError("Không tìm thấy người dùng.");
     }
     return user;
+  };
+
+  /** Cập nhật profile người dùng. */
+  updateProfile = async (
+    userId: string,
+    input: UpdateProfileInput,
+  ): Promise<UserRow> => {
+    const updated = await this.repo.updateProfile(userId, input);
+    if (!updated) {
+      throw new NotFoundError("Không tìm thấy người dùng.");
+    }
+    return updated;
+  };
+
+  /** Đổi mật khẩu người dùng. */
+  changePassword = async (
+    userId: string,
+    input: ChangePasswordInput,
+  ): Promise<{ message: string }> => {
+    const cred = await this.repo.findEmailCredential(userId);
+    if (!cred || !cred.password_hash) {
+      throw new ValidationError(
+        "Tài khoản của bạn đăng nhập bằng Google, không có mật khẩu để đổi.",
+      );
+    }
+
+    const match = await bcrypt.compare(input.oldPassword, cred.password_hash);
+    if (!match) {
+      throw new UnauthorizedError("Mật khẩu hiện tại không chính xác.");
+    }
+
+    const newHash = await bcrypt.hash(input.newPassword, BCRYPT_ROUNDS);
+    await this.repo.updatePassword(userId, newHash);
+
+    return { message: "Đổi mật khẩu thành công." };
+  };
+
+  /** Lấy cài đặt Persona / Custom Instructions của người dùng. */
+  getSettings = async (userId: string): Promise<UserSettingsRow> => {
+    const existing = await this.repo.findSettings(userId);
+    if (existing) return existing;
+
+    // Default settings nếu chưa tạo
+    return {
+      user_id: userId,
+      persona_preset: "default",
+      formality: "neutral",
+      verbosity: "normal",
+      humor: "none",
+      custom_instructions: "",
+      created_at: new Date(),
+      updated_at: new Date(),
+    };
+  };
+
+  /** Cập nhật cài đặt Persona / Custom Instructions của người dùng. */
+  updateSettings = async (
+    userId: string,
+    input: UpdateSettingsInput,
+  ): Promise<UserSettingsRow> => {
+    return this.repo.upsertSettings(userId, input);
   };
 
   /** Admin vô hiệu hoá 1 user. Không được tự vô hiệu hoá chính mình. */

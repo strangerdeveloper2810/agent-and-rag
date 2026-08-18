@@ -31,6 +31,13 @@ export const usersModule = async (
 
   const guard = [authGuard, adminGuard];
 
+  // ── User Self-Service routes (Yêu cầu đăng nhập) ──
+  app.get("/api/user/profile", { preHandler: [authGuard] }, controller.getProfile);
+  app.patch("/api/user/profile", { preHandler: [authGuard] }, controller.updateProfile);
+  app.post("/api/user/change-password", { preHandler: [authGuard] }, controller.changePassword);
+  app.get("/api/user/settings", { preHandler: [authGuard] }, controller.getSettings);
+  app.patch("/api/user/settings", { preHandler: [authGuard] }, controller.updateSettings);
+
   // ⚠️ Route /search phải được register TRƯỚC route /:id,
   // nếu không Fastify sẽ match "search" như 1 param :id.
 

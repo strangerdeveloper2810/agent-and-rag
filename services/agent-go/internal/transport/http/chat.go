@@ -51,11 +51,14 @@ type ChatRequest struct {
 	UserMessage    string        `json:"userMessage"`
 	MaxSteps       int           `json:"maxSteps,omitempty"`
 	Attachments    []Attachment  `json:"attachments,omitempty"`
-	// Lang là ngôn ngữ UI người dùng đang chọn ở FE (vd "en", "vi"). Optional —
-	// rỗng giữ nguyên hành vi mặc định (tiếng Việt). Forward nguyên văn vào
-	// agent.RunInput.Lang, xem node_model.go để biết cách nó ghi đè chỉ dẫn
-	// ngôn ngữ trong system prompt cho riêng lượt chạy này.
+	// Lang là ngôn ngữ UI người dùng đang chọn ở FE (vd "en", "vi").
 	Lang string `json:"lang,omitempty"`
+
+	// Persona settings
+	PersonaPreset      string `json:"personaPreset,omitempty"`
+	Formality          string `json:"formality,omitempty"`
+	Verbosity          string `json:"verbosity,omitempty"`
+	CustomInstructions string `json:"customInstructions,omitempty"`
 }
 
 // Attachment represents a file or image attached to a user message.
@@ -134,12 +137,16 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	input := agent.RunInput{
-		ConversationID: req.ConversationID,
-		History:        history,
-		UserMessage:    req.UserMessage,
-		Attachments:    atts,
-		MaxSteps:       req.MaxSteps,
-		Lang:           req.Lang,
+		ConversationID:      req.ConversationID,
+		History:             history,
+		UserMessage:         req.UserMessage,
+		Attachments:         atts,
+		MaxSteps:            req.MaxSteps,
+		Lang:                req.Lang,
+		PersonaPreset:       req.PersonaPreset,
+		Formality:           req.Formality,
+		Verbosity:           req.Verbosity,
+		CustomInstructions:  req.CustomInstructions,
 	}
 
 	var assistantContent strings.Builder

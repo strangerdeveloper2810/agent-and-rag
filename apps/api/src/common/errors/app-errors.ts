@@ -93,14 +93,19 @@ export class ServiceUnavailableError extends AppError {
 export class ValidationError extends AppError {
   public readonly fieldErrors: Record<string, string[]>;
 
-  constructor(fieldErrors: Record<string, string[]>) {
-    const totalIssues = Object.values(fieldErrors).flat().length;
-    super(
-      `Dữ liệu không hợp lệ (${totalIssues} lỗi).`,
-      422,
-      "VALIDATION_ERROR",
-    );
+  constructor(fieldErrors: Record<string, string[]> | string) {
+    if (typeof fieldErrors === "string") {
+      super(fieldErrors, 422, "VALIDATION_ERROR");
+      this.fieldErrors = { _general: [fieldErrors] };
+    } else {
+      const totalIssues = Object.values(fieldErrors).flat().length;
+      super(
+        `Dữ liệu không hợp lệ (${totalIssues} lỗi).`,
+        422,
+        "VALIDATION_ERROR",
+      );
+      this.fieldErrors = fieldErrors;
+    }
     this.name = "ValidationError";
-    this.fieldErrors = fieldErrors;
   }
 }

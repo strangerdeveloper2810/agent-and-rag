@@ -7,10 +7,46 @@ import {
   ConversationProvider,
   useConversation,
 } from "@/context/ConversationContext";
+import { useToast } from "@/design-system/molecules/Toast";
+import { getMessages } from "@/modules/chat/chat.api";
 
 const LayoutContent: FC = () => {
   const { t } = useTranslation("layout");
-  const { toggleSidebar } = useConversation();
+  const { toggleSidebar, activeId } = useConversation();
+  const toast = useToast();
+
+  const handleExportChat = async () => {
+    if (!activeId) {
+      toast.error("Chưa chọn cuộc hội thoại để xuất");
+      return;
+    }
+    try {
+      const msgs = (await getMessages(activeId)) as Array<{
+        role: string;
+        content: string;
+      }>;
+      if (!msgs.length) {
+        toast.error("Chưa có tin nhắn để xuất");
+        return;
+      }
+      const content = msgs
+        .map(
+          (m) =>
+            `### ${m.role === "user" ? "👤 Bạn" : "🤖 J.A.R.V.I.S."}\n\n${m.content}\n\n---`,
+        )
+        .join("\n\n");
+      const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `javis-chat-${activeId}.md`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Đã xuất cuộc trò chuyện ra file Markdown!");
+    } catch {
+      toast.error("Không thể tải tin nhắn để xuất file");
+    }
+  };
 
   return (
     <div
@@ -24,7 +60,10 @@ const LayoutContent: FC = () => {
         className="flex min-w-0 flex-1 flex-col relative z-10"
         style={{ minHeight: 0 }}
       >
-        <Header onToggleSidebar={toggleSidebar} />
+        <Header
+          onToggleSidebar={toggleSidebar}
+          onExportChat={activeId ? handleExportChat : undefined}
+        />
 
         <Suspense
           fallback={

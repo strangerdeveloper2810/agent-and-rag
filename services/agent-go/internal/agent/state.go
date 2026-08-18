@@ -42,12 +42,14 @@ type RunInput struct {
 	Provider       string
 	MaxSteps       int
 
-	// Lang là ngôn ngữ UI người dùng chọn cho LƯỢT NÀY (vd "en", "vi"). Rỗng =
-	// không chỉ định → agent giữ hành vi mặc định (tiếng Việt) đã bake sẵn
-	// trong system prompt cacheable. Truyền qua RunInput (thay vì đổi system
-	// prompt của Engine) vì Engine dùng chung cho mọi request đồng thời —
-	// xem comment ở cmd/server/main.go và node_model.go.
+	// Lang là ngôn ngữ UI người dùng chọn cho LƯỢT NÀY (vd "en", "vi").
 	Lang string
+
+	// PersonaPreset, Formality, Verbosity, CustomInstructions cho phép cá nhân hóa hành vi agent theo user.
+	PersonaPreset      string
+	Formality          string
+	Verbosity          string
+	CustomInstructions string
 }
 
 // Observation là kết quả của một lần chạy tool — lưu trong Scratchpad.
@@ -128,10 +130,13 @@ type State struct {
 	RecalledMemories []string
 
 	// Lang là ngôn ngữ UI người dùng chọn cho lượt này — copy từ RunInput.Lang.
-	// nodeModel dùng field này để ghi đè chỉ dẫn ngôn ngữ trong system prompt
-	// riêng cho lượt chạy này (per-request), không đụng vào systemPrompt tĩnh
-	// dùng chung giữa các request khác.
 	Lang string
+
+	// Persona settings
+	PersonaPreset      string
+	Formality          string
+	Verbosity          string
+	CustomInstructions string
 }
 
 // newState khởi tạo State từ RunInput.
@@ -167,9 +172,13 @@ func newState(in RunInput) *State {
 	}
 
 	return &State{
-		Messages: messages,
-		MaxSteps: maxSteps,
-		Lang:     in.Lang,
+		Messages:           messages,
+		MaxSteps:           maxSteps,
+		Lang:               in.Lang,
+		PersonaPreset:      in.PersonaPreset,
+		Formality:          in.Formality,
+		Verbosity:          in.Verbosity,
+		CustomInstructions: in.CustomInstructions,
 	}
 }
 

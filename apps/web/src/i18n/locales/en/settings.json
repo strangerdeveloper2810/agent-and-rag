@@ -1,0 +1,96 @@
+{
+  "modal": {
+    "title": "Settings & Personalization",
+    "subtitle": "Customize your account, AI intelligence, and workspace experience",
+    "tabs": {
+      "profile": "Profile",
+      "persona": "AI Persona & Tone",
+      "security": "Security",
+      "preferences": "Preferences"
+    },
+    "save": "Save Changes",
+    "saving": "Saving...",
+    "cancel": "Cancel",
+    "close": "Close"
+  },
+  "profile": {
+    "title": "Account Information",
+    "desc": "Manage your display name and system identity",
+    "nameLabel": "Display Name",
+    "namePlaceholder": "Enter your full name",
+    "emailLabel": "Email Address",
+    "roleLabel": "Role",
+    "userRole": "Member",
+    "adminRole": "Administrator (Admin)",
+    "success": "Profile updated successfully!"
+  },
+  "persona": {
+    "title": "AI Persona & Custom Instructions",
+    "desc": "Fine-tune how J.A.R.V.I.S. behaves, talks, and executes tasks for you",
+    "presetLabel": "Choose Role Preset",
+    "presets": {
+      "default": {
+        "title": "Standard J.A.R.V.I.S.",
+        "desc": "Balanced, insightful, and adaptable for general work."
+      },
+      "coder": {
+        "title": "Senior Code Master",
+        "desc": "Focuses on clean code, architecture, concise explanations."
+      },
+      "business": {
+        "title": "Strategy Advisor",
+        "desc": "Data-driven, executive summaries, structured logic."
+      },
+      "creative": {
+        "title": "Creative Partner",
+        "desc": "Brainstorming, vivid ideas, open exploration."
+      },
+      "custom": {
+        "title": "Fully Custom",
+        "desc": "Strictly obeys your custom instructions below."
+      }
+    },
+    "formalityLabel": "Communication Tone (Formality)",
+    "formality": {
+      "casual": "Friendly & Casual",
+      "neutral": "Balanced & Standard",
+      "formal": "Professional & Formal"
+    },
+    "verbosityLabel": "Response Verbosity",
+    "verbosity": {
+      "concise": "Concise (Bullet points)",
+      "normal": "Standard / Balanced",
+      "detailed": "Comprehensive & In-depth"
+    },
+    "customInstructionsLabel": "Custom System Instructions",
+    "customInstructionsPlaceholder": "e.g. 'Always address me as Ethan, prioritize TypeScript, format data in tables...'",
+    "customInstructionsHint": "These instructions are injected into the agent prompt across all conversations.",
+    "success": "AI Persona settings saved successfully!"
+  },
+  "security": {
+    "title": "Account Security",
+    "desc": "Update your password regularly to protect your account",
+    "oldPasswordLabel": "Current Password",
+    "oldPasswordPlaceholder": "Enter current password",
+    "newPasswordLabel": "New Password",
+    "newPasswordPlaceholder": "At least 8 characters",
+    "confirmPasswordLabel": "Confirm New Password",
+    "confirmPasswordPlaceholder": "Re-enter new password",
+    "changePasswordButton": "Update Password",
+    "success": "Password changed successfully!"
+  },
+  "preferences": {
+    "title": "Display & Language",
+    "desc": "Personalize the user interface and export your data",
+    "themeLabel": "Interface Theme",
+    "theme": {
+      "dark": "Eye-Comfort Dark",
+      "light": "Clean Light",
+      "system": "System Default"
+    },
+    "languageLabel": "Display Language",
+    "exportChat": "Export Current Conversation",
+    "exportMarkdown": "Download Markdown (.md)",
+    "exportJson": "Download JSON (.json)"
+  }
+}

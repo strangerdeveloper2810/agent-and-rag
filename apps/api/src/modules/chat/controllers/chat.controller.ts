@@ -5,6 +5,7 @@ import {
   chatBodySchema,
   createConversationBodySchema,
 } from "../../../schemas/chat-request";
+import { getPgPool } from "../../../database/postgres/postgres.module";
 
 export const postConversation = async (req: FastifyRequest) => {
   const body = parseOrBadRequest(createConversationBodySchema, req.body);
@@ -66,6 +67,37 @@ export const postChat = async (req: FastifyRequest, reply: FastifyReply) => {
   try {
     const tenantId = (req as unknown as Record<string, unknown>).tenantId as
       string | undefined;
+
+    let personaSettings:
+      | {
+          personaPreset?: string;
+          formality?: string;
+          verbosity?: string;
+          customInstructions?: string;
+        }
+      | undefined;
+
+    const userId = (req.user as { sub?: string } | undefined)?.sub;
+    if (userId) {
+      try {
+        const pg = getPgPool();
+        const { rows } = await pg.query(
+          "SELECT persona_preset, formality, verbosity, custom_instructions FROM user_settings WHERE user_id = $1",
+          [userId],
+        );
+        if (rows[0]) {
+          personaSettings = {
+            personaPreset: rows[0].persona_preset,
+            formality: rows[0].formality,
+            verbosity: rows[0].verbosity,
+            customInstructions: rows[0].custom_instructions,
+          };
+        }
+      } catch {
+        // Nếu query lỗi hoặc user chưa có settings, bỏ qua
+      }
+    }
+
     const { events, metadata } = await chatService.streamReply(
       id,
       ac.signal,
@@ -73,6 +105,7 @@ export const postChat = async (req: FastifyRequest, reply: FastifyReply) => {
       attachments,
       tenantId,
       lang,
+      personaSettings,
     );
 
     for await (const ev of events) {
