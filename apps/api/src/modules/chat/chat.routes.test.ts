@@ -68,6 +68,19 @@ describe("chat routes - validation", () => {
     expect(res.json().code).toBe("BAD_REQUEST"); // response chuẩn hoá { error, code }
   });
 
+  // Không có Mongo thật trong test env → getMessages trả [] → continueReply
+  // ném BadRequestError ("không có gì để tiếp tục") → route phải map đúng 400,
+  // không phải 500. Đồng thời xác nhận route /continue đã được đăng ký đúng.
+  it("POST /conversations/:id/continue với hội thoại trống → 400", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: `/api/conversations/${validId}/continue`,
+      headers: { ...authCookie },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().code).toBe("BAD_REQUEST");
+  });
+
   it("thiếu access_token → 401", async () => {
     const res = await app.inject({
       method: "DELETE",

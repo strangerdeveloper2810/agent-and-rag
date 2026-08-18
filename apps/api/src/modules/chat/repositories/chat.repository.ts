@@ -66,6 +66,57 @@ export function createChatRepository(
       return doc;
     },
 
+    /**
+     * Nối `additionalContent` vào CUỐI content của assistant message GẦN NHẤT
+     * trong hội thoại — dùng cho luồng "Tiếp tục" (continue) khi câu trả lời
+     * trước bị cắt vì chạm giới hạn token. Khác `addMessage`: KHÔNG tạo row
+     * mới, để lịch sử hiển thị liền mạch 1 message duy nhất kể cả sau khi
+     * F5 lại trang (trước đây continue tạo user+assistant message MỚI hoàn
+     * toàn, làm code/văn bản dài bị tách đôi vĩnh viễn trong DB).
+     *
+     * Không tìm thấy assistant message nào (hội thoại trống/lỗi trạng thái)
+     * → rơi về tạo mới, không throw (an toàn, vẫn lưu được nội dung thay vì
+     * mất trắng).
+     */
+    appendToLastAssistantMessage: async (
+      conversationId: string,
+      additionalContent: string,
+    ) => {
+      const [last] = await messages()
+        .find({ conversationId, role: "assistant" })
+        .sort({ createdAt: -1 })
+        .limit(1)
+        .toArray();
+
+      if (!last) {
+        const doc: MessageDoc = {
+          conversationId,
+          role: "assistant",
+          content: additionalContent,
+          createdAt: new Date(),
+        };
+        await messages().insertOne(doc);
+        await conversations().updateOne(
+          { _id: toObjectId(conversationId) },
+          { $set: { updatedAt: new Date() } },
+        );
+        return doc;
+      }
+
+      // Update qua aggregation pipeline ($concat) để nối atomic ngay trong
+      // Mongo — không đọc content cũ về app rồi ghi lại (tránh race nếu có
+      // 2 continue chạy chồng, dù thực tế FE chỉ cho phép 1 request/lúc).
+      await messages().updateOne({ _id: last._id }, [
+        { $set: { content: { $concat: ["$content", additionalContent] } } },
+      ] as never);
+      await conversations().updateOne(
+        { _id: toObjectId(conversationId) },
+        { $set: { updatedAt: new Date() } },
+      );
+
+      return { ...last, content: last.content + additionalContent };
+    },
+
     deleteConversation: async (conversationId: string) => {
       const _id = toObjectId(conversationId); // validate sớm, trước khi chạm DB
       await messages().deleteMany({ conversationId });
@@ -81,6 +132,7 @@ export const {
   createConversation,
   listConversations,
   getMessages,
+  appendToLastAssistantMessage,
   addMessage,
   deleteConversation,
 } = chatRepository;

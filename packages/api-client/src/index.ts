@@ -61,6 +61,53 @@ export const renameConversation = (
   client: HttpClient = defaultHttp,
 ) => client.put<Conversation>(`/conversations/${id}`, { title });
 
+/** Đọc 1 response SSE, parse từng dòng `data: {...}` → ChatEvent → onEvent.
+ * Dùng chung cho streamChat và streamContinue (khác nhau ở URL/body gọi). */
+const consumeSSEStream = async (
+  response: Response,
+  onEvent: (e: ChatEvent) => void,
+): Promise<void> => {
+  if (!response.body) throw new Error("No stream body received from server");
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  const parseLines = (lines: string[]) => {
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith("data: ")) continue;
+      try {
+        const parsed = JSON.parse(trimmed.slice(6)) as Record<
+          string,
+          unknown
+        >;
+        const event = normalizeEvent(parsed);
+        if (event) onEvent(event);
+      } catch {
+        // Ignore malformed SSE lines
+      }
+    }
+  };
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      parseLines(lines);
+    }
+    buffer += decoder.decode();
+    if (buffer.trim()) {
+      parseLines(buffer.split("\n"));
+    }
+  } finally {
+    reader.releaseLock();
+  }
+};
+
 export const streamChat = async (
   conversationId: string,
   content: string,
@@ -78,55 +125,27 @@ export const streamChat = async (
     body,
     { signal },
   );
-  if (!response.body) throw new Error("No stream body received from server");
+  await consumeSSEStream(response, onEvent);
+};
 
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? "";
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed.startsWith("data: ")) continue;
-        try {
-          const parsed = JSON.parse(trimmed.slice(6)) as Record<
-            string,
-            unknown
-          >;
-          const event = normalizeEvent(parsed);
-          if (event) onEvent(event);
-        } catch {
-          // Ignore malformed SSE lines
-        }
-      }
-    }
-    buffer += decoder.decode();
-    if (buffer.trim()) {
-      const remainingLines = buffer.split("\n");
-      for (const line of remainingLines) {
-        const trimmed = line.trim();
-        if (!trimmed.startsWith("data: ")) continue;
-        try {
-          const parsed = JSON.parse(trimmed.slice(6)) as Record<
-            string,
-            unknown
-          >;
-          const event = normalizeEvent(parsed);
-          if (event) onEvent(event);
-        } catch {
-          // Ignore malformed SSE lines
-        }
-      }
-    }
-  } finally {
-    reader.releaseLock();
-  }
+/**
+ * Tiếp tục 1 câu trả lời bị cắt vì chạm giới hạn output token — khác
+ * streamChat: KHÔNG gửi content (không phải 1 user turn mới). Response được
+ * BFF nối vào cuối message assistant cũ, nên FE cũng phải nối text stream về
+ * vào ĐÚNG message đó thay vì tạo bubble mới (xem ChatPage.handleContinue).
+ */
+export const streamContinue = async (
+  conversationId: string,
+  onEvent: (e: ChatEvent) => void,
+  signal?: AbortSignal,
+  client: HttpClient = defaultHttp,
+): Promise<void> => {
+  const response = await client.stream(
+    `/conversations/${conversationId}/continue`,
+    undefined,
+    { signal },
+  );
+  await consumeSSEStream(response, onEvent);
 };
 
 function normalizeEvent(raw: Record<string, unknown>): ChatEvent | null {
