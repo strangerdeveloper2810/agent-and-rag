@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" fill="none">
+  <rect width="1200" height="630" fill="#08090d"/>
+  
+  <radialGradient id="bg-glow" cx="50%" cy="30%" r="60%">
+    <stop offset="0%" stop-color="#4f46e5" stop-opacity="0.3"/>
+    <stop offset="60%" stop-color="#7c3aed" stop-opacity="0.1"/>
+    <stop offset="100%" stop-color="#08090d" stop-opacity="0"/>
+  </radialGradient>
+  <rect width="1200" height="630" fill="url(#bg-glow)"/>
+
+  <g transform="translate(600, 210)">
+    <circle cx="0" cy="0" r="70" fill="#181824" stroke="#6366f1" stroke-width="2"/>
+    <path d="M0 -35 L7 0 L42 7 L7 14 L0 49 L-7 14 L-42 7 L-7 0 Z" fill="#818cf8"/>
+    <circle cx="35" cy="-25" r="5" fill="#c084fc"/>
+    <circle cx="-30" cy="30" r="4" fill="#60a5fa"/>
+  </g>
+
+  <text x="600" y="340" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="54" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="4">
+    J.A.R.V.I.S.
+  </text>
+  <text x="600" y="390" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="24" font-weight="500" fill="#a5b4fc" text-anchor="middle" letter-spacing="1.5">
+    Autonomous AI Agent &amp; Semantic RAG Platform
+  </text>
+  <text x="600" y="440" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="18" font-weight="400" fill="#94a3b8" text-anchor="middle">
+    Multi-Agent Reasoning • Vector Search • Real-time Streaming • 30+ Autonomous Skills
+  </text>
+  
+  <rect x="475" y="485" width="250" height="42" rx="21" fill="#6366f1" fill-opacity="0.2" stroke="#818cf8" stroke-width="1.5"/>
+  <text x="600" y="512" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="16" font-weight="600" fill="#e0e7ff" text-anchor="middle">
+    ai.ethansoftwaredeveloper.com
+  </text>
+</svg>

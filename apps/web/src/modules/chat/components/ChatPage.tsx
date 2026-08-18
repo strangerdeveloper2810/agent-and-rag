@@ -175,7 +175,7 @@ export const ChatPage: React.FC = () => {
   const streamCtrlRef = useRef<AbortController | null>(null);
   const userScrolledUpRef = useRef(false);
   const toast = useToast();
-  useDocumentTitle("Chat");
+  useDocumentTitle("Trò chuyện AI", "Trò chuyện và giao việc trực tiếp cho trợ lý AI thông minh J.A.R.V.I.S.");
 
   const streamingRef = useRef(false);
   streamingRef.current = streaming;

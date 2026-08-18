@@ -35,7 +35,7 @@ export const VerifyEmailPage: React.FC = () => {
   const email = searchParams.get("email") ?? "";
   const { verifyEmail, resendOtp, isLoading } = useAuthStore();
   const toast = useToast();
-  useDocumentTitle("Xác minh email - J.A.R.V.I.S.");
+  useDocumentTitle("Xác minh Email", "Nhập mã OTP 6 số để kích hoạt tài khoản J.A.R.V.I.S.");
 
   const [cooldown, setCooldown] = useState(COOLDOWN_SECONDS);
   const [resending, setResending] = useState(false);

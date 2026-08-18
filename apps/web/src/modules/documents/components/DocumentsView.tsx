@@ -89,7 +89,7 @@ function reducer(state: State, action: Action): State {
  */
 export const DocumentsView: React.FC = () => {
   const toast = useToast();
-  useDocumentTitle("Documents");
+  useDocumentTitle("Kho Tài Liệu & RAG", "Quản lý và tìm kiếm ngữ nghĩa tài liệu thông minh với RAG Vector Search.");
   const [state, dispatch] = useReducer(reducer, initialState);
   const {
     docs,

@@ -1,15 +1,121 @@
 <!doctype html>
-<html lang="en">
+<html lang="vi" dir="ltr">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>J.A.R.V.I.S.</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+
+    <!-- ── Primary SEO Metadata ── -->
+    <title>J.A.R.V.I.S. — Trợ Lý AI Thông Minh &amp; Đa Tác Nhân (Autonomous AI Agent)</title>
+    <meta
+      name="description"
+      content="J.A.R.V.I.S. là nền tảng trợ lý AI đa tác nhân thế hệ mới: hỗ trợ RAG Vector Search tìm kiếm tài liệu thông minh, lập trình, tự động hóa tác vụ với 30+ kỹ năng và điều hướng mô hình thông minh."
+    />
+    <meta
+      name="keywords"
+      content="AI agent, J.A.R.V.I.S, trợ lý AI, RAG, vector search, Claude 3.7, Gemini 2.5, DeepSeek, LangGraph, AI chatbot, AI automation"
+    />
+    <meta name="author" content="Ethan Nguyen" />
+    <meta name="publisher" content="Ethan Software" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <meta name="googlebot" content="index, follow, max-snippet:-1, max-image-preview:large" />
+    <link rel="canonical" href="https://ai.ethansoftwaredeveloper.com/" />
+
+    <!-- ── Mobile & App Theme ── -->
+    <meta name="theme-color" content="#08090d" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="application-name" content="J.A.R.V.I.S." />
+    <meta name="apple-mobile-web-app-title" content="J.A.R.V.I.S." />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="format-detection" content="telephone=no" />
+
+    <!-- ── Icons & Web App Manifest ── -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/favicon.svg" />
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- ── Open Graph / Facebook / Zalo / Telegram ── -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="J.A.R.V.I.S. AI Platform" />
+    <meta property="og:url" content="https://ai.ethansoftwaredeveloper.com/" />
+    <meta property="og:title" content="J.A.R.V.I.S. — Trợ Lý AI Thông Minh &amp; Đa Tác Nhân" />
+    <meta
+      property="og:description"
+      content="Nền tảng trợ lý AI đa tác nhân thế hệ mới với RAG ngữ nghĩa, 30+ kỹ năng tự động hóa và định tuyến thông minh."
+    />
+    <meta property="og:image" content="https://ai.ethansoftwaredeveloper.com/og-image.svg" />
+    <meta property="og:image:type" content="image/svg+xml" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Giao diện nền tảng J.A.R.V.I.S. AI Agent" />
+    <meta property="og:locale" content="vi_VN" />
+    <meta property="og:locale:alternate" content="en_US" />
+
+    <!-- ── Twitter Card ── -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="J.A.R.V.I.S. — Trợ Lý AI Thông Minh &amp; Đa Tác Nhân" />
+    <meta
+      name="twitter:description"
+      content="Nền tảng trợ lý AI đa tác nhân thế hệ mới với RAG ngữ nghĩa, 30+ kỹ năng tự động hóa và định tuyến thông minh."
+    />
+    <meta name="twitter:image" content="https://ai.ethansoftwaredeveloper.com/og-image.svg" />
+    <meta name="twitter:image:alt" content="J.A.R.V.I.S. AI Preview" />
+
+    <!-- ── Google Fonts Preconnect ── -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400..700;1,400..700&family=Roboto:ital,wght@0,300..700;1,300..700&display=swap"
       rel="stylesheet"
     />
+
+    <!-- ── Structured Data / Schema.org (JSON-LD) ── -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "SoftwareApplication",
+            "@id": "https://ai.ethansoftwaredeveloper.com/#application",
+            "name": "J.A.R.V.I.S.",
+            "url": "https://ai.ethansoftwaredeveloper.com",
+            "description": "Nền tảng trợ lý AI thông minh đa tác nhân hỗ trợ RAG, lập trình và tự động hóa tác vụ.",
+            "applicationCategory": "BusinessApplication, DeveloperApplication, ArtificialIntelligence",
+            "operatingSystem": "Web, All",
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "USD"
+            },
+            "featureList": [
+              "Multi-Agent AI Routing (DeepSeek, Gemini, Claude)",
+              "Semantic RAG Vector Search",
+              "Real-time Streaming SSE",
+              "Smart Memory & Knowledge Graph",
+              "30+ Autonomous Tool Skills"
+            ],
+            "publisher": {
+              "@type": "Organization",
+              "name": "Ethan Software",
+              "url": "https://ethansoftwaredeveloper.com"
+            }
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://ai.ethansoftwaredeveloper.com/#website",
+            "url": "https://ai.ethansoftwaredeveloper.com",
+            "name": "J.A.R.V.I.S. AI Platform",
+            "description": "Nền tảng trợ lý AI thông minh & đa tác nhân",
+            "publisher": {
+              "@type": "Organization",
+              "name": "Ethan Software"
+            },
+            "inLanguage": "vi-VN"
+          }
+        ]
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

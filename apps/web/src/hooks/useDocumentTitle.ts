@@ -9,24 +9,32 @@
 
 import { useEffect } from "react";
 
-const APP_NAME = "JARVIS";
-const DEFAULT_TITLE = APP_NAME;
+const APP_NAME = "J.A.R.V.I.S.";
+const DEFAULT_TITLE = `${APP_NAME} — Trợ Lý AI Thông Minh & Đa Tác Nhân`;
 
 /**
- * Set document.title với format "{title} | {APP_NAME}".
- * Nếu `title` là undefined/empty → reset về "JARVIS".
- * Tự động khôi phục title cũ khi component unmount.
+ * Set document.title với format "{title} — {APP_NAME}".
+ * Nếu `title` là undefined/empty → reset về DEFAULT_TITLE.
+ * Tự động cập nhật thẻ meta description nếu có.
  */
-export const useDocumentTitle = (title?: string): void => {
+export const useDocumentTitle = (title?: string, description?: string): void => {
   useEffect(() => {
     const prev = document.title;
+    document.title = title ? `${title} — ${APP_NAME}` : DEFAULT_TITLE;
 
-    document.title = title ? `${title} | ${APP_NAME}` : DEFAULT_TITLE;
+    const metaDesc = document.querySelector('meta[name="description"]');
+    const prevDesc = metaDesc ? metaDesc.getAttribute("content") : null;
+    if (description && metaDesc) {
+      metaDesc.setAttribute("content", description);
+    }
 
     return () => {
       document.title = prev;
+      if (prevDesc && metaDesc) {
+        metaDesc.setAttribute("content", prevDesc);
+      }
     };
-  }, [title]);
+  }, [title, description]);
 };
 
 export default useDocumentTitle;
