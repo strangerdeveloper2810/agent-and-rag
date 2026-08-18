@@ -105,6 +105,17 @@ else
   log "Dùng lại secret hạ tầng đã sinh trước đó tại ${ENV_SECRETS}"
 fi
 
+# ── 2b. Đảm bảo file đọc được (phòng trường hợp trước đó lỡ chạy sudo, khiến
+# file bị root sở hữu và tài khoản thường không đọc được) ──────────────────
+for f in "${ENV_PROD}" "${ENV_SECRETS}"; do
+  if [[ ! -r "${f}" ]]; then
+    err "Không đọc được ${f} (Permission denied) — có thể do trước đó đã lỡ chạy"
+    err "script này bằng sudo, khiến file bị root sở hữu. Sửa lại quyền:"
+    err "  sudo chown \"\$(whoami)\":\"\$(id -gn)\" ${f} && chmod 600 ${f}"
+    exit 1
+  fi
+done
+
 # ── 3. Ghép thành 1 file .env hoàn chỉnh gửi lên VPS ────────────────────────
 # Docker Compose (giống mọi dotenv loader chuẩn) đọc env_file TUẦN TỰ và dùng
 # giá trị GẶP SAU CÙNG khi 1 key bị lặp — nên phải ghi .env.production (có thể
