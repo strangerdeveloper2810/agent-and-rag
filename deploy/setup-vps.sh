@@ -16,8 +16,13 @@
 # vì code build từ nguồn local rsync lên, không cần VPS có quyền pull GitHub riêng.
 #
 # Usage:
-#   1. Copy lên VPS:  scp deploy/setup-vps.sh your-vps:/tmp/
-#   2. Chạy trên VPS: sudo bash /tmp/setup-vps.sh
+#   Script này được deploy/deploy-to-vps.sh TỰ ĐỘNG chạy từ xa qua SSH ở mỗi
+#   lần deploy (idempotent) — bạn KHÔNG cần tự tay chạy script này.
+#
+#   Chỉ chạy tay khi cần debug/bootstrap riêng lẻ, và LUÔN chạy TRÊN VPS
+#   (không phải trên máy local của bạn):
+#     ssh your-vps
+#     sudo bash /opt/jarvis-tmp-setup.sh   # hoặc scp file này lên trước rồi chạy
 # ═══════════════════════════════════════════════════════════════════════════════
 
 set -euo pipefail

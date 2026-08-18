@@ -40,17 +40,22 @@ Full stack: PostgreSQL + Redis + MinIO + Go Agent + API BFF + Frontend.
 ### Deploy lên VPS (khuyến nghị — script tự động)
 
 ```bash
-# 1 lần duy nhất trên VPS (Docker đã cài sẵn):
-scp deploy/setup-vps.sh your-vps:/tmp/ && ssh your-vps sudo bash /tmp/setup-vps.sh
-
-# Từ máy local, mỗi lần deploy:
+# Từ máy local (KHÔNG dùng sudo), mỗi lần deploy — kể cả lần đầu:
 ./deploy/deploy-to-vps.sh
 ```
 
-`deploy-to-vps.sh` tự rsync code (không cần VPS có quyền pull GitHub riêng),
+Chỉ cần Docker + SSH đã cấu hình sẵn trên VPS (host mặc định `hr-vps` trong
+`~/.ssh/config`, đổi qua `JARVIS_SSH_HOST`). Script tự SSH vào VPS bootstrap
+(`deploy/setup-vps.sh` — tạo `/opt/jarvis`, mở firewall, cron backup, an toàn
+chạy lại nhiều lần), tự rsync code (không cần VPS có quyền pull GitHub riêng),
 ghép `env/.env.production` (bạn tự điền, KHÔNG commit git) với secret hạ tầng
 tự sinh 1 lần, rồi build + `up -d` từ xa qua SSH. Xem chi tiết + biến môi
 trường (`JARVIS_SSH_HOST`, `WEB_HOST_PORT`) trong header của script.
+
+**Chạy script này bằng tài khoản người dùng bình thường của bạn, KHÔNG bao
+giờ dùng `sudo`** — `sudo` đổi `$HOME` sang thư mục của root nên SSH sẽ không
+tìm thấy `~/.ssh/config`/key của bạn. Script tự kiểm tra và báo lỗi rõ nếu lỡ
+chạy bằng sudo/root.
 
 **Chỉ `web` được publish port ra host** (mặc định `8090`, đổi qua
 `WEB_HOST_PORT` nếu VPS dùng chung với app khác đã chiếm port đó) —

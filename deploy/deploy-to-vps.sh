@@ -1,12 +1,19 @@
 #!/usr/bin/env bash
 # ═══════════════════════════════════════════════════════════════════════════════
-# J.A.R.V.I.S. — Deploy lên VPS (chạy từ máy LOCAL, không phải trên VPS)
+# J.A.R.V.I.S. — Deploy lên VPS (LUÔN chạy ở máy LOCAL của bạn, KHÔNG bao giờ
+# dùng sudo, KHÔNG bao giờ chạy trực tiếp trên VPS)
 # ═══════════════════════════════════════════════════════════════════════════════
-# Chạy script này từ THƯ MỤC GỐC của repo (nơi có pnpm-workspace.yaml), sau khi:
-#   1. Đã chạy deploy/setup-vps.sh trên VPS (1 lần duy nhất — tạo /opt/jarvis, mở
-#      firewall, tạo cron backup).
-#   2. Đã cấu hình SSH tới VPS trong ~/.ssh/config (mặc định dùng host "hr-vps",
-#      đổi qua biến JARVIS_SSH_HOST nếu khác).
+# Chạy script này từ THƯ MỤC GỐC của repo (nơi có pnpm-workspace.yaml), với tài
+# khoản người dùng BÌNH THƯỜNG của bạn (không sudo) — vì nó cần dùng đúng
+# ~/.ssh/config + SSH key của CHÍNH BẠN để nối tới VPS. Chạy bằng `sudo` sẽ tìm
+# nhầm sang cấu hình SSH của root (/var/root/.ssh/...) và báo lỗi kết nối.
+#
+# Tự động, KHÔNG cần chạy tay deploy/setup-vps.sh hay bất kỳ script nào khác
+# trước — script này tự SSH vào VPS chạy phần bootstrap (tạo /opt/jarvis, mở
+# firewall, cron backup) ở MỖI LẦN deploy, an toàn để chạy lại nhiều lần
+# (idempotent — không ghi đè/xoá gì đã có).
+#   - Cần cấu hình SSH tới VPS trong ~/.ssh/config (mặc định dùng host "hr-vps",
+#     đổi qua biến JARVIS_SSH_HOST nếu khác).
 #
 # Cách hoạt động:
 #   - KHÔNG cần VPS có quyền pull GitHub riêng — code được rsync thẳng từ máy
@@ -41,6 +48,16 @@ log()  { echo -e "${GREEN}[✓]${NC} $*"; }
 warn() { echo -e "${YELLOW}[!]${NC} $*"; }
 err()  { echo -e "${RED}[✗]${NC} $*" >&2; }
 info() { echo -e "${CYAN}[→]${NC} $*"; }
+
+# ── -1. KHÔNG được chạy bằng sudo/root ──────────────────────────────────────
+# sudo đổi $HOME sang thư mục của root -> ssh đọc nhầm /var/root/.ssh/config
+# (rỗng) thay vì ~/.ssh/config của bạn -> luôn báo "Không kết nối được SSH".
+if [[ "${EUID}" -eq 0 ]]; then
+  err "ĐỪNG chạy script này bằng sudo/root — nó cần SSH key của TÀI KHOẢN BẠN,"
+  err "không phải của root. Chạy lại KHÔNG có sudo:"
+  err "  ./deploy/deploy-to-vps.sh"
+  exit 1
+fi
 
 # ── 0. Chạy đúng chỗ ─────────────────────────────────────────────────────────
 if [[ ! -f "pnpm-workspace.yaml" ]]; then
@@ -139,6 +156,14 @@ if ! ssh -o BatchMode=yes -o ConnectTimeout=10 "${SSH_HOST}" "echo ok" &>/dev/nu
   exit 1
 fi
 log "SSH tới ${SSH_HOST} OK"
+
+# ── 4b. Bootstrap VPS từ xa (idempotent — an toàn chạy lại mỗi lần deploy) ──
+# Không cần bạn tự scp/ssh chạy deploy/setup-vps.sh tay nữa (dễ lỡ chạy nhầm
+# trên máy local). SSH host "${SSH_HOST}" đã đăng nhập thẳng bằng root (xem
+# ~/.ssh/config), nên không cần sudo/mật khẩu ở bước này.
+info "Bootstrap VPS (tạo thư mục, mở firewall, cron backup — bỏ qua nếu đã có)..."
+ssh "${SSH_HOST}" "WEB_HOST_PORT=${WEB_HOST_PORT} bash -s" < deploy/setup-vps.sh
+log "Bootstrap VPS xong"
 
 # ── 5. Rsync code (không kèm .git, node_modules, env thật) ──────────────────
 info "Đồng bộ code lên ${SSH_HOST}:${REMOTE_DIR}..."
