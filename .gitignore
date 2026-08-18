@@ -13,3 +13,6 @@ env/.env.production.secrets
 *.log
 .DS_Store
 coverage
+
+# Tài liệu kiến trúc cá nhân (không commit vào repo chung)
+/ARCHITECTURE_BFF_AGENT_GO.md
