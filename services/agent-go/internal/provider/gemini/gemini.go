@@ -44,6 +44,14 @@ func New(apiKey, model string, thinking provider.ThinkingLevel) (*Client, error)
 
 func (c *Client) Name() string { return "gemini" }
 
+// Model trả model client này được cấu hình dùng.
+//
+// Name() cố tình vẫn là "gemini" cho MỌI client (chuỗi fallback nhận diện họ
+// provider qua tên này — xem fallback.scopeModel), nên khi chain có 8 client
+// gemini khác model thì log không phân biệt được. Method này để tầng fallback ghi
+// đúng model nào lỗi/nào phục vụ.
+func (c *Client) Model() string { return c.model }
+
 // ---------------------------------------------------------------------------
 // Hàm dịch THUẦN (không I/O, test được)
 // ---------------------------------------------------------------------------

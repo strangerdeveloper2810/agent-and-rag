@@ -145,17 +145,31 @@ func TestFallback_LogPhanBietLoiTrongStream(t *testing.T) {
 	}
 }
 
+type stubModelProvider struct {
+	*provider.FakeProvider
+	model string
+}
+
+func (s *stubModelProvider) Model() string { return s.model }
+
 func TestModelOf(t *testing.T) {
 	withModel := provider.GenerateRequest{
 		Options: provider.ProviderOptions{Model: "gemini-3.1-flash-lite"},
 	}
-	if got := modelOf(withModel, "gemini"); got != "gemini-3.1-flash-lite" {
+	npGemini := &namedProvider{name: "gemini", prov: provider.NewFake()}
+	if got := modelOf(withModel, npGemini); got != "gemini-3.1-flash-lite" {
 		t.Errorf("modelOf = %q, want tên model được yêu cầu", got)
 	}
 
-	// Options.Model rỗng = provider dùng model mặc định của chính nó; log phải nói
-	// rõ chứ không để trống làm người đọc tưởng thiếu dữ liệu.
-	if got := modelOf(provider.GenerateRequest{}, "deepseek"); got != "deepseek:default" {
+	// Provider có Model() method tự khai
+	npWithModel := &namedProvider{name: "gemini", prov: &stubModelProvider{FakeProvider: provider.NewFake(), model: "gemini-2.5-flash"}}
+	if got := modelOf(provider.GenerateRequest{}, npWithModel); got != "gemini-2.5-flash" {
+		t.Errorf("modelOf = %q, want gemini-2.5-flash", got)
+	}
+
+	// Options.Model rỗng & provider không có Model() method -> fallback về provider:default
+	npDeepseek := &namedProvider{name: "deepseek", prov: provider.NewFake()}
+	if got := modelOf(provider.GenerateRequest{}, npDeepseek); got != "deepseek:default" {
 		t.Errorf("modelOf = %q, want %q", got, "deepseek:default")
 	}
 }
