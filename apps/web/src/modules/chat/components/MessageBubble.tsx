@@ -173,6 +173,8 @@ interface MessageBubbleProps {
   usage?: UsageData | null;
   /** Câu trả lời bị cắt vì chạm giới hạn độ dài → hiện chỉ báo + nút "Tiếp tục". */
   truncated?: boolean;
+  /** Quá trình xử lý gặp lỗi thực sự từ stream/mạng. */
+  hasError?: boolean;
   onRegenerate?: () => void;
   onRetryUser?: (content: string) => void;
   onContinue?: () => void;
@@ -189,6 +191,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   agent = null,
   usage = null,
   truncated = false,
+  hasError = false,
   onRegenerate,
   onRetryUser,
   onContinue,
@@ -259,11 +262,13 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   // --- Assistant bubble ---
   const hasContent = message.content.length > 0;
-  const hasError =
-    message.content.includes("Could not send message") ||
-    message.content.includes("circuit breaker") ||
-    message.content.includes("AI agent không phản hồi") ||
-    message.content.includes("AI agent tạm thời không khả dụng");
+  const isErrorMessage =
+    hasError ||
+    (!streaming &&
+      message.role === "assistant" &&
+      (message.content.includes("⚠ Could not send message") ||
+        message.content === "AI agent không phản hồi" ||
+        message.content === "AI agent tạm thời không khả dụng"));
   const showTyping = streaming && !hasContent && toolCalls.length === 0;
 
   return (
@@ -302,7 +307,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         ) : null}
 
         {/* Error Banner with Prominent Retry Action */}
-        {hasError && !streaming && (
+        {isErrorMessage && !streaming && (
           <div className="mt-3.5 flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 rounded-2xl border border-destructive/30 bg-destructive/10 p-3.5 text-xs text-destructive backdrop-blur-md">
             <div className="flex items-center gap-2.5 font-semibold min-w-0">
               <ExclamationTriangleIcon className="h-5 w-5 shrink-0 text-destructive" />

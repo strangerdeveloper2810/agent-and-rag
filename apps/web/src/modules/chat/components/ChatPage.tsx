@@ -31,6 +31,8 @@ export type MessageMeta = {
   usage: UsageData | null;
   /** true khi câu trả lời bị cắt vì chạm giới hạn output token. */
   truncated: boolean;
+  /** true khi quá trình stream gặp lỗi thực sự từ server/mạng */
+  hasError?: boolean;
 };
 
 /** Trạng thái gợi ý bắt đầu chat mới khi context đã lớn (Tier 4). */
@@ -310,6 +312,10 @@ export const ChatPage: React.FC = () => {
           );
           break;
         case "error":
+          updateMeta(assistantIndex, (prev) => ({
+            ...prev,
+            hasError: true,
+          }));
           toast.error(
             "Đang có sự cố với dịch vụ AI, chúng tôi sẽ khắc phục trong giây lát. Vui lòng thử lại.",
           );
@@ -471,6 +477,10 @@ export const ChatPage: React.FC = () => {
       );
     } catch (err) {
       if ((err as Error)?.name !== "AbortError") {
+        updateMeta(assistantIndex, (prev) => ({
+          ...prev,
+          hasError: true,
+        }));
         setMessages((m) => {
           if (m.length > 0 && m[m.length - 1].role === "assistant") {
             const copy = [...m];
@@ -519,6 +529,8 @@ export const ChatPage: React.FC = () => {
 
   const stopGeneration = () => {
     streamCtrlRef.current?.abort();
+    streamCtrlRef.current = null;
+    setStreaming(false);
   };
 
   const handleRegenerate = useCallback(
@@ -546,60 +558,49 @@ export const ChatPage: React.FC = () => {
     [streaming],
   );
 
-  // Câu trả lời bị cắt vì chạm giới hạn output token → tiếp tục sinh thêm.
-  //
-  // Khác gửi tin nhắn thường (send()): KHÔNG tạo message user/assistant mới —
-  // nối text mới thẳng vào CUỐI message assistant đã có (dùng lại
-  // appendToAssistant, vốn luôn nối vào message cuối cùng trong mảng). Trước
-  // đây gọi send(CONTINUE_PROMPT) tạo ra 1 cặp user+assistant message HOÀN
-  // TOÀN MỚI, làm code/văn bản dài bị tách đôi — cả trên UI lẫn (quan trọng
-  // hơn) trong chính DB, nên F5 lại trang vẫn thấy tách đôi. Endpoint
-  // /continue (streamContinue) xử lý đúng ở phía BFF: không lưu user turn
-  // mới, nối response vào đúng document Mongo cũ.
-  const handleContinue = useCallback(async () => {
-    if (streaming || !id) return;
+  const handleContinue = useCallback(() => {
+    if (streaming || !id || messages.length === 0) return;
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg.role !== "assistant") return;
 
     const assistantIndex = messages.length - 1;
-    if (assistantIndex < 0 || messages[assistantIndex]?.role !== "assistant") {
-      return;
-    }
-
-    setStreaming(true);
     const ctrl = new AbortController();
     streamCtrlRef.current = ctrl;
+    setStreaming(true);
 
-    // Xoá cờ truncated ngay khi bắt đầu tiếp tục — event truncated/done sẽ tự
-    // set lại true nếu response mới cũng bị cắt.
-    updateMeta(assistantIndex, (prev) => ({ ...prev, truncated: false }));
+    updateMeta(assistantIndex, (prev) => ({
+      ...prev,
+      truncated: false,
+    }));
 
-    try {
-      await streamContinue(
-        id,
-        (e: ChatEvent) => {
-          if (loadedIdRef.current !== id) return;
-          handleStreamEvent(e, assistantIndex);
-        },
-        ctrl.signal,
-      );
-    } catch (err) {
-      if ((err as Error)?.name !== "AbortError") {
-        toast.error("Không thể tiếp tục câu trả lời. Vui lòng thử lại.");
-      }
-    } finally {
-      streamCtrlRef.current = null;
-      setStreaming(false);
-      updateMeta(assistantIndex, (prev) => {
-        if (!prev.toolCalls.some((t) => t.status === "running")) return prev;
-        return {
-          ...prev,
-          toolCalls: prev.toolCalls.map((t) =>
-            t.status === "running"
-              ? { ...t, status: "error", error: "Đã dừng trước khi hoàn tất" }
-              : t,
-          ),
-        };
+    void streamContinue(
+      id,
+      (e: ChatEvent) => {
+        if (loadedIdRef.current !== id) return;
+        handleStreamEvent(e, assistantIndex);
+      },
+      ctrl.signal,
+    )
+      .catch((err) => {
+        if ((err as Error)?.name !== "AbortError") {
+          toast.error("Không thể tiếp tục câu trả lời. Vui lòng thử lại.");
+        }
+      })
+      .finally(() => {
+        streamCtrlRef.current = null;
+        setStreaming(false);
+        updateMeta(assistantIndex, (prev) => {
+          if (!prev.toolCalls.some((t) => t.status === "running")) return prev;
+          return {
+            ...prev,
+            toolCalls: prev.toolCalls.map((t) =>
+              t.status === "running"
+                ? { ...t, status: "error", error: "Đã dừng trước khi hoàn tất" }
+                : t,
+            ),
+          };
+        });
       });
-    }
   }, [streaming, id, messages, updateMeta, handleStreamEvent, toast]);
 
   const hasMessages = messages.length > 0;
@@ -632,6 +633,7 @@ export const ChatPage: React.FC = () => {
                   agent={msgMeta?.agent ?? null}
                   usage={msgMeta?.usage ?? null}
                   truncated={msgMeta?.truncated ?? false}
+                  hasError={msgMeta?.hasError ?? false}
                   onRegenerate={() => handleRegenerate(i)}
                   onRetryUser={(c) => handleRetryUser(c)}
                   onContinue={handleContinue}
