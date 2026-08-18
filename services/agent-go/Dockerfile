@@ -7,7 +7,8 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 go build -ldflags="-s -w" -trimpath -o /out/server ./cmd/server
 
-FROM gcr.io/distroless/static-debian12
+FROM alpine:3.21
+RUN apk --no-cache add ca-certificates tzdata
 COPY --from=build /out/server /server
 COPY --from=build /src/skills /skills
 EXPOSE 3002
