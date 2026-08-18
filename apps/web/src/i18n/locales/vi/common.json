@@ -1,0 +1,25 @@
+{
+  "confirm": "Xác nhận",
+  "cancel": "Hủy",
+  "delete": "Xóa",
+  "save": "Lưu",
+  "retry": "Thử lại",
+  "loading": "Đang tải...",
+  "search": "Tìm kiếm",
+  "logout": "Đăng xuất",
+  "close": "Đóng",
+  "dismiss": "Đóng thông báo",
+  "copy": "Sao chép",
+  "copied": "Đã chép",
+  "theme": {
+    "light": "Sáng",
+    "dark": "Tối",
+    "switchTo": "Chuyển sang chế độ {{mode}}"
+  },
+  "language": {
+    "toggle": "Đổi ngôn ngữ",
+    "vi": "Tiếng Việt",
+    "en": "English"
+  },
+  "genericError": "Đã có lỗi xảy ra. Vui lòng thử lại."
+}

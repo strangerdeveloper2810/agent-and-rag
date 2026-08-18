@@ -1,0 +1,25 @@
+{
+  "confirm": "Confirm",
+  "cancel": "Cancel",
+  "delete": "Delete",
+  "save": "Save",
+  "retry": "Retry",
+  "loading": "Loading...",
+  "search": "Search",
+  "logout": "Log out",
+  "close": "Close",
+  "dismiss": "Dismiss",
+  "copy": "Copy",
+  "copied": "Copied",
+  "theme": {
+    "light": "Light",
+    "dark": "Dark",
+    "switchTo": "Switch to {{mode}} mode"
+  },
+  "language": {
+    "toggle": "Switch language",
+    "vi": "Vietnamese",
+    "en": "English"
+  },
+  "genericError": "Something went wrong. Please try again."
+}
