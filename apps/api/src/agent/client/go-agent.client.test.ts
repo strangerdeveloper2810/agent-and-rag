@@ -123,6 +123,39 @@ describe("goAgentClient.stream — map SSE của Go sang AgentEvent", () => {
     expect(done?.contextBudget).toBe(100000);
   });
 
+  // FE cho phép chọn ngôn ngữ UI (vi/en) — goAgentClient phải forward lựa chọn
+  // đó sang agent-go trong body JSON để JARVIS trả lời đúng ngôn ngữ.
+  it("forward opts.lang trong body JSON gửi lên agent-go", async () => {
+    const fetchMock = vi.fn(async () => sseResponse([JSON.stringify({ type: "done" })]));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await drain(goAgentClient.stream(history, { lang: "en" }));
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [, init] = fetchMock.mock.calls[0] as unknown as [
+      string,
+      RequestInit,
+    ];
+    const sentBody = JSON.parse(init.body as string);
+    expect(sentBody.lang).toBe("en");
+  });
+
+  // Khi opts.lang không được truyền, KHÔNG được gửi field lang méo (undefined)
+  // — giữ hành vi mặc định tiếng Việt phía agent-go (json tag omitempty).
+  it("không gửi lang khi opts.lang không được truyền", async () => {
+    const fetchMock = vi.fn(async () => sseResponse([JSON.stringify({ type: "done" })]));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await drain(goAgentClient.stream(history));
+
+    const [, init] = fetchMock.mock.calls[0] as unknown as [
+      string,
+      RequestInit,
+    ];
+    const sentBody = JSON.parse(init.body as string);
+    expect(sentBody.lang).toBeUndefined();
+  });
+
   it('agent mặc định là "go" khi Go không gửi event agent', async () => {
     vi.stubGlobal(
       "fetch",

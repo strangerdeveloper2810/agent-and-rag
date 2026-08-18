@@ -9,8 +9,9 @@
  */
 
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { withTranslation, type WithTranslation } from "react-i18next";
 
-interface Props {
+interface Props extends WithTranslation {
   children: ReactNode;
   /** Fallback UI tùy chỉnh (nếu không truyền thì dùng mặc định). */
   fallback?: ReactNode;
@@ -21,7 +22,11 @@ interface State {
   error: Error | null;
 }
 
-export class ErrorBoundary extends Component<Props, State> {
+/**
+ * Class component không dùng được hook `useTranslation` — inject `t`/`i18n`
+ * qua `withTranslation()` HOC thay vào đó (xem export ở cuối file).
+ */
+class ErrorBoundaryBase extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
     this.state = { hasError: false, error: null };
@@ -76,15 +81,14 @@ export class ErrorBoundary extends Component<Props, State> {
               className="mb-2 text-lg font-semibold"
               style={{ color: "#f8fafc" }}
             >
-              Đã xảy ra lỗi
+              {this.props.t("errors:boundary.title")}
             </h2>
 
             <p
               className="mb-6 text-sm leading-relaxed"
               style={{ color: "#94a3b8" }}
             >
-              Rất tiếc, có lỗi không mong muốn xảy ra. Vui lòng thử tải lại
-              trang. Nếu lỗi vẫn tiếp diễn, hãy liên hệ đội ngũ hỗ trợ.
+              {this.props.t("errors:boundary.description")}
             </p>
 
             {/* Error details — chỉ hiện trong development */}
@@ -117,7 +121,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 e.currentTarget.style.backgroundColor = "#f59e0b";
               }}
             >
-              Thử lại
+              {this.props.t("common:retry")}
             </button>
           </div>
         </div>
@@ -128,4 +132,5 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 }
 
+export const ErrorBoundary = withTranslation()(ErrorBoundaryBase);
 export default ErrorBoundary;

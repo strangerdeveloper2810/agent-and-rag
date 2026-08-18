@@ -1,1 +1,49 @@
-{}
+{
+  "pageTitle": "Document Library & RAG",
+  "pageDescription": "Manage and semantically search your documents with RAG Vector Search.",
+  "heading": "Knowledge Base (RAG)",
+  "subtitle": "Upload documents to boost J.A.R.V.I.S. vector search capabilities.",
+  "metrics": {
+    "documents": "Documents",
+    "totalChunks": "Total Chunks"
+  },
+  "upload": {
+    "dropzoneUploading": "Embedding & vectorizing documents...",
+    "dropzoneIdle": "Click or drag & drop files to upload",
+    "supportedExtensions": "Supported extensions:",
+    "maxFilesHint": "(max 7 files per batch)"
+  },
+  "list": {
+    "indexedFiles": "Indexed Files ({{count}})",
+    "empty": "No documents uploaded yet. Upload your first text or PDF document above.",
+    "chunksIndexed": "{{count}} vector chunks indexed",
+    "viewContentTitle": "View document content"
+  },
+  "actions": {
+    "view": "View",
+    "update": "Update",
+    "updating": "Updating...",
+    "history": "History",
+    "deleteAria": "Delete {{name}}",
+    "preview": "Preview"
+  },
+  "history": {
+    "title": "Version History",
+    "active": "Active"
+  },
+  "deleteDialog": {
+    "title": "Delete document?",
+    "message": "All versions of \"{{name}}\" will be permanently deleted. This action cannot be undone."
+  },
+  "toast": {
+    "maxFiles": "You can only upload up to 7 files at once.",
+    "uploaded": "Uploaded {{count}} documents.",
+    "uploadFailedAll": "Failed to upload {{count}} files: {{names}}",
+    "uploadPartial": "Uploaded {{ok}}, {{failed}} failed ({{names}}).",
+    "uploadFailedGeneric": "Upload failed.",
+    "updated": "Updated {{source}} to v{{version}}.",
+    "updateFailedGeneric": "Update failed.",
+    "deleted": "Deleted {{source}}.",
+    "deleteFailedGeneric": "Delete failed."
+  }
+}

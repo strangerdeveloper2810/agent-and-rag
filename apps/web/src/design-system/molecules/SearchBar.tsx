@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { SearchIcon, CloseIcon } from "@app/ui";
 
 export interface SearchBarProps {
@@ -13,9 +14,12 @@ export interface SearchBarProps {
 export const SearchBar: React.FC<SearchBarProps> = ({
   value,
   onChange,
-  placeholder = "Search...",
+  placeholder,
   className = "",
 }) => {
+  const { t } = useTranslation("layout");
+  const resolvedPlaceholder = placeholder ?? t("searchBar.placeholder");
+
   return (
     <div
       className={`flex items-center gap-2 rounded-xl border px-3 py-1.5 transition-all focus-within:border-[var(--accent)] focus-within:ring-1 focus-within:ring-[var(--accent-bg)] ${className}`}
@@ -34,15 +38,15 @@ export const SearchBar: React.FC<SearchBarProps> = ({
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        aria-label={placeholder}
+        placeholder={resolvedPlaceholder}
+        aria-label={resolvedPlaceholder}
         className="flex-1 bg-transparent text-[11px] outline-none placeholder:text-[var(--text-tertiary)]"
         style={{ color: "var(--text)" }}
       />
       {value && (
         <button
           onClick={() => onChange("")}
-          aria-label="Clear search"
+          aria-label={t("searchBar.clearSearch")}
           className="rounded p-0.5 hover:text-[var(--text)] transition"
           style={{ color: "var(--text-tertiary)" }}
         >

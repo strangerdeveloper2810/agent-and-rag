@@ -118,6 +118,18 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 		systemPrompt += mb.String()
 	}
 
+	// Per-request UI language override (i18n). getSystemPrompt() is the
+	// STATIC prompt built once at wiring time (agent.BuildSystemPrompt), which
+	// defaults to Vietnamese and is shared across every concurrent request —
+	// it can't carry a per-user language choice. When the frontend user picked
+	// English (s.Lang == "en", forwarded via RunInput.Lang for this turn
+	// only), append an explicit override here instead, mirroring how
+	// RecalledMemories above is woven in per-request without mutating the
+	// cacheable prefix.
+	if s.Lang == "en" {
+		systemPrompt += "\n\n[NGÔN NGỮ TRẢ LỜI CHO LƯỢT NÀY]\nALWAYS respond in English for this turn (the user selected English in the UI language setting) — this overrides any earlier Vietnamese-default instruction above.\n"
+	}
+
 	// Register tool theo task: bước đầu (step 0) chỉ gửi tool liên quan
 	// intent người dùng (3-8 tool thay vì toàn bộ registry) — giảm token +
 	// latency + nhiễu tool-call. Từ bước 1 trở đi gửi toàn bộ để cho phép

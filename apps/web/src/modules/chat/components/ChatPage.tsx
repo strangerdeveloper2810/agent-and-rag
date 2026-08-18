@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import { SparklesIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import {
@@ -157,6 +158,7 @@ import { useConversation } from "@/context/ConversationContext";
  * ChatPage component for rendering active conversation and streaming SSE responses.
  */
 export const ChatPage: React.FC = () => {
+  const { t, i18n } = useTranslation("chat");
   const { id } = useParams();
   const navigate = useNavigate();
   const { reloadConversations } = useConversation();
@@ -177,10 +179,7 @@ export const ChatPage: React.FC = () => {
   const streamCtrlRef = useRef<AbortController | null>(null);
   const userScrolledUpRef = useRef(false);
   const toast = useToast();
-  useDocumentTitle(
-    "Trò chuyện AI",
-    "Trò chuyện và giao việc trực tiếp cho trợ lý AI thông minh J.A.R.V.I.S.",
-  );
+  useDocumentTitle(t("chatPage.title"), t("chatPage.description"));
 
   const streamingRef = useRef(false);
   streamingRef.current = streaming;
@@ -306,7 +305,9 @@ export const ChatPage: React.FC = () => {
           // dung câu trả lời; ở đây chỉ báo nổi cho user biết vì sao agent
           // dừng giữa đường.
           toast.warning(
-            `Đã dừng: công cụ "${e.name ?? "không rõ"}" cần được xác nhận trước khi chạy.`,
+            t("chatPage.toolInterrupted", {
+              tool: e.name ?? t("chatPage.unknownTool"),
+            }),
           );
           break;
         case "error":
@@ -314,9 +315,7 @@ export const ChatPage: React.FC = () => {
             ...prev,
             hasError: true,
           }));
-          toast.error(
-            "Đang có sự cố với dịch vụ AI, chúng tôi sẽ khắc phục trong giây lát. Vui lòng thử lại.",
-          );
+          toast.error(t("chatPage.serviceError"));
           userScrolledUpRef.current = false;
           break;
         case "usage":
@@ -366,7 +365,7 @@ export const ChatPage: React.FC = () => {
           break;
       }
     },
-    [appendToAssistant, updateMeta, toast],
+    [appendToAssistant, updateMeta, toast, t],
   );
 
   useEffect(() => {
@@ -472,6 +471,7 @@ export const ChatPage: React.FC = () => {
         },
         ctrl.signal,
         attachmentPayloads.length > 0 ? attachmentPayloads : undefined,
+        i18n.language,
       );
     } catch (err) {
       if ((err as Error)?.name !== "AbortError") {
@@ -486,7 +486,8 @@ export const ChatPage: React.FC = () => {
               ...copy[copy.length - 1],
               content:
                 copy[copy.length - 1].content +
-                "\n\n⚠ Could not send message. Please try again.",
+                "\n\n" +
+                t("chatPage.sendFailed"),
             };
             return copy;
           }
@@ -494,7 +495,7 @@ export const ChatPage: React.FC = () => {
             ...m,
             {
               role: "assistant",
-              content: "⚠ Could not send message. Please try again.",
+              content: t("chatPage.sendFailed"),
             },
           ];
         });
@@ -512,13 +513,18 @@ export const ChatPage: React.FC = () => {
       // nếu không dọn, card tool hiển thị "Đang thực thi N công cụ..." kèm
       // spinner VĨNH VIỄN dù đã dừng từ lâu.
       updateMeta(assistantIndex, (prev) => {
-        if (!prev.toolCalls.some((t) => t.status === "running")) return prev;
+        if (!prev.toolCalls.some((tc) => tc.status === "running"))
+          return prev;
         return {
           ...prev,
-          toolCalls: prev.toolCalls.map((t) =>
-            t.status === "running"
-              ? { ...t, status: "error", error: "Đã dừng trước khi hoàn tất" }
-              : t,
+          toolCalls: prev.toolCalls.map((tc) =>
+            tc.status === "running"
+              ? {
+                  ...tc,
+                  status: "error",
+                  error: t("chatPage.toolStoppedBeforeComplete"),
+                }
+              : tc,
           ),
         };
       });
@@ -581,25 +587,30 @@ export const ChatPage: React.FC = () => {
     )
       .catch((err) => {
         if ((err as Error)?.name !== "AbortError") {
-          toast.error("Không thể tiếp tục câu trả lời. Vui lòng thử lại.");
+          toast.error(t("chatPage.continueFailed"));
         }
       })
       .finally(() => {
         streamCtrlRef.current = null;
         setStreaming(false);
         updateMeta(assistantIndex, (prev) => {
-          if (!prev.toolCalls.some((t) => t.status === "running")) return prev;
+          if (!prev.toolCalls.some((tc) => tc.status === "running"))
+            return prev;
           return {
             ...prev,
-            toolCalls: prev.toolCalls.map((t) =>
-              t.status === "running"
-                ? { ...t, status: "error", error: "Đã dừng trước khi hoàn tất" }
-                : t,
+            toolCalls: prev.toolCalls.map((tc) =>
+              tc.status === "running"
+                ? {
+                    ...tc,
+                    status: "error",
+                    error: t("chatPage.toolStoppedBeforeComplete"),
+                  }
+                : tc,
             ),
           };
         });
       });
-  }, [streaming, id, messages, updateMeta, handleStreamEvent, toast]);
+  }, [streaming, id, messages, updateMeta, handleStreamEvent, toast, t]);
 
   const hasMessages = messages.length > 0;
 
@@ -654,10 +665,9 @@ export const ChatPage: React.FC = () => {
             <div className="flex min-w-0 items-center gap-2.5 font-semibold">
               <SparklesIcon className="h-5 w-5 shrink-0" />
               <span className="leading-snug">
-                Cuộc trò chuyện đã khá dài (
-                {Math.round(contextWarning.tokens / 1000)}K token) — bắt đầu
-                chat mới để có phản hồi nhanh và chính xác hơn. Các thông tin
-                quan trọng đã học vẫn được giữ lại.
+                {t("chatPage.contextWarning", {
+                  tokens: Math.round(contextWarning.tokens / 1000),
+                })}
               </span>
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
@@ -666,20 +676,20 @@ export const ChatPage: React.FC = () => {
                 variant="outline"
                 size="sm"
                 onClick={() => navigate("/")}
-                aria-label="Bắt đầu cuộc trò chuyện mới"
-                title="Bắt đầu cuộc trò chuyện mới"
+                aria-label={t("chatPage.startNewChatAria")}
+                title={t("chatPage.startNewChatAria")}
                 className="gap-1.5 font-bold shadow-sm border-indigo-500/40 hover:bg-indigo-500/20"
               >
                 <SparklesIcon className="h-3.5 w-3.5" />
-                <span>Bắt đầu chat mới</span>
+                <span>{t("chatPage.startNewChat")}</span>
               </Button>
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
                 onClick={() => setContextWarning(null)}
-                aria-label="Đóng gợi ý"
-                title="Đóng"
+                aria-label={t("chatPage.dismissWarningAria")}
+                title={t("common:close")}
               >
                 <XMarkIcon className="h-3.5 w-3.5" />
               </Button>

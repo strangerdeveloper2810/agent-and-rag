@@ -1,1 +1,49 @@
-{}
+{
+  "header": {
+    "toggleSidebar": "Chuyển đổi thanh bên",
+    "onlineStatus": "TRỰC TUYẾN",
+    "searchConversation": "Tìm kiếm trong cuộc hội thoại",
+    "exportChat": "Xuất lịch sử chat (Markdown/JSON)",
+    "clearChat": "Làm sạch cuộc hội thoại"
+  },
+  "sidebar": {
+    "closeMenu": "Đóng menu",
+    "newConversation": "Tạo cuộc trò chuyện mới",
+    "tabs": {
+      "chat": "Hội thoại",
+      "documents": "Tài liệu"
+    },
+    "knowledgeBase": {
+      "title": "RAG Knowledge Base",
+      "description": "Tài liệu tải lên được tự động phân tách & vectorized cho AI truy vấn."
+    },
+    "searchPlaceholder": "Tìm kiếm hội thoại...",
+    "noResults": "Không tìm thấy hội thoại phù hợp.",
+    "noConversations": "Chưa có cuộc trò chuyện nào.",
+    "confirmRename": "Xác nhận đổi tên",
+    "rename": "Đổi tên",
+    "deleteConversation": "Xóa cuộc trò chuyện",
+    "defaultUserName": "Người dùng",
+    "logoutAccount": "Đăng xuất tài khoản",
+    "logoutSuccess": "Đã đăng xuất thành công!",
+    "logoutError": "Đã xảy ra lỗi khi đăng xuất.",
+    "deleteDialog": {
+      "title": "Xóa cuộc trò chuyện?",
+      "message": "Cuộc hội thoại \"{{title}}\" sẽ bị xóa vĩnh viễn.",
+      "confirmLabel": "Xóa vĩnh viễn"
+    },
+    "dateGroups": {
+      "today": "Hôm nay",
+      "yesterday": "Hôm qua",
+      "lastWeek": "7 ngày qua",
+      "older": "Cũ hơn"
+    }
+  },
+  "appLayout": {
+    "loadingApplication": "Đang tải ứng dụng..."
+  },
+  "searchBar": {
+    "placeholder": "Tìm kiếm...",
+    "clearSearch": "Xóa tìm kiếm"
+  }
+}

@@ -1,1 +1,49 @@
-{}
+{
+  "pageTitle": "Kho Tài Liệu & RAG",
+  "pageDescription": "Quản lý và tìm kiếm ngữ nghĩa tài liệu thông minh với RAG Vector Search.",
+  "heading": "Cơ Sở Tri Thức (RAG)",
+  "subtitle": "Tải tài liệu lên để nâng cao khả năng tìm kiếm vector của J.A.R.V.I.S.",
+  "metrics": {
+    "documents": "Tài Liệu",
+    "totalChunks": "Tổng Số Đoạn"
+  },
+  "upload": {
+    "dropzoneUploading": "Đang embedding & vector hóa tài liệu...",
+    "dropzoneIdle": "Nhấn hoặc kéo thả tệp để tải lên",
+    "supportedExtensions": "Định dạng hỗ trợ:",
+    "maxFilesHint": "(tối đa 7 tệp mỗi lượt)"
+  },
+  "list": {
+    "indexedFiles": "Tệp Đã Lập Chỉ Mục ({{count}})",
+    "empty": "Chưa có tài liệu nào được tải lên. Hãy tải lên tài liệu văn bản hoặc PDF đầu tiên của bạn ở trên.",
+    "chunksIndexed": "{{count}} đoạn vector đã lập chỉ mục",
+    "viewContentTitle": "Xem nội dung tài liệu"
+  },
+  "actions": {
+    "view": "Xem",
+    "update": "Cập nhật",
+    "updating": "Đang cập nhật...",
+    "history": "Lịch sử",
+    "deleteAria": "Xóa {{name}}",
+    "preview": "Xem trước"
+  },
+  "history": {
+    "title": "Lịch sử phiên bản",
+    "active": "Đang dùng"
+  },
+  "deleteDialog": {
+    "title": "Xóa tài liệu?",
+    "message": "Tất cả các phiên bản của \"{{name}}\" sẽ bị xóa vĩnh viễn. Hành động này không thể hoàn tác."
+  },
+  "toast": {
+    "maxFiles": "Tối đa 7 tệp mỗi lượt.",
+    "uploaded": "Đã tải lên {{count}} tài liệu.",
+    "uploadFailedAll": "Tải lên thất bại {{count}} tệp: {{names}}",
+    "uploadPartial": "Đã tải lên {{ok}}, thất bại {{failed}} ({{names}}).",
+    "uploadFailedGeneric": "Tải tài liệu lên thất bại.",
+    "updated": "Đã cập nhật {{source}} lên phiên bản v{{version}}.",
+    "updateFailedGeneric": "Cập nhật tài liệu thất bại.",
+    "deleted": "Đã xóa {{source}}.",
+    "deleteFailedGeneric": "Xóa tài liệu thất bại."
+  }
+}

@@ -16,6 +16,13 @@ export type AgentStreamOptions = {
   }>;
   /** req.tenantId (từ authGuard) — forward sang agent-go qua header X-Tenant-ID. */
   tenantId?: string;
+  /**
+   * Ngôn ngữ UI người dùng đang chọn ở FE ("vi" | "en"). Optional — không
+   * truyền/undefined giữ hành vi mặc định (tiếng Việt). Chỉ goAgentClient
+   * forward field này sang agent-go (body JSON `lang`); agent-go dùng nó để
+   * ghi đè chỉ dẫn ngôn ngữ trong system prompt cho riêng lượt chạy này.
+   */
+  lang?: "vi" | "en";
 };
 
 /**

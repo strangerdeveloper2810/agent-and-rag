@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useTranslation } from "react-i18next";
 import {
   SparklesIcon,
   BoltIcon,
@@ -20,6 +21,7 @@ import { useToast } from "@/design-system/molecules/Toast";
 import { loginSchema, type LoginFormValues } from "@/lib/validation";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { ApiError } from "@/lib/http";
+import { translateApiError } from "@/lib/errors";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,41 +34,27 @@ import {
   CardContent,
 } from "@/components/ui/card";
 
-const FEATURE_SPOTLIGHTS = [
-  {
-    title: "Multi-Agent Intelligence",
-    desc: "Tự động phân công công việc cho các AI Agent chuyên biệt: phân tích dữ liệu, nghiên cứu web và thực thi code.",
-    icon: CpuChipIcon,
-    badge: "Multi-Model",
-  },
-  {
-    title: "Hybrid RAG Knowledge",
-    desc: "Truy vấn dữ liệu doanh nghiệp và tài liệu cá nhân cực nhanh với độ chính xác cao dựa trên Vector Search.",
-    icon: MagnifyingGlassIcon,
-    badge: "Vector RAG",
-  },
-  {
-    title: "Multimodal Processing",
-    desc: "Đọc, phân tích hình ảnh, file PDF, Excel, Word và đoạn mã ngay trong luồng hội thoại tự nhiên.",
-    icon: DocumentTextIcon,
-    badge: "Vision & Files",
-  },
-  {
-    title: "Sandboxed Code Execution",
-    desc: "Môi trường lập trình an toàn, thực thi script và kết xuất dữ liệu trực quan theo thời gian thực.",
-    icon: CodeBracketIcon,
-    badge: "Code Runner",
-  },
-];
+const FEATURE_SPOTLIGHT_KEYS = [
+  { key: "multiAgent", icon: CpuChipIcon },
+  { key: "hybridRag", icon: MagnifyingGlassIcon },
+  { key: "multimodal", icon: DocumentTextIcon },
+  { key: "sandboxed", icon: CodeBracketIcon },
+] as const;
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const { login, isLoading } = useAuthStore();
   const toast = useToast();
-  useDocumentTitle(
-    "Đăng nhập",
-    "Đăng nhập vào nền tảng J.A.R.V.I.S. để tương tác với trợ lý AI thông minh.",
-  );
+  const { t } = useTranslation("auth");
+
+  const FEATURE_SPOTLIGHTS = FEATURE_SPOTLIGHT_KEYS.map(({ key, icon }) => ({
+    title: t(`login.features.${key}.title`),
+    desc: t(`login.features.${key}.desc`),
+    badge: t(`login.features.${key}.badge`),
+    icon,
+  }));
+
+  useDocumentTitle(t("login.pageTitle"), t("login.pageDescription"));
 
   const [showPassword, setShowPassword] = useState(false);
   const [activeFeature, setActiveFeature] = useState(0);
@@ -85,19 +73,15 @@ export const LoginPage: React.FC = () => {
     const email = data.email.trim();
     try {
       await login(email, data.password);
-      toast.success("Đăng nhập thành công!");
+      toast.success(t("login.loginSuccess"));
       navigate("/", { replace: true });
     } catch (err) {
       if (err instanceof ApiError && err.code === "EMAIL_NOT_VERIFIED") {
-        toast.error("Email chưa được xác minh. Đã gửi lại mã OTP.");
+        toast.error(t("login.emailNotVerified"));
         navigate(`/verify-email?email=${encodeURIComponent(email)}`);
         return;
       }
-      const apiErr = err as ApiError;
-      toast.error(
-        apiErr?.message ??
-          "Đăng nhập thất bại. Vui lòng kiểm tra lại email/mật khẩu.",
-      );
+      toast.error(translateApiError(err, t, t("login.loginFailed")));
     }
   };
 
@@ -106,12 +90,10 @@ export const LoginPage: React.FC = () => {
     setValue("password", "password123");
     try {
       await login("demo@javis.ai", "password123");
-      toast.success("Đăng nhập tài khoản Demo thành công!");
+      toast.success(t("login.demoLoginSuccess"));
       navigate("/", { replace: true });
     } catch {
-      toast.error(
-        "Không thể tự động đăng nhập demo. Vui lòng thử nhập thủ công.",
-      );
+      toast.error(t("login.demoLoginFailed"));
     }
   };
 
@@ -132,7 +114,7 @@ export const LoginPage: React.FC = () => {
               J.A.R.V.I.S.
             </span>
             <p className="text-[10px] font-mono tracking-widest text-primary font-bold uppercase">
-              Intelligent Agent System
+              {t("login.brandTagline")}
             </p>
           </div>
         </div>
@@ -141,19 +123,18 @@ export const LoginPage: React.FC = () => {
         <div className="relative z-10 my-auto py-8">
           <Badge variant="accent" className="mb-4 gap-1.5 py-1 px-3">
             <SparklesIcon className="h-3.5 w-3.5" />
-            <span>Next-Gen AI Workspace Platform</span>
+            <span>{t("login.heroBadge")}</span>
           </Badge>
 
           <h2 className="font-display text-4xl font-extrabold leading-tight tracking-tight">
-            Trợ lý AI Thông Minh
+            {t("login.heroTitle")}
             <br />
             <span className="bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-              cho công việc của bạn
+              {t("login.heroTitleHighlight")}
             </span>
           </h2>
           <p className="mt-3.5 max-w-md text-xs leading-relaxed text-muted-foreground">
-            Hợp nhất đa mô hình trí tuệ nhân tạo, tra cứu dữ liệu doanh nghiệp
-            và tự động hóa quy trình làm việc thông qua hội thoại tự nhiên.
+            {t("login.heroSubtitle")}
           </p>
 
           {/* Feature Spotlight Cards */}
@@ -197,10 +178,10 @@ export const LoginPage: React.FC = () => {
 
         {/* Footer info */}
         <div className="relative z-10 flex items-center justify-between text-[11px] text-muted-foreground pt-4 border-t border-border">
-          <span>© 2026 J.A.R.V.I.S. AI Platform</span>
+          <span>{t("login.footerCopyright")}</span>
           <span className="flex items-center gap-1.5 font-mono text-[10px]">
             <CheckCircleIcon className="h-3.5 w-3.5 text-emerald-400" />
-            System Online v2.4
+            {t("login.systemStatus")}
           </span>
         </div>
       </div>
@@ -221,11 +202,9 @@ export const LoginPage: React.FC = () => {
           <Card className="border-border bg-card/80 shadow-2xl">
             <CardHeader className="space-y-1 pb-4">
               <CardTitle className="text-2xl font-bold">
-                Đăng nhập tài khoản
+                {t("login.cardTitle")}
               </CardTitle>
-              <CardDescription>
-                Nhập email và mật khẩu của bạn để truy cập không gian làm việc
-              </CardDescription>
+              <CardDescription>{t("login.cardDescription")}</CardDescription>
             </CardHeader>
 
             <CardContent className="space-y-4">
@@ -238,13 +217,13 @@ export const LoginPage: React.FC = () => {
                 className="w-full gap-2 border-dashed border-primary/40 bg-primary/5 text-primary hover:bg-primary hover:text-white"
               >
                 <BoltIcon className="h-4 w-4" />
-                <span>Đăng nhập nhanh với tài khoản Demo</span>
+                <span>{t("login.demoLoginButton")}</span>
               </Button>
 
               <div className="relative my-4 flex items-center justify-center">
                 <div className="w-full border-t border-border" />
                 <span className="absolute bg-card px-2.5 text-[10px] font-semibold text-muted-foreground uppercase">
-                  hoặc nhập email
+                  {t("login.orDivider")}
                 </span>
               </div>
 
@@ -258,13 +237,13 @@ export const LoginPage: React.FC = () => {
                     htmlFor="login-email"
                     className="mb-1.5 block text-xs font-medium text-muted-foreground"
                   >
-                    Địa chỉ Email
+                    {t("login.emailLabel")}
                   </label>
                   <Input
                     id="login-email"
                     type="email"
                     autoComplete="email"
-                    placeholder="name@company.com"
+                    placeholder={t("login.emailPlaceholder")}
                     {...register("email")}
                   />
                   {errors.email && (
@@ -279,14 +258,14 @@ export const LoginPage: React.FC = () => {
                     htmlFor="login-password"
                     className="mb-1.5 block text-xs font-medium text-muted-foreground"
                   >
-                    Mật khẩu
+                    {t("login.passwordLabel")}
                   </label>
                   <div className="relative">
                     <Input
                       id="login-password"
                       type={showPassword ? "text" : "password"}
                       autoComplete="current-password"
-                      placeholder="Nhập mật khẩu của bạn"
+                      placeholder={t("login.passwordPlaceholder")}
                       className="pr-10"
                       {...register("password")}
                     />
@@ -294,7 +273,9 @@ export const LoginPage: React.FC = () => {
                       type="button"
                       onClick={() => setShowPassword((p) => !p)}
                       aria-label={
-                        showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"
+                        showPassword
+                          ? t("passwordVisibility.hide")
+                          : t("passwordVisibility.show")
                       }
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition"
                     >
@@ -321,10 +302,10 @@ export const LoginPage: React.FC = () => {
                   {isLoading ? (
                     <span className="inline-flex items-center gap-2">
                       <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                      Đang xác thực...
+                      {t("login.submitting")}
                     </span>
                   ) : (
-                    "Đăng nhập ngay"
+                    t("login.submitButton")
                   )}
                 </Button>
               </form>
@@ -332,12 +313,12 @@ export const LoginPage: React.FC = () => {
               {/* Navigation Footer */}
               <div className="mt-6 pt-4 text-center border-t border-border">
                 <p className="text-xs text-muted-foreground">
-                  Chưa có tài khoản J.A.R.V.I.S.?{" "}
+                  {t("login.noAccount")}{" "}
                   <Link
                     to="/register"
                     className="font-bold text-primary hover:underline inline-flex items-center gap-1 ml-1"
                   >
-                    <span>Đăng ký ngay</span>
+                    <span>{t("login.registerLink")}</span>
                     <ArrowRightIcon className="h-3 w-3" />
                   </Link>
                 </p>

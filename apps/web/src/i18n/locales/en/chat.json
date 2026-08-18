@@ -1,1 +1,282 @@
-{}
+{
+  "messageBubble": {
+    "usage": {
+      "input": "Input: {{value}} tokens",
+      "output": "Output: {{value}} tokens",
+      "total": "Total: {{value}} tokens"
+    },
+    "viewImage": "View {{name}}",
+    "closeImage": "Close image",
+    "retryAria": "Retry this message",
+    "retryTitle": "Resend this request to the agent",
+    "retry": "Retry",
+    "errorBanner": "The response ran into an issue or processing was interrupted.",
+    "retryNow": "Retry now",
+    "processing": "J.A.R.V.I.S. is reasoning & processing data...",
+    "truncatedBanner": "The response was cut off due to the maximum length limit.",
+    "continueAria": "Ask the agent to continue the response",
+    "continueTitle": "Ask the agent to continue from where it stopped",
+    "continue": "Continue",
+    "copyAria": "Copy content",
+    "copyTitle": "Copy the response",
+    "readAloudAria": "Read the response aloud",
+    "readAloudTitle": "Read the text aloud",
+    "stopReading": "Stop reading",
+    "readAloud": "Read aloud",
+    "regenerateAria": "Regenerate the response",
+    "regenerateTitle": "Ask the AI to answer again",
+    "regenerate": "Regenerate",
+    "feedbackUpAria": "Satisfied",
+    "feedbackUpTitle": "Rate as good",
+    "feedbackDownAria": "Not satisfied",
+    "feedbackDownTitle": "Rate as needs improvement"
+  },
+  "composer": {
+    "stopPill": "J.A.R.V.I.S. is thinking ({{seconds}}s)...",
+    "stop": "Stop",
+    "dropHint": "Drop files here to attach",
+    "dropSupportedTypes": "Supports Images, PDF, Word, Excel, Markdown",
+    "attachFileInputAria": "Attach file",
+    "attachDocAria": "Attach document/image",
+    "attachDocTitle": "Upload a document or image",
+    "slashMenuTitle": "Open quick commands list (/)",
+    "placeholder": "Ask J.A.R.V.I.S... (type / to see quick commands)",
+    "voiceInputAria": "Voice input",
+    "stopGenerationAria": "Stop generating response",
+    "sendAria": "Send message",
+    "shiftEnterHint": "Shift + Enter for a new line",
+    "charCount": "{{length}} characters",
+    "removeAttachmentAria": "Remove {{name}}",
+    "attachmentsCount": "{{images}}/{{maxImages}} images, {{files}}/{{maxFiles}} files",
+    "errors": {
+      "fileTooLarge": "{{name}} exceeds 10MB",
+      "maxImages": "Maximum {{max}} images",
+      "maxFiles": "Maximum {{max}} document files",
+      "readFileFailed": "Couldn't read file {{name}}"
+    },
+    "voice": {
+      "stopped": "Voice recording stopped.",
+      "listening": "Listening... (simulated input)",
+      "sampleText": "Explain the RAG Vector Search mechanism in JARVIS.",
+      "transcribed": "Voice converted to text!"
+    }
+  },
+  "emptyState": {
+    "badge": "J.A.R.V.I.S. Core Intelligence",
+    "title": "How can I help you today?",
+    "subtitle": "Start a conversation, ask for enterprise document lookups, or run a smart workflow.",
+    "refreshAllTitle": "Refresh random suggestions",
+    "refresh": "Refresh",
+    "autoSuggestionsLabel": "AUTO SUGGESTIONS FROM AI AGENT",
+    "refreshAiAria": "Refresh AI suggestions",
+    "categories": {
+      "creative": "Ideas & Planning",
+      "rag": "Read & Analyze Documents",
+      "dev": "Coding & Clean Code",
+      "search": "Knowledge Search",
+      "productivity": "Automation & Productivity"
+    },
+    "prompts": {
+      "creative": [
+        "Plan the rollout of an AI Agent feature for the enterprise",
+        "Suggest 5 ideas to improve the UI/UX experience",
+        "Build a 6-month SaaS product development roadmap",
+        "Draft content and marketing strategy for next week",
+        "Analyze the business model and propose cost optimization strategies",
+        "Brainstorm ideas to automate internal workflows with AI"
+      ],
+      "rag": [
+        "Analyze and extract key points from the uploaded PDF/Word file",
+        "Compare technical specifications and architecture across documents",
+        "Summarize the key terms in a contract/policy document",
+        "Semantic search and data extraction from the RAG document store",
+        "Build a pros-and-cons comparison table from technical reports",
+        "Check consistency across business documents"
+      ],
+      "dev": [
+        "Write a React custom hook to manage WebSocket / SSE streams",
+        "Optimize database queries and vector indexing",
+        "Review source code and suggest a Clean Code refactor",
+        "Write comprehensive unit tests with Vitest and mock services",
+        "Design a high-load, fault-tolerant microservices architecture",
+        "Explain and patch common web app security vulnerabilities"
+      ],
+      "search": [
+        "Look up standard procedures in the internal Knowledge Base",
+        "Explain the Hybrid Search algorithm (Dense Vector + BM25 Sparse)",
+        "Learn about the latest Prompt Engineering and Chain-of-Thought techniques",
+        "Overview of the DeepSeek V3, Gemini 2.5, and Claude 3.7 models",
+        "How Circuit Breaker and Rate Limiting work",
+        "Compare vector storage mechanisms across pgvector, Chroma, and Qdrant"
+      ],
+      "productivity": [
+        "Create a prioritized to-do list and plan today's schedule",
+        "Draft a professional email to a partner about a project update",
+        "Create a meeting summary script with specific task assignments",
+        "Automatically extract contact info and build a data table",
+        "Turn interview notes into a candidate evaluation report"
+      ]
+    },
+    "randomPool": [
+      "Plan tasks and prioritize today's workload",
+      "Analyze and extract key points from technical documentation",
+      "Draft a professional project progress report email",
+      "Optimize source code and check system performance",
+      "Explain the multi-agent routing architecture",
+      "Look up information and summarize documents in the Knowledge Base",
+      "Create tasks to manage and track today's progress",
+      "Summarize key activities and important notes from the past week"
+    ]
+  },
+  "chatPage": {
+    "title": "AI Chat",
+    "description": "Chat and delegate tasks directly to the J.A.R.V.I.S. smart AI assistant.",
+    "toolInterrupted": "Stopped: the tool \"{{tool}}\" needs confirmation before it can run.",
+    "unknownTool": "unknown",
+    "serviceError": "We're having some trouble with the AI service right now. We'll get it fixed shortly — please try again.",
+    "sendFailed": "⚠ Could not send message. Please try again.",
+    "toolStoppedBeforeComplete": "Stopped before completion",
+    "continueFailed": "Couldn't continue the response. Please try again.",
+    "contextWarning": "This conversation is getting long ({{tokens}}K tokens) — start a new chat for faster, more accurate responses. Key information already learned will still be kept.",
+    "startNewChatAria": "Start a new conversation",
+    "startNewChat": "Start new chat",
+    "dismissWarningAria": "Dismiss suggestion"
+  },
+  "modeSelector": {
+    "selectAria": "Select AI mode",
+    "menuLabel": "AI INTELLIGENCE MODE",
+    "modes": {
+      "auto": {
+        "label": "Auto (Smart Router)",
+        "desc": "Automatically routes to the most suitable agent for your question",
+        "badge": "Recommended"
+      },
+      "reasoning": {
+        "label": "Deep Reasoning",
+        "desc": "In-depth multi-step reasoning for complex problems"
+      },
+      "rag": {
+        "label": "RAG Knowledge Search",
+        "desc": "Prioritizes searching the vector DB and uploaded documents"
+      },
+      "code": {
+        "label": "Code & Artifacts",
+        "desc": "Optimized for coding, refactoring & executing source code"
+      }
+    }
+  },
+  "slashCommandMenu": {
+    "header": "SMART COMMANDS (`/` SHORTCUT)",
+    "hint": "↑↓ to select · Enter to use",
+    "commands": {
+      "summarize": {
+        "label": "Quick Summary",
+        "desc": "Briefly summarize the key points of a document or text",
+        "prompt": "Please briefly summarize the main points of the following content:"
+      },
+      "code": {
+        "label": "Write Code",
+        "desc": "Generate or refactor code following clean code standards",
+        "prompt": "Please help me write/refactor code for the following request:"
+      },
+      "search": {
+        "label": "Search Knowledge Base",
+        "desc": "Find accurate information from the RAG vector DB",
+        "prompt": "Search the knowledge base for:"
+      },
+      "explain": {
+        "label": "Explain a Concept",
+        "desc": "Explain complex topics in the simplest way possible",
+        "prompt": "Please explain the following concept in detail, in an intuitive and easy-to-understand way:"
+      },
+      "bug": {
+        "label": "Debug & Fix Error",
+        "desc": "Analyze the root cause and provide a fix",
+        "prompt": "Analyze the cause of the error and fix the following code:"
+      }
+    }
+  },
+  "toolCallCard": {
+    "detailsAria": "Tool call list",
+    "expand": "Details",
+    "collapse": "Collapse",
+    "viewLog": "View log",
+    "hideLog": "Hide log",
+    "executionResult": "// Execution result",
+    "errorLog": "// Error log",
+    "headerStatus": {
+      "running": "Running {{total}} system tools...",
+      "errorSummary": "Ran {{total}} tools ({{done}}/{{total}} completed)",
+      "done": "Completed {{total}} execution steps"
+    },
+    "groupBadge": {
+      "running": "Running",
+      "warning": "Warning",
+      "done": "Done"
+    },
+    "statusBadge": {
+      "running": "Running",
+      "error": "Error",
+      "success": "Success"
+    },
+    "defaultToolDesc": "Executing tool {{formatted}}",
+    "tools": {
+      "rag": {
+        "search": {
+          "title": "Search RAG documents",
+          "desc": "Find information in the local knowledge base"
+        }
+      },
+      "web": {
+        "search": {
+          "title": "Web Search",
+          "desc": "Look up up-to-date information on the internet"
+        },
+        "fetch": {
+          "title": "Read URL Content",
+          "desc": "Extract text content from a web page"
+        }
+      },
+      "memory": {
+        "recall": {
+          "title": "Recall Memory",
+          "desc": "Check information saved in personal memory"
+        },
+        "save": {
+          "title": "Save Memory",
+          "desc": "Save important data to long-term memory"
+        }
+      },
+      "file": {
+        "search": {
+          "title": "Search Files",
+          "desc": "Scan related files in the working directory"
+        },
+        "read": {
+          "title": "Read File",
+          "desc": "Read local source code or document content"
+        },
+        "write": {
+          "title": "Write / Create File",
+          "desc": "Create or update file content"
+        }
+      },
+      "shell": {
+        "exec": {
+          "title": "Execute Shell Command",
+          "desc": "Run a terminal command in a sandboxed environment"
+        }
+      },
+      "git": {
+        "tool": {
+          "title": "Git Operation",
+          "desc": "Check commits, branches, or repository status"
+        }
+      }
+    }
+  },
+  "citationList": {
+    "source": "Source",
+    "sources": "Sources"
+  }
+}

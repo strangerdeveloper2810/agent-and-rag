@@ -117,6 +117,37 @@ func TestChatHandler_MapsHistoryAndAttachments(t *testing.T) {
 	}
 }
 
+// TestChatHandler_MapsLang xác nhận field "lang" (FE gửi lên khi user chọn
+// ngôn ngữ UI) được forward đúng vào agent.RunInput.Lang — nodeModel dùng
+// field này để ghi đè chỉ dẫn ngôn ngữ trong system prompt cho lượt chạy này.
+func TestChatHandler_MapsLang(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		want string
+	}{
+		{name: "lang=en forwarded", body: `{"userMessage":"hi","lang":"en"}`, want: "en"},
+		{name: "lang=vi forwarded", body: `{"userMessage":"hi","lang":"vi"}`, want: "vi"},
+		{name: "lang omitted defaults to empty", body: `{"userMessage":"hi"}`, want: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			runner := &fakeRunner{}
+			rec := httptest.NewRecorder()
+			NewChatHandler(runner).ServeHTTP(rec,
+				httptest.NewRequest(http.MethodPost, "/chat", strings.NewReader(tt.body)))
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
+			}
+			if runner.gotIn.Lang != tt.want {
+				t.Errorf("RunInput.Lang = %q, want %q", runner.gotIn.Lang, tt.want)
+			}
+		})
+	}
+}
+
 func TestChatHandler_BadRequests(t *testing.T) {
 	cases := map[string]string{
 		"json hỏng":           `{không phải json`,

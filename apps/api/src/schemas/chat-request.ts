@@ -13,6 +13,12 @@ export const chatBodySchema = z.object({
       }),
     )
     .optional(),
+  /**
+   * Ngôn ngữ UI người dùng đang chọn ở FE (vd i18next `i18n.language`).
+   * Optional — vắng mặt giữ hành vi mặc định (tiếng Việt). Forward nguyên văn
+   * xuống agent-go qua goAgentClient để JARVIS trả lời đúng ngôn ngữ.
+   */
+  lang: z.enum(["vi", "en"]).optional(),
 });
 
 /** Body cho POST /conversations — tin nhắn đầu tiên (tùy chọn). */

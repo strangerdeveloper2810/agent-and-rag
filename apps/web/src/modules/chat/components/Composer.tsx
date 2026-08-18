@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   PaperClipIcon,
   PaperAirplaneIcon,
@@ -82,6 +83,7 @@ export const Composer: React.FC<{
   attachments,
   onAttachmentsChange,
 }) => {
+  const { t } = useTranslation("chat");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
@@ -137,17 +139,16 @@ export const Composer: React.FC<{
   const toggleRecording = () => {
     if (isRecording) {
       setIsRecording(false);
-      toast.success("Đã dừng thu âm giọng nói.");
+      toast.success(t("composer.voice.stopped"));
     } else {
       setIsRecording(true);
-      toast.info("Đang lắng nghe giọng nói... (nhập mô phỏng)");
+      toast.info(t("composer.voice.listening"));
       setTimeout(() => {
         onChange(
-          (value ? `${value} ` : "") +
-            "Giải thích cơ chế RAG Vector Search trong JAVIS.",
+          (value ? `${value} ` : "") + t("composer.voice.sampleText"),
         );
         setIsRecording(false);
-        toast.success("Đã chuyển giọng nói thành văn bản!");
+        toast.success(t("composer.voice.transcribed"));
       }, 3000);
     }
   };
@@ -158,7 +159,7 @@ export const Composer: React.FC<{
 
     for (const file of files) {
       if (file.size > MAX_SIZE) {
-        errors.push(`${file.name} vượt quá 10MB`);
+        errors.push(t("composer.errors.fileTooLarge", { name: file.name }));
         continue;
       }
 
@@ -171,11 +172,11 @@ export const Composer: React.FC<{
         newAttachments.filter((a) => a.type === "file").length;
 
       if (type === "image" && currentImageCount >= MAX_IMAGES) {
-        errors.push(`Tối đa ${MAX_IMAGES} ảnh`);
+        errors.push(t("composer.errors.maxImages", { max: MAX_IMAGES }));
         break;
       }
       if (type === "file" && currentFileCount >= MAX_FILES) {
-        errors.push(`Tối đa ${MAX_FILES} file tài liệu`);
+        errors.push(t("composer.errors.maxFiles", { max: MAX_FILES }));
         break;
       }
 
@@ -190,7 +191,7 @@ export const Composer: React.FC<{
           size: file.size,
         });
       } catch {
-        errors.push(`Không thể đọc file ${file.name}`);
+        errors.push(t("composer.errors.readFileFailed", { name: file.name }));
       }
     }
 
@@ -255,10 +256,12 @@ export const Composer: React.FC<{
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
             </span>
-            <span>J.A.R.V.I.S. đang suy luận ({elapsedSeconds}s)...</span>
+            <span>
+              {t("composer.stopPill", { seconds: elapsedSeconds })}
+            </span>
             <span className="h-3 border-r border-border mx-1" />
             <XMarkIcon className="h-3.5 w-3.5" />
-            <span className="font-bold">Dừng lại</span>
+            <span className="font-bold">{t("composer.stop")}</span>
           </Button>
         </div>
       )}
@@ -268,10 +271,10 @@ export const Composer: React.FC<{
         <div className="absolute inset-x-4 bottom-5 top-2 z-40 flex flex-col items-center justify-center rounded-3xl border-2 border-dashed border-primary bg-card/95 backdrop-blur-md animate-fade-in shadow-2xl">
           <ArrowUpTrayIcon className="h-10 w-10 text-primary animate-bounce mb-2" />
           <p className="text-sm font-bold text-foreground">
-            Thả file vào đây để đính kèm
+            {t("composer.dropHint")}
           </p>
           <p className="text-xs text-muted-foreground">
-            Hỗ trợ Hình ảnh, PDF, Word, Excel, Markdown
+            {t("composer.dropSupportedTypes")}
           </p>
         </div>
       )}
@@ -283,7 +286,7 @@ export const Composer: React.FC<{
         accept={ACCEPT}
         onChange={handleFileChange}
         className="hidden"
-        aria-label="Đính kèm file"
+        aria-label={t("composer.attachFileInputAria")}
       />
 
       <div className="mx-auto max-w-3xl relative">
@@ -312,7 +315,9 @@ export const Composer: React.FC<{
                       <button
                         type="button"
                         onClick={() => removeAttachment(att.id)}
-                        aria-label={`Xóa ${att.name}`}
+                        aria-label={t("composer.removeAttachmentAria", {
+                          name: att.name,
+                        })}
                         className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/75 text-white opacity-0 transition hover:bg-destructive group-hover:opacity-100"
                       >
                         <XMarkIcon className="h-3 w-3" />
@@ -332,7 +337,9 @@ export const Composer: React.FC<{
                       <button
                         type="button"
                         onClick={() => removeAttachment(att.id)}
-                        aria-label={`Xóa ${att.name}`}
+                        aria-label={t("composer.removeAttachmentAria", {
+                          name: att.name,
+                        })}
                         className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground hover:bg-muted"
                       >
                         <XMarkIcon className="h-3 w-3" />
@@ -343,7 +350,12 @@ export const Composer: React.FC<{
               ))}
             </ul>
             <p className="text-[10px] font-mono text-muted-foreground">
-              {imageCount}/{MAX_IMAGES} ảnh, {fileCount}/{MAX_FILES} file
+              {t("composer.attachmentsCount", {
+                images: imageCount,
+                maxImages: MAX_IMAGES,
+                files: fileCount,
+                maxFiles: MAX_FILES,
+              })}
             </p>
           </div>
         )}
@@ -357,8 +369,8 @@ export const Composer: React.FC<{
             size="iconSm"
             onClick={() => fileInputRef.current?.click()}
             disabled={disabled || (atImageLimit && atFileLimit)}
-            aria-label="Đính kèm tài liệu/hình ảnh"
-            title="Tải lên tài liệu hoặc ảnh"
+            aria-label={t("composer.attachDocAria")}
+            title={t("composer.attachDocTitle")}
             className="mb-0.5 h-8 w-8 text-muted-foreground hover:text-foreground"
           >
             <PaperClipIcon className="h-4 w-4" />
@@ -370,7 +382,7 @@ export const Composer: React.FC<{
             variant="ghost"
             size="iconSm"
             onClick={() => onChange("/")}
-            title="Mở danh sách phím tắt (/)"
+            title={t("composer.slashMenuTitle")}
             className="mb-0.5 hidden sm:flex h-8 w-8 text-muted-foreground hover:text-primary"
           >
             <CommandLineIcon className="h-4 w-4" />
@@ -384,7 +396,7 @@ export const Composer: React.FC<{
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={handleKeyDown}
             disabled={disabled}
-            placeholder="Hỏi J.A.R.V.I.S... (gõ / để xem lệnh nhanh)"
+            placeholder={t("composer.placeholder")}
             className="scroll-fine max-h-52 flex-1 resize-none bg-transparent px-1.5 py-1 text-base leading-relaxed outline-none placeholder:text-muted-foreground disabled:opacity-50 font-sans text-foreground"
           />
 
@@ -394,8 +406,8 @@ export const Composer: React.FC<{
             variant={isRecording ? "destructive" : "ghost"}
             size="iconSm"
             onClick={toggleRecording}
-            aria-label="Nhập bằng giọng nói"
-            title="Nhập bằng giọng nói"
+            aria-label={t("composer.voiceInputAria")}
+            title={t("composer.voiceInputAria")}
             className={`mb-0.5 h-8 w-8 ${isRecording ? "animate-pulse" : "text-muted-foreground hover:text-foreground"}`}
           >
             <MicrophoneIcon className="h-4 w-4" />
@@ -408,8 +420,8 @@ export const Composer: React.FC<{
               variant="destructive"
               size="iconSm"
               onClick={onStop}
-              aria-label="Dừng sinh câu trả lời"
-              title="Dừng sinh câu trả lời"
+              aria-label={t("composer.stopGenerationAria")}
+              title={t("composer.stopGenerationAria")}
               className="mb-0.5 h-8 w-8 rounded-xl shadow-md"
             >
               <XMarkIcon className="h-4 w-4" />
@@ -421,7 +433,7 @@ export const Composer: React.FC<{
               size="iconSm"
               onClick={onSend}
               disabled={!canSend}
-              aria-label="Gửi tin nhắn"
+              aria-label={t("composer.sendAria")}
               className="mb-0.5 h-8 w-8"
             >
               <PaperAirplaneIcon className="h-4 w-4" />
@@ -433,9 +445,11 @@ export const Composer: React.FC<{
         <div className="mt-1.5 flex items-center justify-between px-2 text-[10px] text-muted-foreground">
           <span className="flex items-center gap-1">
             <SparklesIcon className="h-3 w-3 text-primary" />
-            <span>Shift + Enter để xuống dòng</span>
+            <span>{t("composer.shiftEnterHint")}</span>
           </span>
-          <span className="font-mono">{value.length} ký tự</span>
+          <span className="font-mono">
+            {t("composer.charCount", { length: value.length })}
+          </span>
         </div>
       </div>
     </div>

@@ -1,1 +1,49 @@
-{}
+{
+  "header": {
+    "toggleSidebar": "Toggle sidebar",
+    "onlineStatus": "ONLINE",
+    "searchConversation": "Search conversation",
+    "exportChat": "Export chat log",
+    "clearChat": "Clear chat"
+  },
+  "sidebar": {
+    "closeMenu": "Close menu",
+    "newConversation": "New conversation",
+    "tabs": {
+      "chat": "Chats",
+      "documents": "Documents"
+    },
+    "knowledgeBase": {
+      "title": "RAG Knowledge Base",
+      "description": "Uploaded documents are automatically chunked & vectorized for AI retrieval."
+    },
+    "searchPlaceholder": "Search conversations...",
+    "noResults": "No matching conversations found.",
+    "noConversations": "No conversations yet.",
+    "confirmRename": "Confirm rename",
+    "rename": "Rename",
+    "deleteConversation": "Delete conversation",
+    "defaultUserName": "User",
+    "logoutAccount": "Log out of account",
+    "logoutSuccess": "Successfully logged out!",
+    "logoutError": "An error occurred while logging out.",
+    "deleteDialog": {
+      "title": "Delete conversation?",
+      "message": "The conversation \"{{title}}\" will be permanently deleted.",
+      "confirmLabel": "Delete permanently"
+    },
+    "dateGroups": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "lastWeek": "Last 7 days",
+      "older": "Older"
+    }
+  },
+  "appLayout": {
+    "loadingApplication": "Loading application..."
+  },
+  "searchBar": {
+    "placeholder": "Search...",
+    "clearSearch": "Clear search"
+  }
+}

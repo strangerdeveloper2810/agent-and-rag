@@ -1,4 +1,6 @@
 import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import {
   PlusIcon,
   ChatBubbleLeftRightIcon,
@@ -49,7 +51,7 @@ const ConversationSkeleton: React.FC = () => (
   </div>
 );
 
-function groupConversationsByDate(convs: Conversation[]) {
+function groupConversationsByDate(convs: Conversation[], t: TFunction) {
   const now = new Date();
   const todayStart = new Date(
     now.getFullYear(),
@@ -60,10 +62,10 @@ function groupConversationsByDate(convs: Conversation[]) {
   const weekStart = todayStart - 6 * 86400000;
 
   const groups: { label: string; items: Conversation[] }[] = [
-    { label: "Hôm nay", items: [] },
-    { label: "Hôm qua", items: [] },
-    { label: "7 ngày qua", items: [] },
-    { label: "Cũ hơn", items: [] },
+    { label: t("sidebar.dateGroups.today"), items: [] },
+    { label: t("sidebar.dateGroups.yesterday"), items: [] },
+    { label: t("sidebar.dateGroups.lastWeek"), items: [] },
+    { label: t("sidebar.dateGroups.older"), items: [] },
   ];
 
   convs.forEach((c) => {
@@ -86,6 +88,7 @@ function groupConversationsByDate(convs: Conversation[]) {
  * Sidebar — Shadcn UI styled navigation drawer with Heroicons and User Profile footer.
  */
 export const Sidebar: React.FC<SidebarProps> = (props) => {
+  const { t } = useTranslation("layout");
   const ctx = useConversation();
   const navigate = useNavigate();
 
@@ -132,8 +135,8 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
   }, [conversations, searchQuery]);
 
   const grouped = useMemo(() => {
-    return groupConversationsByDate(filtered);
-  }, [filtered]);
+    return groupConversationsByDate(filtered, t);
+  }, [filtered, t]);
 
   const startRename = (c: Conversation) => {
     setRenamingId(c._id);
@@ -158,9 +161,9 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
   const handleLogout = async () => {
     try {
       await logout();
-      toast.success("Đã đăng xuất thành công!");
+      toast.success(t("sidebar.logoutSuccess"));
     } catch {
-      toast.error("Đã xảy ra lỗi khi đăng xuất.");
+      toast.error(t("sidebar.logoutError"));
     }
   };
 
@@ -212,7 +215,7 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
             variant="ghost"
             size="iconSm"
             onClick={onClose}
-            aria-label="Close menu"
+            aria-label={t("sidebar.closeMenu")}
             className="md:hidden"
           >
             <XMarkIcon className="h-4 w-4" />
@@ -227,7 +230,7 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
             onClick={onNew}
           >
             <PlusIcon className="h-4 w-4" />
-            <span>Tạo cuộc trò chuyện mới</span>
+            <span>{t("sidebar.newConversation")}</span>
           </Button>
         </div>
 
@@ -241,7 +244,7 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
             className="gap-2 justify-center"
           >
             <ChatBubbleLeftRightIcon className="h-3.5 w-3.5 text-primary" />
-            <span>Hội thoại</span>
+            <span>{t("sidebar.tabs.chat")}</span>
           </Button>
           <Button
             type="button"
@@ -251,7 +254,7 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
             className="gap-2 justify-center"
           >
             <DocumentTextIcon className="h-3.5 w-3.5 text-primary" />
-            <span>Tài liệu</span>
+            <span>{t("sidebar.tabs.documents")}</span>
           </Button>
         </nav>
 
@@ -262,11 +265,10 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
               <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs">
                 <div className="flex items-center gap-2 mb-1 font-semibold text-primary">
                   <DocumentTextIcon className="h-4 w-4" />
-                  <span>RAG Knowledge Base</span>
+                  <span>{t("sidebar.knowledgeBase.title")}</span>
                 </div>
                 <p className="text-[11px] leading-relaxed text-muted-foreground">
-                  Tài liệu tải lên được tự động phân tách & vectorized cho AI
-                  truy vấn.
+                  {t("sidebar.knowledgeBase.description")}
                 </p>
               </div>
             </div>
@@ -280,7 +282,7 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Tìm kiếm hội thoại..."
+                placeholder={t("sidebar.searchPlaceholder")}
                 className="pl-8 h-8 text-xs bg-muted/40"
               />
             </div>
@@ -297,8 +299,8 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
             ) : filtered.length === 0 ? (
               <p className="px-3 py-6 text-center text-[11px] text-muted-foreground">
                 {searchQuery
-                  ? "Không tìm thấy hội thoại phù hợp."
-                  : "Chưa có cuộc trò chuyện nào."}
+                  ? t("sidebar.noResults")
+                  : t("sidebar.noConversations")}
               </p>
             ) : (
               grouped.map((group) => (
@@ -335,7 +337,7 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
                           />
                           <button
                             onClick={commitRename}
-                            aria-label="Xác nhận đổi tên"
+                            aria-label={t("sidebar.confirmRename")}
                             className="shrink-0 text-primary hover:opacity-80"
                           >
                             <CheckIcon className="h-4 w-4" />
@@ -368,14 +370,14 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
                         </button>
                         <button
                           onClick={() => startRename(c)}
-                          aria-label="Đổi tên"
+                          aria-label={t("sidebar.rename")}
                           className="shrink-0 p-1 opacity-0 transition hover:bg-muted rounded-md focus:opacity-100 group-hover/item:opacity-100 text-muted-foreground"
                         >
                           <PencilSquareIcon className="h-3.5 w-3.5" />
                         </button>
                         <button
                           onClick={() => setPendingDelete(c)}
-                          aria-label="Xóa cuộc trò chuyện"
+                          aria-label={t("sidebar.deleteConversation")}
                           className="shrink-0 p-1 opacity-0 transition hover:bg-destructive/10 hover:text-destructive rounded-md focus:opacity-100 group-hover/item:opacity-100 text-muted-foreground"
                         >
                           <TrashIcon className="h-3.5 w-3.5" />
@@ -400,7 +402,7 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
               </Avatar>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-bold text-foreground">
-                  {user?.name || "Người dùng"}
+                  {user?.name || t("sidebar.defaultUserName")}
                 </p>
                 <p className="truncate text-[10px] text-muted-foreground">
                   {user?.email || "user@javis.ai"}
@@ -413,8 +415,8 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
               variant="ghost"
               size="iconSm"
               onClick={handleLogout}
-              aria-label="Đăng xuất"
-              title="Đăng xuất tài khoản"
+              aria-label={t("common:logout")}
+              title={t("sidebar.logoutAccount")}
               className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-8 w-8"
             >
               <ArrowRightOnRectangleIcon className="h-4 w-4" />
@@ -425,13 +427,13 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
 
       <ConfirmDialog
         open={pendingDelete !== null}
-        title="Xóa cuộc trò chuyện?"
+        title={t("sidebar.deleteDialog.title")}
         message={
           pendingDelete
-            ? `Cuộc hội thoại "${pendingDelete.title}" sẽ bị xóa vĩnh viễn.`
+            ? t("sidebar.deleteDialog.message", { title: pendingDelete.title })
             : undefined
         }
-        confirmLabel="Xóa vĩnh viễn"
+        confirmLabel={t("sidebar.deleteDialog.confirmLabel")}
         danger
         onConfirm={() => {
           if (pendingDelete) onDelete(pendingDelete._id);

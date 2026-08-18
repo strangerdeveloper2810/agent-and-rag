@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import {
   SparklesIcon,
   EyeIcon,
@@ -15,7 +17,7 @@ import { useAuthStore } from "@/stores/auth.store";
 import { useToast } from "@/design-system/molecules/Toast";
 import { registerSchema, type RegisterFormValues } from "@/lib/validation";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
-import type { ApiError } from "@/lib/http";
+import { translateApiError } from "@/lib/errors";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,28 +29,36 @@ import {
   CardContent,
 } from "@/components/ui/card";
 
-const checkPasswordStrength = (pass: string) => {
+const checkPasswordStrength = (pass: string, t: TFunction<"auth">) => {
   let score = 0;
-  if (!pass) return { score: 0, label: "Trống", color: "var(--border)" };
+  if (!pass)
+    return {
+      score: 0,
+      label: t("register.passwordStrength.empty"),
+      color: "var(--border)",
+    };
   if (pass.length >= 8) score++;
   if (/[A-Z]/.test(pass) || /[a-z]/.test(pass)) score++;
   if (/[0-9]/.test(pass)) score++;
   if (/[^A-Za-z0-9]/.test(pass)) score++;
 
-  if (score <= 1) return { score: 1, label: "Yếu", color: "#f87171" };
+  if (score <= 1)
+    return { score: 1, label: t("register.passwordStrength.weak"), color: "#f87171" };
   if (score === 2 || score === 3)
-    return { score: 2, label: "Trung bình", color: "#fbbf24" };
-  return { score: 3, label: "Mạnh", color: "#34d399" };
+    return {
+      score: 2,
+      label: t("register.passwordStrength.medium"),
+      color: "#fbbf24",
+    };
+  return { score: 3, label: t("register.passwordStrength.strong"), color: "#34d399" };
 };
 
 export const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
   const { register: registerUser, isLoading } = useAuthStore();
   const toast = useToast();
-  useDocumentTitle(
-    "Đăng ký tài khoản",
-    "Tạo tài khoản J.A.R.V.I.S. AI Agent miễn phí.",
-  );
+  const { t } = useTranslation("auth");
+  useDocumentTitle(t("register.pageTitle"), t("register.pageDescription"));
 
   const [showPassword, setShowPassword] = useState(false);
 
@@ -63,21 +73,18 @@ export const RegisterPage: React.FC = () => {
   });
 
   const passwordValue = watch("password") || "";
-  const pwdStrength = checkPasswordStrength(passwordValue);
+  const pwdStrength = checkPasswordStrength(passwordValue, t);
 
   const onSubmit = async (data: RegisterFormValues) => {
     const email = data.email.trim();
     try {
       await registerUser(email, data.password, data.name.trim());
-      toast.success("Đã gửi mã OTP tới email của bạn!");
+      toast.success(t("register.registerSuccess"));
       navigate(`/verify-email?email=${encodeURIComponent(email)}`, {
         replace: true,
       });
     } catch (err) {
-      const apiErr = err as ApiError;
-      toast.error(
-        apiErr?.message ?? "Đăng ký thất bại. Email có thể đã tồn tại.",
-      );
+      toast.error(translateApiError(err, t, t("register.registerFailed")));
     }
   };
 
@@ -99,10 +106,10 @@ export const RegisterPage: React.FC = () => {
           <Card className="border-border bg-card/80 shadow-2xl">
             <CardHeader className="space-y-1 pb-4">
               <CardTitle className="text-2xl font-bold">
-                Tạo tài khoản mới
+                {t("register.cardTitle")}
               </CardTitle>
               <CardDescription>
-                Bắt đầu trải nghiệm sức mạnh trợ lý AI cá nhân hóa ngay hôm nay
+                {t("register.cardDescription")}
               </CardDescription>
             </CardHeader>
 
@@ -117,13 +124,13 @@ export const RegisterPage: React.FC = () => {
                     htmlFor="register-name"
                     className="mb-1.5 block text-xs font-medium text-muted-foreground"
                   >
-                    Họ và tên
+                    {t("register.nameLabel")}
                   </label>
                   <Input
                     id="register-name"
                     type="text"
                     autoComplete="name"
-                    placeholder="Nguyễn Văn A"
+                    placeholder={t("register.namePlaceholder")}
                     {...register("name")}
                   />
                   {errors.name && (
@@ -138,13 +145,13 @@ export const RegisterPage: React.FC = () => {
                     htmlFor="register-email"
                     className="mb-1.5 block text-xs font-medium text-muted-foreground"
                   >
-                    Địa chỉ Email
+                    {t("register.emailLabel")}
                   </label>
                   <Input
                     id="register-email"
                     type="email"
                     autoComplete="email"
-                    placeholder="name@company.com"
+                    placeholder={t("register.emailPlaceholder")}
                     {...register("email")}
                   />
                   {errors.email && (
@@ -159,14 +166,14 @@ export const RegisterPage: React.FC = () => {
                     htmlFor="register-password"
                     className="mb-1.5 block text-xs font-medium text-muted-foreground"
                   >
-                    Mật khẩu
+                    {t("register.passwordLabel")}
                   </label>
                   <div className="relative">
                     <Input
                       id="register-password"
                       type={showPassword ? "text" : "password"}
                       autoComplete="new-password"
-                      placeholder="Tối thiểu 8 ký tự"
+                      placeholder={t("register.passwordPlaceholder")}
                       className="pr-10"
                       {...register("password")}
                     />
@@ -174,7 +181,9 @@ export const RegisterPage: React.FC = () => {
                       type="button"
                       onClick={() => setShowPassword((p) => !p)}
                       aria-label={
-                        showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"
+                        showPassword
+                          ? t("passwordVisibility.hide")
+                          : t("passwordVisibility.show")
                       }
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition"
                     >
@@ -191,7 +200,7 @@ export const RegisterPage: React.FC = () => {
                     <div className="mt-2.5 space-y-1">
                       <div className="flex justify-between items-center text-[10px]">
                         <span className="text-muted-foreground font-medium">
-                          Độ mạnh mật khẩu:
+                          {t("register.passwordStrengthLabel")}
                         </span>
                         <span
                           className="font-bold"
@@ -233,10 +242,10 @@ export const RegisterPage: React.FC = () => {
                   {isLoading ? (
                     <span className="inline-flex items-center gap-2">
                       <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                      Đang khởi tạo tài khoản...
+                      {t("register.submitting")}
                     </span>
                   ) : (
-                    "Tạo tài khoản J.A.R.V.I.S."
+                    t("register.submitButton")
                   )}
                 </Button>
               </form>
@@ -244,12 +253,12 @@ export const RegisterPage: React.FC = () => {
               {/* Navigation Footer */}
               <div className="mt-6 pt-4 text-center border-t border-border">
                 <p className="text-xs text-muted-foreground">
-                  Đã có tài khoản?{" "}
+                  {t("register.haveAccount")}{" "}
                   <Link
                     to="/login"
                     className="font-bold text-primary hover:underline inline-flex items-center gap-1 ml-1"
                   >
-                    <span>Đăng nhập ngay</span>
+                    <span>{t("register.loginLink")}</span>
                     <ArrowRightIcon className="h-3 w-3" />
                   </Link>
                 </p>
@@ -278,16 +287,14 @@ export const RegisterPage: React.FC = () => {
         {/* Middle: hero */}
         <div className="relative z-10 text-right my-auto py-8">
           <h2 className="font-display text-4xl font-extrabold leading-tight tracking-tight">
-            Xây dựng không gian
+            {t("register.heroTitle")}
             <br />
             <span className="bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-              làm việc thông minh
+              {t("register.heroTitleHighlight")}
             </span>
           </h2>
           <p className="ml-auto mt-4 max-w-md text-xs leading-relaxed text-muted-foreground">
-            Chỉ với một tài khoản, bạn mở khóa toàn bộ tiềm năng trí tuệ nhân
-            tạo. Tải lên tài liệu, kích hoạt AI Agent và nâng cao hiệu suất làm
-            việc gấp 10 lần.
+            {t("register.heroSubtitle")}
           </p>
 
           {/* Highlights */}
@@ -295,19 +302,19 @@ export const RegisterPage: React.FC = () => {
             <Card className="p-3 bg-background/50 border-border">
               <BoltIcon className="h-5 w-5 text-indigo-400" />
               <h4 className="text-xs font-bold text-foreground mt-1">
-                Phản hồi siêu tốc
+                {t("register.highlights.speed.title")}
               </h4>
               <p className="text-[10px] text-muted-foreground">
-                SSE Streaming thời gian thực
+                {t("register.highlights.speed.desc")}
               </p>
             </Card>
             <Card className="p-3 bg-background/50 border-border">
               <ShieldCheckIcon className="h-5 w-5 text-emerald-400" />
               <h4 className="text-xs font-bold text-foreground mt-1">
-                Bảo mật tuyệt đối
+                {t("register.highlights.security.title")}
               </h4>
               <p className="text-[10px] text-muted-foreground">
-                Mã hóa dữ liệu chuẩn enterprise
+                {t("register.highlights.security.desc")}
               </p>
             </Card>
           </div>
@@ -315,7 +322,7 @@ export const RegisterPage: React.FC = () => {
 
         {/* Bottom */}
         <p className="relative z-10 text-right text-[11px] text-muted-foreground pt-4 border-t border-border">
-          © 2026 J.A.R.V.I.S. — Intelligent Agent Platform
+          {t("register.footerCopyright")}
         </p>
       </div>
     </div>

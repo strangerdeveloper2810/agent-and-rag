@@ -308,6 +308,49 @@ func TestNodeModel_NoRecalledMemories_NoMemorySection(t *testing.T) {
 	}
 }
 
+// TestNodeModel_LangOverride khoá hành vi i18n per-request: getSystemPrompt()
+// của fakeEngine trả về prompt mặc định tiếng Việt (giống Engine thật, được
+// build 1 lần lúc wiring — xem cmd/server/main.go), nhưng khi RunInput.Lang =
+// "en" cho lượt chạy hiện tại, nodeModel phải ghi đè bằng chỉ dẫn tiếng Anh mà
+// KHÔNG cần Engine gọi SetSystemPrompt mỗi request (vốn không an toàn vì
+// Engine dùng chung cho nhiều request đồng thời — xem orchestrator.Register).
+func TestNodeModel_LangOverride(t *testing.T) {
+	tests := []struct {
+		name string
+		lang string
+		want string
+	}{
+		{name: "lang=en → ghi đè English", lang: "en", want: "ALWAYS respond in English"},
+		{name: "lang=vi → không ghi đè", lang: "vi", want: ""},
+		{name: "lang rỗng → không ghi đè", lang: "", want: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fake := newCapturingProvider(
+				provider.StreamChunk{Kind: provider.ChunkText, Text: "OK"},
+				provider.StreamChunk{Kind: provider.ChunkDone},
+			)
+			eng := &fakeEngine{prov: fake, registry: tools.NewRegistry()}
+			s := newState(RunInput{UserMessage: "hello", MaxSteps: 12, Lang: tt.lang})
+
+			if _, err := nodeModel(context.Background(), eng, s, nilEmit); err != nil {
+				t.Fatalf("nodeModel error: %v", err)
+			}
+
+			if tt.want == "" {
+				if strings.Contains(fake.LastRequest.System, "ALWAYS respond in English") {
+					t.Errorf("lang=%q: system prompt không nên bị ghi đè sang tiếng Anh: %q", tt.lang, fake.LastRequest.System)
+				}
+				return
+			}
+			if !strings.Contains(fake.LastRequest.System, tt.want) {
+				t.Errorf("lang=%q: system prompt = %q, thiếu %q", tt.lang, fake.LastRequest.System, tt.want)
+			}
+		})
+	}
+}
+
 // --- helpers cho test ---
 
 var nilEmit EmitFunc = func(Event) {}

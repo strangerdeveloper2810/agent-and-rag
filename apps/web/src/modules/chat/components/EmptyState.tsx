@@ -1,4 +1,6 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import {
   SparklesIcon,
   DocumentTextIcon,
@@ -15,80 +17,35 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 
-/** Kho thư viện câu hỏi mẫu phong phú theo từng chủ đề */
-const PROMPT_DATABASE = [
-  {
-    id: "creative",
-    category: "Ý tưởng & Kế hoạch",
-    icon: LightBulbIcon,
-    badge: "Creative",
-    pool: [
-      "Lập kế hoạch triển khai tính năng AI Agent cho doanh nghiệp",
-      "Gợi ý 5 ý tưởng cải thiện trải nghiệm người dùng UI/UX",
-      "Xây dựng lộ trình phát triển sản phẩm SaaS trong 6 tháng",
-      "Lên kịch bản nội dung và chiến lược marketing cho tuần tới",
-      "Phân tích mô hình kinh doanh và đề xuất chiến lược tối ưu chi phí",
-      "Brainstorm ý tưởng tự động hóa quy trình nội bộ bằng AI",
-    ],
-  },
-  {
-    id: "rag",
-    category: "Đọc & Phân tích tài liệu",
-    icon: DocumentTextIcon,
-    badge: "RAG",
-    pool: [
-      "Phân tích và trích xuất điểm chính từ file PDF/Word vừa tải lên",
-      "So sánh thông số kỹ thuật và kiến trúc giữa các tài liệu",
-      "Tóm tắt các điều khoản quan trọng trong hợp đồng/quy chế",
-      "Tìm kiếm ngữ nghĩa và trích xuất số liệu từ kho tài liệu RAG",
-      "Lập bảng đối chiếu ưu nhược điểm từ các bài báo cáo kỹ thuật",
-      "Kiểm tra tính nhất quán giữa các tài liệu nghiệp vụ",
-    ],
-  },
-  {
-    id: "dev",
-    category: "Lập trình & Clean Code",
-    icon: CodeBracketIcon,
-    badge: "Dev",
-    pool: [
-      "Viết React Custom Hook quản lý WebSocket / SSE Stream",
-      "Tối ưu hóa truy vấn cơ sở dữ liệu và Vector Indexing",
-      "Review đoạn mã nguồn và đề xuất refactor theo Clean Code",
-      "Viết Unit Test toàn diện với Vitest và Mock Service",
-      "Thiết kế cấu trúc Microservices chịu tải cao và chịu lỗi",
-      "Giải thích và vá các lỗi bảo mật phổ biến trong Web App",
-    ],
-  },
-  {
-    id: "search",
-    category: "Tra cứu Tri thức",
-    icon: MagnifyingGlassIcon,
-    badge: "Search",
-    pool: [
-      "Tra cứu các quy trình chuẩn trong Knowledge Base nội bộ",
-      "Giải thích thuật toán Hybrid Search (Dense Vector + BM25 Sparse)",
-      "Tìm hiểu các kỹ thuật Prompt Engineering và Chain-of-Thought mới nhất",
-      "Tổng quan về mô hình DeepSeek V3, Gemini 2.5 và Claude 3.7",
-      "Nguyên lý hoạt động của Circuit Breaker và Rate Limiting",
-      "So sánh cơ chế lưu trữ Vector giữa pgvector, Chroma và Qdrant",
-    ],
-  },
-  {
-    id: "productivity",
-    category: "Tự động hóa & Năng suất",
-    icon: BoltIcon,
-    badge: "Automate",
-    pool: [
-      "Lập danh sách công việc ưu tiên và phân bổ thời gian hôm nay",
-      "Soạn thảo email chuyên nghiệp gửi đối tác về cập nhật dự án",
-      "Tạo kịch bản tóm tắt cuộc họp và phân công nhiệm vụ cụ thể",
-      "Tự động trích xuất thông tin liên hệ và tạo bảng dữ liệu",
-      "Chuyển đổi ghi chú phỏng vấn thành bản đánh giá ứng viên",
-    ],
-  },
-];
+const PROMPT_CATEGORY_IDS = [
+  "creative",
+  "rag",
+  "dev",
+  "search",
+  "productivity",
+] as const;
 
-const fetchSuggestionsApi = async (): Promise<string[]> => {
+const PROMPT_CATEGORY_ICONS: Record<
+  (typeof PROMPT_CATEGORY_IDS)[number],
+  React.ComponentType<{ className?: string }>
+> = {
+  creative: LightBulbIcon,
+  rag: DocumentTextIcon,
+  dev: CodeBracketIcon,
+  search: MagnifyingGlassIcon,
+  productivity: BoltIcon,
+};
+
+/** Builds the prompt-suggestion database (category label + question pool) for the current locale. */
+const buildPromptDatabase = (t: TFunction<"chat">) =>
+  PROMPT_CATEGORY_IDS.map((id) => ({
+    id,
+    category: t(`emptyState.categories.${id}`),
+    icon: PROMPT_CATEGORY_ICONS[id],
+    pool: t(`emptyState.prompts.${id}`, { returnObjects: true }) as string[],
+  }));
+
+const fetchSuggestionsApi = async (t: TFunction<"chat">): Promise<string[]> => {
   try {
     const baseUrl = import.meta.env.VITE_AGENT_URL ?? "";
     const res = await fetch(`${baseUrl}/suggestions?_t=${Date.now()}`);
@@ -97,17 +54,10 @@ const fetchSuggestionsApi = async (): Promise<string[]> => {
     if (data.suggestions?.length) return data.suggestions;
     throw new Error("empty");
   } catch {
-    const randomPool = [
-      "Lập kế hoạch công việc và phân loại mức độ ưu tiên hôm nay",
-      "Phân tích và trích xuất điểm chính từ tài liệu kỹ thuật",
-      "Soạn thảo email báo cáo tiến độ dự án chuyên nghiệp",
-      "Tối ưu hóa đoạn mã nguồn và kiểm tra hiệu năng hệ thống",
-      "Giải thích kiến trúc đa tác nhân (Multi-Agent Routing)",
-      "Tra cứu thông tin và tổng hợp tài liệu trong Knowledge Base",
-      "Tạo task quản lý và theo dõi tiến độ công việc trong ngày",
-      "Tóm tắt các hoạt động nổi bật và lưu ý quan trọng tuần qua",
-    ];
-    return randomPool.sort(() => Math.random() - 0.5).slice(0, 5);
+    const randomPool = t("emptyState.randomPool", {
+      returnObjects: true,
+    }) as string[];
+    return [...randomPool].sort(() => Math.random() - 0.5).slice(0, 5);
   }
 };
 
@@ -115,22 +65,25 @@ const fetchSuggestionsApi = async (): Promise<string[]> => {
  * EmptyState — Giao diện khởi tạo cuộc trò chuyện với các gợi ý hoàn toàn Dynamic.
  */
 export const EmptyState: React.FC<EmptyStateProps> = ({ onPick }) => {
+  const { t } = useTranslation("chat");
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
   const [pickedPrompt, setPickedPrompt] = useState<string | null>(null);
   const [refreshSeed, setRefreshSeed] = useState(0);
 
+  const PROMPT_DATABASE = useMemo(() => buildPromptDatabase(t), [t]);
+
   // Lấy gợi ý từ Server API
   const loadSuggestions = useCallback(async () => {
     setLoadingSuggestions(true);
     try {
-      const items = await fetchSuggestionsApi();
+      const items = await fetchSuggestionsApi(t);
       setSuggestions(items);
     } finally {
       setLoadingSuggestions(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     loadSuggestions();
@@ -148,7 +101,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ onPick }) => {
       [pool[i], pool[j]] = [pool[j], pool[i]];
     }
     return pool.slice(0, 2);
-  }, [activeTab, refreshSeed]);
+  }, [activeTab, refreshSeed, PROMPT_DATABASE]);
 
   const handlePick = (text: string) => {
     if (pickedPrompt) return;
@@ -182,15 +135,14 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ onPick }) => {
           className="mb-2.5 gap-1.5 py-1 px-3 text-xs font-bold"
         >
           <SparklesIcon className="h-3.5 w-3.5" />
-          <span>J.A.R.V.I.S. Core Intelligence</span>
+          <span>{t("emptyState.badge")}</span>
         </Badge>
 
         <h1 className="font-display text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
-          Tôi có thể giúp gì cho bạn hôm nay?
+          {t("emptyState.title")}
         </h1>
         <p className="mt-2 text-xs sm:text-sm max-w-lg leading-relaxed text-muted-foreground">
-          Bắt đầu trò chuyện, yêu cầu tra cứu tài liệu doanh nghiệp hoặc thực
-          thi quy trình làm việc thông minh.
+          {t("emptyState.subtitle")}
         </p>
       </div>
 
@@ -227,13 +179,13 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ onPick }) => {
             variant="ghost"
             size="sm"
             onClick={handleRefreshAll}
-            title="Đổi bộ gợi ý ngẫu nhiên mới"
+            title={t("emptyState.refreshAllTitle")}
             className="gap-1.5 px-3 py-2 text-xs text-muted-foreground hover:text-primary rounded-xl transition-all"
           >
             <ArrowPathIcon
               className={`h-3.5 w-3.5 ${loadingSuggestions ? "animate-spin text-primary" : ""}`}
             />
-            <span className="hidden sm:inline">Đổi gợi ý</span>
+            <span className="hidden sm:inline">{t("emptyState.refresh")}</span>
           </Button>
         </div>
 
@@ -266,14 +218,14 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ onPick }) => {
           <div className="pt-3 text-center">
             <div className="flex items-center justify-center gap-2 mb-2.5">
               <span className="text-[10.5px] font-extrabold uppercase tracking-wider text-muted-foreground/80">
-                GỢI Ý TỰ ĐỘNG TỪ AI AGENT
+                {t("emptyState.autoSuggestionsLabel")}
               </span>
               <button
                 type="button"
                 onClick={loadSuggestions}
                 disabled={loadingSuggestions}
-                title="Làm mới gợi ý AI"
-                aria-label="Làm mới gợi ý AI"
+                title={t("emptyState.refreshAiAria")}
+                aria-label={t("emptyState.refreshAiAria")}
                 className="text-muted-foreground hover:text-primary transition p-0.5 rounded"
               >
                 <ArrowPathIcon

@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import {
   WrenchIcon,
   CheckCircleIcon,
@@ -14,72 +16,34 @@ import {
 import type { ToolCallState } from "@/modules/chat/chat.api";
 import { Badge } from "@/components/ui/badge";
 
-const TOOL_META: Record<
+const TOOL_ICONS: Record<
   string,
-  {
-    title: string;
-    desc: string;
-    icon: React.ComponentType<{ className?: string }>;
-  }
+  React.ComponentType<{ className?: string }>
 > = {
-  "rag.search": {
-    title: "Tra cứu tài liệu RAG",
-    desc: "Tìm thông tin trong cơ sở tri thức local",
-    icon: DocumentMagnifyingGlassIcon,
-  },
-  "web.search": {
-    title: "Tìm kiếm Web",
-    desc: "Tra cứu thông tin cập nhật trên Internet",
-    icon: GlobeAltIcon,
-  },
-  "web.fetch": {
-    title: "Đọc nội dung URL",
-    desc: "Trích xuất văn bản từ trang web",
-    icon: GlobeAltIcon,
-  },
-  "memory.recall": {
-    title: "Truy xuất bộ nhớ",
-    desc: "Kiểm tra thông tin đã lưu trong bộ nhớ cá nhân",
-    icon: CircleStackIcon,
-  },
-  "memory.save": {
-    title: "Ghi nhớ thông tin",
-    desc: "Lưu dữ liệu quan trọng vào bộ nhớ dài hạn",
-    icon: CircleStackIcon,
-  },
-  "file.search": {
-    title: "Tìm kiếm tệp tin",
-    desc: "Quét các file liên quan trong thư mục làm việc",
-    icon: FolderIcon,
-  },
-  "file.read": {
-    title: "Đọc tệp tin",
-    desc: "Đọc nội dung mã nguồn hoặc tài liệu local",
-    icon: FolderIcon,
-  },
-  "file.write": {
-    title: "Ghi / Tạo tệp tin",
-    desc: "Tạo mới hoặc cập nhật nội dung tệp tin",
-    icon: CommandLineIcon,
-  },
-  "shell.exec": {
-    title: "Thực thi lệnh Shell",
-    desc: "Chạy câu lệnh terminal trong môi trường an toàn",
-    icon: CommandLineIcon,
-  },
-  "git.tool": {
-    title: "Thao tác Git",
-    desc: "Kiểm tra commit, branch hoặc trạng thái kho chứa",
-    icon: CommandLineIcon,
-  },
+  "rag.search": DocumentMagnifyingGlassIcon,
+  "web.search": GlobeAltIcon,
+  "web.fetch": GlobeAltIcon,
+  "memory.recall": CircleStackIcon,
+  "memory.save": CircleStackIcon,
+  "file.search": FolderIcon,
+  "file.read": FolderIcon,
+  "file.write": CommandLineIcon,
+  "shell.exec": CommandLineIcon,
+  "git.tool": CommandLineIcon,
 };
 
-const getToolMeta = (name: string) => {
-  if (TOOL_META[name]) return TOOL_META[name];
+const getToolMeta = (name: string, t: TFunction<"chat">) => {
+  if (TOOL_ICONS[name]) {
+    return {
+      title: t(`toolCallCard.tools.${name}.title`),
+      desc: t(`toolCallCard.tools.${name}.desc`),
+      icon: TOOL_ICONS[name],
+    };
+  }
   const formatted = name.replace(/([A-Z])/g, " $1").toLowerCase();
   return {
     title: name,
-    desc: `Thực thi công cụ ${formatted}`,
+    desc: t("toolCallCard.defaultToolDesc", { formatted }),
     icon: WrenchIcon,
   };
 };
@@ -89,20 +53,24 @@ export interface ToolCallGroupProps {
 }
 
 export const ToolCallGroup: React.FC<ToolCallGroupProps> = ({ tools }) => {
+  const { t } = useTranslation("chat");
   const [expanded, setExpanded] = useState(false);
   const [openLogIndex, setOpenLogIndex] = useState<number | null>(null);
 
   if (!tools || tools.length === 0) return null;
 
-  const isAnyRunning = tools.some((t) => t.status === "running");
-  const isAnyError = tools.some((t) => t.status === "error");
-  const completedCount = tools.filter((t) => t.status === "done").length;
+  const isAnyRunning = tools.some((tool) => tool.status === "running");
+  const isAnyError = tools.some((tool) => tool.status === "error");
+  const completedCount = tools.filter((tool) => tool.status === "done").length;
 
   const headerStatusText = isAnyRunning
-    ? `Đang thực thi ${tools.length} công cụ hệ thống...`
+    ? t("toolCallCard.headerStatus.running", { total: tools.length })
     : isAnyError
-      ? `Đã chạy ${tools.length} công cụ (${completedCount}/${tools.length} hoàn thành)`
-      : `Đã hoàn thành ${tools.length} bước thực thi`;
+      ? t("toolCallCard.headerStatus.errorSummary", {
+          total: tools.length,
+          done: completedCount,
+        })
+      : t("toolCallCard.headerStatus.done", { total: tools.length });
 
   return (
     <div className="my-2.5 rounded-2xl border border-border/80 bg-card/70 backdrop-blur-md overflow-hidden shadow-xs transition-all duration-200">
@@ -112,7 +80,7 @@ export const ToolCallGroup: React.FC<ToolCallGroupProps> = ({ tools }) => {
         onClick={() => setExpanded((p) => !p)}
         className="flex w-full items-center justify-between gap-3 px-3.5 py-2.5 text-left hover:bg-muted/40 transition duration-150"
         aria-expanded={expanded}
-        aria-label="Danh sách tool call"
+        aria-label={t("toolCallCard.detailsAria")}
       >
         <div className="flex items-center gap-2.5 min-w-0">
           <div
@@ -154,18 +122,24 @@ export const ToolCallGroup: React.FC<ToolCallGroupProps> = ({ tools }) => {
                       : ""
                 }`}
               >
-                {isAnyRunning ? "Running" : isAnyError ? "Warning" : "Done"}
+                {isAnyRunning
+                  ? t("toolCallCard.groupBadge.running")
+                  : isAnyError
+                    ? t("toolCallCard.groupBadge.warning")
+                    : t("toolCallCard.groupBadge.done")}
               </Badge>
             </div>
             {/* Tool list preview */}
             <p className="truncate text-[11px] text-muted-foreground font-mono mt-0.5">
-              {tools.map((t) => t.name).join(" • ")}
+              {tools.map((tool) => tool.name).join(" • ")}
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0 text-xs font-semibold text-muted-foreground bg-muted/60 hover:bg-muted px-2.5 py-1 rounded-lg transition border border-border/50">
-          <span>{expanded ? "Thu gọn" : "Chi tiết"}</span>
+          <span>
+            {expanded ? t("toolCallCard.collapse") : t("toolCallCard.expand")}
+          </span>
           {expanded ? (
             <ChevronUpIcon className="h-3.5 w-3.5" />
           ) : (
@@ -177,17 +151,17 @@ export const ToolCallGroup: React.FC<ToolCallGroupProps> = ({ tools }) => {
       {/* Expanded tool items */}
       {expanded && (
         <div className="border-t border-border/60 bg-muted/20 p-2.5 space-y-2 animate-fade-in">
-          {tools.map((t, idx) => {
-            const meta = getToolMeta(t.name);
+          {tools.map((tool, idx) => {
+            const meta = getToolMeta(tool.name, t);
             const Icon = meta.icon;
-            const isRunning = t.status === "running";
-            const isError = t.status === "error";
-            const hasOutput = Boolean(t.result || t.error);
+            const isRunning = tool.status === "running";
+            const isError = tool.status === "error";
+            const hasOutput = Boolean(tool.result || tool.error);
             const isLogOpen = openLogIndex === idx;
 
             return (
               <div
-                key={`${t.name}-${idx}`}
+                key={`${tool.name}-${idx}`}
                 className="rounded-xl border border-border/60 bg-card/90 p-2.5 transition shadow-xs"
               >
                 <div className="flex items-start justify-between gap-3">
@@ -210,7 +184,7 @@ export const ToolCallGroup: React.FC<ToolCallGroupProps> = ({ tools }) => {
                           {meta.title}
                         </span>
                         <code className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-muted text-muted-foreground">
-                          {t.name}
+                          {tool.name}
                         </code>
                       </div>
                       <p className="text-[11px] text-muted-foreground mt-0.5">
@@ -238,7 +212,11 @@ export const ToolCallGroup: React.FC<ToolCallGroupProps> = ({ tools }) => {
                               : "bg-[var(--success)]"
                         }`}
                       />
-                      {isRunning ? "Running" : isError ? "Error" : "Success"}
+                      {isRunning
+                        ? t("toolCallCard.statusBadge.running")
+                        : isError
+                          ? t("toolCallCard.statusBadge.error")
+                          : t("toolCallCard.statusBadge.success")}
                     </span>
 
                     {hasOutput && (
@@ -247,7 +225,9 @@ export const ToolCallGroup: React.FC<ToolCallGroupProps> = ({ tools }) => {
                         onClick={() => setOpenLogIndex(isLogOpen ? null : idx)}
                         className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-muted hover:bg-muted/80 text-muted-foreground transition border border-border/50"
                       >
-                        {isLogOpen ? "Ẩn log" : "Xem log"}
+                        {isLogOpen
+                          ? t("toolCallCard.hideLog")
+                          : t("toolCallCard.viewLog")}
                       </button>
                     )}
                   </div>
@@ -256,23 +236,23 @@ export const ToolCallGroup: React.FC<ToolCallGroupProps> = ({ tools }) => {
                 {/* Log drawer */}
                 {isLogOpen && hasOutput && (
                   <div className="mt-2.5 border-t border-border/50 pt-2 animate-fade-in">
-                    {t.result && (
+                    {tool.result && (
                       <div>
                         <span className="text-[9px] font-mono font-bold text-primary uppercase tracking-wider block mb-1">
-                          // Kết quả thực thi
+                          {t("toolCallCard.executionResult")}
                         </span>
                         <pre className="scroll-fine max-h-48 overflow-auto rounded-lg bg-black/90 p-2.5 text-[10.5px] font-mono text-[var(--success)] leading-relaxed border border-border/40">
-                          {t.result}
+                          {tool.result}
                         </pre>
                       </div>
                     )}
-                    {t.error && (
+                    {tool.error && (
                       <div>
                         <span className="text-[9px] font-mono font-bold text-destructive uppercase tracking-wider block mb-1">
-                          // Nhật ký lỗi
+                          {t("toolCallCard.errorLog")}
                         </span>
                         <pre className="scroll-fine max-h-48 overflow-auto rounded-lg bg-destructive/10 p-2.5 text-[10.5px] font-mono text-destructive leading-relaxed border border-destructive/30">
-                          {t.error}
+                          {tool.error}
                         </pre>
                       </div>
                     )}

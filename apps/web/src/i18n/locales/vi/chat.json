@@ -1,1 +1,282 @@
-{}
+{
+  "messageBubble": {
+    "usage": {
+      "input": "Input: {{value}} tokens",
+      "output": "Output: {{value}} tokens",
+      "total": "Tổng: {{value}} tokens"
+    },
+    "viewImage": "Xem {{name}}",
+    "closeImage": "Đóng ảnh",
+    "retryAria": "Thử lại tin nhắn này",
+    "retryTitle": "Gửi lại yêu cầu này cho Agent",
+    "retry": "Thử lại",
+    "errorBanner": "Phản hồi gặp sự cố hoặc quá trình xử lý bị gián đoạn.",
+    "retryNow": "Thử lại ngay",
+    "processing": "J.A.R.V.I.S. đang suy luận & xử lý dữ liệu...",
+    "truncatedBanner": "Câu trả lời bị cắt do chạm giới hạn độ dài tối đa.",
+    "continueAria": "Yêu cầu agent viết tiếp câu trả lời",
+    "continueTitle": "Yêu cầu agent viết tiếp từ chỗ bị cắt",
+    "continue": "Tiếp tục",
+    "copyAria": "Sao chép nội dung",
+    "copyTitle": "Sao chép câu trả lời",
+    "readAloudAria": "Đọc câu trả lời",
+    "readAloudTitle": "Đọc văn bản bằng giọng nói",
+    "stopReading": "Dừng đọc",
+    "readAloud": "Đọc tiếng",
+    "regenerateAria": "Tạo lại câu trả lời",
+    "regenerateTitle": "Yêu cầu AI trả lời lại",
+    "regenerate": "Tạo lại",
+    "feedbackUpAria": "Hài lòng",
+    "feedbackUpTitle": "Đánh giá tốt",
+    "feedbackDownAria": "Chưa hài lòng",
+    "feedbackDownTitle": "Đánh giá cần cải thiện"
+  },
+  "composer": {
+    "stopPill": "J.A.R.V.I.S. đang suy luận ({{seconds}}s)...",
+    "stop": "Dừng lại",
+    "dropHint": "Thả file vào đây để đính kèm",
+    "dropSupportedTypes": "Hỗ trợ Hình ảnh, PDF, Word, Excel, Markdown",
+    "attachFileInputAria": "Đính kèm file",
+    "attachDocAria": "Đính kèm tài liệu/hình ảnh",
+    "attachDocTitle": "Tải lên tài liệu hoặc ảnh",
+    "slashMenuTitle": "Mở danh sách phím tắt (/)",
+    "placeholder": "Hỏi J.A.R.V.I.S... (gõ / để xem lệnh nhanh)",
+    "voiceInputAria": "Nhập bằng giọng nói",
+    "stopGenerationAria": "Dừng sinh câu trả lời",
+    "sendAria": "Gửi tin nhắn",
+    "shiftEnterHint": "Shift + Enter để xuống dòng",
+    "charCount": "{{length}} ký tự",
+    "removeAttachmentAria": "Xóa {{name}}",
+    "attachmentsCount": "{{images}}/{{maxImages}} ảnh, {{files}}/{{maxFiles}} file",
+    "errors": {
+      "fileTooLarge": "{{name}} vượt quá 10MB",
+      "maxImages": "Tối đa {{max}} ảnh",
+      "maxFiles": "Tối đa {{max}} file tài liệu",
+      "readFileFailed": "Không thể đọc file {{name}}"
+    },
+    "voice": {
+      "stopped": "Đã dừng thu âm giọng nói.",
+      "listening": "Đang lắng nghe giọng nói... (nhập mô phỏng)",
+      "sampleText": "Giải thích cơ chế RAG Vector Search trong JAVIS.",
+      "transcribed": "Đã chuyển giọng nói thành văn bản!"
+    }
+  },
+  "emptyState": {
+    "badge": "J.A.R.V.I.S. Core Intelligence",
+    "title": "Tôi có thể giúp gì cho bạn hôm nay?",
+    "subtitle": "Bắt đầu trò chuyện, yêu cầu tra cứu tài liệu doanh nghiệp hoặc thực thi quy trình làm việc thông minh.",
+    "refreshAllTitle": "Đổi bộ gợi ý ngẫu nhiên mới",
+    "refresh": "Đổi gợi ý",
+    "autoSuggestionsLabel": "GỢI Ý TỰ ĐỘNG TỪ AI AGENT",
+    "refreshAiAria": "Làm mới gợi ý AI",
+    "categories": {
+      "creative": "Ý tưởng & Kế hoạch",
+      "rag": "Đọc & Phân tích tài liệu",
+      "dev": "Lập trình & Clean Code",
+      "search": "Tra cứu Tri thức",
+      "productivity": "Tự động hóa & Năng suất"
+    },
+    "prompts": {
+      "creative": [
+        "Lập kế hoạch triển khai tính năng AI Agent cho doanh nghiệp",
+        "Gợi ý 5 ý tưởng cải thiện trải nghiệm người dùng UI/UX",
+        "Xây dựng lộ trình phát triển sản phẩm SaaS trong 6 tháng",
+        "Lên kịch bản nội dung và chiến lược marketing cho tuần tới",
+        "Phân tích mô hình kinh doanh và đề xuất chiến lược tối ưu chi phí",
+        "Brainstorm ý tưởng tự động hóa quy trình nội bộ bằng AI"
+      ],
+      "rag": [
+        "Phân tích và trích xuất điểm chính từ file PDF/Word vừa tải lên",
+        "So sánh thông số kỹ thuật và kiến trúc giữa các tài liệu",
+        "Tóm tắt các điều khoản quan trọng trong hợp đồng/quy chế",
+        "Tìm kiếm ngữ nghĩa và trích xuất số liệu từ kho tài liệu RAG",
+        "Lập bảng đối chiếu ưu nhược điểm từ các bài báo cáo kỹ thuật",
+        "Kiểm tra tính nhất quán giữa các tài liệu nghiệp vụ"
+      ],
+      "dev": [
+        "Viết React Custom Hook quản lý WebSocket / SSE Stream",
+        "Tối ưu hóa truy vấn cơ sở dữ liệu và Vector Indexing",
+        "Review đoạn mã nguồn và đề xuất refactor theo Clean Code",
+        "Viết Unit Test toàn diện với Vitest và Mock Service",
+        "Thiết kế cấu trúc Microservices chịu tải cao và chịu lỗi",
+        "Giải thích và vá các lỗi bảo mật phổ biến trong Web App"
+      ],
+      "search": [
+        "Tra cứu các quy trình chuẩn trong Knowledge Base nội bộ",
+        "Giải thích thuật toán Hybrid Search (Dense Vector + BM25 Sparse)",
+        "Tìm hiểu các kỹ thuật Prompt Engineering và Chain-of-Thought mới nhất",
+        "Tổng quan về mô hình DeepSeek V3, Gemini 2.5 và Claude 3.7",
+        "Nguyên lý hoạt động của Circuit Breaker và Rate Limiting",
+        "So sánh cơ chế lưu trữ Vector giữa pgvector, Chroma và Qdrant"
+      ],
+      "productivity": [
+        "Lập danh sách công việc ưu tiên và phân bổ thời gian hôm nay",
+        "Soạn thảo email chuyên nghiệp gửi đối tác về cập nhật dự án",
+        "Tạo kịch bản tóm tắt cuộc họp và phân công nhiệm vụ cụ thể",
+        "Tự động trích xuất thông tin liên hệ và tạo bảng dữ liệu",
+        "Chuyển đổi ghi chú phỏng vấn thành bản đánh giá ứng viên"
+      ]
+    },
+    "randomPool": [
+      "Lập kế hoạch công việc và phân loại mức độ ưu tiên hôm nay",
+      "Phân tích và trích xuất điểm chính từ tài liệu kỹ thuật",
+      "Soạn thảo email báo cáo tiến độ dự án chuyên nghiệp",
+      "Tối ưu hóa đoạn mã nguồn và kiểm tra hiệu năng hệ thống",
+      "Giải thích kiến trúc đa tác nhân (Multi-Agent Routing)",
+      "Tra cứu thông tin và tổng hợp tài liệu trong Knowledge Base",
+      "Tạo task quản lý và theo dõi tiến độ công việc trong ngày",
+      "Tóm tắt các hoạt động nổi bật và lưu ý quan trọng tuần qua"
+    ]
+  },
+  "chatPage": {
+    "title": "Trò chuyện AI",
+    "description": "Trò chuyện và giao việc trực tiếp cho trợ lý AI thông minh J.A.R.V.I.S.",
+    "toolInterrupted": "Đã dừng: công cụ \"{{tool}}\" cần được xác nhận trước khi chạy.",
+    "unknownTool": "không rõ",
+    "serviceError": "Đang có sự cố với dịch vụ AI, chúng tôi sẽ khắc phục trong giây lát. Vui lòng thử lại.",
+    "sendFailed": "⚠ Could not send message. Please try again.",
+    "toolStoppedBeforeComplete": "Đã dừng trước khi hoàn tất",
+    "continueFailed": "Không thể tiếp tục câu trả lời. Vui lòng thử lại.",
+    "contextWarning": "Cuộc trò chuyện đã khá dài ({{tokens}}K token) — bắt đầu chat mới để có phản hồi nhanh và chính xác hơn. Các thông tin quan trọng đã học vẫn được giữ lại.",
+    "startNewChatAria": "Bắt đầu cuộc trò chuyện mới",
+    "startNewChat": "Bắt đầu chat mới",
+    "dismissWarningAria": "Đóng gợi ý"
+  },
+  "modeSelector": {
+    "selectAria": "Chọn chế độ AI",
+    "menuLabel": "CHẾ ĐỘ AI INTELLIGENCE",
+    "modes": {
+      "auto": {
+        "label": "Auto (Smart Router)",
+        "desc": "Tự động điều phối Agent phù hợp nhất theo câu hỏi",
+        "badge": "Khuyên dùng"
+      },
+      "reasoning": {
+        "label": "Deep Reasoning",
+        "desc": "Suy luận đa bước chuyên sâu cho bài toán phức tạp"
+      },
+      "rag": {
+        "label": "RAG Knowledge Search",
+        "desc": "Ưu tiên tra cứu vector DB và tài liệu đã tải lên"
+      },
+      "code": {
+        "label": "Code & Artifacts",
+        "desc": "Tối ưu hóa lập trình, refactor & thực thi mã nguồn"
+      }
+    }
+  },
+  "slashCommandMenu": {
+    "header": "SMART COMMANDS (PHÍM TẮT `/`)",
+    "hint": "↑↓ chọn · Enter dùng",
+    "commands": {
+      "summarize": {
+        "label": "Tóm tắt nhanh",
+        "desc": "Tóm tắt ngắn gọn các điểm chính của tài liệu hoặc văn bản",
+        "prompt": "Hãy tóm tắt ngắn gọn các ý chính của nội dung sau:"
+      },
+      "code": {
+        "label": "Viết mã nguồn",
+        "desc": "Tạo hoặc refactor mã nguồn chuẩn clean code",
+        "prompt": "Hãy giúp tôi viết/refactor mã nguồn cho yêu cầu sau:"
+      },
+      "search": {
+        "label": "Tra cứu Knowledge Base",
+        "desc": "Tìm kiếm thông tin chính xác từ RAG vector DB",
+        "prompt": "Tra cứu trong cơ sở dữ liệu tri thức về:"
+      },
+      "explain": {
+        "label": "Giải thích khái niệm",
+        "desc": "Giải thích các vấn đề phức tạp theo cách dễ hiểu nhất",
+        "prompt": "Hãy giải thích chi tiết khái niệm sau một cách trực quan dễ hiểu:"
+      },
+      "bug": {
+        "label": "Debug & Fix Error",
+        "desc": "Phân tích nguyên nhân và đưa ra lời giải sửa lỗi",
+        "prompt": "Phân tích nguyên nhân lỗi và sửa lại đoạn mã sau:"
+      }
+    }
+  },
+  "toolCallCard": {
+    "detailsAria": "Danh sách tool call",
+    "expand": "Chi tiết",
+    "collapse": "Thu gọn",
+    "viewLog": "Xem log",
+    "hideLog": "Ẩn log",
+    "executionResult": "// Kết quả thực thi",
+    "errorLog": "// Nhật ký lỗi",
+    "headerStatus": {
+      "running": "Đang thực thi {{total}} công cụ hệ thống...",
+      "errorSummary": "Đã chạy {{total}} công cụ ({{done}}/{{total}} hoàn thành)",
+      "done": "Đã hoàn thành {{total}} bước thực thi"
+    },
+    "groupBadge": {
+      "running": "Running",
+      "warning": "Warning",
+      "done": "Done"
+    },
+    "statusBadge": {
+      "running": "Running",
+      "error": "Error",
+      "success": "Success"
+    },
+    "defaultToolDesc": "Thực thi công cụ {{formatted}}",
+    "tools": {
+      "rag": {
+        "search": {
+          "title": "Tra cứu tài liệu RAG",
+          "desc": "Tìm thông tin trong cơ sở tri thức local"
+        }
+      },
+      "web": {
+        "search": {
+          "title": "Tìm kiếm Web",
+          "desc": "Tra cứu thông tin cập nhật trên Internet"
+        },
+        "fetch": {
+          "title": "Đọc nội dung URL",
+          "desc": "Trích xuất văn bản từ trang web"
+        }
+      },
+      "memory": {
+        "recall": {
+          "title": "Truy xuất bộ nhớ",
+          "desc": "Kiểm tra thông tin đã lưu trong bộ nhớ cá nhân"
+        },
+        "save": {
+          "title": "Ghi nhớ thông tin",
+          "desc": "Lưu dữ liệu quan trọng vào bộ nhớ dài hạn"
+        }
+      },
+      "file": {
+        "search": {
+          "title": "Tìm kiếm tệp tin",
+          "desc": "Quét các file liên quan trong thư mục làm việc"
+        },
+        "read": {
+          "title": "Đọc tệp tin",
+          "desc": "Đọc nội dung mã nguồn hoặc tài liệu local"
+        },
+        "write": {
+          "title": "Ghi / Tạo tệp tin",
+          "desc": "Tạo mới hoặc cập nhật nội dung tệp tin"
+        }
+      },
+      "shell": {
+        "exec": {
+          "title": "Thực thi lệnh Shell",
+          "desc": "Chạy câu lệnh terminal trong môi trường an toàn"
+        }
+      },
+      "git": {
+        "tool": {
+          "title": "Thao tác Git",
+          "desc": "Kiểm tra commit, branch hoặc trạng thái kho chứa"
+        }
+      }
+    }
+  },
+  "citationList": {
+    "source": "Source",
+    "sources": "Sources"
+  }
+}

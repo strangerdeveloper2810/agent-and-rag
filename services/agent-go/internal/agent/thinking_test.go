@@ -96,7 +96,7 @@ func TestResolveThinking_FloorsAtLow(t *testing.T) {
 // --- BuildSystemPrompt ---
 
 func TestBuildSystemPrompt_Sections(t *testing.T) {
-	prompt := BuildSystemPrompt(nil, nil)
+	prompt := BuildSystemPrompt(nil, nil, "")
 
 	for _, section := range []string{"[DANH TÍNH", "[QUY TẮC]", "[CÔNG CỤ]", "[NGỮ CẢNH]"} {
 		if !strings.Contains(prompt, section) {
@@ -119,6 +119,7 @@ func TestBuildSystemPrompt_WithSkillsAndMemories(t *testing.T) {
 	prompt := BuildSystemPrompt(
 		[]string{"user tên là Trinh", "thích cà phê"},
 		[]skills.SkillSummary{{Name: "pdf", Description: "đọc PDF"}},
+		"",
 	)
 
 	// Chỉ tên skill, không description — xem buildSkillCatalogue (skill do code

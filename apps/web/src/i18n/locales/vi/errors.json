@@ -1,1 +1,21 @@
-{}
+{
+  "UNAUTHORIZED": "Email hoặc mật khẩu không đúng.",
+  "FORBIDDEN": "Tài khoản đã bị vô hiệu hoá. Liên hệ hỗ trợ.",
+  "NOT_FOUND": "Không tìm thấy tài nguyên yêu cầu.",
+  "CONFLICT": "Email này đã được đăng ký.",
+  "EMAIL_NOT_VERIFIED": "Email chưa được xác minh.",
+  "SERVICE_UNAVAILABLE": "Dịch vụ tạm thời không khả dụng. Vui lòng thử lại sau.",
+  "AGENT_UNAVAILABLE": "AI agent hiện không khả dụng. Vui lòng thử lại sau.",
+  "AGENT_TIMEOUT": "AI agent phản hồi quá chậm. Vui lòng thử lại.",
+  "RATE_LIMITED": "Quá nhiều yêu cầu. Vui lòng thử lại sau {{seconds}} giây.",
+  "BAD_REQUEST": "Yêu cầu không hợp lệ.",
+  "VALIDATION_ERROR": "Dữ liệu không hợp lệ. Vui lòng kiểm tra lại.",
+  "UNSUPPORTED_FILE": "Định dạng file không được hỗ trợ.",
+  "EMPTY_CONTENT": "Không thể trích xuất nội dung từ tệp này.",
+  "FILE_TOO_LARGE": "File quá lớn (tối đa 25MB).",
+  "INTERNAL": "Đã có lỗi xảy ra. Vui lòng thử lại.",
+  "boundary": {
+    "title": "Đã xảy ra lỗi",
+    "description": "Rất tiếc, có lỗi không mong muốn xảy ra. Vui lòng thử tải lại trang. Nếu lỗi vẫn tiếp diễn, hãy liên hệ đội ngũ hỗ trợ."
+  }
+}

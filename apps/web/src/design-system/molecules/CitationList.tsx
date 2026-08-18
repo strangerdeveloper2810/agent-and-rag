@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { LinkIcon } from "@app/ui";
 import type { CitationData } from "@/modules/chat/chat.api";
 
@@ -9,6 +10,8 @@ export interface CitationListProps {
  * CitationList component for rendering document and web citations referenced by the agent.
  */
 export const CitationList: React.FC<CitationListProps> = ({ citations }) => {
+  const { t } = useTranslation("chat");
+
   if (citations.length === 0) return null;
 
   return (
@@ -21,7 +24,9 @@ export const CitationList: React.FC<CitationListProps> = ({ citations }) => {
         className="mb-2 text-[10px] font-medium uppercase tracking-wider"
         style={{ color: "var(--text-tertiary)" }}
       >
-        {citations.length === 1 ? "Source" : "Sources"}
+        {citations.length === 1
+          ? t("citationList.source")
+          : t("citationList.sources")}
       </p>
       <ul className="flex flex-wrap gap-1.5">
         {citations.map((c, i) => (

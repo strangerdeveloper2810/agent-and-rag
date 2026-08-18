@@ -50,7 +50,10 @@ func buildSkillCatalogue(summaries []skills.SkillSummary) string {
 //  3. [CÔNG CỤ] — tool reminders (cacheable)
 //  4. [BỘ NHỚ] — recalled memories (dynamic)
 //  5. [NGỮ CẢNH] — current context: time, date (dynamic)
-func BuildSystemPrompt(memories []string, skillSummaries []skills.SkillSummary) string {
+//
+// lang chọn ngôn ngữ trả lời mặc định: "en" → tiếng Anh, mọi giá trị khác
+// (kể cả "") → tiếng Việt (hành vi mặc định trước đây, không đổi).
+func BuildSystemPrompt(memories []string, skillSummaries []skills.SkillSummary, lang string) string {
 	var b strings.Builder
 	currentYear := time.Now().Year()
 
@@ -69,7 +72,11 @@ func BuildSystemPrompt(memories []string, skillSummaries []skills.SkillSummary) 
 	b.WriteString("KHÔNG mặc định người dùng là lập trình viên: chỉ dùng thuật ngữ kỹ thuật khi chính họ dùng trước hoặc khi câu hỏi rõ ràng về kỹ thuật.\n\n")
 
 	b.WriteString("[QUY TẮC]\n")
-	b.WriteString("- LUÔN trả lời bằng tiếng Việt (trừ khi user yêu cầu ngôn ngữ khác).\n")
+	if lang == "en" {
+		b.WriteString("- ALWAYS respond in English (unless the user explicitly asks otherwise).\n")
+	} else {
+		b.WriteString("- LUÔN trả lời bằng tiếng Việt (trừ khi user yêu cầu ngôn ngữ khác).\n")
+	}
 	b.WriteString("- KHI ĐỊNH DẠNG BẢNG MARKDOWN (TABLE):\n")
 	b.WriteString("  + Mỗi hàng dữ liệu BẮT BUỘC nằm trên MỘT DÒNG RIÊNG KẾT THÚC BẰNG \\n.\n")
 	b.WriteString("  + Dòng phân cách tiêu đề (|---|---|) BẮT BUỘC có \\n trước và sau.\n")
