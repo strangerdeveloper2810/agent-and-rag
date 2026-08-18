@@ -17,6 +17,7 @@ import (
 type toolsEngine interface {
 	getRegistry() *tools.Registry
 	getMaxToolOutput() int
+	getMaxTotalToolOutput() int
 	getAllowDestructiveTools() bool
 	getOwnerTenants() []string
 }
@@ -24,6 +25,10 @@ type toolsEngine interface {
 // defaultMaxToolOutput khớp cfg.MaxToolOutput (24000) — giá trị mặc định khi
 // caller không gọi Engine.SetMaxToolOutput.
 const defaultMaxToolOutput = 24000
+
+// defaultMaxTotalToolOutput khớp cfg.MaxTotalToolOutput (60000) — giá trị mặc
+// định khi caller không gọi Engine.SetMaxTotalToolOutput.
+const defaultMaxTotalToolOutput = 60000
 
 // nodeTools chạy tất cả tool calls từ assistant message cuối cùng, song song.
 func nodeTools(ctx context.Context, eng toolsEngine, s *State, emit EmitFunc) (NodeID, error) {
@@ -110,9 +115,15 @@ func nodeTools(ctx context.Context, eng toolsEngine, s *State, emit EmitFunc) (N
 	}
 
 	if len(safeCalls) > 0 {
+		// Bỏ tool call TRÙNG LẶP HỆT NHAU trong CÙNG batch trước khi thực thi —
+		// xem dedupeSafeCalls. Log dev thật đã thấy model tự gọi "notes.search"
+		// 2-3 lần với args giống hệt trong 1 lượt phản hồi.
+		dedup := dedupeSafeCalls(reg, safeCalls)
+
 		// Stream kết quả: emit tool_end NGAY KHI từng tool hoàn thành (không
-		// chờ cả nhóm) để UI hiện tiến độ trực tiếp trong lúc chờ.
-		results := reg.RunParallelStreaming(ctx, safeCalls, func(i int, res tools.CallResult) {
+		// chờ cả nhóm) để UI hiện tiến độ trực tiếp trong lúc chờ. Chỉ đại diện
+		// (dedup.exec) được thực thi thật; bản sao dùng lại kết quả bên dưới.
+		results := reg.RunParallelStreaming(ctx, dedup.exec, func(i int, res tools.CallResult) {
 			if res.Err != nil {
 				slog.Error("tools: failed", "tool", res.Call.Name, "err", res.Err)
 				emit(ToolEndEvent(res.Call.Name, false, res.Err.Error()))
@@ -121,29 +132,60 @@ func nodeTools(ctx context.Context, eng toolsEngine, s *State, emit EmitFunc) (N
 			}
 		})
 
-		maxOut := eng.getMaxToolOutput()
+		resultByRepID := make(map[string]tools.CallResult, len(results))
 		for _, res := range results {
-			output, truncated := capToolOutput(res.Result.Content, maxOut)
-			if truncated {
-				slog.Warn("tools: output bị cắt để giữ context trong ngân sách",
-					"tool", res.Call.Name,
-					"original_chars", len([]rune(res.Result.Content)),
-					"max_chars", maxOut)
+			resultByRepID[res.Call.ID] = res
+		}
+
+		maxOut := eng.getMaxToolOutput()
+		maxTotal := eng.getMaxTotalToolOutput()
+
+		for _, key := range dedup.order {
+			members := dedup.groups[key]
+			rep := members[0]
+			res, ok := resultByRepID[rep.ID]
+			if !ok {
+				continue // không nên xảy ra: mọi đại diện đều được RunParallelStreaming trả kết quả
 			}
-			obs := Observation{
-				CallID: res.Call.ID,
-				Name:   res.Call.Name,
-				Output: output,
+
+			output, usedRunes, budgetTruncated := applyToolOutputBudget(res.Result.Content, maxOut, maxTotal, s.ToolOutputRunesUsed)
+			s.ToolOutputRunesUsed += usedRunes
+			if budgetTruncated {
+				slog.Warn("tools: output bị cắt để giữ ngân sách tool-output của cả lượt",
+					"tool", rep.Name, "total_used_runes", s.ToolOutputRunesUsed, "max_total", maxTotal)
+			} else if _, capTruncated := capToolOutput(res.Result.Content, maxOut); capTruncated {
+				slog.Warn("tools: output bị cắt vì vượt trần từng tool call",
+					"tool", rep.Name, "original_chars", len([]rune(res.Result.Content)), "max_chars", maxOut)
 			}
+
+			// Đại diện: ghi observation với nội dung ĐẦY ĐỦ (đã cắt theo ngân sách).
+			obs := Observation{CallID: rep.ID, Name: rep.Name, Output: output}
 			if res.Err != nil {
 				obs.Error = res.Err.Error()
 			} else {
-				slog.Info("tools: done", "tool", res.Call.Name, "output_preview", truncateRunes(output, 100))
+				slog.Info("tools: done", "tool", rep.Name, "output_preview", truncateRunes(output, 100))
 			}
 			s.AppendObservation(obs)
+
+			// Bản sao TRÙNG LẶP (nếu có): KHÔNG lặp lại toàn bộ nội dung — chỉ
+			// tham chiếu ngắn tới bản đầu tiên. Đây là khoản tiết kiệm CONTEXT
+			// TOKEN thật (không chỉ tiết kiệm việc thực thi): nếu lặp lại y
+			// nguyên nội dung cho mỗi bản sao, model vẫn phải trả token đọc lại
+			// y hệt dữ liệu nhiều lần.
+			for _, dup := range members[1:] {
+				note := duplicateToolResultNote(dup.Name)
+				obsDup := Observation{CallID: dup.ID, Name: dup.Name, Output: note}
+				if res.Err != nil {
+					obsDup.Error = res.Err.Error()
+				}
+				s.AppendObservation(obsDup)
+				emit(ToolEndEvent(dup.Name, res.Err == nil, note))
+				slog.Info("tools: bỏ qua thực thi trùng lặp, dùng lại kết quả đã chạy",
+					"tool", dup.Name, "call_id", dup.ID, "representative_call_id", rep.ID)
+			}
 		}
 
-		slog.Info("tools: all done", "count", len(results), "elapsed_ms", time.Since(start).Milliseconds())
+		slog.Info("tools: all done", "count", len(safeCalls), "executed", len(dedup.exec), "elapsed_ms", time.Since(start).Milliseconds())
 	}
 
 	if s.Interrupt != nil {

@@ -64,6 +64,11 @@ type Engine struct {
 	// Đây là chốt an toàn TẬP TRUNG, áp cho mọi tool bất kể tool có tự cắt hay không.
 	maxToolOutput int
 
+	// maxTotalToolOutput là ngân sách TỔNG ký tự tool output cộng dồn qua CẢ
+	// LƯỢT CHẠY (nhiều step), khác với maxToolOutput (trần từng tool call riêng
+	// lẻ) — xem applyToolOutputBudget.
+	maxTotalToolOutput int
+
 	// allowDestructiveTools cho phép chạy tool KindDestructive không cần xác
 	// nhận. false (mặc định) → guardrails chặn và agent giải thích cho user.
 	allowDestructiveTools bool
@@ -101,6 +106,14 @@ func (e *Engine) SetMaxToolOutput(n int) {
 
 func (e *Engine) getMaxToolOutput() int { return e.maxToolOutput }
 
+// SetMaxTotalToolOutput đặt ngân sách TỔNG ký tự tool output cộng dồn qua cả
+// lượt chạy. n <= 0 = không giới hạn.
+func (e *Engine) SetMaxTotalToolOutput(n int) {
+	e.maxTotalToolOutput = n
+}
+
+func (e *Engine) getMaxTotalToolOutput() int { return e.maxTotalToolOutput }
+
 // SetAllowDestructiveTools cho phép agent tự chạy tool KindDestructive (shell.exec)
 // mà không cần xác nhận. MẶC ĐỊNH false — xem cfg.AllowDestructiveTools.
 func (e *Engine) SetAllowDestructiveTools(allow bool) {
@@ -121,10 +134,11 @@ func (e *Engine) getDynamicThinking() DynamicThinkingConfig {
 // NewEngine tạo Engine với provider và tool registry cho trước.
 func NewEngine(prov provider.Provider, registry *tools.Registry) *Engine {
 	return &Engine{
-		prov:             prov,
-		registry:         registry,
-		maxContextTokens: 100000,
-		maxToolOutput:    defaultMaxToolOutput,
+		prov:               prov,
+		registry:           registry,
+		maxContextTokens:   100000,
+		maxToolOutput:      defaultMaxToolOutput,
+		maxTotalToolOutput: defaultMaxTotalToolOutput,
 	}
 }
 

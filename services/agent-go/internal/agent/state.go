@@ -84,6 +84,11 @@ type State struct {
 	// during this run (for observability).
 	TrimmedTokens int
 
+	// ToolOutputRunesUsed đếm số ký tự tool output đã đưa vào context, CỘNG DỒN
+	// qua tất cả bước của lượt chạy này — xem applyToolOutputBudget. Không đếm
+	// theo byte vì text tiếng Việt multi-byte sẽ làm sai lệch giới hạn.
+	ToolOutputRunesUsed int
+
 	// Truncated = true khi model call gần nhất dừng vì chạm giới hạn output
 	// token (finish reason "length"). Client dùng cờ này để mời user bấm
 	// "Tiếp tục".
