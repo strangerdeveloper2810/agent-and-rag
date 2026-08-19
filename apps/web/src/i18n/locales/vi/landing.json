@@ -1,0 +1,78 @@
+{
+  "pageTitle": "Trang chủ",
+  "pageDescription": "J.A.R.V.I.S. — nền tảng AI Agent hợp nhất tìm kiếm ngữ nghĩa RAG, đa mô hình AI và hơn 30 tool skill tự động hóa quy trình làm việc.",
+  "header": {
+    "tagline": "Intelligent Agent System",
+    "loginLink": "Đăng nhập",
+    "registerLink": "Đăng ký miễn phí"
+  },
+  "hero": {
+    "badge": "Nền tảng AI Agent thế hệ mới",
+    "title": "Trợ lý AI đa tác nhân",
+    "titleHighlight": "cho mọi tác vụ, mọi lúc",
+    "subtitle": "Hợp nhất tìm kiếm ngữ nghĩa RAG, định tuyến đa mô hình AI (DeepSeek, Gemini, Claude) và hơn 30 tool skill tự động hóa — tất cả trong một cuộc hội thoại tự nhiên.",
+    "ctaPrimary": "Đăng ký miễn phí",
+    "ctaSecondary": "Đăng nhập",
+    "statusBadge": "System Online v2.4",
+    "stats": {
+      "models": "3 nhà cung cấp AI",
+      "skills": "30+ Tool Skills",
+      "rag": "Hybrid RAG Search"
+    }
+  },
+  "features": {
+    "eyebrow": "Tính năng nổi bật",
+    "title": "Một nền tảng, ba trụ cột sức mạnh",
+    "subtitle": "Được thiết kế để xử lý mọi tác vụ tri thức — từ tra cứu tài liệu nội bộ đến tự động hóa quy trình đa bước.",
+    "items": {
+      "rag": {
+        "title": "Hybrid RAG Semantic Search",
+        "desc": "Tra cứu tài liệu và dữ liệu doanh nghiệp bằng tìm kiếm ngữ nghĩa kết hợp vector + từ khóa, trả lời chính xác kèm trích dẫn nguồn.",
+        "badge": "Vector RAG"
+      },
+      "multiAgent": {
+        "title": "Multi-Agent Routing thông minh",
+        "desc": "Tự động định tuyến yêu cầu tới mô hình phù hợp nhất — DeepSeek, Gemini hoặc Claude — theo độ phức tạp và chi phí.",
+        "badge": "DeepSeek · Gemini · Claude"
+      },
+      "toolSkills": {
+        "title": "30+ Tool Skills tự động hóa",
+        "desc": "Thư viện kỹ năng sẵn có giúp agent tự thực thi tác vụ: đọc file, chạy code, gọi API nội bộ và nhiều hơn nữa.",
+        "badge": "Automation"
+      }
+    }
+  },
+  "howItWorks": {
+    "eyebrow": "Quy trình sử dụng",
+    "title": "Bắt đầu chỉ trong 4 bước",
+    "subtitle": "Không cần cấu hình phức tạp — đăng ký xong là có thể trò chuyện với agent ngay.",
+    "steps": {
+      "step1": {
+        "title": "Đăng ký tài khoản",
+        "desc": "Tạo tài khoản J.A.R.V.I.S. miễn phí chỉ trong chưa đầy một phút."
+      },
+      "step2": {
+        "title": "Tải lên tài liệu",
+        "desc": "Kết nối kho tri thức nội bộ để agent có ngữ cảnh trả lời chính xác."
+      },
+      "step3": {
+        "title": "Trò chuyện tự nhiên",
+        "desc": "Agent tự động chọn mô hình AI và tool skill phù hợp cho từng yêu cầu."
+      },
+      "step4": {
+        "title": "Nhận kết quả & tự động hóa",
+        "desc": "Lưu lại quy trình để tái sử dụng, tiết kiệm thời gian cho những lần sau."
+      }
+    }
+  },
+  "cta": {
+    "title": "Sẵn sàng để J.A.R.V.I.S. đồng hành cùng bạn?",
+    "subtitle": "Tham gia miễn phí ngay hôm nay và trải nghiệm trợ lý AI đa tác nhân đầu tiên của bạn.",
+    "primary": "Đăng ký ngay",
+    "secondary": "Tôi đã có tài khoản"
+  },
+  "footer": {
+    "tagline": "Intelligent Agent Platform",
+    "copyright": "© 2026 J.A.R.V.I.S. — Intelligent Agent Platform"
+  }
+}

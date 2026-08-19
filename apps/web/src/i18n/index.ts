@@ -9,6 +9,7 @@ import viDocuments from "./locales/vi/documents.json";
 import viLayout from "./locales/vi/layout.json";
 import viErrors from "./locales/vi/errors.json";
 import viSettings from "./locales/vi/settings.json";
+import viLanding from "./locales/vi/landing.json";
 
 import enCommon from "./locales/en/common.json";
 import enChat from "./locales/en/chat.json";
@@ -17,6 +18,7 @@ import enDocuments from "./locales/en/documents.json";
 import enLayout from "./locales/en/layout.json";
 import enErrors from "./locales/en/errors.json";
 import enSettings from "./locales/en/settings.json";
+import enLanding from "./locales/en/landing.json";
 
 export const defaultNS = "common";
 
@@ -29,6 +31,7 @@ export const resources = {
     layout: viLayout,
     errors: viErrors,
     settings: viSettings,
+    landing: viLanding,
   },
   en: {
     common: enCommon,
@@ -38,6 +41,7 @@ export const resources = {
     layout: enLayout,
     errors: enErrors,
     settings: enSettings,
+    landing: enLanding,
   },
 } as const;
 

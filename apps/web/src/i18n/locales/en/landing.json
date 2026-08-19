@@ -1,0 +1,78 @@
+{
+  "pageTitle": "Home",
+  "pageDescription": "J.A.R.V.I.S. — an AI agent platform unifying RAG semantic search, multi-model AI routing, and 30+ automation tool skills.",
+  "header": {
+    "tagline": "Intelligent Agent System",
+    "loginLink": "Sign in",
+    "registerLink": "Sign up for free"
+  },
+  "hero": {
+    "badge": "Next-Gen AI Agent Platform",
+    "title": "Multi-agent AI assistant",
+    "titleHighlight": "for every task, anytime",
+    "subtitle": "Unify RAG semantic search, multi-model AI routing (DeepSeek, Gemini, Claude), and 30+ automation tool skills — all through one natural conversation.",
+    "ctaPrimary": "Sign up for free",
+    "ctaSecondary": "Sign in",
+    "statusBadge": "System Online v2.4",
+    "stats": {
+      "models": "3 AI providers",
+      "skills": "30+ Tool Skills",
+      "rag": "Hybrid RAG Search"
+    }
+  },
+  "features": {
+    "eyebrow": "Highlighted features",
+    "title": "One platform, three pillars of power",
+    "subtitle": "Built to handle every knowledge task — from internal document lookup to multi-step workflow automation.",
+    "items": {
+      "rag": {
+        "title": "Hybrid RAG Semantic Search",
+        "desc": "Search documents and enterprise data with hybrid vector + keyword semantic search, delivering accurate answers with cited sources.",
+        "badge": "Vector RAG"
+      },
+      "multiAgent": {
+        "title": "Smart Multi-Agent Routing",
+        "desc": "Automatically routes requests to the best-fit model — DeepSeek, Gemini, or Claude — based on complexity and cost.",
+        "badge": "DeepSeek · Gemini · Claude"
+      },
+      "toolSkills": {
+        "title": "30+ Automation Tool Skills",
+        "desc": "A built-in skill library lets the agent execute tasks on its own: reading files, running code, calling internal APIs, and more.",
+        "badge": "Automation"
+      }
+    }
+  },
+  "howItWorks": {
+    "eyebrow": "How it works",
+    "title": "Get started in just 4 steps",
+    "subtitle": "No complex setup required — sign up and start chatting with your agent right away.",
+    "steps": {
+      "step1": {
+        "title": "Create an account",
+        "desc": "Sign up for a free J.A.R.V.I.S. account in under a minute."
+      },
+      "step2": {
+        "title": "Upload your documents",
+        "desc": "Connect your internal knowledge base so the agent can answer with the right context."
+      },
+      "step3": {
+        "title": "Chat naturally",
+        "desc": "The agent automatically picks the right AI model and tool skill for each request."
+      },
+      "step4": {
+        "title": "Get results & automate",
+        "desc": "Save the workflow for reuse, saving you time on every future run."
+      }
+    }
+  },
+  "cta": {
+    "title": "Ready for J.A.R.V.I.S. to work alongside you?",
+    "subtitle": "Join for free today and experience your first multi-agent AI assistant.",
+    "primary": "Sign up now",
+    "secondary": "I already have an account"
+  },
+  "footer": {
+    "tagline": "Intelligent Agent Platform",
+    "copyright": "© 2026 J.A.R.V.I.S. — Intelligent Agent Platform"
+  }
+}
