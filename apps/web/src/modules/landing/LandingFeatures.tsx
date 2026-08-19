@@ -36,7 +36,7 @@ export const LandingFeatures: React.FC = () => {
 
   return (
     <div className="h-screen overflow-y-auto scroll-fine bg-background text-foreground">
-      <LandingHeader />
+      <LandingHeader slug="features" />
       <main>
         <section className="relative overflow-hidden px-6 pb-4 pt-16 sm:pt-24">
           <div className="pointer-events-none absolute -right-24 top-10 h-[420px] w-[420px] rounded-full bg-primary/10 blur-[130px]" />

@@ -17,25 +17,20 @@ const VerifyEmailPage = lazy(() => import("@/pages/auth/VerifyEmailPage"));
 const ForgotPasswordPage = lazy(
   () => import("@/pages/auth/ForgotPasswordPage"),
 );
-// Landing page public — xem docs/plans/2026-08-19-landing-page-ssr-design.md.
-const LandingHome = lazy(() => import("@/modules/landing/LandingHome"));
-const LandingPricing = lazy(() => import("@/modules/landing/LandingPricing"));
-const LandingFeatures = lazy(
-  () => import("@/modules/landing/LandingFeatures"),
-);
 
 /**
  * Main application component configuring React Router routes with lazy loading & code splitting.
+ *
+ * Landing page ("/", "/pricing", "/features") KHÔNG còn nằm trong bundle này —
+ * đã tách thành bundle SSG riêng (xem src/modules/landing/entry-landing-*.tsx +
+ * scripts/prerender.mjs + docs/plans/2026-08-19-landing-page-ssr-design.md).
+ * App này chỉ còn phục vụ /login, /register, /verify-email, /forgot-password,
+ * và /app/* (chat CSR sau khi đăng nhập).
  */
 export const App: React.FC = () => {
   return (
     <ErrorBoundary>
       <Routes>
-        {/* Landing pages — public, không guard, không sidebar */}
-        <Route path="/" element={<LandingHome />} />
-        <Route path="/pricing" element={<LandingPricing />} />
-        <Route path="/features" element={<LandingFeatures />} />
-
         {/* Auth pages — chặn user đã đăng nhập, không có sidebar */}
         <Route
           path="/login"

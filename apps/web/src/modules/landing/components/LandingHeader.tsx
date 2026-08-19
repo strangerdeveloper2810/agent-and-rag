@@ -4,7 +4,10 @@ import { SparklesIcon } from "@heroicons/react/24/outline";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import ThemeToggle from "@/design-system/atoms/ThemeToggle";
-import LanguageSwitcher from "@/design-system/atoms/LanguageSwitcher";
+import {
+  LandingLanguageSwitcher,
+  type LandingSlug,
+} from "@/modules/landing/components/LandingLanguageSwitcher";
 
 /**
  * LandingHeader — sticky top nav cho landing page public.
@@ -14,8 +17,13 @@ import LanguageSwitcher from "@/design-system/atoms/LanguageSwitcher";
  * (Home/Pricing/Features) được prerender thành file HTML riêng và không chia sẻ
  * bundle/Router context với nhau hay với app CSR ở /app — điều hướng giữa chúng
  * PHẢI là full page load, không phải client-side SPA transition.
+ *
+ * `slug` cho biết đang ở trang nào ("" = home) để LandingLanguageSwitcher tính
+ * đúng URL sang locale còn lại (vd đang ở "/pricing" → bản EN là "/en/pricing").
  */
-export const LandingHeader: React.FC = () => {
+export const LandingHeader: React.FC<{ slug?: LandingSlug }> = ({
+  slug = "",
+}) => {
   const { t } = useTranslation("landing");
 
   return (
@@ -52,7 +60,7 @@ export const LandingHeader: React.FC = () => {
 
         <div className="flex items-center gap-1.5 sm:gap-3">
           <div className="flex items-center gap-1.5">
-            <LanguageSwitcher />
+            <LandingLanguageSwitcher slug={slug} />
             <ThemeToggle />
           </div>
           <div className="mx-1 h-5 w-px bg-border sm:mx-1.5" />
