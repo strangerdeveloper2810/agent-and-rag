@@ -22,10 +22,14 @@
   },
   "productPreview": {
     "eyebrow": "Xem thực tế",
-    "title": "Giao diện trò chuyện trực quan, không cần làm quen",
-    "subtitle": "Một khung chat duy nhất cho mọi việc: hỏi đáp tài liệu, chạy tool skill, xem lại lịch sử hội thoại theo từng phiên.",
+    "title": "Giao diện trực quan, không cần làm quen",
+    "subtitle": "Một nền tảng cho mọi việc: trò chuyện tự nhiên, tải tài liệu để agent tra cứu bằng RAG, tất cả trong cùng một không gian làm việc.",
+    "tabs": {
+      "chat": "Trò chuyện",
+      "documents": "Tải tài liệu & RAG"
+    },
     "placeholderTitle": "Ảnh chụp màn hình đang được cập nhật",
-    "placeholderDesc": "Giao diện chat thực tế của J.A.R.V.I.S. sẽ sớm xuất hiện tại đây."
+    "placeholderDesc": "Giao diện thực tế của J.A.R.V.I.S. sẽ sớm xuất hiện tại đây."
   },
   "features": {
     "eyebrow": "Tính năng nổi bật",

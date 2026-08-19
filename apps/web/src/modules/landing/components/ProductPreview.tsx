@@ -5,15 +5,36 @@ import { PhotoIcon } from "@heroicons/react/24/outline";
 import { cn } from "@/lib/utils";
 import { useRevealOnScroll } from "@/modules/landing/hooks/useRevealOnScroll";
 
+const TABS = [
+  {
+    key: "chat",
+    src: "/screenshots/chat-preview.png",
+    alt: "J.A.R.V.I.S. chat interface",
+    urlLabel: "app.jarvis.ai/chat",
+  },
+  {
+    key: "documents",
+    src: "/screenshots/documents-preview.png",
+    alt: "J.A.R.V.I.S. document upload & RAG interface",
+    urlLabel: "app.jarvis.ai/documents",
+  },
+] as const;
+
 /**
- * ProductPreview — khung "browser chrome" chứa screenshot thật của giao diện chat.
- * Ảnh đặt tại public/screenshots/chat-preview.png (Vite serve nguyên trạng ở "/screenshots/...").
- * Nếu file chưa tồn tại, fallback về placeholder thay vì icon ảnh vỡ.
+ * ProductPreview — khung "browser chrome" chứa screenshot thật của giao diện sản phẩm,
+ * chuyển tab được giữa Chat và Tải tài liệu (RAG). Ảnh đặt tại public/screenshots/*.png
+ * (Vite serve nguyên trạng ở "/screenshots/..."). Nếu file chưa tồn tại, fallback về
+ * placeholder thay vì icon ảnh vỡ.
  */
 export const ProductPreview: React.FC = () => {
   const { t } = useTranslation("landing");
   const { ref, isVisible } = useRevealOnScroll<HTMLDivElement>();
-  const [imageFailed, setImageFailed] = useState(false);
+  const [activeTab, setActiveTab] = useState<(typeof TABS)[number]["key"]>(
+    TABS[0].key,
+  );
+  const [failedTabs, setFailedTabs] = useState<Set<string>>(new Set());
+  const tab = TABS.find((t) => t.key === activeTab) ?? TABS[0];
+  const imageFailed = failedTabs.has(tab.key);
 
   return (
     <section className="px-6 py-20">
@@ -27,12 +48,30 @@ export const ProductPreview: React.FC = () => {
         <p className="mt-4 text-sm leading-relaxed text-muted-foreground sm:text-base">
           {t("productPreview.subtitle")}
         </p>
+
+        <div className="mt-8 inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 p-1">
+          {TABS.map(({ key }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setActiveTab(key)}
+              className={cn(
+                "rounded-full px-4 py-1.5 text-xs font-semibold transition-colors sm:text-sm",
+                activeTab === key
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {t(`productPreview.tabs.${key}`)}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div
         ref={ref}
         className={cn(
-          "relative mx-auto mt-14 max-w-5xl",
+          "relative mx-auto mt-10 max-w-5xl",
           isVisible ? "animate-slide-up" : "opacity-0",
         )}
       >
@@ -45,7 +84,7 @@ export const ProductPreview: React.FC = () => {
             <span className="h-2.5 w-2.5 rounded-full bg-amber-400/70" />
             <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/70" />
             <span className="ml-3 truncate text-[11px] font-mono text-muted-foreground">
-              app.jarvis.ai/chat
+              {tab.urlLabel}
             </span>
           </div>
 
@@ -64,13 +103,16 @@ export const ProductPreview: React.FC = () => {
               </div>
             ) : (
               <img
-                src="/screenshots/chat-preview.png"
-                alt="J.A.R.V.I.S. chat interface"
+                key={tab.key}
+                src={tab.src}
+                alt={tab.alt}
                 width={1600}
                 height={1000}
                 loading="lazy"
                 className="h-full w-full object-cover object-top"
-                onError={() => setImageFailed(true)}
+                onError={() =>
+                  setFailedTabs((prev) => new Set(prev).add(tab.key))
+                }
               />
             )}
           </div>

@@ -22,10 +22,14 @@
   },
   "productPreview": {
     "eyebrow": "See it in action",
-    "title": "A chat interface that feels instantly familiar",
-    "subtitle": "One conversation for everything: ask about your documents, run tool skills, and revisit past sessions.",
+    "title": "An interface that feels instantly familiar",
+    "subtitle": "One platform for everything: chat naturally, upload documents for the agent to search via RAG, all in the same workspace.",
+    "tabs": {
+      "chat": "Chat",
+      "documents": "Upload & RAG"
+    },
     "placeholderTitle": "Screenshot coming soon",
-    "placeholderDesc": "A real screenshot of the J.A.R.V.I.S. chat interface will appear here shortly."
+    "placeholderDesc": "A real screenshot of the J.A.R.V.I.S. interface will appear here shortly."
   },
   "features": {
     "eyebrow": "Highlighted features",
