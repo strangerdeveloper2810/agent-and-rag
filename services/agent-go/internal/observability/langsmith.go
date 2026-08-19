@@ -27,32 +27,32 @@ const (
 
 // LangSmithRun đại diện cho một trace run payload gửi tới LangSmith API.
 type LangSmithRun struct {
-	ID          string                 `json:"id"`
-	Name        string                 `json:"name"`
-	RunType     RunType                `json:"run_type"`
-	StartTime   string                 `json:"start_time"`
-	EndTime     *string                `json:"end_time,omitempty"`
-	Inputs      map[string]any         `json:"inputs,omitempty"`
-	Outputs     map[string]any         `json:"outputs,omitempty"`
-	Error       *string                `json:"error,omitempty"`
-	ParentRunID *string                `json:"parent_run_id,omitempty"`
-	ProjectName string                 `json:"project_name,omitempty"`
-	SessionName string                 `json:"session_name,omitempty"`
-	Extra       map[string]any         `json:"extra,omitempty"`
-	Tags        []string               `json:"tags,omitempty"`
+	ID          string         `json:"id"`
+	Name        string         `json:"name"`
+	RunType     RunType        `json:"run_type"`
+	StartTime   string         `json:"start_time"`
+	EndTime     *string        `json:"end_time,omitempty"`
+	Inputs      map[string]any `json:"inputs,omitempty"`
+	Outputs     map[string]any `json:"outputs,omitempty"`
+	Error       *string        `json:"error,omitempty"`
+	ParentRunID *string        `json:"parent_run_id,omitempty"`
+	ProjectName string         `json:"project_name,omitempty"`
+	SessionName string         `json:"session_name,omitempty"`
+	Extra       map[string]any `json:"extra,omitempty"`
+	Tags        []string       `json:"tags,omitempty"`
 }
 
 // LangSmithClient quản lý gửi traces lên LangSmith.
 type LangSmithClient struct {
-	apiKey      string
-	project     string
-	endpoint    string
-	enabled     bool
-	client      *http.Client
-	queue       chan runAction
-	wg          sync.WaitGroup
-	ctx         context.Context
-	cancel      context.CancelFunc
+	apiKey   string
+	project  string
+	endpoint string
+	enabled  bool
+	client   *http.Client
+	queue    chan runAction
+	wg       sync.WaitGroup
+	ctx      context.Context
+	cancel   context.CancelFunc
 }
 
 type actionType int
