@@ -1,4 +1,3 @@
-import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ArrowRightIcon, SparklesIcon } from "@heroicons/react/24/outline";
 
@@ -37,8 +36,8 @@ export const CtaSection: React.FC = () => {
         </p>
 
         <div className="relative z-10 mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-          <Link
-            to="/register"
+          <a
+            href="/register"
             className={cn(
               buttonVariants({ variant: "gradient", size: "lg" }),
               "gap-2 w-full sm:w-auto",
@@ -46,16 +45,16 @@ export const CtaSection: React.FC = () => {
           >
             {t("cta.primary")}
             <ArrowRightIcon className="h-4 w-4" />
-          </Link>
-          <Link
-            to="/login"
+          </a>
+          <a
+            href="/login"
             className={cn(
               buttonVariants({ variant: "outline", size: "lg" }),
               "w-full sm:w-auto",
             )}
           >
             {t("cta.secondary")}
-          </Link>
+          </a>
         </div>
       </div>
     </section>

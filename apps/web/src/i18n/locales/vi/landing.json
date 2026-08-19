@@ -3,6 +3,8 @@
   "pageDescription": "J.A.R.V.I.S. — nền tảng AI Agent hợp nhất tìm kiếm ngữ nghĩa RAG, đa mô hình AI và hơn 30 tool skill tự động hóa quy trình làm việc.",
   "header": {
     "tagline": "Intelligent Agent System",
+    "featuresLink": "Tính năng",
+    "pricingLink": "Bảng giá",
     "loginLink": "Đăng nhập",
     "registerLink": "Đăng ký miễn phí"
   },
@@ -107,6 +109,156 @@
     "subtitle": "Tham gia miễn phí ngay hôm nay và trải nghiệm trợ lý AI đa tác nhân đầu tiên của bạn.",
     "primary": "Đăng ký ngay",
     "secondary": "Tôi đã có tài khoản"
+  },
+  "pricing": {
+    "pageTitle": "Bảng giá",
+    "pageDescription": "J.A.R.V.I.S. đang trong giai đoạn early access, chưa có bảng giá cố định. Xem so sánh tính năng giữa gói Cá nhân và Đội nhóm, đăng ký để được ưu tiên trải nghiệm.",
+    "hero": {
+      "eyebrow": "Early Access",
+      "title": "Đơn giản & minh bạch trong giai đoạn early access",
+      "subtitle": "J.A.R.V.I.S. hiện chưa chốt mô hình tính phí. Đăng ký early access để bắt đầu dùng thử ngay, không cần thông tin thanh toán."
+    },
+    "tiers": {
+      "eyebrow": "Gói sử dụng",
+      "title": "Chọn cách bạn muốn dùng J.A.R.V.I.S.",
+      "subtitle": "Cả hai đều dùng chung toàn bộ tính năng cốt lõi trong giai đoạn early access — khác biệt chủ yếu ở mức độ hỗ trợ triển khai.",
+      "items": {
+        "individual": {
+          "name": "Cá nhân",
+          "tagline": "Cho người dùng cá nhân muốn khám phá trợ lý AI đa tác nhân trong công việc hàng ngày.",
+          "cta": "Đăng ký early access",
+          "bullets": [
+            "Tra cứu tài liệu bằng Hybrid RAG semantic search",
+            "Tự động định tuyến DeepSeek, Gemini, Claude theo yêu cầu",
+            "Truy cập đầy đủ hơn 30 tool skill tự động hóa",
+            "Bộ nhớ ngữ cảnh ghi nhớ qua nhiều phiên trò chuyện",
+            "Giao diện & phản hồi song ngữ Việt / English"
+          ]
+        },
+        "team": {
+          "name": "Đội nhóm",
+          "badge": "Cho tổ chức",
+          "tagline": "Cho đội nhóm muốn dùng một trợ lý AI để tra cứu tri thức nội bộ và tự động hóa quy trình.",
+          "cta": "Liên hệ để dùng thử",
+          "bullets": [
+            "Toàn bộ tính năng của gói Cá nhân",
+            "Hỗ trợ onboarding trực tiếp khi triển khai",
+            "Ưu tiên phản hồi khi có yêu cầu tính năng riêng",
+            "Dữ liệu tài liệu cách ly riêng theo từng tài khoản (multi-tenant)"
+          ]
+        }
+      }
+    },
+    "comparison": {
+      "eyebrow": "So sánh chi tiết",
+      "title": "Tất cả tính năng cốt lõi, cả hai gói đều có",
+      "subtitle": "Chưa có tính năng nào bị giới hạn theo gói trong giai đoạn early access.",
+      "featureHeader": "Tính năng",
+      "planIndividual": "Cá nhân",
+      "planTeam": "Đội nhóm",
+      "rows": {
+        "rag": "Hybrid RAG semantic search",
+        "multiAgent": "Multi-agent routing (DeepSeek, Gemini, Claude)",
+        "toolSkills": "Hơn 30 tool skill tự động hóa",
+        "documentUpload": "Tải lên & quản lý tài liệu",
+        "memory": "Bộ nhớ ngữ cảnh nhiều tầng",
+        "bilingual": "Giao diện & phản hồi song ngữ Việt / English",
+        "dataIsolation": "Cách ly dữ liệu theo tài khoản (multi-tenant)",
+        "onboarding": "Hỗ trợ onboarding trực tiếp"
+      }
+    },
+    "faq": {
+      "eyebrow": "Câu hỏi về giá",
+      "title": "Giải đáp trước khi đăng ký",
+      "items": {
+        "q1": {
+          "question": "J.A.R.V.I.S. có tính phí không?",
+          "answer": "Hiện tại J.A.R.V.I.S. đang trong giai đoạn early access và chưa có bảng giá cố định. Đăng ký ngay để được ưu tiên trải nghiệm và cập nhật sớm nhất khi có chính sách giá chính thức."
+        },
+        "q2": {
+          "question": "Gói Cá nhân và Đội nhóm khác nhau thế nào?",
+          "answer": "Cả hai gói đều dùng chung toàn bộ tính năng cốt lõi — RAG, multi-agent routing, tool skills, bộ nhớ ngữ cảnh. Gói Đội nhóm được hỗ trợ onboarding trực tiếp khi triển khai cho tổ chức."
+        },
+        "q3": {
+          "question": "Tôi có thể dùng thử trước khi cam kết không?",
+          "answer": "Có. Đăng ký early access để bắt đầu trò chuyện với agent ngay, không yêu cầu thông tin thanh toán."
+        },
+        "q4": {
+          "question": "Dữ liệu tài liệu của tôi có bị chia sẻ với tài khoản khác không?",
+          "answer": "Không. Dữ liệu và tài liệu RAG được cách ly riêng theo từng tài khoản (multi-tenant), áp dụng cho cả gói Cá nhân và Đội nhóm."
+        }
+      }
+    }
+  },
+  "featuresPage": {
+    "pageTitle": "Tính năng",
+    "pageDescription": "Khám phá chi tiết các trụ cột tính năng của J.A.R.V.I.S.: Hybrid RAG semantic search, multi-agent routing, hơn 30 tool skill và bộ nhớ ngữ cảnh nhiều tầng.",
+    "hero": {
+      "eyebrow": "Tính năng",
+      "title": "Mọi thứ một trợ lý AI đa tác nhân cần để làm việc thay bạn",
+      "subtitle": "Từ tra cứu tri thức nội bộ đến tự động hóa quy trình nhiều bước — xem chi tiết từng trụ cột sức mạnh của J.A.R.V.I.S."
+    },
+    "items": {
+      "rag": {
+        "eyebrow": "Tra cứu tri thức",
+        "title": "Hybrid RAG Semantic Search",
+        "desc": "Tải lên tài liệu nội bộ để agent tra cứu bằng tìm kiếm ngữ nghĩa kết hợp vector + từ khóa (hybrid search), trả lời kèm trích dẫn nguồn thay vì đoán mò.",
+        "badge": "Vector + Keyword RAG",
+        "bullets": [
+          "Tải lên tài liệu (PDF, văn bản...) để xây dựng kho tri thức riêng",
+          "Kết hợp vector search + từ khóa để tăng độ chính xác truy hồi",
+          "Câu trả lời luôn kèm trích dẫn nguồn tài liệu gốc",
+          "Dữ liệu tài liệu được cách ly theo từng tài khoản (multi-tenant)"
+        ]
+      },
+      "multiAgent": {
+        "eyebrow": "Định tuyến thông minh",
+        "title": "Multi-Agent Routing",
+        "desc": "Mỗi yêu cầu được tự động định tuyến tới mô hình AI phù hợp nhất trong số DeepSeek, Gemini và Claude — cân bằng giữa chất lượng trả lời và chi phí vận hành.",
+        "badge": "DeepSeek · Gemini · Claude",
+        "bullets": [
+          "Tự động chọn mô hình theo độ phức tạp của yêu cầu",
+          "Không cần tự tay chọn hay cấu hình model",
+          "Tối ưu chi phí bằng cách dùng model rẻ hơn cho tác vụ đơn giản",
+          "Chuyển đổi linh hoạt giữa các model trong cùng một hội thoại"
+        ]
+      },
+      "toolSkills": {
+        "eyebrow": "Tự động hóa",
+        "title": "Hơn 30 Tool Skills",
+        "desc": "Thư viện kỹ năng sẵn có giúp agent tự thực thi tác vụ thay vì chỉ trả lời câu hỏi — từ đọc file, chạy code đến gọi API nội bộ.",
+        "badge": "Automation",
+        "bullets": [
+          "Đọc và phân tích file, tài liệu đã tải lên",
+          "Thực thi code, quản lý task ngay trong hội thoại",
+          "Gọi API nội bộ để lấy hoặc cập nhật dữ liệu",
+          "Yêu cầu xác nhận trước khi thực hiện thao tác có thể phá hủy dữ liệu"
+        ]
+      },
+      "memory": {
+        "eyebrow": "Ghi nhớ ngữ cảnh",
+        "title": "Bộ nhớ nhiều tầng",
+        "desc": "Agent ghi nhớ sở thích, sự kiện và thông tin quan trọng của bạn qua nhiều phiên trò chuyện, giúp những lần trao đổi sau liền mạch hơn thay vì phải lặp lại ngữ cảnh.",
+        "badge": "Contextual Memory",
+        "bullets": [
+          "Lưu lại sở thích cá nhân để cá nhân hóa phản hồi",
+          "Ghi nhớ các sự kiện, thông tin đã đề cập trước đó",
+          "Nhận diện thực thể (người, nơi chốn, dự án...) được nhắc tới nhiều lần",
+          "Tự động khử trùng, ưu tiên giữ thông tin có độ tin cậy cao hơn"
+        ]
+      },
+      "bilingual": {
+        "eyebrow": "Đa ngôn ngữ",
+        "title": "Giao diện & phản hồi song ngữ",
+        "desc": "Toàn bộ giao diện và câu trả lời của agent hỗ trợ đầy đủ tiếng Việt và English, tự động theo ngôn ngữ bạn đang chọn.",
+        "badge": "VI / EN",
+        "bullets": [
+          "Chuyển đổi ngôn ngữ tức thì ngay trên giao diện",
+          "Agent trả lời đúng theo ngôn ngữ hiện tại của cuộc hội thoại",
+          "Áp dụng nhất quán trên mọi trang, mọi tính năng"
+        ]
+      }
+    }
   },
   "footer": {
     "tagline": "Intelligent Agent Platform",

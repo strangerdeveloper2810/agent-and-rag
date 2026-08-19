@@ -492,7 +492,7 @@ export const ChatPage: React.FC = () => {
           convId = conv._id;
           isCreatingNewConvRef.current = convId;
           loadedIdRef.current = convId;
-          navigate(`/messages/${convId}`);
+          navigate(`/app/messages/${convId}`);
           reloadConversations();
         }
 
@@ -748,7 +748,7 @@ export const ChatPage: React.FC = () => {
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => navigate("/")}
+                onClick={() => navigate("/app")}
                 aria-label={t("chatPage.startNewChatAria")}
                 title={t("chatPage.startNewChatAria")}
                 className="gap-1.5 font-bold shadow-sm border-indigo-500/40 hover:bg-indigo-500/20"

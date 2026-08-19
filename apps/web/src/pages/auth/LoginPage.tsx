@@ -74,7 +74,7 @@ export const LoginPage: React.FC = () => {
     try {
       await login(email, data.password);
       toast.success(t("login.loginSuccess"));
-      navigate("/", { replace: true });
+      navigate("/app", { replace: true });
     } catch (err) {
       if (err instanceof ApiError && err.code === "EMAIL_NOT_VERIFIED") {
         toast.error(t("login.emailNotVerified"));
@@ -91,7 +91,7 @@ export const LoginPage: React.FC = () => {
     try {
       await login("demo@javis.ai", "password123");
       toast.success(t("login.demoLoginSuccess"));
-      navigate("/", { replace: true });
+      navigate("/app", { replace: true });
     } catch {
       toast.error(t("login.demoLoginFailed"));
     }

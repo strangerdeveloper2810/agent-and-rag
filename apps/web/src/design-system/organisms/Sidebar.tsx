@@ -105,20 +105,20 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
   const onSelect =
     props.onSelect ??
     ((id) => {
-      navigate(`/messages/${id}`);
+      navigate(`/app/messages/${id}`);
       ctx.setSidebarOpen(false);
     });
   const onNew =
     props.onNew ??
     (() => {
-      navigate("/");
+      navigate("/app");
       ctx.setSidebarOpen(false);
     });
   const onClose = props.onClose ?? (() => ctx.setSidebarOpen(false));
   const onViewChange =
     props.onViewChange ??
     ((v) => {
-      navigate(v === "documents" ? "/documents" : "/");
+      navigate(v === "documents" ? "/app/documents" : "/app");
       ctx.setSidebarOpen(false);
     });
   const onDelete = props.onDelete ?? ctx.deleteConv;

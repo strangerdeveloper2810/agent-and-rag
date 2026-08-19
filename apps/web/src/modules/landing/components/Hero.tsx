@@ -1,4 +1,3 @@
-import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   SparklesIcon,
@@ -59,8 +58,8 @@ export const Hero: React.FC = () => {
         </p>
 
         <div className="mt-9 flex flex-col items-center gap-3 sm:flex-row animate-scale-in">
-          <Link
-            to="/register"
+          <a
+            href="/register"
             className={cn(
               buttonVariants({ variant: "gradient", size: "lg" }),
               "gap-2 w-full sm:w-auto",
@@ -68,16 +67,16 @@ export const Hero: React.FC = () => {
           >
             {t("hero.ctaPrimary")}
             <ArrowRightIcon className="h-4 w-4" />
-          </Link>
-          <Link
-            to="/login"
+          </a>
+          <a
+            href="/login"
             className={cn(
               buttonVariants({ variant: "outline", size: "lg" }),
               "w-full sm:w-auto",
             )}
           >
             {t("hero.ctaSecondary")}
-          </Link>
+          </a>
         </div>
 
         <div className="mt-6 flex items-center gap-1.5 text-[11px] font-mono text-muted-foreground">

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import mermaid from "mermaid";
+import type { Mermaid } from "mermaid";
 import {
   ClipboardDocumentIcon,
   CheckIcon,
@@ -17,7 +17,7 @@ export interface MermaidBlockProps {
 let mermaidCounter = 0;
 
 /** One-time global mermaid initialization (re-runs only when theme class changes). */
-function initMermaid() {
+function initMermaid(mermaid: Mermaid) {
   const isDark = document.documentElement.classList.contains("dark");
   mermaid.initialize({
     startOnLoad: false,
@@ -88,7 +88,10 @@ export const MermaidBlock: React.FC<MermaidBlockProps> = ({ code }) => {
 
     const render = async () => {
       try {
-        initMermaid();
+        // Dynamic import: mermaid (~500kb+) tách thành chunk riêng, chỉ tải khi
+        // thực sự gặp block ```mermaid — phần lớn hội thoại không có diagram.
+        const mermaid = (await import("mermaid")).default;
+        initMermaid(mermaid);
         const { svg } = await mermaid.render(diagramId, cleanCode);
         if (cancelled || !containerRef.current) return;
         containerRef.current.innerHTML = svg;

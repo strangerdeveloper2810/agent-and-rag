@@ -3,6 +3,8 @@
   "pageDescription": "J.A.R.V.I.S. — an AI agent platform unifying RAG semantic search, multi-model AI routing, and 30+ automation tool skills.",
   "header": {
     "tagline": "Intelligent Agent System",
+    "featuresLink": "Features",
+    "pricingLink": "Pricing",
     "loginLink": "Sign in",
     "registerLink": "Sign up for free"
   },
@@ -107,6 +109,156 @@
     "subtitle": "Join for free today and experience your first multi-agent AI assistant.",
     "primary": "Sign up now",
     "secondary": "I already have an account"
+  },
+  "pricing": {
+    "pageTitle": "Pricing",
+    "pageDescription": "J.A.R.V.I.S. is currently in early access with no fixed pricing yet. Compare features between the Individual and Team plans, and sign up to get priority access.",
+    "hero": {
+      "eyebrow": "Early Access",
+      "title": "Simple & transparent during early access",
+      "subtitle": "J.A.R.V.I.S. hasn't finalized a pricing model yet. Sign up for early access to start trying it out right away — no payment details required."
+    },
+    "tiers": {
+      "eyebrow": "Plans",
+      "title": "Choose how you want to use J.A.R.V.I.S.",
+      "subtitle": "Both plans share the full set of core features during early access — the main difference is the level of onboarding support.",
+      "items": {
+        "individual": {
+          "name": "Individual",
+          "tagline": "For individuals who want to explore a multi-agent AI assistant in their daily work.",
+          "cta": "Sign up for early access",
+          "bullets": [
+            "Search documents with Hybrid RAG semantic search",
+            "Automatic routing between DeepSeek, Gemini, and Claude",
+            "Full access to 30+ automation tool skills",
+            "Contextual memory that persists across chat sessions",
+            "Bilingual interface & replies in Vietnamese / English"
+          ]
+        },
+        "team": {
+          "name": "Team",
+          "badge": "For organizations",
+          "tagline": "For teams who want to share one AI assistant for internal knowledge lookup and workflow automation.",
+          "cta": "Contact us to try it out",
+          "bullets": [
+            "Everything in the Individual plan",
+            "Hands-on onboarding support during rollout",
+            "Priority response for custom feature requests",
+            "Document data isolated per account (multi-tenant)"
+          ]
+        }
+      }
+    },
+    "comparison": {
+      "eyebrow": "Detailed comparison",
+      "title": "All core features, on both plans",
+      "subtitle": "No feature is gated by plan during early access.",
+      "featureHeader": "Feature",
+      "planIndividual": "Individual",
+      "planTeam": "Team",
+      "rows": {
+        "rag": "Hybrid RAG semantic search",
+        "multiAgent": "Multi-agent routing (DeepSeek, Gemini, Claude)",
+        "toolSkills": "30+ automation tool skills",
+        "documentUpload": "Document upload & management",
+        "memory": "Multi-tier contextual memory",
+        "bilingual": "Bilingual interface & replies (Vietnamese / English)",
+        "dataIsolation": "Per-account data isolation (multi-tenant)",
+        "onboarding": "Hands-on onboarding support"
+      }
+    },
+    "faq": {
+      "eyebrow": "Pricing FAQ",
+      "title": "Quick answers before you sign up",
+      "items": {
+        "q1": {
+          "question": "Does J.A.R.V.I.S. cost anything?",
+          "answer": "J.A.R.V.I.S. is currently in early access with no fixed pricing yet. Sign up now for priority access and to be the first to know when official pricing is announced."
+        },
+        "q2": {
+          "question": "What's the difference between the Individual and Team plans?",
+          "answer": "Both plans share the same core features — RAG, multi-agent routing, tool skills, and contextual memory. The Team plan adds hands-on onboarding support when rolling out to an organization."
+        },
+        "q3": {
+          "question": "Can I try it before committing to anything?",
+          "answer": "Yes. Sign up for early access to start chatting with the agent right away — no payment information required."
+        },
+        "q4": {
+          "question": "Is my document data shared with other accounts?",
+          "answer": "No. RAG data and documents are isolated per account (multi-tenant), for both the Individual and Team plans."
+        }
+      }
+    }
+  },
+  "featuresPage": {
+    "pageTitle": "Features",
+    "pageDescription": "Explore J.A.R.V.I.S.'s feature pillars in detail: Hybrid RAG semantic search, multi-agent routing, 30+ tool skills, and multi-tier contextual memory.",
+    "hero": {
+      "eyebrow": "Features",
+      "title": "Everything a multi-agent AI assistant needs to work on your behalf",
+      "subtitle": "From internal knowledge lookup to multi-step workflow automation — see each pillar of J.A.R.V.I.S. in detail."
+    },
+    "items": {
+      "rag": {
+        "eyebrow": "Knowledge lookup",
+        "title": "Hybrid RAG Semantic Search",
+        "desc": "Upload internal documents so the agent can search them with hybrid vector + keyword semantic search, answering with cited sources instead of guessing.",
+        "badge": "Vector + Keyword RAG",
+        "bullets": [
+          "Upload documents (PDF, text, and more) to build your own knowledge base",
+          "Combines vector search with keyword matching for more accurate retrieval",
+          "Answers always cite the original source document",
+          "Document data is isolated per account (multi-tenant)"
+        ]
+      },
+      "multiAgent": {
+        "eyebrow": "Smart routing",
+        "title": "Multi-Agent Routing",
+        "desc": "Every request is automatically routed to the best-fit model among DeepSeek, Gemini, and Claude — balancing answer quality against operating cost.",
+        "badge": "DeepSeek · Gemini · Claude",
+        "bullets": [
+          "Automatically picks a model based on request complexity",
+          "No need to manually choose or configure a model",
+          "Optimizes cost by using cheaper models for simpler tasks",
+          "Switches flexibly between models within the same conversation"
+        ]
+      },
+      "toolSkills": {
+        "eyebrow": "Automation",
+        "title": "30+ Tool Skills",
+        "desc": "A built-in skill library lets the agent execute tasks on its own instead of just answering questions — from reading files and running code to calling internal APIs.",
+        "badge": "Automation",
+        "bullets": [
+          "Reads and analyzes uploaded files and documents",
+          "Executes code and manages tasks right within the conversation",
+          "Calls internal APIs to fetch or update data",
+          "Requires confirmation before performing potentially destructive actions"
+        ]
+      },
+      "memory": {
+        "eyebrow": "Contextual recall",
+        "title": "Multi-tier memory",
+        "desc": "The agent remembers your preferences, facts, and important context across chat sessions, making later conversations smoother instead of having to repeat yourself.",
+        "badge": "Contextual Memory",
+        "bullets": [
+          "Stores personal preferences to personalize responses",
+          "Remembers facts and information mentioned previously",
+          "Recognizes entities (people, places, projects...) referenced repeatedly",
+          "Automatically deduplicates, keeping the higher-confidence information"
+        ]
+      },
+      "bilingual": {
+        "eyebrow": "Multilingual",
+        "title": "Bilingual interface & replies",
+        "desc": "The entire interface and the agent's replies fully support Vietnamese and English, automatically following whichever language you've selected.",
+        "badge": "VI / EN",
+        "bullets": [
+          "Switch languages instantly right from the interface",
+          "The agent replies in the conversation's current language",
+          "Applied consistently across every page and feature"
+        ]
+      }
+    }
   },
   "footer": {
     "tagline": "Intelligent Agent Platform",

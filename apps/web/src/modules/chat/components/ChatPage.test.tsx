@@ -41,9 +41,9 @@ const renderChatPage = () =>
     withQueryClient(
       <I18nextProvider i18n={i18n}>
         <ToastProvider>
-          <MemoryRouter initialEntries={["/messages/conv-1"]}>
+          <MemoryRouter initialEntries={["/app/messages/conv-1"]}>
             <Routes>
-              <Route path="/messages/:id" element={<ChatPage />} />
+              <Route path="/app/messages/:id" element={<ChatPage />} />
             </Routes>
           </MemoryRouter>
         </ToastProvider>

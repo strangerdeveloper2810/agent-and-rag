@@ -44,6 +44,12 @@ export default defineConfig({
           ) {
             return "markdown";
           }
+          // mermaid được import động (xem MermaidBlock.tsx) nên vốn đã tách chunk
+          // riêng theo cơ chế code-splitting mặc định của Rollup; rule này chỉ đảm
+          // bảo mọi phần phụ thuộc của nó gộp cùng 1 chunk ổn định, dễ cache.
+          if (id.includes("/mermaid/") || id.includes("/mermaid-")) {
+            return "mermaid";
+          }
           if (
             id.includes("/react-router") ||
             id.includes("/react-dom/") ||
