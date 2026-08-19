@@ -10,6 +10,7 @@ import (
 
 	"github.com/ai-agent-tut/agent-go/internal/guardrails"
 	"github.com/ai-agent-tut/agent-go/internal/middleware"
+	"github.com/ai-agent-tut/agent-go/internal/observability"
 	"github.com/ai-agent-tut/agent-go/internal/provider"
 	"github.com/ai-agent-tut/agent-go/internal/tools"
 )
@@ -180,6 +181,28 @@ func nodeTools(ctx context.Context, eng toolsEngine, s *State, emit EmitFunc) (N
 				slog.Info("tools: done", "tool", rep.Name, "output_preview", truncateRunes(output, 100))
 			}
 			s.AppendObservation(obs)
+
+			// LangSmith Tool Child Run
+			ls := observability.GetLangSmith()
+			if ls != nil {
+				toolRunID := observability.NewUUID()
+				ls.StartChildRun(
+					toolRunID,
+					s.RunID,
+					rep.Name,
+					observability.RunTypeTool,
+					map[string]any{
+						"args": rep.Args,
+					},
+					map[string]any{
+						"call_id": rep.ID,
+						"step":    s.Step,
+					},
+				)
+				ls.EndRun(toolRunID, map[string]any{
+					"output": output,
+				}, res.Err)
+			}
 
 			// Bản sao TRÙNG LẶP (nếu có): KHÔNG lặp lại toàn bộ nội dung — chỉ
 			// tham chiếu ngắn tới bản đầu tiên. Đây là khoản tiết kiệm CONTEXT

@@ -9,6 +9,7 @@ import (
 
 	"github.com/ai-agent-tut/agent-go/internal/guardrails"
 	"github.com/ai-agent-tut/agent-go/internal/mcp"
+	"github.com/ai-agent-tut/agent-go/internal/observability"
 	"github.com/ai-agent-tut/agent-go/internal/provider"
 	"github.com/ai-agent-tut/agent-go/internal/skills"
 	"github.com/ai-agent-tut/agent-go/internal/tools"
@@ -280,7 +281,42 @@ func (e *Engine) Run(ctx context.Context, in RunInput, emit EmitFunc) (provider.
 		s.loopBreaker = guardrails.NewCircuitBreaker(e.circuitBreaker.MaxRepeats())
 	}
 
-	slog.Info("engine: run started", "provider", e.prov.Name(), "maxSteps", s.MaxSteps)
+	slog.Info("engine: run started", "provider", e.prov.Name(), "maxSteps", s.MaxSteps, "runID", s.RunID)
+
+	// LangSmith Root Chain Trace
+	ls := observability.GetLangSmith()
+	if ls != nil {
+		ls.StartChainRun(
+			s.RunID,
+			"JARVIS Agent",
+			map[string]any{
+				"user_message": in.UserMessage,
+				"history_len":  len(in.History),
+			},
+			[]string{"agent-go", e.prov.Name()},
+			map[string]any{
+				"conversation_id": in.ConversationID,
+				"provider":        e.prov.Name(),
+				"persona_preset":  in.PersonaPreset,
+				"formality":       in.Formality,
+				"verbosity":       in.Verbosity,
+			},
+		)
+		defer func() {
+			var finalAnswer string
+			lastAss := s.LastAssistant()
+			if lastAss != nil {
+				finalAnswer = lastAss.Content
+			}
+			ls.EndRun(s.RunID, map[string]any{
+				"output":        finalAnswer,
+				"total_tokens":  s.TotalTokens,
+				"input_tokens":  s.Usage.InputTokens,
+				"output_tokens": s.Usage.OutputTokens,
+				"steps":         s.Step,
+			}, nil)
+		}()
+	}
 
 	for {
 		select {

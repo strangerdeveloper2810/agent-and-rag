@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ai-agent-tut/agent-go/internal/middleware"
+	"github.com/ai-agent-tut/agent-go/internal/observability"
 	"github.com/ai-agent-tut/agent-go/internal/provider"
 	"github.com/ai-agent-tut/agent-go/internal/skills"
 	"github.com/ai-agent-tut/agent-go/internal/tools"
@@ -243,9 +244,33 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 	slog.Info("model: calling LLM", "provider", prov.Name(), "messages", len(s.Messages), "tools", len(req.Tools), "thinking", string(req.Options.ThinkingLevel))
 	llmStart := time.Now()
 
+	// LangSmith LLM Child Run
+	llmRunID := observability.NewUUID()
+	ls := observability.GetLangSmith()
+	if ls != nil {
+		ls.StartChildRun(
+			llmRunID,
+			s.RunID,
+			prov.Name(),
+			observability.RunTypeLLM,
+			map[string]any{
+				"messages_count": len(s.Messages),
+				"tools_count":    len(req.Tools),
+				"thinking_level": string(req.Options.ThinkingLevel),
+			},
+			map[string]any{
+				"provider": prov.Name(),
+				"step":     s.Step,
+			},
+		)
+	}
+
 	stream, err := prov.Generate(ctx, req)
 	if err != nil {
 		slog.Error("model: LLM call failed", "err", err, "provider", prov.Name())
+		if ls != nil {
+			ls.EndRun(llmRunID, nil, err)
+		}
 		emit(ErrorEvent(err.Error()))
 		return NodeEnd, fmt.Errorf("model: generate: %w", err)
 	}
@@ -285,6 +310,9 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 			}
 
 		case provider.ChunkError:
+			if ls != nil {
+				ls.EndRun(llmRunID, nil, chunk.Err)
+			}
 			emit(ErrorEvent(chunk.Err.Error()))
 			return NodeEnd, fmt.Errorf("model: provider error: %w", chunk.Err)
 
@@ -294,6 +322,16 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 				finish = chunk.FinishReason
 			}
 		}
+	}
+
+	if ls != nil {
+		ls.EndRun(llmRunID, map[string]any{
+			"content":       content.String(),
+			"tool_calls":    toolCalls,
+			"input_tokens":  stepInput,
+			"output_tokens": stepOutput,
+			"duration_ms":   time.Since(llmStart).Milliseconds(),
+		}, nil)
 	}
 
 	// Model bị cắt vì chạm giới hạn output token → báo cho client để hiện

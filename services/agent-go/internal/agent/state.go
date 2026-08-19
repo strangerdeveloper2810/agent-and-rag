@@ -11,6 +11,7 @@ import (
 	"io"
 
 	"github.com/ai-agent-tut/agent-go/internal/guardrails"
+	"github.com/ai-agent-tut/agent-go/internal/observability"
 	"github.com/ai-agent-tut/agent-go/internal/provider"
 	"github.com/ai-agent-tut/agent-go/internal/tools"
 )
@@ -174,6 +175,9 @@ type State struct {
 	Verbosity          string
 	CustomInstructions string
 
+	// RunID là định danh duy nhất cho lượt chạy này (dùng cho LangSmith / Tracing)
+	RunID string
+
 	// mcpRegistry chứa tools discovery từ MCP servers (SSE) của lượt chạy này.
 	// nil nếu user không cấu hình MCP server. Tách khỏi registry dùng chung để
 	// tránh data race + rò rỉ tool giữa các user. nodeModel/nodeTools đọc field này.
@@ -227,6 +231,7 @@ func newState(in RunInput) *State {
 		Formality:          in.Formality,
 		Verbosity:          in.Verbosity,
 		CustomInstructions: in.CustomInstructions,
+		RunID:              observability.NewUUID(),
 		DisabledSkills:     in.DisabledSkills,
 		CustomSkills:       in.CustomSkills,
 	}

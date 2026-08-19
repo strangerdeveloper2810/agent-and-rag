@@ -19,6 +19,7 @@ import (
 	"github.com/ai-agent-tut/agent-go/internal/memory"
 	"github.com/ai-agent-tut/agent-go/internal/middleware"
 	"github.com/ai-agent-tut/agent-go/internal/mongo"
+	"github.com/ai-agent-tut/agent-go/internal/observability"
 	"github.com/ai-agent-tut/agent-go/internal/orchestrator"
 	"github.com/ai-agent-tut/agent-go/internal/provider"
 	"github.com/ai-agent-tut/agent-go/internal/provider/factory"
@@ -35,6 +36,10 @@ func main() {
 		slog.Error("config", "err", err)
 		os.Exit(1)
 	}
+
+	// --- Wire Observability & LangSmith Tracer ---
+	lsClient := observability.InitLangSmith(cfg)
+	defer lsClient.Close()
 
 	// --- Wire Provider ---
 	prov, err := factory.New(cfg)

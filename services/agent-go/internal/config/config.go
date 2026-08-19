@@ -67,6 +67,12 @@ type Config struct {
 	// LLM call mỗi lần rag.search.
 	EnableHyDE bool
 
+	// LangSmith Tracing
+	LangSmithAPIKey   string
+	LangSmithProject  string
+	LangSmithEndpoint string
+	LangSmithTracing  bool
+
 	// Limits
 	MaxSteps int // default: 12
 	// MaxTokens giới hạn output token cho MỖI lần gọi LLM của luồng chat chính.
@@ -154,6 +160,14 @@ func Load() (Config, error) {
 	// Tự động load .env từ current directory (không lỗi nếu không tồn tại)
 	_ = godotenv.Load()
 
+	langSmithAPIKey := envOr("LANGSMITH_API_KEY", os.Getenv("LANGCHAIN_API_KEY"))
+	langSmithProject := envOr("LANGSMITH_PROJECT", envOr("LANGCHAIN_PROJECT", "ai-agent-tut"))
+	langSmithEndpoint := envOr("LANGSMITH_ENDPOINT", envOr("LANGCHAIN_ENDPOINT", "https://api.smith.langchain.com"))
+	langSmithTracing := envOr("LANGSMITH_TRACING", envOr("LANGCHAIN_TRACING_V2", "false")) == "true"
+	if langSmithAPIKey != "" && (os.Getenv("LANGSMITH_TRACING") == "" && os.Getenv("LANGCHAIN_TRACING_V2") == "") {
+		langSmithTracing = true
+	}
+
 	c := Config{
 		Port:                 envOr("PORT", "3002"),
 		Provider:             envOr("LLM_PROVIDER", "gemini"),
@@ -182,6 +196,10 @@ func Load() (Config, error) {
 		EnableParentRetrieval: envOr("ENABLE_PARENT_RETRIEVAL", "true") == "true",
 		EnableLLMRerank:       envOr("ENABLE_LLM_RERANK", "false") == "true",
 		EnableHyDE:            envOr("ENABLE_HYDE", "false") == "true",
+		LangSmithAPIKey:       langSmithAPIKey,
+		LangSmithProject:      langSmithProject,
+		LangSmithEndpoint:     langSmithEndpoint,
+		LangSmithTracing:      langSmithTracing,
 		MaxSteps:              12,
 		MaxTokens:             intEnvOr("MAX_OUTPUT_TOKENS", defaultMaxOutputTokens),
 		MaxContextTokens:      intEnvOr("MAX_CONTEXT_TOKENS", 100000),
