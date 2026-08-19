@@ -166,4 +166,39 @@ describe("InteractiveQuestionCard", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Send")).toBeInTheDocument();
   });
+
+  it("auto-renders in English when question content is in English even if locale is vi", async () => {
+    await i18n.changeLanguage("vi");
+    const questions: ClarifyQuestion[] = [
+      {
+        prompt: "What is your database strategy?",
+        header: "DATA MANAGEMENT",
+        options: [
+          {
+            label: "Database per service",
+            description: "Recommended for microservices",
+            recommended: true,
+          },
+          { label: "Shared Database" },
+        ],
+        multiSelect: true,
+      },
+    ];
+
+    const onSubmit = vi.fn();
+    render(
+      <InteractiveQuestionCard questions={questions} onSubmit={onSubmit} />,
+    );
+
+    expect(screen.getByText("DATA MANAGEMENT")).toBeInTheDocument();
+    expect(
+      screen.getByText("What is your database strategy?"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Multi-select")).toBeInTheDocument();
+    expect(screen.getByText("Recommended")).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText(/Or type your custom answer/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Submit Selection")).toBeInTheDocument();
+  });
 });

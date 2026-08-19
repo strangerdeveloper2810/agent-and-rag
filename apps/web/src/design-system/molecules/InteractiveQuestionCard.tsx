@@ -16,11 +16,27 @@ export interface InteractiveQuestionCardProps {
   onSubmit: (answerText: string) => void;
 }
 
+// Kiểm tra nội dung text có chứa ký tự tiếng Việt có dấu hay không
+const isVietnameseText = (text: string): boolean => {
+  if (!text) return false;
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (
+      (code >= 0x00c0 && code <= 0x00ff) ||
+      (code >= 0x0100 && code <= 0x024f) ||
+      (code >= 0x1ea0 && code <= 0x1ef9)
+    ) {
+      return true;
+    }
+  }
+  return false;
+};
+
 export const InteractiveQuestionCard: React.FC<
   InteractiveQuestionCardProps
 > = ({ questions, disabled = false, onSubmit }) => {
   const { i18n } = useTranslation();
-  const isEn = i18n?.language?.startsWith("en") || false;
+  const isEnLocale = i18n?.language?.startsWith("en") || false;
 
   const [currentStep, setCurrentStep] = useState(0);
   const [answers, setAnswers] = useState<Record<number, string>>({});
@@ -30,6 +46,20 @@ export const InteractiveQuestionCard: React.FC<
   const [customText, setCustomText] = useState("");
 
   if (!questions || questions.length === 0) return null;
+
+  // Tự động nhận diện ngôn ngữ của câu hỏi: nếu không có tiếng Việt hoặc locale là en -> dùng English UI
+  const hasVietnamese = questions.some(
+    (q) =>
+      isVietnameseText(q.prompt || "") ||
+      isVietnameseText(q.question || "") ||
+      isVietnameseText(q.header || "") ||
+      (q.options || []).some(
+        (opt) =>
+          isVietnameseText(opt.label) ||
+          isVietnameseText(opt.description || ""),
+      ),
+  );
+  const isEn = isEnLocale || !hasVietnamese;
 
   const currentQ = questions[currentStep] || questions[0];
   const isMulti = currentQ.multiSelect === true;
@@ -51,7 +81,7 @@ export const InteractiveQuestionCard: React.FC<
         questions[0].prompt ||
         questions[0].question ||
         questions[0].header ||
-        "Lựa chọn";
+        (isEn ? "Option" : "Lựa chọn");
       const aText = finalAnswers[0] || "";
       return `Q: ${qText}\nA: ${aText}`;
     }
@@ -59,7 +89,10 @@ export const InteractiveQuestionCard: React.FC<
     return questions
       .map((q, idx) => {
         const qText =
-          q.prompt || q.question || q.header || `Câu hỏi ${idx + 1}`;
+          q.prompt ||
+          q.question ||
+          q.header ||
+          (isEn ? `Question ${idx + 1}` : `Câu hỏi ${idx + 1}`);
         const aText = finalAnswers[idx] || "";
         return `Q: ${qText}\nA: ${aText}`;
       })
