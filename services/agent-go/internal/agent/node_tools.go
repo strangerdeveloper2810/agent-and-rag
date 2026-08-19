@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -186,13 +187,19 @@ func nodeTools(ctx context.Context, eng toolsEngine, s *State, emit EmitFunc) (N
 			ls := observability.GetLangSmith()
 			if ls != nil {
 				toolRunID := observability.NewUUID()
+				var parsedArgs any = string(rep.Args)
+				var rawMap map[string]any
+				if err := json.Unmarshal(rep.Args, &rawMap); err == nil {
+					parsedArgs = rawMap
+				}
 				ls.StartChildRun(
 					toolRunID,
 					s.RunID,
 					rep.Name,
 					observability.RunTypeTool,
 					map[string]any{
-						"args": rep.Args,
+						"input": parsedArgs,
+						"args":  parsedArgs,
 					},
 					map[string]any{
 						"call_id": rep.ID,

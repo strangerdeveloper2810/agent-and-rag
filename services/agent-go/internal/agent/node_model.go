@@ -248,14 +248,35 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 	llmRunID := observability.NewUUID()
 	ls := observability.GetLangSmith()
 	if ls != nil {
+		lsMessages := make([]map[string]any, 0, len(s.Messages)+1)
+		if systemPrompt != "" {
+			lsMessages = append(lsMessages, map[string]any{
+				"role":    "system",
+				"content": systemPrompt,
+			})
+		}
+		for _, m := range s.Messages {
+			msgMap := map[string]any{
+				"role":    m.Role,
+				"content": m.Content,
+			}
+			if len(m.ToolCalls) > 0 {
+				msgMap["tool_calls"] = m.ToolCalls
+			}
+			if m.ToolCallID != "" {
+				msgMap["tool_call_id"] = m.ToolCallID
+			}
+			lsMessages = append(lsMessages, msgMap)
+		}
+
 		ls.StartChildRun(
 			llmRunID,
 			s.RunID,
 			prov.Name(),
 			observability.RunTypeLLM,
 			map[string]any{
-				"messages_count": len(s.Messages),
-				"tools_count":    len(req.Tools),
+				"messages":       lsMessages,
+				"tools":          req.Tools,
 				"thinking_level": string(req.Options.ThinkingLevel),
 			},
 			map[string]any{
@@ -326,11 +347,27 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 
 	if ls != nil {
 		ls.EndRun(llmRunID, map[string]any{
-			"content":       content.String(),
-			"tool_calls":    toolCalls,
-			"input_tokens":  stepInput,
-			"output_tokens": stepOutput,
-			"duration_ms":   time.Since(llmStart).Milliseconds(),
+			"generations": []map[string]any{
+				{
+					"text": content.String(),
+					"message": map[string]any{
+						"role":       "assistant",
+						"content":    content.String(),
+						"tool_calls": toolCalls,
+					},
+				},
+			},
+			"content":    content.String(),
+			"tool_calls": toolCalls,
+			"llm_output": map[string]any{
+				"token_usage": map[string]any{
+					"prompt_tokens":     stepInput,
+					"completion_tokens": stepOutput,
+					"total_tokens":      stepInput + stepOutput,
+				},
+				"model_name": prov.Name(),
+			},
+			"duration_ms": time.Since(llmStart).Milliseconds(),
 		}, nil)
 	}
 

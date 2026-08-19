@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -25,21 +26,25 @@ const (
 	RunTypeTool  RunType = "tool"
 )
 
-// LangSmithRun đại diện cho một trace run payload gửi tới LangSmith API.
-type LangSmithRun struct {
+// CreateRunPayload đại diện cho payload POST /runs.
+type CreateRunPayload struct {
 	ID          string         `json:"id"`
 	Name        string         `json:"name"`
 	RunType     RunType        `json:"run_type"`
 	StartTime   string         `json:"start_time"`
-	EndTime     *string        `json:"end_time,omitempty"`
 	Inputs      map[string]any `json:"inputs,omitempty"`
-	Outputs     map[string]any `json:"outputs,omitempty"`
-	Error       *string        `json:"error,omitempty"`
 	ParentRunID *string        `json:"parent_run_id,omitempty"`
-	ProjectName string         `json:"project_name,omitempty"`
 	SessionName string         `json:"session_name,omitempty"`
 	Extra       map[string]any `json:"extra,omitempty"`
 	Tags        []string       `json:"tags,omitempty"`
+}
+
+// UpdateRunPayload đại diện cho payload PATCH /runs/{id}.
+type UpdateRunPayload struct {
+	EndTime *string        `json:"end_time,omitempty"`
+	Outputs map[string]any `json:"outputs,omitempty"`
+	Error   *string        `json:"error,omitempty"`
+	Extra   map[string]any `json:"extra,omitempty"`
 }
 
 // LangSmithClient quản lý gửi traces lên LangSmith.
@@ -63,8 +68,10 @@ const (
 )
 
 type runAction struct {
-	kind actionType
-	run  LangSmithRun
+	kind   actionType
+	runID  string
+	create *CreateRunPayload
+	update *UpdateRunPayload
 }
 
 var (
@@ -146,18 +153,17 @@ func (c *LangSmithClient) StartChainRun(runID, name string, inputs map[string]an
 	if c == nil || !c.enabled {
 		return
 	}
-	run := LangSmithRun{
+	payload := &CreateRunPayload{
 		ID:          runID,
 		Name:        name,
 		RunType:     RunTypeChain,
 		StartTime:   isoTime(time.Now()),
 		Inputs:      inputs,
-		ProjectName: c.project,
 		SessionName: c.project,
 		Tags:        tags,
 		Extra:       extra,
 	}
-	c.enqueue(actionCreate, run)
+	c.enqueue(runAction{kind: actionCreate, runID: runID, create: payload})
 }
 
 // StartChildRun tạo một Child Run (LLM call hoặc Tool call) thuộc về parentRunID.
@@ -165,18 +171,17 @@ func (c *LangSmithClient) StartChildRun(runID, parentRunID, name string, runType
 	if c == nil || !c.enabled {
 		return
 	}
-	run := LangSmithRun{
+	payload := &CreateRunPayload{
 		ID:          runID,
 		Name:        name,
 		RunType:     runType,
 		StartTime:   isoTime(time.Now()),
 		ParentRunID: &parentRunID,
 		Inputs:      inputs,
-		ProjectName: c.project,
 		SessionName: c.project,
 		Extra:       extra,
 	}
-	c.enqueue(actionCreate, run)
+	c.enqueue(runAction{kind: actionCreate, runID: runID, create: payload})
 }
 
 // EndRun kết thúc một Run với outputs hoặc error.
@@ -185,23 +190,22 @@ func (c *LangSmithClient) EndRun(runID string, outputs map[string]any, err error
 		return
 	}
 	now := isoTime(time.Now())
-	run := LangSmithRun{
-		ID:      runID,
+	payload := &UpdateRunPayload{
 		EndTime: &now,
 		Outputs: outputs,
 	}
 	if err != nil {
 		errStr := err.Error()
-		run.Error = &errStr
+		payload.Error = &errStr
 	}
-	c.enqueue(actionUpdate, run)
+	c.enqueue(runAction{kind: actionUpdate, runID: runID, update: payload})
 }
 
-func (c *LangSmithClient) enqueue(kind actionType, run LangSmithRun) {
+func (c *LangSmithClient) enqueue(act runAction) {
 	select {
-	case c.queue <- runAction{kind: kind, run: run}:
+	case c.queue <- act:
 	default:
-		slog.Warn("langsmith: queue full, dropping run", "runID", run.ID, "name", run.Name)
+		slog.Warn("langsmith: queue full, dropping action", "runID", act.runID)
 	}
 }
 
@@ -226,16 +230,19 @@ func (c *LangSmithClient) worker() {
 func (c *LangSmithClient) sendHTTP(act runAction) {
 	var url string
 	var method string
+	var body []byte
+	var err error
 
 	if act.kind == actionCreate {
 		url = fmt.Sprintf("%s/runs", c.endpoint)
 		method = "POST"
+		body, err = json.Marshal(act.create)
 	} else {
-		url = fmt.Sprintf("%s/runs/%s", c.endpoint, act.run.ID)
+		url = fmt.Sprintf("%s/runs/%s", c.endpoint, act.runID)
 		method = "PATCH"
+		body, err = json.Marshal(act.update)
 	}
 
-	body, err := json.Marshal(act.run)
 	if err != nil {
 		return
 	}
@@ -253,5 +260,10 @@ func (c *LangSmithClient) sendHTTP(act runAction) {
 		slog.Debug("langsmith: send failed", "err", err)
 		return
 	}
-	_ = resp.Body.Close()
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		respBody, _ := io.ReadAll(resp.Body)
+		slog.Warn("langsmith: API error response", "status", resp.StatusCode, "method", method, "url", url, "body", string(respBody))
+	}
 }

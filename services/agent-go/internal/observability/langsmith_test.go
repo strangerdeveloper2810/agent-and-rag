@@ -39,7 +39,7 @@ func TestLangSmithClient_Enabled(t *testing.T) {
 
 		if r.Method == http.MethodPost && r.URL.Path == "/runs" {
 			postReceived = true
-			var run observability.LangSmithRun
+			var run observability.CreateRunPayload
 			if err := json.NewDecoder(r.Body).Decode(&run); err != nil {
 				t.Errorf("failed to decode run: %v", err)
 			}
