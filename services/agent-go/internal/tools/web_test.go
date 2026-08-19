@@ -129,7 +129,7 @@ func TestWebSearchRacesProviders(t *testing.T) {
 	orig := webSearchProviders
 	defer func() { webSearchProviders = orig }()
 	webSearchProviders = []webSearchProvider{
-		func(ctx context.Context, c *http.Client, q string) []map[string]string {
+		func(ctx context.Context, c *http.Client, q string, maxResults int, depth string) []map[string]string {
 			select {
 			case <-ctx.Done():
 				return nil
@@ -137,7 +137,7 @@ func TestWebSearchRacesProviders(t *testing.T) {
 				return []map[string]string{{"title": "fast"}}
 			}
 		},
-		func(ctx context.Context, c *http.Client, q string) []map[string]string {
+		func(ctx context.Context, c *http.Client, q string, maxResults int, depth string) []map[string]string {
 			select {
 			case <-ctx.Done():
 				return nil
@@ -151,7 +151,7 @@ func TestWebSearchRacesProviders(t *testing.T) {
 	defer cancel()
 
 	start := time.Now()
-	results := raceWebSearch(ctx, cancel, nil, "test")
+	results := raceWebSearch(ctx, cancel, nil, "test", 5, "basic")
 	if len(results) == 0 || results[0]["title"] != "fast" {
 		t.Fatalf("expected fast provider result, got %v", results)
 	}
@@ -177,7 +177,7 @@ func TestParseGoogleResults_Success(t *testing.T) {
 	</body></html>
 	`
 
-	results := parseGoogleResults(htmlSample)
+	results := parseGoogleResults(htmlSample, 5)
 	if len(results) != 2 {
 		t.Fatalf("expected 2 results, got %d: %v", len(results), results)
 	}
@@ -217,7 +217,7 @@ func TestParseBingResults(t *testing.T) {
 	</body></html>
 	`
 
-	results := parseBingResults(htmlSample)
+	results := parseBingResults(htmlSample, 5)
 	if len(results) != 2 {
 		t.Fatalf("expected 2 non-internal results, got %d: %v", len(results), results)
 	}
@@ -305,7 +305,7 @@ func TestWebSearchCache(t *testing.T) {
 
 	var calls atomic.Int32
 	webSearchProviders = []webSearchProvider{
-		func(ctx context.Context, c *http.Client, q string) []map[string]string {
+		func(ctx context.Context, c *http.Client, q string, maxResults int, depth string) []map[string]string {
 			calls.Add(1)
 			return []map[string]string{{"title": "cached"}}
 		},

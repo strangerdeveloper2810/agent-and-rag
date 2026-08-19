@@ -168,7 +168,7 @@ func TestParseGoogleResults(t *testing.T) {
 	<div class="VwiC3b">Nội bộ Google.</div>
 	`
 
-	got := parseGoogleResults(html)
+	got := parseGoogleResults(html, 5)
 	if len(got) != 1 {
 		t.Fatalf("kết quả = %d, want 1 (loại Wikipedia + link nội bộ Google): %+v", len(got), got)
 	}
@@ -184,14 +184,14 @@ func TestParseGoogleResults(t *testing.T) {
 }
 
 func TestParseGoogleResults_NoMatches(t *testing.T) {
-	if got := parseGoogleResults("<html>không có kết quả</html>"); len(got) != 0 {
+	if got := parseGoogleResults("<html>không có kết quả</html>", 5); len(got) != 0 {
 		t.Errorf("kết quả = %+v, want rỗng", got)
 	}
 }
 
 // Google chặn/timeout → trả nil, không panic (caller tự fallback).
 func TestSearchGoogleWeb_TransportError(t *testing.T) {
-	got := searchGoogleWeb(t.Context(), &http.Client{Transport: errTransport{}}, "go")
+	got := searchGoogleWeb(t.Context(), &http.Client{Transport: errTransport{}}, "go", 5, "basic")
 	if got != nil {
 		t.Errorf("kết quả = %+v, want nil khi lỗi mạng", got)
 	}

@@ -45,7 +45,7 @@ const (
 
 // webSearchProvider là một backend tìm kiếm.
 // Trả về nil/empty khi không có kết quả hoặc lỗi — race sẽ thử backend khác.
-type webSearchProvider func(context.Context, *http.Client, string) []map[string]string
+type webSearchProvider func(context.Context, *http.Client, string, int, string) []map[string]string
 
 // webSearchProviders là danh sách backend được chạy song song (Tavily AI Search là ưu tiên cao nhất, Google/Bing là fallback).
 var webSearchProviders = []webSearchProvider{
@@ -76,14 +76,16 @@ func NewWebSearchTool(client *http.Client) Tool {
 func (t *webSearchTool) Name() string { return "web.search" }
 
 func (t *webSearchTool) Description() string {
-	return "Tìm kiếm web (Google/Bing). Trả về tiêu đề (title), trích dẫn (snippet), và URL trực tiếp. Dùng để tra cứu thông tin, báo cáo, tin tức thực tế."
+	return "Tìm kiếm web (Tavily/Google/Bing). Trả về tiêu đề (title), trích dẫn (snippet), và URL trực tiếp. Dùng để tra cứu thông tin, báo cáo, tin tức thực tế hoặc deep research."
 }
 
 func (t *webSearchTool) Schema() json.RawMessage {
 	return json.RawMessage(`{
 		"type":"object",
 		"properties":{
-			"query":{"type":"string","description":"search query string"}
+			"query":{"type":"string","description":"search query string"},
+			"max_results":{"type":"integer","description":"number of results to return (default 5, max 10 for deep research)"},
+			"search_depth":{"type":"string","enum":["basic","advanced"],"description":"search depth: 'basic' for quick search or 'advanced' for deep research"}
 		},
 		"required":["query"],
 		"additionalProperties":false
@@ -94,7 +96,9 @@ func (t *webSearchTool) Kind() Kind { return KindRead }
 
 func (t *webSearchTool) Execute(ctx context.Context, rawArgs json.RawMessage) (Result, error) {
 	var args struct {
-		Query string `json:"query"`
+		Query       string `json:"query"`
+		MaxResults  int    `json:"max_results,omitempty"`
+		SearchDepth string `json:"search_depth,omitempty"`
 	}
 	if err := json.Unmarshal(rawArgs, &args); err != nil {
 		return Result{}, fmt.Errorf("web.search: invalid args: %w", err)
@@ -103,14 +107,26 @@ func (t *webSearchTool) Execute(ctx context.Context, rawArgs json.RawMessage) (R
 		return Result{}, fmt.Errorf("web.search: query is required")
 	}
 
-	key := strings.ToLower(strings.TrimSpace(args.Query))
+	maxResults := args.MaxResults
+	if maxResults <= 0 {
+		maxResults = 5
+	} else if maxResults > 10 {
+		maxResults = 10
+	}
+
+	searchDepth := args.SearchDepth
+	if searchDepth != "advanced" {
+		searchDepth = "basic"
+	}
+
+	key := fmt.Sprintf("%s|%d|%s", strings.ToLower(strings.TrimSpace(args.Query)), maxResults, searchDepth)
 	if results, ok := t.cacheGet(key); ok {
 		return Result{Content: buildWebSearchOutput(args.Query, results)}, nil
 	}
 
 	searchCtx, cancel := context.WithTimeout(ctx, webSearchTimeout)
 	defer cancel()
-	results := raceWebSearch(searchCtx, cancel, t.httpClient, args.Query)
+	results := raceWebSearch(searchCtx, cancel, t.httpClient, args.Query, maxResults, searchDepth)
 
 	if len(results) == 0 {
 		results = append(results, map[string]string{
@@ -127,12 +143,12 @@ func (t *webSearchTool) Execute(ctx context.Context, rawArgs json.RawMessage) (R
 
 // raceWebSearch chạy mọi backend SONG SONG, trả về kết quả của backend đầu
 // tiên có kết quả và cancel các backend còn lại (qua cancel của searchCtx).
-func raceWebSearch(ctx context.Context, cancel context.CancelFunc, client *http.Client, query string) []map[string]string {
+func raceWebSearch(ctx context.Context, cancel context.CancelFunc, client *http.Client, query string, maxResults int, searchDepth string) []map[string]string {
 	out := make(chan []map[string]string, len(webSearchProviders))
 	for _, provider := range webSearchProviders {
 		provider := provider
 		go func() {
-			out <- provider(ctx, client, query)
+			out <- provider(ctx, client, query, maxResults, searchDepth)
 		}()
 	}
 
@@ -194,16 +210,16 @@ func buildWebSearchOutput(query string, results []map[string]string) string {
 }
 
 // searchTavily thực hiện tìm kiếm qua Tavily AI Search API (chuyên biệt cho AI Agent).
-func searchTavily(ctx context.Context, client *http.Client, query string) []map[string]string {
+func searchTavily(ctx context.Context, client *http.Client, query string, maxResults int, searchDepth string) []map[string]string {
 	apiKey := os.Getenv("TAVILY_API_KEY")
 	if apiKey == "" {
-		apiKey = "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"
+		return nil
 	}
 
 	payload := map[string]any{
 		"query":        query,
-		"max_results":  5,
-		"search_depth": "basic",
+		"max_results":  maxResults,
+		"search_depth": searchDepth,
 	}
 	bodyBytes, err := json.Marshal(payload)
 	if err != nil {
@@ -250,7 +266,7 @@ func searchTavily(ctx context.Context, client *http.Client, query string) []map[
 			"snippet": truncateStr(r.Content, 250),
 			"url":     r.URL,
 		})
-		if len(results) >= 5 {
+		if len(results) >= maxResults {
 			break
 		}
 	}
@@ -258,7 +274,7 @@ func searchTavily(ctx context.Context, client *http.Client, query string) []map[
 }
 
 // searchGoogleWeb tries Google search via HTML scraping.
-func searchGoogleWeb(ctx context.Context, client *http.Client, query string) []map[string]string {
+func searchGoogleWeb(ctx context.Context, client *http.Client, query string, maxResults int, _ string) []map[string]string {
 	reqURL := fmt.Sprintf("https://www.google.com/search?q=%s&hl=vi", url.QueryEscape(query))
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
@@ -274,11 +290,11 @@ func searchGoogleWeb(ctx context.Context, client *http.Client, query string) []m
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	return parseGoogleResults(string(body))
+	return parseGoogleResults(string(body), maxResults)
 }
 
 // parseGoogleResults extracts search results from Google HTML (best-effort).
-func parseGoogleResults(html string) []map[string]string {
+func parseGoogleResults(html string, maxResults int) []map[string]string {
 	// Extract Google HTML result links and titles
 	linkTitleRe := regexp.MustCompile(`<a[^>]*href="(?:/url\?q=)?(https?://[^"&]+)[^"]*"[^>]*>[\s\S]*?<h3[^>]*>([\s\S]*?)</h3>`)
 	snippetRe := regexp.MustCompile(`<div[^>]*class="[^"]*(?:VwiC3b|yXMpt|s3tnU|BNeawe|r05eec)[^"]*"[^>]*>([\s\S]*?)</div>`)
@@ -310,7 +326,7 @@ func parseGoogleResults(html string) []map[string]string {
 			"url":     rawURL,
 		})
 
-		if len(results) >= 5 {
+		if len(results) >= maxResults {
 			break
 		}
 	}
@@ -319,7 +335,7 @@ func parseGoogleResults(html string) []map[string]string {
 }
 
 // searchBingWeb thực hiện tìm kiếm qua Bing Web HTML (fallback khi Google không khả dụng).
-func searchBingWeb(ctx context.Context, client *http.Client, query string) []map[string]string {
+func searchBingWeb(ctx context.Context, client *http.Client, query string, maxResults int, _ string) []map[string]string {
 	reqURL := fmt.Sprintf("https://www.bing.com/search?q=%s&setlang=vi", url.QueryEscape(query))
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
@@ -339,10 +355,10 @@ func searchBingWeb(ctx context.Context, client *http.Client, query string) []map
 	}
 
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	return parseBingResults(string(body))
+	return parseBingResults(string(body), maxResults)
 }
 
-func parseBingResults(htmlStr string) []map[string]string {
+func parseBingResults(htmlStr string, maxResults int) []map[string]string {
 	blockRe := regexp.MustCompile(`<li[^>]*class="b_algo"[^>]*>[\s\S]*?<h2><a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)</a></h2>(?:[\s\S]*?<p[^>]*>([\s\S]*?)</p>)?`)
 	matches := blockRe.FindAllStringSubmatch(htmlStr, 12)
 
@@ -368,7 +384,7 @@ func parseBingResults(htmlStr string) []map[string]string {
 			"url":     rawURL,
 		})
 
-		if len(results) >= 5 {
+		if len(results) >= maxResults {
 			break
 		}
 	}
