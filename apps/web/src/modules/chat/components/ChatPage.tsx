@@ -697,6 +697,10 @@ export const ChatPage: React.FC = () => {
                 streaming &&
                 i === messages.length - 1 &&
                 m.role === "assistant";
+              const isAnswered = messages
+                .slice(i + 1)
+                .some((nextMsg) => nextMsg.role === "user");
+
               return (
                 <MessageBubble
                   key={m._id ?? i}
@@ -706,8 +710,8 @@ export const ChatPage: React.FC = () => {
                   citations={msgMeta?.citations ?? []}
                   agent={msgMeta?.agent ?? null}
                   usage={msgMeta?.usage ?? null}
-                  questions={msgMeta?.questions ?? []}
-                  suggestions={msgMeta?.suggestions ?? []}
+                  questions={isAnswered ? [] : (msgMeta?.questions ?? [])}
+                  suggestions={isAnswered ? [] : (msgMeta?.suggestions ?? [])}
                   truncated={msgMeta?.truncated ?? false}
                   hasError={msgMeta?.hasError ?? false}
                   onRegenerate={() => handleRegenerate(i)}

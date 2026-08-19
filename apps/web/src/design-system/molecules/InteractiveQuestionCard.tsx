@@ -39,24 +39,34 @@ export const InteractiveQuestionCard: React.FC<
     currentQ.header ||
     "Vui lòng chọn phương án phù hợp để tiếp tục:";
 
-  const handleSingleSelect = (label: string) => {
-    if (disabled) return;
+  const buildSummary = (finalAnswers: Record<number, string>) => {
     if (questions.length === 1) {
-      onSubmit(label);
-      return;
+      const qText =
+        questions[0].prompt ||
+        questions[0].question ||
+        questions[0].header ||
+        "Lựa chọn";
+      const aText = finalAnswers[0] || "";
+      return `Q: ${qText}\nA: ${aText}`;
     }
 
+    return questions
+      .map((q, idx) => {
+        const qText =
+          q.prompt || q.question || q.header || `Câu hỏi ${idx + 1}`;
+        const aText = finalAnswers[idx] || "";
+        return `Q: ${qText}\nA: ${aText}`;
+      })
+      .join("\n\n");
+  };
+
+  const handleSingleSelect = (label: string) => {
+    if (disabled) return;
     const nextAnswers = { ...answers, [currentStep]: label };
     setAnswers(nextAnswers);
 
     if (isLastStep) {
-      const summary = questions
-        .map(
-          (q, idx) =>
-            `${q.header || q.prompt || q.question || `Câu hỏi ${idx + 1}`}: ${nextAnswers[idx] || label}`,
-        )
-        .join("\n");
-      onSubmit(summary);
+      onSubmit(buildSummary(nextAnswers));
     } else {
       setCurrentStep((prev) => prev + 1);
       setCustomText("");
@@ -85,22 +95,11 @@ export const InteractiveQuestionCard: React.FC<
     if (selectedLabels.length === 0) return;
 
     const answerStr = selectedLabels.join(", ");
-    if (questions.length === 1) {
-      onSubmit(answerStr);
-      return;
-    }
-
     const nextAnswers = { ...answers, [currentStep]: answerStr };
     setAnswers(nextAnswers);
 
     if (isLastStep) {
-      const summary = questions
-        .map(
-          (q, idx) =>
-            `${q.header || q.prompt || q.question || `Câu hỏi ${idx + 1}`}: ${nextAnswers[idx] || answerStr}`,
-        )
-        .join("\n");
-      onSubmit(summary);
+      onSubmit(buildSummary(nextAnswers));
     } else {
       setCurrentStep((prev) => prev + 1);
       setCustomText("");

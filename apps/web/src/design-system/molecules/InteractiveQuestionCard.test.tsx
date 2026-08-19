@@ -33,7 +33,9 @@ describe("InteractiveQuestionCard", () => {
 
     // Click on option
     fireEvent.click(screen.getByText("React / Next.js"));
-    expect(onSubmit).toHaveBeenCalledWith("React / Next.js");
+    expect(onSubmit).toHaveBeenCalledWith(
+      "Q: Chọn framework mục tiêu?\nA: React / Next.js",
+    );
   });
 
   it("supports write-in custom text input", () => {
@@ -53,7 +55,9 @@ describe("InteractiveQuestionCard", () => {
     fireEvent.change(input, { target: { value: "Python FastAPI" } });
     fireEvent.click(screen.getByText("Gửi"));
 
-    expect(onSubmit).toHaveBeenCalledWith("Python FastAPI");
+    expect(onSubmit).toHaveBeenCalledWith(
+      "Q: Chọn ngôn ngữ?\nA: Python FastAPI",
+    );
   });
 
   it("handles multi-select questions with checkboxes", () => {
@@ -84,7 +88,9 @@ describe("InteractiveQuestionCard", () => {
     const submitBtn = screen.getByText("Hoàn tất lựa chọn");
     fireEvent.click(submitBtn);
 
-    expect(onSubmit).toHaveBeenCalledWith("Auth / Login, Payment Gateway");
+    expect(onSubmit).toHaveBeenCalledWith(
+      "Q: Chọn các tính năng cần có?\nA: Auth / Login, Payment Gateway",
+    );
   });
 
   it("handles multi-step wizard questions with Back and Next", () => {
@@ -119,6 +125,8 @@ describe("InteractiveQuestionCard", () => {
     // Pick Step 2
     fireEvent.click(screen.getByText("Postgres"));
 
-    expect(onSubmit).toHaveBeenCalled();
+    expect(onSubmit).toHaveBeenCalledWith(
+      "Q: Bước 1: Chọn OS?\nA: Linux\n\nQ: Bước 2: Chọn DB?\nA: Postgres",
+    );
   });
 });
