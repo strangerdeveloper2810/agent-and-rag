@@ -106,14 +106,14 @@ describe("InteractiveQuestionCard", () => {
       <InteractiveQuestionCard questions={questions} onSubmit={onSubmit} />,
     );
 
-    expect(screen.getByText("Bước 1 / 2")).toBeInTheDocument();
+    expect(screen.getByText("Câu 1 / 2")).toBeInTheDocument();
     expect(screen.getByText("Bước 1: Chọn OS?")).toBeInTheDocument();
 
     // Pick Step 1
     fireEvent.click(screen.getByText("Linux"));
 
     // Should transition to Step 2
-    expect(screen.getByText("Bước 2 / 2")).toBeInTheDocument();
+    expect(screen.getByText("Câu 2 / 2")).toBeInTheDocument();
     expect(screen.getByText("Bước 2: Chọn DB?")).toBeInTheDocument();
 
     // Pick Step 2

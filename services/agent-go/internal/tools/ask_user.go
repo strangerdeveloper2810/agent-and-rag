@@ -19,7 +19,7 @@ func NewAskUserTool() Tool {
 func (t *AskUserTool) Name() string { return "ask_user" }
 
 func (t *AskUserTool) Description() string {
-	return "Đặt 1-4 câu hỏi làm rõ (clarifying questions) kèm các phương án gợi ý (options) cho người dùng khi brainstorm, lập kế hoạch hoặc yêu cầu còn thiếu thông tin. Người dùng có thể chọn 1-click hoặc nhập tự do."
+	return "Đặt các câu hỏi làm rõ có chiều sâu (clarifying questions) kèm các phương án gợi ý (options) cho người dùng khi brainstorm, lập kế hoạch kiến trúc hoặc thu thập yêu cầu. Người dùng có thể chọn 1-click hoặc nhập tự do."
 }
 
 func (t *AskUserTool) Schema() json.RawMessage {
@@ -32,15 +32,16 @@ func (t *AskUserTool) Schema() json.RawMessage {
 					"type":"object",
 					"properties":{
 						"id":{"type":"string","description":"Mã định danh cho câu hỏi"},
-						"prompt":{"type":"string","description":"Nội dung câu hỏi đặt ra cho người dùng"},
-						"header":{"type":"string","description":"Tiêu đề ngắn hoặc tag cho câu hỏi (tối đa 15 ký tự)"},
+						"prompt":{"type":"string","description":"Nội dung câu hỏi cụ thể đặt ra cho người dùng"},
+						"question":{"type":"string","description":"Tương đương prompt, câu hỏi làm rõ"},
+						"header":{"type":"string","description":"Tiêu đề ngắn hoặc tag cho câu hỏi (tối đa 20 ký tự)"},
 						"options":{
 							"type":"array",
 							"items":{
 								"type":"object",
 								"properties":{
 									"label":{"type":"string","description":"Nhãn hiển thị cho lựa chọn"},
-									"description":{"type":"string","description":"Mô tả ngắn cho lựa chọn"},
+									"description":{"type":"string","description":"Mô tả ngắn giải thích ưu điểm/lý do cho lựa chọn"},
 									"recommended":{"type":"boolean","description":"true nếu là phương án khuyến nghị"}
 								},
 								"required":["label"],
@@ -50,10 +51,9 @@ func (t *AskUserTool) Schema() json.RawMessage {
 						},
 						"multi_select":{"type":"boolean","description":"true nếu cho phép người dùng chọn nhiều phương án cùng lúc"}
 					},
-					"required":["prompt"],
 					"additionalProperties":false
 				},
-				"description":"Danh sách 1-4 câu hỏi làm rõ"
+				"description":"Danh sách các câu hỏi làm rõ có chiều sâu"
 			}
 		},
 		"required":["questions"],
