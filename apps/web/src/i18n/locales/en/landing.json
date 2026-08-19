@@ -20,6 +20,13 @@
       "rag": "Hybrid RAG Search"
     }
   },
+  "productPreview": {
+    "eyebrow": "See it in action",
+    "title": "A chat interface that feels instantly familiar",
+    "subtitle": "One conversation for everything: ask about your documents, run tool skills, and revisit past sessions.",
+    "placeholderTitle": "Screenshot coming soon",
+    "placeholderDesc": "A real screenshot of the J.A.R.V.I.S. chat interface will appear here shortly."
+  },
   "features": {
     "eyebrow": "Highlighted features",
     "title": "One platform, three pillars of power",
@@ -62,6 +69,42 @@
       "step4": {
         "title": "Get results & automate",
         "desc": "Save the workflow for reuse, saving you time on every future run."
+      }
+    }
+  },
+  "techStack": {
+    "eyebrow": "Powered by",
+    "title": "Built on top-tier AI infrastructure",
+    "providers": {
+      "deepseek": "DeepSeek V4",
+      "gemini": "Google Gemini 2.5",
+      "claude": "Anthropic Claude",
+      "langgraph": "LangGraph"
+    }
+  },
+  "faq": {
+    "eyebrow": "FAQ",
+    "title": "Quick answers before you start",
+    "items": {
+      "q1": {
+        "question": "What can J.A.R.V.I.S. actually do for me?",
+        "answer": "It's a multi-agent AI assistant: semantic RAG document search, automatic AI model routing, and 30+ tool skills (reading files, running code, calling APIs...) — all through one natural conversation."
+      },
+      "q2": {
+        "question": "Which AI models does it use, and how are they chosen?",
+        "answer": "The agent automatically routes between DeepSeek, Gemini, and Claude based on request complexity and cost — you never have to pick a model yourself."
+      },
+      "q3": {
+        "question": "Is my uploaded data safe?",
+        "answer": "Yes. RAG data and documents are isolated per account (multi-tenant) and never shared across other users."
+      },
+      "q4": {
+        "question": "What languages are supported?",
+        "answer": "Vietnamese and English — both the interface and the agent's replies follow whichever language you've selected."
+      },
+      "q5": {
+        "question": "How do I get started?",
+        "answer": "Just sign up — no installation required. You can start chatting with the agent right after verifying your email."
       }
     }
   },
