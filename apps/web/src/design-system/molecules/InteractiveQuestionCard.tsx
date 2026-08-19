@@ -163,9 +163,13 @@ export const InteractiveQuestionCard: React.FC<
               {currentQ.header ||
                 (isEn ? "Clarify & Planning" : "Làm rõ yêu cầu & Kế hoạch")}
             </span>
-            {isMulti && (
-              <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">
+            {isMulti ? (
+              <span className="rounded-full bg-indigo-500/15 border border-indigo-500/30 px-2 py-0.5 text-[10px] font-bold text-indigo-500">
                 {isEn ? "Multi-select" : "Chọn nhiều"}
+              </span>
+            ) : (
+              <span className="rounded-full bg-sky-500/15 border border-sky-500/30 px-2 py-0.5 text-[10px] font-bold text-sky-500">
+                {isEn ? "Single Choice" : "Chọn 1"}
               </span>
             )}
           </div>
@@ -189,6 +193,15 @@ export const InteractiveQuestionCard: React.FC<
           <h4 className="text-sm font-semibold text-foreground leading-snug">
             {questionPrompt}
           </h4>
+          <p className="mt-1 text-[11px] font-medium text-muted-foreground">
+            {isMulti
+              ? isEn
+                ? "✦ Multiple choices allowed — select one or more and click Next."
+                : "✦ Có thể chọn nhiều phương án — tích chọn và bấm Tiếp tục."
+              : isEn
+                ? "✦ Single choice — click an option to select and proceed instantly."
+                : "✦ Lựa chọn duy nhất — bấm 1 phương án để tiếp tục ngay."}
+          </p>
         </div>
       </div>
 
@@ -212,10 +225,18 @@ export const InteractiveQuestionCard: React.FC<
             >
               <div className="flex items-start gap-3 min-w-0">
                 <div
-                  className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-xs font-bold transition-colors ${
-                    isChecked
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground group-hover:bg-primary/20 group-hover:text-primary"
+                  className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center text-xs font-bold transition-colors ${
+                    isMulti
+                      ? `rounded-md border ${
+                          isChecked
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border bg-muted text-muted-foreground group-hover:border-primary/50 group-hover:bg-primary/10"
+                        }`
+                      : `rounded-full border ${
+                          isChecked
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border/80 bg-muted/60 text-muted-foreground group-hover:border-primary group-hover:bg-primary/20 group-hover:text-primary"
+                        }`
                   }`}
                 >
                   {isMulti ? (
