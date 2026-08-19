@@ -142,7 +142,11 @@ describe("InteractiveQuestionCard", () => {
         prompt: "Select cloud provider?",
         header: "Infrastructure",
         options: [
-          { label: "AWS", description: "Amazon Web Services", recommended: true },
+          {
+            label: "AWS",
+            description: "Amazon Web Services",
+            recommended: true,
+          },
           { label: "GCP" },
         ],
         multiSelect: false,
@@ -157,7 +161,9 @@ describe("InteractiveQuestionCard", () => {
     expect(screen.getByText("Infrastructure")).toBeInTheDocument();
     expect(screen.getByText("Select cloud provider?")).toBeInTheDocument();
     expect(screen.getByText("Recommended")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/Or type your custom answer/i)).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText(/Or type your custom answer/i),
+    ).toBeInTheDocument();
     expect(screen.getByText("Send")).toBeInTheDocument();
   });
 });
