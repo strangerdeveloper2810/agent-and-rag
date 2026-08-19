@@ -42,6 +42,12 @@ var utilityKeywords = []string{
 	"hẹn giờ", "timer", "báo thức", "lưu", "bộ nhớ", "memory", "note",
 }
 
+var planningKeywords = []string{
+	"plan", "planning", "kế hoạch", "roadmap", "lộ trình", "tư vấn", "brainstorm",
+	"xây dựng", "phát triển", "thiết kế", "kiến trúc", "triển khai", "hệ thống",
+	"architecture", "tư vấn giải pháp", "hướng giải quyết", "app", "ứng dụng", "dự án",
+}
+
 // FilterToolDefs filters the registered tools dynamically based on user query intent and current execution step.
 // For multi-step execution (step > 0), all tools in the registry are kept to allow complex tool chains.
 // For initial step (step 0), tools are pruned down to 3-8 relevant tools to minimize token usage and latency.
@@ -68,6 +74,7 @@ func (r *Registry) FilterToolDefs(userQuery string, step int) []provider.ToolDef
 	hasCodeIntent := containsAny(queryLower, codeKeywords)
 	hasSearchIntent := containsAny(queryLower, searchKeywords)
 	hasUtilityIntent := containsAny(queryLower, utilityKeywords)
+	hasPlanningIntent := containsAny(queryLower, planningKeywords)
 	// hasDocIntent là CỬA DUY NHẤT cấp rag.search/rag.read ở step 0. Câu hỏi
 	// lập trình hay tra cứu chung chung không còn được cấp RAG nữa — nếu web
 	// search không đủ, model vẫn lấy được RAG từ step 1 trở đi (xem nhánh
@@ -75,17 +82,18 @@ func (r *Registry) FilterToolDefs(userQuery string, step int) []provider.ToolDef
 	hasDocIntent := containsAny(queryLower, documentKeywords)
 
 	// If no specific intent detected (e.g. casual chat/greetings), return minimal core tools
-	if !hasCodeIntent && !hasSearchIntent && !hasUtilityIntent && !hasDocIntent {
+	if !hasCodeIntent && !hasSearchIntent && !hasUtilityIntent && !hasDocIntent && !hasPlanningIntent {
 		return filterByName(allDefs, []string{
-			"web.search", "memory.recall", "echo",
+			"ask_user", "web.search", "memory.recall", "echo",
 		})
 	}
 
 	selectedNames := make(map[string]bool)
 
-	// Always keep memory recall & save
+	// Always keep memory recall, save & ask_user
 	selectedNames["memory.recall"] = true
 	selectedNames["memory.save"] = true
+	selectedNames["ask_user"] = true
 
 	if hasCodeIntent {
 		for _, name := range []string{"file.search", "file.read", "file.write", "shell.exec", "git", "version", "web.search", "web.fetch"} {
