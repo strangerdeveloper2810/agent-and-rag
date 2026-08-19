@@ -46,7 +46,9 @@ export const FeatureGrid: React.FC = () => {
           {FEATURE_ITEMS.map(({ key, icon: Icon }, idx) => (
             <Card
               key={key}
-              style={isVisible ? { animationDelay: `${idx * 90}ms` } : undefined}
+              style={
+                isVisible ? { animationDelay: `${idx * 90}ms` } : undefined
+              }
               className={cn(
                 "group p-7 transition-all duration-200 hover:-translate-y-1 hover:border-primary/40 hover:shadow-lg",
                 isVisible ? "animate-slide-up" : "opacity-0",

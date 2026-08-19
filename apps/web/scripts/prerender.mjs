@@ -49,10 +49,7 @@ function buildHeadTags({ page, slug, locale, title, description }) {
   const canonicalUrl = `${SITE_URL}${canonicalPath}`;
   const viUrl = `${SITE_URL}${urlPath(slug, "vi")}`;
   const enUrl = `${SITE_URL}${urlPath(slug, "en")}`;
-  const fullTitle =
-    page === "home"
-      ? title
-      : `${title} — J.A.R.V.I.S.`;
+  const fullTitle = page === "home" ? title : `${title} — J.A.R.V.I.S.`;
   const ogLocale = locale === "en" ? "en_US" : "vi_VN";
   const ogLocaleAlt = locale === "en" ? "vi_VN" : "en_US";
 
@@ -177,10 +174,15 @@ async function main() {
     const outFile = outputFile(slug, locale);
     fs.mkdirSync(path.dirname(outFile), { recursive: true });
     fs.writeFileSync(outFile, output);
-    console.log(`[prerender] ${page}/${locale} -> ${path.relative(DIST_DIR, outFile)}`);
+    console.log(
+      `[prerender] ${page}/${locale} -> ${path.relative(DIST_DIR, outFile)}`,
+    );
   }
 
-  fs.writeFileSync(path.join(DIST_DIR, "sitemap.xml"), generateSitemap(entries));
+  fs.writeFileSync(
+    path.join(DIST_DIR, "sitemap.xml"),
+    generateSitemap(entries),
+  );
   fs.writeFileSync(path.join(DIST_DIR, "robots.txt"), generateRobotsTxt());
   console.log("[prerender] sitemap.xml + robots.txt generated");
 }

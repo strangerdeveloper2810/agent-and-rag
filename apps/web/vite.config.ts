@@ -69,9 +69,7 @@ export default defineConfig({
     // cần cho lần vẽ đầu tiên.
     modulePreload: {
       resolveDependencies: (_filename, deps) =>
-        deps.filter(
-          (dep) => !/\/(markdown|mermaid)-[^/]+\.js$/.test(dep),
-        ),
+        deps.filter((dep) => !/\/(markdown|mermaid)-[^/]+\.js$/.test(dep)),
     },
     rollupOptions: {
       // 2 HTML entry riêng biệt trong 1 lần build: index.html (landing, bundle

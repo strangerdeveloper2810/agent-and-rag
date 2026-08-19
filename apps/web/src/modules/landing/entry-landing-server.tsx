@@ -6,9 +6,15 @@ import { LANDING_PAGES, type LandingPageKey, type Locale } from "./pages";
 
 // key i18n (namespace "landing") chứa title/description cho từng trang — nguồn
 // duy nhất cho cả UI lẫn thẻ SEO, tránh trùng lặp copy giữa 2 nơi.
-const META_KEYS: Record<LandingPageKey, { title: string; description: string }> = {
+const META_KEYS: Record<
+  LandingPageKey,
+  { title: string; description: string }
+> = {
   home: { title: "pageTitle", description: "pageDescription" },
-  pricing: { title: "pricing.pageTitle", description: "pricing.pageDescription" },
+  pricing: {
+    title: "pricing.pageTitle",
+    description: "pricing.pageDescription",
+  },
   features: {
     title: "featuresPage.pageTitle",
     description: "featuresPage.pageDescription",

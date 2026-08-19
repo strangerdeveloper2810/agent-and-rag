@@ -45,7 +45,9 @@ function markEmailVerified(email) {
 async function captureContentArea(page, outputPath) {
   const contentArea = page.locator(CONTENT_AREA_SELECTOR).first();
   await contentArea.screenshot({ path: outputPath });
-  console.log(`[screenshot] saved ${outputPath} (main content only, sidebar excluded)`);
+  console.log(
+    `[screenshot] saved ${outputPath} (main content only, sidebar excluded)`,
+  );
 }
 
 async function main() {
@@ -96,7 +98,10 @@ async function main() {
     console.log("[screenshot] navigating to /documents...");
     await page.goto(`${baseUrl}/documents`, { waitUntil: "networkidle" });
     await page.waitForTimeout(1500); // để list/empty-state render xong
-    await captureContentArea(page, path.join(outputDir, "documents-preview.png"));
+    await captureContentArea(
+      page,
+      path.join(outputDir, "documents-preview.png"),
+    );
   } finally {
     await browser.close();
   }

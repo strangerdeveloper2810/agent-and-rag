@@ -39,11 +39,16 @@ export const HowItWorks: React.FC = () => {
           </p>
         </div>
 
-        <div ref={ref} className="relative mt-16 grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
+        <div
+          ref={ref}
+          className="relative mt-16 grid gap-10 sm:grid-cols-2 lg:grid-cols-4"
+        >
           {STEP_ITEMS.map(({ key, icon: Icon }, idx) => (
             <div
               key={key}
-              style={isVisible ? { animationDelay: `${idx * 90}ms` } : undefined}
+              style={
+                isVisible ? { animationDelay: `${idx * 90}ms` } : undefined
+              }
               className={cn(
                 "relative flex flex-col items-center text-center",
                 isVisible ? "animate-slide-up" : "opacity-0",
