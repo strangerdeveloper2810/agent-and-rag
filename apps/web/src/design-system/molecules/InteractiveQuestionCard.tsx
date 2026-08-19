@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { ClarifyQuestion, ClarifyOption } from "@/types";
 import {
   CheckIcon,
@@ -18,6 +19,9 @@ export interface InteractiveQuestionCardProps {
 export const InteractiveQuestionCard: React.FC<
   InteractiveQuestionCardProps
 > = ({ questions, disabled = false, onSubmit }) => {
+  const { i18n } = useTranslation();
+  const isEn = i18n?.language?.startsWith("en") || false;
+
   const [currentStep, setCurrentStep] = useState(0);
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [selectedMulti, setSelectedMulti] = useState<Record<number, number[]>>(
@@ -37,7 +41,9 @@ export const InteractiveQuestionCard: React.FC<
     currentQ.prompt ||
     currentQ.question ||
     currentQ.header ||
-    "Vui lòng chọn phương án phù hợp để tiếp tục:";
+    (isEn
+      ? "Please select the appropriate option to proceed:"
+      : "Vui lòng chọn phương án phù hợp để tiếp tục:");
 
   const buildSummary = (finalAnswers: Record<number, string>) => {
     if (questions.length === 1) {
@@ -121,11 +127,12 @@ export const InteractiveQuestionCard: React.FC<
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold uppercase tracking-wider text-primary">
-              {currentQ.header || "Làm rõ yêu cầu & Kế hoạch"}
+              {currentQ.header ||
+                (isEn ? "Clarify & Planning" : "Làm rõ yêu cầu & Kế hoạch")}
             </span>
             {isMulti && (
               <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">
-                Chọn nhiều
+                {isEn ? "Multi-select" : "Chọn nhiều"}
               </span>
             )}
           </div>
@@ -133,7 +140,9 @@ export const InteractiveQuestionCard: React.FC<
 
         {questions.length > 1 && (
           <span className="text-xs font-semibold text-muted-foreground bg-muted/80 px-2.5 py-1 rounded-full border border-border/50">
-            Câu {currentStep + 1} / {questions.length}
+            {isEn
+              ? `Question ${currentStep + 1} / ${questions.length}`
+              : `Câu ${currentStep + 1} / ${questions.length}`}
           </span>
         )}
       </div>
@@ -194,7 +203,7 @@ export const InteractiveQuestionCard: React.FC<
                     </span>
                     {opt.recommended && (
                       <span className="rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                        Khuyến nghị
+                        {isEn ? "Recommended" : "Khuyến nghị"}
                       </span>
                     )}
                   </div>
@@ -231,7 +240,11 @@ export const InteractiveQuestionCard: React.FC<
               }
             }
           }}
-          placeholder="Hoặc nhập phương án / ý kiến riêng của bạn..."
+          placeholder={
+            isEn
+              ? "Or type your custom answer / opinion..."
+              : "Hoặc nhập phương án / ý kiến riêng của bạn..."
+          }
           className="flex-1 rounded-xl border border-border/70 bg-background/80 px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
         />
 
@@ -242,7 +255,7 @@ export const InteractiveQuestionCard: React.FC<
             onClick={handleCustomTextSubmit}
             className="flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground transition-all hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            <span>Gửi</span>
+            <span>{isEn ? "Send" : "Gửi"}</span>
             <PaperAirplaneIcon className="h-3.5 w-3.5" />
           </button>
         )}
@@ -259,7 +272,7 @@ export const InteractiveQuestionCard: React.FC<
               className="flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
             >
               <ArrowLeftIcon className="h-3.5 w-3.5" />
-              Quay lại
+              {isEn ? "Back" : "Quay lại"}
             </button>
           ) : (
             <div />
@@ -278,8 +291,12 @@ export const InteractiveQuestionCard: React.FC<
             >
               <span>
                 {isLastStep
-                  ? "Hoàn tất lựa chọn"
-                  : `Tiếp tục (${(selectedMulti[currentStep] || []).length}) →`}
+                  ? isEn
+                    ? "Submit Selection"
+                    : "Hoàn tất lựa chọn"
+                  : isEn
+                    ? `Next (${(selectedMulti[currentStep] || []).length}) →`
+                    : `Tiếp tục (${(selectedMulti[currentStep] || []).length}) →`}
               </span>
             </button>
           )}

@@ -1,9 +1,14 @@
 import { render, screen, fireEvent } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import i18n from "@/i18n";
 import InteractiveQuestionCard from "./InteractiveQuestionCard";
 import type { ClarifyQuestion } from "@/types";
 
 describe("InteractiveQuestionCard", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("vi");
+  });
+
   it("renders single-select question with options and custom input", () => {
     const questions: ClarifyQuestion[] = [
       {
@@ -128,5 +133,31 @@ describe("InteractiveQuestionCard", () => {
     expect(onSubmit).toHaveBeenCalledWith(
       "Q: Bước 1: Chọn OS?\nA: Linux\n\nQ: Bước 2: Chọn DB?\nA: Postgres",
     );
+  });
+
+  it("renders in English when language is switched to en", async () => {
+    await i18n.changeLanguage("en");
+    const questions: ClarifyQuestion[] = [
+      {
+        prompt: "Select cloud provider?",
+        header: "Infrastructure",
+        options: [
+          { label: "AWS", description: "Amazon Web Services", recommended: true },
+          { label: "GCP" },
+        ],
+        multiSelect: false,
+      },
+    ];
+
+    const onSubmit = vi.fn();
+    render(
+      <InteractiveQuestionCard questions={questions} onSubmit={onSubmit} />,
+    );
+
+    expect(screen.getByText("Infrastructure")).toBeInTheDocument();
+    expect(screen.getByText("Select cloud provider?")).toBeInTheDocument();
+    expect(screen.getByText("Recommended")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/Or type your custom answer/i)).toBeInTheDocument();
+    expect(screen.getByText("Send")).toBeInTheDocument();
   });
 });

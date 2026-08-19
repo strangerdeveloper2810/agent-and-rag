@@ -138,7 +138,7 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 	// RecalledMemories above is woven in per-request without mutating the
 	// cacheable prefix.
 	if s.Lang == "en" {
-		systemPrompt += "\n\n[NGÔN NGỮ TRẢ LỜI CHO LƯỢT NÀY]\nALWAYS respond in English for this turn (the user selected English in the UI language setting) — this overrides any earlier Vietnamese-default instruction above.\n"
+		systemPrompt += "\n\n[NGÔN NGỮ TRẢ LỜI CHO LƯỢT NÀY]\nALWAYS respond in English for this turn (including all ask_user clarifying question prompts, headers, option labels, descriptions, and follow-up suggestions) — this overrides any earlier Vietnamese-default instruction above.\n"
 	}
 
 	// Per-user Custom Instructions
