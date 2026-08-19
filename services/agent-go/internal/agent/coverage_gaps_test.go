@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ai-agent-tut/agent-go/internal/config"
+	"github.com/ai-agent-tut/agent-go/internal/observability"
 	"github.com/ai-agent-tut/agent-go/internal/provider"
 	"github.com/ai-agent-tut/agent-go/internal/tools"
 )
@@ -131,5 +133,88 @@ func TestCanonicalToolCallKey(t *testing.T) {
 	if canonicalToolCallKey("echo", json.RawMessage(`{"x":1}`)) ==
 		canonicalToolCallKey("other", json.RawMessage(`{"x":1}`)) {
 		t.Error("hai tool khác nhau cho cùng khoá")
+	}
+}
+
+// TestLangSmithTracingAndCustomSkills_Coverage covers the branches in Engine.Run, node_model, and node_tools
+// when LangSmith tracing, Persona presets, and CustomSkills are supplied.
+func TestLangSmithTracingAndCustomSkills_Coverage(t *testing.T) {
+	// Setup test mock LangSmith client
+	cfg := config.Config{
+		LangSmithTracing: true,
+		LangSmithAPIKey:  "test-key",
+		LangSmithProject: "test-proj",
+	}
+	observability.InitLangSmith(cfg)
+	defer func() {
+		observability.InitLangSmith(config.Config{})
+	}()
+
+	reg := tools.NewRegistry()
+	reg.Register(&stubTool{name: "echo", output: "echo output"})
+
+	prov := &scriptedProvider{scripts: [][]provider.StreamChunk{
+		// Step 1: Model calls tool
+		{
+			{Kind: provider.ChunkToolCall, ToolCall: &provider.ToolCall{ID: "call-1", Name: "echo", Args: json.RawMessage(`{"text":"hello"}`)}},
+			{Kind: provider.ChunkUsage, Usage: &provider.Usage{InputTokens: 50, OutputTokens: 10}},
+			{Kind: provider.ChunkDone},
+		},
+		// Step 2: Model finishes with answer
+		{
+			{Kind: provider.ChunkText, Text: "done!"},
+			{Kind: provider.ChunkUsage, Usage: &provider.Usage{InputTokens: 70, OutputTokens: 15}},
+			{Kind: provider.ChunkDone},
+		},
+	}}
+
+	eng := NewEngine(prov, reg)
+
+	in := RunInput{
+		ConversationID:     "conv-123",
+		UserMessage:        "test question",
+		Lang:               "en",
+		PersonaPreset:      "coder",
+		Formality:          "formal",
+		Verbosity:          "concise",
+		CustomInstructions: "always write clean code",
+		CustomSkills: []CustomSkill{
+			{
+				Name:        "golang-expert",
+				Description: "expert in Go",
+				WhenToUse:   "when writing Go",
+				Content:     "use standard library where possible",
+			},
+		},
+		MaxSteps: 5,
+	}
+
+	_, err := eng.Run(context.Background(), in, func(Event) {})
+	if err != nil {
+		t.Fatalf("eng.Run failed: %v", err)
+	}
+}
+
+func TestNodeModel_ChunkError_WithLangSmith(t *testing.T) {
+	cfg := config.Config{
+		LangSmithTracing: true,
+		LangSmithAPIKey:  "test-key",
+		LangSmithProject: "test-proj",
+	}
+	observability.InitLangSmith(cfg)
+	defer func() {
+		observability.InitLangSmith(config.Config{})
+	}()
+
+	prov := &scriptedProvider{scripts: [][]provider.StreamChunk{
+		{
+			{Kind: provider.ChunkError, Err: context.Canceled},
+		},
+	}}
+
+	eng := NewEngine(prov, tools.NewRegistry())
+	_, err := eng.Run(context.Background(), RunInput{UserMessage: "hello"}, func(Event) {})
+	if err == nil {
+		t.Error("expected error, got nil")
 	}
 }
