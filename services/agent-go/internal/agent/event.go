@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/ai-agent-tut/agent-go/internal/provider"
+	"github.com/ai-agent-tut/agent-go/internal/tools"
 )
 
 // Event là 1 sự kiện phát ra trong lúc engine chạy (→ được transport ghi ra SSE).
@@ -33,21 +34,10 @@ type Event struct {
 }
 
 // ClarifyOption đại diện cho một phương án lựa chọn trong câu hỏi làm rõ.
-type ClarifyOption struct {
-	Label       string `json:"label"`
-	Description string `json:"description,omitempty"`
-	Recommended bool   `json:"recommended,omitempty"`
-}
+type ClarifyOption = tools.ClarifyOption
 
 // ClarifyQuestion đại diện cho một câu hỏi làm rõ (tương tự agent-toolkit ask_user).
-type ClarifyQuestion struct {
-	ID          string          `json:"id,omitempty"`
-	Prompt      string          `json:"prompt"`
-	Question    string          `json:"question,omitempty"`
-	Header      string          `json:"header,omitempty"`
-	Options     []ClarifyOption `json:"options,omitempty"`
-	MultiSelect bool            `json:"multiSelect,omitempty"`
-}
+type ClarifyQuestion = tools.ClarifyQuestion
 
 // --- Helpers dựng nhanh event ---
 

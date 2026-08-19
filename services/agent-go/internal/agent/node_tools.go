@@ -156,6 +156,8 @@ func nodeTools(ctx context.Context, eng toolsEngine, s *State, emit EmitFunc) (N
 		maxOut := eng.getMaxToolOutput()
 		maxTotal := eng.getMaxTotalToolOutput()
 
+		var allAskQuestions []ClarifyQuestion
+
 		for _, key := range dedup.order {
 			members := dedup.groups[key]
 			rep := members[0]
@@ -184,16 +186,9 @@ func nodeTools(ctx context.Context, eng toolsEngine, s *State, emit EmitFunc) (N
 			s.AppendObservation(obs)
 
 			if rep.Name == "ask_user" {
-				var askPayload struct {
-					Questions []ClarifyQuestion `json:"questions"`
-				}
-				if err := json.Unmarshal(rep.Args, &askPayload); err == nil && len(askPayload.Questions) > 0 {
-					for i := range askPayload.Questions {
-						if askPayload.Questions[i].Prompt == "" && askPayload.Questions[i].Question != "" {
-							askPayload.Questions[i].Prompt = askPayload.Questions[i].Question
-						}
-					}
-					emit(AskUserEvent(askPayload.Questions))
+				qs := tools.ParseClarifyQuestions(rep.Args)
+				if len(qs) > 0 {
+					allAskQuestions = append(allAskQuestions, qs...)
 				}
 			}
 
@@ -241,6 +236,10 @@ func nodeTools(ctx context.Context, eng toolsEngine, s *State, emit EmitFunc) (N
 				slog.Info("tools: bỏ qua thực thi trùng lặp, dùng lại kết quả đã chạy",
 					"tool", dup.Name, "call_id", dup.ID, "representative_call_id", rep.ID)
 			}
+		}
+
+		if len(allAskQuestions) > 0 {
+			emit(AskUserEvent(allAskQuestions))
 		}
 
 		slog.Info("tools: all done", "count", len(safeCalls), "executed", len(dedup.exec), "elapsed_ms", time.Since(start).Milliseconds())
