@@ -18,11 +18,14 @@ import Markdown from "./Markdown";
 import AgentBadge from "@/design-system/atoms/AgentBadge";
 import { ToolCallGroup } from "@/design-system/molecules/ToolCallCard";
 import CitationList from "@/design-system/molecules/CitationList";
+import InteractiveQuestionCard from "@/design-system/molecules/InteractiveQuestionCard";
+import SuggestionChips from "@/design-system/molecules/SuggestionChips";
 import type { Message, AttachmentMeta } from "@/modules/chat/chat.api";
 import type {
   ToolCallState,
   CitationData,
   UsageData,
+  ClarifyQuestion,
 } from "@/modules/chat/chat.api";
 
 import { Button } from "@/components/ui/button";
@@ -98,49 +101,43 @@ const AttachmentList: React.FC<{ attachments: AttachmentMeta[] }> = ({
             {images.map((img, i) => {
               const anyImg = img as any;
               const imgSrc =
-                img.thumbnail ||
-                anyImg.url ||
-                (anyImg.data
-                  ? anyImg.data.startsWith("data:")
-                    ? anyImg.data
-                    : `data:${img.mimeType || "image/jpeg"};base64,${anyImg.data}`
-                  : "");
-
-              if (!imgSrc) return null;
-
+                anyImg.data && !anyImg.data.startsWith("http")
+                  ? `data:${anyImg.mimeType || "image/png"};base64,${anyImg.data}`
+                  : anyImg.thumbnail || anyImg.data;
               return (
-                <button
-                  key={`img-${i}`}
-                  type="button"
+                <div
+                  key={i}
+                  className="group relative h-20 w-20 cursor-pointer overflow-hidden rounded-xl border border-border/60 bg-muted transition-all hover:border-primary"
                   onClick={() => setExpandedUrl(imgSrc)}
-                  aria-label={t("messageBubble.viewImage", { name: img.name })}
-                  className="h-20 w-20 overflow-hidden rounded-2xl border border-border bg-card transition hover:opacity-80 shadow-sm"
                 >
                   <img
                     src={imgSrc}
                     alt={img.name}
-                    className="h-full w-full object-cover"
+                    className="h-full w-full object-cover transition duration-200 group-hover:scale-105"
                   />
-                </button>
+                  <div className="absolute inset-0 bg-black/20 opacity-0 transition-opacity group-hover:opacity-100" />
+                </div>
               );
             })}
           </div>
         )}
 
         {files.length > 0 && (
-          <div className="space-y-1.5">
-            {files.map((f, i) => (
+          <div className="flex flex-wrap gap-2">
+            {files.map((file, i) => (
               <div
-                key={`file-${i}`}
-                className="flex items-center gap-2.5 rounded-xl border border-border bg-card px-3 py-2"
+                key={i}
+                className="flex items-center gap-2 rounded-xl border border-border/60 bg-muted/40 px-3 py-2 text-xs backdrop-blur-sm"
               >
-                <DocumentTextIcon className="h-4 w-4 text-primary" />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs font-semibold text-foreground">
-                    {f.name}
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <DocumentTextIcon className="h-4 w-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-foreground max-w-[140px]">
+                    {file.name}
                   </p>
-                  <p className="text-[10px] text-muted-foreground font-mono">
-                    {formatSize(f.size)}
+                  <p className="text-[10px] text-muted-foreground">
+                    {formatSize(file.size)}
                   </p>
                 </div>
               </div>
@@ -185,6 +182,8 @@ interface MessageBubbleProps {
   citations?: CitationData[];
   agent?: string | null;
   usage?: UsageData | null;
+  questions?: ClarifyQuestion[];
+  suggestions?: string[];
   /** Câu trả lời bị cắt vì chạm giới hạn độ dài → hiện chỉ báo + nút "Tiếp tục". */
   truncated?: boolean;
   /** Quá trình xử lý gặp lỗi thực sự từ stream/mạng. */
@@ -192,10 +191,12 @@ interface MessageBubbleProps {
   onRegenerate?: () => void;
   onRetryUser?: (content: string) => void;
   onContinue?: () => void;
+  onSelectAnswer?: (answer: string) => void;
+  onSelectSuggestion?: (promptText: string) => void;
 }
 
 /**
- * MessageBubble component — ChatGPT & Gemini style with Retry / Run Again actions.
+ * MessageBubble component — ChatGPT & Gemini style with Interactive Clarification & Suggestions.
  */
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
   message,
@@ -204,11 +205,15 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   citations = [],
   agent = null,
   usage = null,
+  questions = [],
+  suggestions = [],
   truncated = false,
   hasError = false,
   onRegenerate,
   onRetryUser,
   onContinue,
+  onSelectAnswer,
+  onSelectSuggestion,
 }) => {
   const { t } = useTranslation("chat");
   const [copied, setCopied] = useState(false);
@@ -418,9 +423,26 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           </div>
         )}
 
+        {/* Interactive Brainstorming & Planning Questions */}
+        {questions && questions.length > 0 && onSelectAnswer && (
+          <InteractiveQuestionCard
+            questions={questions}
+            disabled={streaming}
+            onSubmit={onSelectAnswer}
+          />
+        )}
+
         {/* Citations */}
         {citations.length > 0 && !streaming && (
           <CitationList citations={citations} />
+        )}
+
+        {/* Suggestion Chips (Follow-up Questions) */}
+        {suggestions && suggestions.length > 0 && !streaming && onSelectSuggestion && (
+          <SuggestionChips
+            suggestions={suggestions}
+            onSelect={onSelectSuggestion}
+          />
         )}
 
         {/* Token Usage Footer */}

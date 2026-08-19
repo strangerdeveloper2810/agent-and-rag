@@ -18,6 +18,10 @@ type Event struct {
 	TotalTokens int             `json:"totalTokens,omitempty"` // cumulative total (input+output) across all steps
 	Truncated   bool            `json:"truncated,omitempty"`   // true khi Type=truncated hoặc Type=done của lượt bị cắt
 
+	// AskUser & Suggestions
+	Questions   []ClarifyQuestion `json:"questions,omitempty"`   // Danh sách câu hỏi làm rõ (Type=ask_user)
+	Suggestions []string          `json:"suggestions,omitempty"` // Gợi ý câu hỏi tiếp theo (Type=suggestions)
+
 	// ContextTokens/ContextBudget (Type=done): kích thước ước tính (token) của
 	// s.Messages ở CUỐI lượt chạy — đây chính là kích thước history mà client
 	// sẽ gửi lại ở lượt chat kế tiếp. FE dùng tỉ lệ ContextTokens/ContextBudget
@@ -28,11 +32,37 @@ type Event struct {
 	ContextBudget int `json:"contextBudget,omitempty"`
 }
 
+// ClarifyOption đại diện cho một phương án lựa chọn trong câu hỏi làm rõ.
+type ClarifyOption struct {
+	Label       string `json:"label"`
+	Description string `json:"description,omitempty"`
+	Recommended bool   `json:"recommended,omitempty"`
+}
+
+// ClarifyQuestion đại diện cho một câu hỏi làm rõ (tương tự agent-toolkit ask_user).
+type ClarifyQuestion struct {
+	ID          string          `json:"id,omitempty"`
+	Prompt      string          `json:"prompt"`
+	Header      string          `json:"header,omitempty"`
+	Options     []ClarifyOption `json:"options,omitempty"`
+	MultiSelect bool            `json:"multiSelect,omitempty"`
+}
+
 // --- Helpers dựng nhanh event ---
 
 func TextEvent(text string) Event { return Event{Type: "text", Text: text} }
 func StepEvent(node NodeID) Event { return Event{Type: "step", Node: string(node)} }
 func ErrorEvent(msg string) Event { return Event{Type: "error", Message: msg} }
+
+// AskUserEvent phát khi Agent đặt 1-4 câu hỏi làm rõ / lựa chọn phương án cho user.
+func AskUserEvent(questions []ClarifyQuestion) Event {
+	return Event{Type: "ask_user", Questions: questions}
+}
+
+// SuggestionsEvent phát danh sách gợi ý câu hỏi tiếp theo (follow-up chips).
+func SuggestionsEvent(suggestions []string) Event {
+	return Event{Type: "suggestions", Suggestions: suggestions}
+}
 
 // DoneEvent tạo event kết thúc với cumulative usage và total tokens.
 // truncated=true khi câu trả lời cuối bị cắt vì chạm giới hạn output token.

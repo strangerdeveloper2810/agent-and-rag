@@ -369,6 +369,7 @@ Bạn là chuyên gia nghiên cứu internet của JARVIS. Nhiệm vụ của b�
 // tools.NewSaveMemoryTool cho lý do tại sao 2 nơi này PHẢI cùng 1 Store.
 func buildRegistries(cfg config.Config, store *memory.Store) (code, research, general *tools.Registry) {
 	code = tools.NewRegistry()
+	code.Register(tools.NewAskUserTool())
 	code.Register(tools.NewFileSearchTool(cfg.AllowedPaths))
 	code.Register(tools.NewFileReadTool(cfg.AllowedPaths))
 	code.Register(tools.NewFileWriteTool(cfg.AllowedPaths))
@@ -380,6 +381,7 @@ func buildRegistries(cfg config.Config, store *memory.Store) (code, research, ge
 	code.Register(tools.NewListMemoriesTool(store))
 
 	research = tools.NewRegistry()
+	research.Register(tools.NewAskUserTool())
 	research.Register(tools.NewWebSearchTool(nil))
 	research.Register(tools.NewWebFetchTool(nil))
 	research.Register(tools.NewNotesSearchTool("."))
@@ -389,6 +391,7 @@ func buildRegistries(cfg config.Config, store *memory.Store) (code, research, ge
 	research.Register(tools.NewListMemoriesTool(store))
 
 	general = tools.NewRegistry()
+	general.Register(tools.NewAskUserTool())
 	general.Register(tools.NewEchoTool())
 	general.Register(tools.NewFileSearchTool(cfg.AllowedPaths))
 	general.Register(tools.NewFileReadTool(cfg.AllowedPaths))

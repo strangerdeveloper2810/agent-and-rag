@@ -37,7 +37,9 @@ export type AgentEvent =
     }
   | { type: "citation"; text?: string }
   | { type: "memory"; message?: string }
-  | { type: "interrupt"; name?: string; message?: string };
+  | { type: "interrupt"; name?: string; message?: string }
+  | { type: "ask_user"; questions: any[] }
+  | { type: "suggestions"; suggestions: string[] };
 
 // Map một event của LangGraph streamEvents → AgentEvent (hoặc null nếu bỏ qua)
 export const mapGraphEvent = (ev: any): AgentEvent | null => {

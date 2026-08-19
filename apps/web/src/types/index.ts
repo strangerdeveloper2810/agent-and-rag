@@ -1,3 +1,6 @@
+// Shared package types
+export type * from "@app/types";
+
 // Component types
 export * from "./components/chat.types";
 export * from "./components/documents.types";

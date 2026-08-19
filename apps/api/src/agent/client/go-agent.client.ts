@@ -330,6 +330,8 @@ export const goAgentClient: AgentClient = {
                 totalTokens: raw.totalTokens,
               } as AgentEvent;
               break;
+            case "ask_user":
+            case "suggestions":
             case "citation":
             case "memory":
             case "interrupt":

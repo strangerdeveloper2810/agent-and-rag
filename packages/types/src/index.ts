@@ -49,6 +49,20 @@ export interface ToolCallState {
   error?: string;
 }
 
+export interface ClarifyOption {
+  label: string;
+  description?: string;
+  recommended?: boolean;
+}
+
+export interface ClarifyQuestion {
+  id?: string;
+  prompt: string;
+  header?: string;
+  options?: ClarifyOption[];
+  multiSelect?: boolean;
+}
+
 // ChatEvent — discriminated union matching Go agent event.go
 export type ChatEvent =
   | { type: "step"; node?: string }
@@ -61,6 +75,8 @@ export type ChatEvent =
   | { type: "interrupt"; name?: string; message?: string }
   | { type: "error"; message?: string }
   | { type: "usage"; usage?: UsageData; totalTokens?: number }
+  | { type: "ask_user"; questions: ClarifyQuestion[] }
+  | { type: "suggestions"; suggestions: string[] }
   // Câu trả lời bị cắt vì chạm giới hạn output token — UI hiện chỉ báo + nút "Tiếp tục".
   | { type: "truncated"; message?: string }
   | {

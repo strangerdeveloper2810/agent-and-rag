@@ -5,6 +5,7 @@ import type {
   Message,
   ChatEvent,
   UsageData,
+  ClarifyQuestion,
 } from "@app/types";
 
 export type * from "@app/types";
@@ -180,6 +181,18 @@ function normalizeEvent(raw: Record<string, unknown>): ChatEvent | null {
       message: str("message"),
       text: str("text"),
     };
+  if (type === "ask_user") {
+    return {
+      type: "ask_user",
+      questions: Array.isArray(raw.questions) ? (raw.questions as ClarifyQuestion[]) : [],
+    };
+  }
+  if (type === "suggestions") {
+    return {
+      type: "suggestions",
+      suggestions: Array.isArray(raw.suggestions) ? (raw.suggestions as string[]) : [],
+    };
+  }
   if (type === "citation") return { type: "citation", text: str("text") };
   if (type === "memory") return { type: "memory", message: str("message") };
   if (type === "agent")

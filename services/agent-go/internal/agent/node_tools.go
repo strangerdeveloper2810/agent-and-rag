@@ -183,6 +183,15 @@ func nodeTools(ctx context.Context, eng toolsEngine, s *State, emit EmitFunc) (N
 			}
 			s.AppendObservation(obs)
 
+			if rep.Name == "ask_user" {
+				var askPayload struct {
+					Questions []ClarifyQuestion `json:"questions"`
+				}
+				if err := json.Unmarshal(rep.Args, &askPayload); err == nil && len(askPayload.Questions) > 0 {
+					emit(AskUserEvent(askPayload.Questions))
+				}
+			}
+
 			// LangSmith Tool Child Run
 			ls := observability.GetLangSmith()
 			if ls != nil {

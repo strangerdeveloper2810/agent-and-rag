@@ -218,3 +218,58 @@ func TestNodeModel_ChunkError_WithLangSmith(t *testing.T) {
 		t.Error("expected error, got nil")
 	}
 }
+
+func TestNodeTools_AskUserEvent(t *testing.T) {
+	askPayload := `{"questions":[{"prompt":"Target OS?","header":"OS","options":[{"label":"Linux","recommended":true},{"label":"Windows"}],"multi_select":false}]}`
+
+	prov := &scriptedProvider{scripts: [][]provider.StreamChunk{
+		{
+			{Kind: provider.ChunkToolCall, ToolCall: &provider.ToolCall{
+				ID:   "call_ask_1",
+				Name: "ask_user",
+				Args: json.RawMessage(askPayload),
+			}},
+			{Kind: provider.ChunkDone},
+		},
+		{
+			{Kind: provider.ChunkText, Text: "Đã gửi câu hỏi"},
+			{Kind: provider.ChunkDone},
+		},
+	}}
+
+	reg := tools.NewRegistry()
+	reg.Register(tools.NewAskUserTool())
+
+	var askUserEvents []Event
+	var suggestionsEvents []Event
+	emit := func(e Event) {
+		if e.Type == "ask_user" {
+			askUserEvents = append(askUserEvents, e)
+		}
+		if e.Type == "suggestions" {
+			suggestionsEvents = append(suggestionsEvents, e)
+		}
+	}
+
+	// Test SuggestionsEvent helper
+	emit(SuggestionsEvent([]string{"suggestion 1", "suggestion 2"}))
+
+	eng := NewEngine(prov, reg)
+	_, err := eng.Run(context.Background(), RunInput{UserMessage: "brainstorm app"}, emit)
+	if err != nil {
+		t.Fatalf("eng.Run failed: %v", err)
+	}
+
+	if len(askUserEvents) == 0 {
+		t.Fatal("expected at least 1 ask_user event")
+	}
+	if len(askUserEvents[0].Questions) != 1 {
+		t.Errorf("expected 1 question, got %d", len(askUserEvents[0].Questions))
+	}
+	if askUserEvents[0].Questions[0].Prompt != "Target OS?" {
+		t.Errorf("prompt = %q, want 'Target OS?'", askUserEvents[0].Questions[0].Prompt)
+	}
+	if len(suggestionsEvents) != 1 {
+		t.Errorf("expected 1 suggestions event, got %d", len(suggestionsEvents))
+	}
+}

@@ -13,6 +13,7 @@ import {
   type UsageData,
   type AttachmentPayload,
   type AttachmentMeta,
+  type ClarifyQuestion,
 } from "@/modules/chat/chat.api";
 import type { PendingAttachment } from "./Composer";
 import MessageBubble from "./MessageBubble";
@@ -30,6 +31,8 @@ export type MessageMeta = {
   citations: CitationData[];
   agent: string | null;
   usage: UsageData | null;
+  questions?: ClarifyQuestion[];
+  suggestions?: string[];
   /** true khi câu trả lời bị cắt vì chạm giới hạn output token. */
   truncated: boolean;
   /** true khi quá trình stream gặp lỗi thực sự từ server/mạng */
@@ -336,6 +339,22 @@ export const ChatPage: React.FC = () => {
                 outputTokens:
                   (prev.usage?.outputTokens ?? 0) + e.usage!.outputTokens,
               },
+            }));
+          }
+          break;
+        case "ask_user":
+          if (Array.isArray(e.questions) && e.questions.length > 0) {
+            updateMeta(assistantIndex, (prev) => ({
+              ...prev,
+              questions: e.questions,
+            }));
+          }
+          break;
+        case "suggestions":
+          if (Array.isArray(e.suggestions) && e.suggestions.length > 0) {
+            updateMeta(assistantIndex, (prev) => ({
+              ...prev,
+              suggestions: e.suggestions,
             }));
           }
           break;
@@ -673,11 +692,15 @@ export const ChatPage: React.FC = () => {
                   citations={msgMeta?.citations ?? []}
                   agent={msgMeta?.agent ?? null}
                   usage={msgMeta?.usage ?? null}
+                  questions={msgMeta?.questions ?? []}
+                  suggestions={msgMeta?.suggestions ?? []}
                   truncated={msgMeta?.truncated ?? false}
                   hasError={msgMeta?.hasError ?? false}
                   onRegenerate={() => handleRegenerate(i)}
                   onRetryUser={(c) => handleRetryUser(c)}
                   onContinue={handleContinue}
+                  onSelectAnswer={(answer) => send(answer)}
+                  onSelectSuggestion={(prompt) => send(prompt)}
                 />
               );
             })}
