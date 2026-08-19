@@ -72,16 +72,6 @@
       }
     }
   },
-  "techStack": {
-    "eyebrow": "Công nghệ nền tảng",
-    "title": "Vận hành trên hạ tầng AI hàng đầu",
-    "providers": {
-      "deepseek": "DeepSeek V4",
-      "gemini": "Google Gemini 2.5",
-      "claude": "Anthropic Claude",
-      "langgraph": "LangGraph"
-    }
-  },
   "faq": {
     "eyebrow": "Câu hỏi thường gặp",
     "title": "Giải đáp nhanh trước khi bắt đầu",

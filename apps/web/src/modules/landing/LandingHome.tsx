@@ -6,7 +6,6 @@ import { Hero } from "./components/Hero";
 import { ProductPreview } from "./components/ProductPreview";
 import { FeatureGrid } from "./components/FeatureGrid";
 import { HowItWorks } from "./components/HowItWorks";
-import { TechStack } from "./components/TechStack";
 import { Faq } from "./components/Faq";
 import { CtaSection } from "./components/CtaSection";
 import { LandingFooter } from "./components/LandingFooter";
@@ -31,7 +30,6 @@ export const LandingHome: React.FC = () => {
         <ProductPreview />
         <FeatureGrid />
         <HowItWorks />
-        <TechStack />
         <Faq />
         <CtaSection />
       </main>

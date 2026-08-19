@@ -72,16 +72,6 @@
       }
     }
   },
-  "techStack": {
-    "eyebrow": "Powered by",
-    "title": "Built on top-tier AI infrastructure",
-    "providers": {
-      "deepseek": "DeepSeek V4",
-      "gemini": "Google Gemini 2.5",
-      "claude": "Anthropic Claude",
-      "langgraph": "LangGraph"
-    }
-  },
   "faq": {
     "eyebrow": "FAQ",
     "title": "Quick answers before you start",
