@@ -424,10 +424,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         )}
 
         {/* Interactive Brainstorming & Planning Questions */}
-        {questions && questions.length > 0 && onSelectAnswer && (
+        {questions && questions.length > 0 && !streaming && onSelectAnswer && (
           <InteractiveQuestionCard
             questions={questions}
-            disabled={streaming}
             onSubmit={onSelectAnswer}
           />
         )}

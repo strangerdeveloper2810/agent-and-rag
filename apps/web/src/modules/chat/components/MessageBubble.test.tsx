@@ -204,4 +204,48 @@ describe("MessageBubble", () => {
 
     expect(screen.queryByAltText("J.A.R.V.I.S.")).not.toBeInTheDocument();
   });
+
+  it("does not render InteractiveQuestionCard while streaming", () => {
+    const questions = [
+      {
+        prompt: "Choose DB?",
+        options: [{ label: "Postgres" }],
+      },
+    ];
+
+    render(
+      <I18nextProvider i18n={i18n}>
+        <MessageBubble
+          message={{ role: "assistant", content: "Generating answer..." }}
+          streaming
+          questions={questions}
+          onSelectAnswer={() => {}}
+        />
+      </I18nextProvider>,
+    );
+
+    expect(screen.queryByText("Choose DB?")).not.toBeInTheDocument();
+  });
+
+  it("renders InteractiveQuestionCard once streaming finishes", () => {
+    const questions = [
+      {
+        prompt: "Choose DB?",
+        options: [{ label: "Postgres" }],
+      },
+    ];
+
+    render(
+      <I18nextProvider i18n={i18n}>
+        <MessageBubble
+          message={{ role: "assistant", content: "Here is the plan" }}
+          streaming={false}
+          questions={questions}
+          onSelectAnswer={() => {}}
+        />
+      </I18nextProvider>,
+    );
+
+    expect(screen.getByText("Choose DB?")).toBeInTheDocument();
+  });
 });
