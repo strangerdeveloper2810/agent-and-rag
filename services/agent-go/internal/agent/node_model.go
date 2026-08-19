@@ -139,6 +139,8 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 	// cacheable prefix.
 	if s.Lang == "en" {
 		systemPrompt += "\n\n[NGÔN NGỮ TRẢ LỜI CHO LƯỢT NÀY]\nALWAYS respond in English for this turn (including all ask_user clarifying question prompts, headers, option labels, descriptions, and follow-up suggestions) — this overrides any earlier Vietnamese-default instruction above.\n"
+	} else if s.Lang != "vi" && isEnglishInput(userInput) {
+		systemPrompt += "\n\n[USER IS COMMUNICATING IN ENGLISH]\nThe user prompt is in English. You MUST respond completely in English for this turn (including all text responses, markdown tables, code explanations, ask_user question prompts/headers/options, and follow-up suggestions).\n"
 	}
 
 	// Per-user Custom Instructions
@@ -487,4 +489,20 @@ func estimateTokens(messages []provider.Message) int {
 		}
 	}
 	return total / 4
+}
+
+// isEnglishInput phát hiện câu hỏi người dùng có phải là tiếng Anh hay không.
+func isEnglishInput(s string) bool {
+	if s == "" {
+		return false
+	}
+	// Nếu có dấu thanh tiếng Việt → tiếng Việt
+	for _, r := range s {
+		if (r >= 0x00C0 && r <= 0x00FF) || (r >= 0x0100 && r <= 0x024F) || (r >= 0x1EA0 && r <= 0x1EF9) {
+			return false
+		}
+	}
+	// Kiểm tra độ dài từ tiếng Anh
+	words := strings.Fields(strings.ToLower(s))
+	return len(words) >= 3
 }

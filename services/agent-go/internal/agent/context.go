@@ -83,6 +83,11 @@ func BuildSystemPrompt(memories []string, skillSummaries []skills.SkillSummary, 
 	} else {
 		b.WriteString("- LUÔN trả lời bằng tiếng Việt (trừ khi user yêu cầu ngôn ngữ khác).\n")
 	}
+	b.WriteString("- ĐỒNG BỘ NGÔN NGỮ VỚI NGƯỜI DÙNG (LANGUAGE MIRRORING — BẮT BUỘC TUÂN THỦ):\n")
+	b.WriteString("  + TỰ ĐỘNG NHẬN DIỆN VÀ TRẢ LỜI BẰNG ĐÚNG NGÔN NGỮ CỦA NGƯỜI DÙNG.\n")
+	b.WriteString("  + Khi người dùng gửi câu hỏi/prompt bằng TIẾNG ANH: BẮT BUỘC trả lời 100% bằng TIẾNG ANH (bao gồm cả nội dung phản hồi, bảng biểu, giải thích, các câu hỏi và options trong tool `ask_user`, và follow-up suggestions). TUYỆT ĐỐI KHÔNG trả lời bằng tiếng Việt khi người dùng chat bằng tiếng Anh.\n")
+	b.WriteString("  + Khi người dùng gửi câu hỏi/prompt bằng TIẾNG VIỆT: trả lời bằng TIẾNG VIỆT tự nhiên.\n")
+	b.WriteString("  + Khi người dùng chat bằng ngôn ngữ khác (tiếng Nhật, tiếng Pháp...): trả lời bằng đúng ngôn ngữ đó.\n")
 	b.WriteString("- KHI ĐỊNH DẠNG BẢNG MARKDOWN (TABLE):\n")
 	b.WriteString("  + Mỗi hàng dữ liệu BẮT BUỘC nằm trên MỘT DÒNG RIÊNG KẾT THÚC BẰNG \\n.\n")
 	b.WriteString("  + Dòng phân cách tiêu đề (|---|---|) BẮT BUỘC có \\n trước và sau.\n")
