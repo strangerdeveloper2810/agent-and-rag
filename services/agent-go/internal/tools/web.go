@@ -202,7 +202,7 @@ func searchTavily(ctx context.Context, client *http.Client, query string) []map[
 
 	payload := map[string]any{
 		"query":        query,
-		"max_results":  8,
+		"max_results":  5,
 		"search_depth": "basic",
 	}
 	bodyBytes, err := json.Marshal(payload)
@@ -247,9 +247,12 @@ func searchTavily(ctx context.Context, client *http.Client, query string) []map[
 		}
 		results = append(results, map[string]string{
 			"title":   r.Title,
-			"snippet": truncateStr(r.Content, 400),
+			"snippet": truncateStr(r.Content, 250),
 			"url":     r.URL,
 		})
+		if len(results) >= 5 {
+			break
+		}
 	}
 	return results
 }
@@ -303,11 +306,11 @@ func parseGoogleResults(html string) []map[string]string {
 
 		results = append(results, map[string]string{
 			"title":   rawTitle,
-			"snippet": truncateStr(snip, 300),
+			"snippet": truncateStr(snip, 250),
 			"url":     rawURL,
 		})
 
-		if len(results) >= 8 {
+		if len(results) >= 5 {
 			break
 		}
 	}
@@ -354,18 +357,18 @@ func parseBingResults(htmlStr string) []map[string]string {
 			continue
 		}
 
-		snip := ""
+		rawSnippet := ""
 		if len(m) >= 4 {
-			snip = cleanHTML(m[3])
+			rawSnippet = cleanHTML(m[3])
 		}
 
 		results = append(results, map[string]string{
 			"title":   rawTitle,
-			"snippet": truncateStr(snip, 300),
+			"snippet": truncateStr(rawSnippet, 250),
 			"url":     rawURL,
 		})
 
-		if len(results) >= 8 {
+		if len(results) >= 5 {
 			break
 		}
 	}
