@@ -23,6 +23,7 @@ export const initTheme = (): void => {
 export const ThemeToggle: React.FC = () => {
   const { t } = useTranslation();
   const [theme, setTheme] = useState<"dark" | "light">(() => {
+    if (typeof localStorage === "undefined") return "dark"; // SSR (landing prerender)
     return (localStorage.getItem(KEY) as "dark" | "light") || "dark";
   });
 

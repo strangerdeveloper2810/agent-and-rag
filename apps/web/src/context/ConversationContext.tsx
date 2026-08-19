@@ -73,18 +73,18 @@ export const ConversationProvider: FC<{ children: ReactNode }> = ({
     }
   }, []);
 
-  const activeId = location.pathname.startsWith("/messages/")
-    ? (location.pathname.split("/")[2] ?? null)
+  const activeId = location.pathname.startsWith("/app/messages/")
+    ? (location.pathname.split("/")[3] ?? null)
     : null;
 
-  const view = location.pathname.startsWith("/documents")
+  const view = location.pathname.startsWith("/app/documents")
     ? "documents"
     : "chat";
 
   const deleteConv = useCallback(
     async (id: string) => {
       if (activeId === id) {
-        navigate("/");
+        navigate("/app");
       }
       // Bỏ luôn cache tin nhắn của hội thoại vừa xoá — nếu không, tạo hội
       // thoại mới trùng id (hoặc quay lại bằng nút back) sẽ đọc được lịch sử

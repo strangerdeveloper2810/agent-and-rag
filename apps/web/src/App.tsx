@@ -20,6 +20,12 @@ const ForgotPasswordPage = lazy(
 
 /**
  * Main application component configuring React Router routes with lazy loading & code splitting.
+ *
+ * Landing page ("/", "/pricing", "/features") KHÔNG còn nằm trong bundle này —
+ * đã tách thành bundle SSG riêng (xem src/modules/landing/entry-landing-*.tsx +
+ * scripts/prerender.mjs + docs/plans/2026-08-19-landing-page-ssr-design.md).
+ * App này chỉ còn phục vụ /login, /register, /verify-email, /forgot-password,
+ * và /app/* (chat CSR sau khi đăng nhập).
  */
 export const App: React.FC = () => {
   return (
@@ -59,7 +65,7 @@ export const App: React.FC = () => {
           }
         />
 
-        {/* Protected routes — wrapped với AuthGuard + AppLayout */}
+        {/* Protected routes — wrapped với AuthGuard + AppLayout, dưới /app */}
         <Route
           element={
             <AuthGuard>
@@ -67,9 +73,9 @@ export const App: React.FC = () => {
             </AuthGuard>
           }
         >
-          <Route path="/" element={<ChatPage />} />
-          <Route path="/messages/:id" element={<ChatPage />} />
-          <Route path="/documents" element={<DocumentsView />} />
+          <Route path="/app" element={<ChatPage />} />
+          <Route path="/app/messages/:id" element={<ChatPage />} />
+          <Route path="/app/documents" element={<DocumentsView />} />
         </Route>
       </Routes>
     </ErrorBoundary>

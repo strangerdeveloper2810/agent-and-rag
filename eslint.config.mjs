@@ -7,6 +7,7 @@ export default tseslint.config(
   {
     ignores: [
       "**/dist/**",
+      "**/dist-ssr/**",
       "**/.turbo/**",
       "**/.next/**",
       "**/node_modules/**",
@@ -31,6 +32,12 @@ export default tseslint.config(
       "react-hooks/rules-of-hooks": "error",
       "react-hooks/exhaustive-deps": "warn",
     },
+  },
+  {
+    // Script build-time chạy bằng Node (prerender, screenshot dev tool...),
+    // không phải code browser.
+    files: ["apps/web/scripts/**/*.mjs"],
+    languageOptions: { globals: { ...globals.node } },
   },
   {
     // Nới vài rule cho dự án học: vẫn cảnh báo nhưng không chặn CI.

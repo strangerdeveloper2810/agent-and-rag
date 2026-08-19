@@ -3,7 +3,7 @@
  *
  * Cơ chế:
  *   - isPending = true  → hiển thị spinner
- *   - user tồn tại      → redirect sang / (đã đăng nhập rồi)
+ *   - user tồn tại      → redirect sang /app (đã đăng nhập rồi)
  *   - user = null       → render children (trang login/register)
  *
  * Khác với AuthGuard: AuthGuard chặn user CHƯA đăng nhập,
@@ -25,7 +25,7 @@ export const GuestGuard: React.FC<GuestGuardProps> = ({ children }) => {
   // Redirect nếu đã có session — useEffect LUÔN được gọi (Rules of Hooks)
   useEffect(() => {
     if (!isPending && user) {
-      navigate("/", { replace: true });
+      navigate("/app", { replace: true });
     }
   }, [isPending, user, navigate]);
 

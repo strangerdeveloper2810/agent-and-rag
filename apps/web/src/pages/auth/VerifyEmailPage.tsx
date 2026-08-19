@@ -76,7 +76,7 @@ export const VerifyEmailPage: React.FC = () => {
     try {
       await verifyEmail(email, data.otp);
       toast.success(t("verifyEmail.verifySuccess"));
-      navigate("/", { replace: true });
+      navigate("/app", { replace: true });
     } catch (err) {
       toast.error(translateApiError(err, t, t("verifyEmail.verifyFailed")));
     }

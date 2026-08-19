@@ -65,7 +65,7 @@ export const AdminGuard: React.FC<AdminGuardProps> = ({ children }) => {
           </p>
           <button
             type="button"
-            onClick={() => navigate("/", { replace: true })}
+            onClick={() => navigate("/app", { replace: true })}
             className="mt-6 rounded-xl px-5 py-2.5 text-sm font-medium text-white transition-colors"
             style={{ backgroundColor: "#f59e0b" }}
           >
