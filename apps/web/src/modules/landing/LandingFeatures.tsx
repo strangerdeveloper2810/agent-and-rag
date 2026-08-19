@@ -7,7 +7,7 @@ import {
   LanguageIcon,
 } from "@heroicons/react/24/outline";
 
-import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { useLandingDocumentTitle } from "./hooks/useLandingDocumentTitle";
 import { LandingHeader } from "./components/LandingHeader";
 import { FeatureDetail } from "./components/FeatureDetail";
 import { CtaSection } from "./components/CtaSection";
@@ -29,8 +29,10 @@ const FEATURE_DETAIL_ITEMS = [
  */
 export const LandingFeatures: React.FC = () => {
   const { t } = useTranslation("landing");
-  useDocumentTitle(
-    t("featuresPage.pageTitle"),
+  // Khớp đúng logic buildHeadTags() trong scripts/prerender.mjs (trang không
+  // phải home thì title = "{pageTitle} — J.A.R.V.I.S.").
+  useLandingDocumentTitle(
+    `${t("featuresPage.pageTitle")} — J.A.R.V.I.S.`,
     t("featuresPage.pageDescription"),
   );
 

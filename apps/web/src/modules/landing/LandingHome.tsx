@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 
-import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { useLandingDocumentTitle } from "./hooks/useLandingDocumentTitle";
 import { LandingHeader } from "./components/LandingHeader";
 import { Hero } from "./components/Hero";
 import { ProductPreview } from "./components/ProductPreview";
@@ -11,16 +11,17 @@ import { CtaSection } from "./components/CtaSection";
 import { LandingFooter } from "./components/LandingFooter";
 
 /**
- * LandingHome — trang preview UI cho landing page public (chỉ dùng để visual review,
- * KHÔNG phải route thật cuối cùng — implementation đầy đủ theo
- * docs/plans/2026-08-19-landing-page-ssr-design.md (SSG/SEO/tách bundle) sẽ làm ở giai đoạn sau).
+ * LandingHome — trang chủ public ("/"), prerender tĩnh (SSG) lúc build — xem
+ * scripts/prerender.mjs. Route hiển thị/nội dung SEO thật, không phải preview.
  *
  * Lưu ý: `#root`/`body` trong index.css bị đặt `overflow: hidden` toàn cục (phục vụ layout
  * chat cố định chiều cao). Landing page dài hơn 1 viewport nên cần tự bọc scroll riêng.
  */
 export const LandingHome: React.FC = () => {
   const { t } = useTranslation("landing");
-  useDocumentTitle(t("pageTitle"), t("pageDescription"));
+  // Không nối thêm brand ở đây — pageTitle đã là chuỗi đầy đủ, khớp với title
+  // mà prerender.mjs chèn vào HTML tĩnh (xem useLandingDocumentTitle).
+  useLandingDocumentTitle(t("pageTitle"), t("pageDescription"));
 
   return (
     <div className="h-screen overflow-y-auto scroll-fine bg-background text-foreground">

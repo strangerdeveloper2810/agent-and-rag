@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 
-import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { useLandingDocumentTitle } from "./hooks/useLandingDocumentTitle";
 import { LandingHeader } from "./components/LandingHeader";
 import { PricingTiers } from "./components/PricingTiers";
 import { PricingComparison } from "./components/PricingComparison";
@@ -17,7 +17,12 @@ import { LandingFooter } from "./components/LandingFooter";
  */
 export const LandingPricing: React.FC = () => {
   const { t } = useTranslation("landing");
-  useDocumentTitle(t("pricing.pageTitle"), t("pricing.pageDescription"));
+  // Khớp đúng logic buildHeadTags() trong scripts/prerender.mjs (trang không
+  // phải home thì title = "{pageTitle} — J.A.R.V.I.S.").
+  useLandingDocumentTitle(
+    `${t("pricing.pageTitle")} — J.A.R.V.I.S.`,
+    t("pricing.pageDescription"),
+  );
 
   return (
     <div className="h-screen overflow-y-auto scroll-fine bg-background text-foreground">
