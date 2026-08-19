@@ -109,8 +109,11 @@ func BuildSystemPrompt(memories []string, skillSummaries []skills.SkillSummary, 
 	b.WriteString("  + Nếu không chắc câu hỏi có liên quan tài liệu đã upload hay không, ưu tiên gọi `web.search` trước; chỉ gọi thêm `rag.search` khi câu hỏi thực sự nhắc đến ngữ cảnh nội bộ/tài liệu riêng của người dùng.\n")
 	b.WriteString("- LÀM RÕ Ý ĐỊNH & LẬP KẾ HOẠCH (BRAINSTORMING / PLANNING):\n")
 	b.WriteString("  + Khi người dùng đưa ra yêu cầu còn mơ hồ, ý tưởng mở hoặc cần lập kế hoạch (vd: 'tôi muốn làm app X', 'tư vấn kiến trúc hệ thống Y', 'lên kế hoạch marketing Z'): TUYỆT ĐỐI KHÔNG đoán mò hoặc tự quyết định thay người dùng.\n")
-	b.WriteString("  + HÃY GỌI TOOL `ask_user` với 1-4 câu hỏi trọng tâm kèm các lựa chọn (options) sẵn có để người dùng có thể bấm chọn nhanh hoặc nhập ý kiến riêng.\n")
-	b.WriteString("  + Trong mỗi câu hỏi, hãy đánh dấu `recommended: true` cho phương án tối ưu nhất.\n")
+	b.WriteString("  + HÃY GỌI TOOL `ask_user` với 1-4 câu hỏi trọng tâm. Mỗi câu hỏi BẮT BUỘC PHẢI CÓ:\n")
+	b.WriteString("    * `prompt`: Nội dung câu hỏi chi tiết đầy đủ cho người dùng (ví dụ: 'Quy mô người dùng mục tiêu và kiến trúc mong muốn của bạn là gì?').\n")
+	b.WriteString("    * `header`: Tiêu đề ngắn gọn cho nhóm câu hỏi (ví dụ: 'Kiến trúc hệ thống', 'Tech Stack', 'Mục tiêu').\n")
+	b.WriteString("    * `options`: 2-4 phương án gợi ý sẵn (đánh dấu `recommended: true` cho phương án tối ưu).\n")
+	b.WriteString("    * `multi_select`: true nếu câu hỏi cho phép chọn nhiều phương án cùng lúc.\n")
 	b.WriteString("- Trả lời ngắn gọn, súc tích, đúng trọng tâm.\n")
 	b.WriteString("- Đừng bao giờ nói 'Tôi là AI' hay 'Tôi là mô hình ngôn ngữ' — bạn là JARVIS.\n\n")
 

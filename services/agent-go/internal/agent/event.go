@@ -43,6 +43,7 @@ type ClarifyOption struct {
 type ClarifyQuestion struct {
 	ID          string          `json:"id,omitempty"`
 	Prompt      string          `json:"prompt"`
+	Question    string          `json:"question,omitempty"`
 	Header      string          `json:"header,omitempty"`
 	Options     []ClarifyOption `json:"options,omitempty"`
 	MultiSelect bool            `json:"multiSelect,omitempty"`

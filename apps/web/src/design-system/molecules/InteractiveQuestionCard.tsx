@@ -6,6 +6,7 @@ import {
   ArrowLeftIcon,
   PaperAirplaneIcon,
   SparklesIcon,
+  QuestionMarkCircleIcon,
 } from "@heroicons/react/24/outline";
 
 export interface InteractiveQuestionCardProps {
@@ -14,14 +15,14 @@ export interface InteractiveQuestionCardProps {
   onSubmit: (answerText: string) => void;
 }
 
-export const InteractiveQuestionCard: React.FC<InteractiveQuestionCardProps> = ({
-  questions,
-  disabled = false,
-  onSubmit,
-}) => {
+export const InteractiveQuestionCard: React.FC<
+  InteractiveQuestionCardProps
+> = ({ questions, disabled = false, onSubmit }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [answers, setAnswers] = useState<Record<number, string>>({});
-  const [selectedMulti, setSelectedMulti] = useState<Record<number, number[]>>({});
+  const [selectedMulti, setSelectedMulti] = useState<Record<number, number[]>>(
+    {},
+  );
   const [customText, setCustomText] = useState("");
 
   if (!questions || questions.length === 0) return null;
@@ -30,6 +31,13 @@ export const InteractiveQuestionCard: React.FC<InteractiveQuestionCardProps> = (
   const isMulti = currentQ.multiSelect === true;
   const isLastStep = currentStep === questions.length - 1;
   const options = currentQ.options || [];
+
+  // Trích xuất nội dung câu hỏi rõ ràng (fallback prompt -> question -> header -> mặc định)
+  const questionPrompt =
+    currentQ.prompt ||
+    currentQ.question ||
+    currentQ.header ||
+    "Vui lòng chọn phương án phù hợp để tiếp tục:";
 
   const handleSingleSelect = (label: string) => {
     if (disabled) return;
@@ -43,7 +51,10 @@ export const InteractiveQuestionCard: React.FC<InteractiveQuestionCardProps> = (
 
     if (isLastStep) {
       const summary = questions
-        .map((q, idx) => `${q.header || q.prompt}: ${nextAnswers[idx] || label}`)
+        .map(
+          (q, idx) =>
+            `${q.header || q.prompt || q.question || `Câu hỏi ${idx + 1}`}: ${nextAnswers[idx] || label}`,
+        )
         .join("\n");
       onSubmit(summary);
     } else {
@@ -64,7 +75,9 @@ export const InteractiveQuestionCard: React.FC<InteractiveQuestionCardProps> = (
   const handleMultiSubmit = () => {
     if (disabled) return;
     const selectedIdxs = selectedMulti[currentStep] || [];
-    const selectedLabels = selectedIdxs.map((i) => options[i]?.label).filter(Boolean);
+    const selectedLabels = selectedIdxs
+      .map((i) => options[i]?.label)
+      .filter(Boolean);
     if (customText.trim()) {
       selectedLabels.push(customText.trim());
     }
@@ -82,7 +95,10 @@ export const InteractiveQuestionCard: React.FC<InteractiveQuestionCardProps> = (
 
     if (isLastStep) {
       const summary = questions
-        .map((q, idx) => `${q.header || q.prompt}: ${nextAnswers[idx] || answerStr}`)
+        .map(
+          (q, idx) =>
+            `${q.header || q.prompt || q.question || `Câu hỏi ${idx + 1}`}: ${nextAnswers[idx] || answerStr}`,
+        )
         .join("\n");
       onSubmit(summary);
     } else {
@@ -97,35 +113,42 @@ export const InteractiveQuestionCard: React.FC<InteractiveQuestionCardProps> = (
   };
 
   return (
-    <div className="my-4 rounded-2xl border border-primary/20 bg-card/90 backdrop-blur-md p-4 shadow-lg transition-all">
-      {/* Header */}
+    <div className="my-4 rounded-2xl border border-primary/30 bg-card/95 backdrop-blur-md p-4 sm:p-5 shadow-xl transition-all">
+      {/* Top Header with Category & Step counter */}
       <div className="flex items-center justify-between border-b border-border/60 pb-3 mb-3.5">
         <div className="flex items-center gap-2">
           <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
             <SparklesIcon className="h-4 w-4" />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-primary uppercase tracking-wider">
-                {currentQ.header || "Làm rõ kế hoạch"}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-primary">
+              {currentQ.header || "Làm rõ yêu cầu & Kế hoạch"}
+            </span>
+            {isMulti && (
+              <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                Chọn nhiều
               </span>
-              {isMulti && (
-                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
-                  Chọn nhiều
-                </span>
-              )}
-            </div>
-            <h4 className="text-sm font-medium text-foreground mt-0.5">
-              {currentQ.prompt}
-            </h4>
+            )}
           </div>
         </div>
 
         {questions.length > 1 && (
-          <span className="text-xs font-medium text-muted-foreground bg-muted/60 px-2.5 py-1 rounded-full">
-            Bước {currentStep + 1} / {questions.length}
+          <span className="text-xs font-semibold text-muted-foreground bg-muted/80 px-2.5 py-1 rounded-full border border-border/50">
+            Câu {currentStep + 1} / {questions.length}
           </span>
         )}
+      </div>
+
+      {/* Prominent Question Prompt Box */}
+      <div className="mb-4 rounded-xl bg-primary/5 border border-primary/20 p-3.5 flex items-start gap-2.5">
+        <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-primary/20 text-primary">
+          <QuestionMarkCircleIcon className="h-4 w-4" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <h4 className="text-sm font-semibold text-foreground leading-snug">
+            {questionPrompt}
+          </h4>
+        </div>
       </div>
 
       {/* Options List */}
@@ -137,16 +160,18 @@ export const InteractiveQuestionCard: React.FC<InteractiveQuestionCardProps> = (
               key={`${idx}-${opt.label}`}
               type="button"
               disabled={disabled}
-              onClick={() => (isMulti ? toggleMultiOption(idx) : handleSingleSelect(opt.label))}
-              className={`w-full group text-left rounded-xl border p-3 transition-all duration-200 flex items-start justify-between gap-3 ${
+              onClick={() =>
+                isMulti ? toggleMultiOption(idx) : handleSingleSelect(opt.label)
+              }
+              className={`w-full group text-left rounded-xl border p-3 sm:p-3.5 transition-all duration-200 flex items-start justify-between gap-3 ${
                 isChecked
-                  ? "border-primary bg-primary/10 shadow-sm"
-                  : "border-border/70 hover:border-primary/50 hover:bg-accent/40"
+                  ? "border-primary bg-primary/15 shadow-sm ring-1 ring-primary/40"
+                  : "border-border/80 bg-background/50 hover:border-primary/60 hover:bg-accent/40"
               } ${disabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
             >
-              <div className="flex items-start gap-2.5 min-w-0">
+              <div className="flex items-start gap-3 min-w-0">
                 <div
-                  className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-xs font-semibold transition-colors ${
+                  className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-xs font-bold transition-colors ${
                     isChecked
                       ? "bg-primary text-primary-foreground"
                       : "bg-muted text-muted-foreground group-hover:bg-primary/20 group-hover:text-primary"
@@ -164,12 +189,12 @@ export const InteractiveQuestionCard: React.FC<InteractiveQuestionCardProps> = (
                 </div>
 
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-foreground group-hover:text-primary transition-colors">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-bold text-foreground group-hover:text-primary transition-colors">
                       {opt.label}
                     </span>
                     {opt.recommended && (
-                      <span className="rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+                      <span className="rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
                         Khuyến nghị
                       </span>
                     )}
@@ -183,14 +208,14 @@ export const InteractiveQuestionCard: React.FC<InteractiveQuestionCardProps> = (
               </div>
 
               {!isMulti && (
-                <ArrowRightIcon className="h-4 w-4 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all text-primary" />
+                <ArrowRightIcon className="h-4 w-4 shrink-0 text-muted-foreground opacity-40 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all text-primary" />
               )}
             </button>
           );
         })}
       </div>
 
-      {/* Free-text Write-in Escape Hatch */}
+      {/* Free-text Write-in Input */}
       <div className="mt-3 pt-3 border-t border-border/50 flex items-center gap-2">
         <input
           type="text"
@@ -207,7 +232,7 @@ export const InteractiveQuestionCard: React.FC<InteractiveQuestionCardProps> = (
               }
             }
           }}
-          placeholder="Hoặc nhập phương án / yêu cầu riêng của bạn..."
+          placeholder="Hoặc nhập phương án / ý kiến riêng của bạn..."
           className="flex-1 rounded-xl border border-border/70 bg-background/80 px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
         />
 
@@ -216,7 +241,7 @@ export const InteractiveQuestionCard: React.FC<InteractiveQuestionCardProps> = (
             type="button"
             disabled={disabled || !customText.trim()}
             onClick={handleCustomTextSubmit}
-            className="flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-xs font-medium text-primary-foreground transition-all hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground transition-all hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <span>Gửi</span>
             <PaperAirplaneIcon className="h-3.5 w-3.5" />
@@ -224,7 +249,7 @@ export const InteractiveQuestionCard: React.FC<InteractiveQuestionCardProps> = (
         )}
       </div>
 
-      {/* Wizard Footer (Cho Multi-select hoặc Multi-step) */}
+      {/* Wizard Navigation Footer (Multi-select or Multi-step) */}
       {(isMulti || questions.length > 1) && (
         <div className="mt-3 pt-2.5 flex items-center justify-between">
           {currentStep > 0 ? (
@@ -232,7 +257,7 @@ export const InteractiveQuestionCard: React.FC<InteractiveQuestionCardProps> = (
               type="button"
               disabled={disabled}
               onClick={() => setCurrentStep((s) => Math.max(0, s - 1))}
-              className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+              className="flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
             >
               <ArrowLeftIcon className="h-3.5 w-3.5" />
               Quay lại
@@ -246,10 +271,11 @@ export const InteractiveQuestionCard: React.FC<InteractiveQuestionCardProps> = (
               type="button"
               disabled={
                 disabled ||
-                ((selectedMulti[currentStep] || []).length === 0 && !customText.trim())
+                ((selectedMulti[currentStep] || []).length === 0 &&
+                  !customText.trim())
               }
               onClick={handleMultiSubmit}
-              className="flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow-sm hover:bg-primary/90 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             >
               <span>
                 {isLastStep

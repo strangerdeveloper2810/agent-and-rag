@@ -188,6 +188,11 @@ func nodeTools(ctx context.Context, eng toolsEngine, s *State, emit EmitFunc) (N
 					Questions []ClarifyQuestion `json:"questions"`
 				}
 				if err := json.Unmarshal(rep.Args, &askPayload); err == nil && len(askPayload.Questions) > 0 {
+					for i := range askPayload.Questions {
+						if askPayload.Questions[i].Prompt == "" && askPayload.Questions[i].Question != "" {
+							askPayload.Questions[i].Prompt = askPayload.Questions[i].Question
+						}
+					}
 					emit(AskUserEvent(askPayload.Questions))
 				}
 			}

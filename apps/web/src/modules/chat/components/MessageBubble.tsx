@@ -438,12 +438,15 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         )}
 
         {/* Suggestion Chips (Follow-up Questions) */}
-        {suggestions && suggestions.length > 0 && !streaming && onSelectSuggestion && (
-          <SuggestionChips
-            suggestions={suggestions}
-            onSelect={onSelectSuggestion}
-          />
-        )}
+        {suggestions &&
+          suggestions.length > 0 &&
+          !streaming &&
+          onSelectSuggestion && (
+            <SuggestionChips
+              suggestions={suggestions}
+              onSelect={onSelectSuggestion}
+            />
+          )}
 
         {/* Token Usage Footer */}
         {usage && !streaming && <UsageFooter usage={usage} />}

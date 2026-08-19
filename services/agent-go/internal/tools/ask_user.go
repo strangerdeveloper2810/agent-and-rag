@@ -66,10 +66,11 @@ func (t *AskUserTool) Kind() Kind { return KindRead }
 // AskUserArgs đại diện cho arguments gửi vào tool ask_user.
 type AskUserArgs struct {
 	Questions []struct {
-		ID      string `json:"id,omitempty"`
-		Prompt  string `json:"prompt"`
-		Header  string `json:"header,omitempty"`
-		Options []struct {
+		ID       string `json:"id,omitempty"`
+		Prompt   string `json:"prompt"`
+		Question string `json:"question,omitempty"`
+		Header   string `json:"header,omitempty"`
+		Options  []struct {
 			Label       string `json:"label"`
 			Description string `json:"description,omitempty"`
 			Recommended bool   `json:"recommended,omitempty"`
@@ -91,7 +92,14 @@ func (t *AskUserTool) Execute(_ context.Context, rawArgs json.RawMessage) (Resul
 	var summary strings.Builder
 	summary.WriteString(fmt.Sprintf("Đã gửi %d câu hỏi làm rõ cho người dùng:", len(args.Questions)))
 	for i, q := range args.Questions {
-		summary.WriteString(fmt.Sprintf("\n%d. %s", i+1, q.Prompt))
+		qText := q.Prompt
+		if qText == "" {
+			qText = q.Question
+		}
+		if qText == "" {
+			qText = q.Header
+		}
+		summary.WriteString(fmt.Sprintf("\n%d. %s", i+1, qText))
 		if len(q.Options) > 0 {
 			opts := make([]string, 0, len(q.Options))
 			for _, o := range q.Options {

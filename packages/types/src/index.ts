@@ -57,7 +57,8 @@ export interface ClarifyOption {
 
 export interface ClarifyQuestion {
   id?: string;
-  prompt: string;
+  prompt?: string;
+  question?: string;
   header?: string;
   options?: ClarifyOption[];
   multiSelect?: boolean;

@@ -461,126 +461,140 @@ export const ChatPage: React.FC = () => {
     scrollToBottom(false, streaming);
   }, [messages, scrollToBottom, streaming]);
 
-  const send = async (text?: string) => {
-    const rawContent = (text ?? input).trim();
-    if ((!rawContent && attachments.length === 0) || streaming) return;
+  const send = useCallback(
+    async (text?: string) => {
+      const rawContent = (text ?? input).trim();
+      if ((!rawContent && attachments.length === 0) || streaming) return;
 
-    if (rawContent) {
-      const validation = validateComposerInput(rawContent);
-      if (!validation.valid) {
-        toast.error(validation.error);
-        return;
-      }
-    }
-
-    const content = rawContent;
-    setInput("");
-    const snapAttachments = [...attachments];
-    setAttachments([]);
-
-    const attachmentMeta: AttachmentMeta[] = snapAttachments.map(pendingToMeta);
-
-    let convId = id;
-    // Khai báo ngoài try để block finally dọn được tool còn treo "running".
-    const assistantIndex = messages.length + 1;
-    try {
-      if (!convId) {
-        const title = content || snapAttachments[0]?.name || "Attachment";
-        const conv = await createConversation(title);
-        convId = conv._id;
-        isCreatingNewConvRef.current = convId;
-        loadedIdRef.current = convId;
-        navigate(`/messages/${convId}`);
-        reloadConversations();
-      }
-
-      if (!convId) return;
-
-      const attachmentPayloads: AttachmentPayload[] = await Promise.all(
-        snapAttachments.map(pendingToPayload),
-      );
-
-      setMessages((m) => [
-        ...m,
-        {
-          role: "user",
-          content,
-          attachments: attachmentMeta,
-        },
-        { role: "assistant", content: "" },
-      ]);
-      setStreaming(true);
-
-      const ctrl = new AbortController();
-      streamCtrlRef.current = ctrl;
-
-      await streamChat(
-        convId,
-        content,
-        (e: ChatEvent) => {
-          if (loadedIdRef.current !== convId) return;
-          handleStreamEvent(e, assistantIndex);
-        },
-        ctrl.signal,
-        attachmentPayloads.length > 0 ? attachmentPayloads : undefined,
-        i18n.language,
-      );
-    } catch (err) {
-      if ((err as Error)?.name !== "AbortError") {
-        updateMeta(assistantIndex, (prev) => ({
-          ...prev,
-          hasError: true,
-        }));
-        setMessages((m) => {
-          if (m.length > 0 && m[m.length - 1].role === "assistant") {
-            const copy = [...m];
-            copy[copy.length - 1] = {
-              ...copy[copy.length - 1],
-              content:
-                copy[copy.length - 1].content +
-                "\n\n" +
-                t("chatPage.sendFailed"),
-            };
-            return copy;
-          }
-          return [
-            ...m,
-            {
-              role: "assistant",
-              content: t("chatPage.sendFailed"),
-            },
-          ];
-        });
-        setInput((prev) => prev || content);
-        if (snapAttachments.length > 0) {
-          setAttachments(snapAttachments);
+      if (rawContent) {
+        const validation = validateComposerInput(rawContent);
+        if (!validation.valid) {
+          toast.error(validation.error);
+          return;
         }
-        userScrolledUpRef.current = false;
       }
-    } finally {
-      streamCtrlRef.current = null;
-      setStreaming(false);
-      // Dọn tool còn treo ở trạng thái "running". Stream đã kết thúc (xong,
-      // lỗi, hoặc user bấm Stop) nên không còn event tool_end nào tới nữa —
-      // nếu không dọn, card tool hiển thị "Đang thực thi N công cụ..." kèm
-      // spinner VĨNH VIỄN dù đã dừng từ lâu.
-      updateMeta(assistantIndex, (prev) => {
-        if (!prev.toolCalls.some((tc) => tc.status === "running")) return prev;
-        return {
-          ...prev,
-          toolCalls: prev.toolCalls.map((tc) =>
-            tc.status === "running"
-              ? {
-                  ...tc,
-                  status: "error",
-                  error: t("chatPage.toolStoppedBeforeComplete"),
-                }
-              : tc,
-          ),
-        };
-      });
-    }
-  };
+
+      const content = rawContent;
+      setInput("");
+      const snapAttachments = [...attachments];
+      setAttachments([]);
+
+      const attachmentMeta: AttachmentMeta[] =
+        snapAttachments.map(pendingToMeta);
+
+      let convId = id;
+      // Khai báo ngoài try để block finally dọn được tool còn treo "running".
+      const assistantIndex = messages.length + 1;
+      try {
+        if (!convId) {
+          const title = content || snapAttachments[0]?.name || "Attachment";
+          const conv = await createConversation(title);
+          convId = conv._id;
+          isCreatingNewConvRef.current = convId;
+          loadedIdRef.current = convId;
+          navigate(`/messages/${convId}`);
+          reloadConversations();
+        }
+
+        if (!convId) return;
+
+        const attachmentPayloads: AttachmentPayload[] = await Promise.all(
+          snapAttachments.map(pendingToPayload),
+        );
+
+        setMessages((m) => [
+          ...m,
+          {
+            role: "user",
+            content,
+            attachments: attachmentMeta,
+          },
+          { role: "assistant", content: "" },
+        ]);
+        setStreaming(true);
+
+        const ctrl = new AbortController();
+        streamCtrlRef.current = ctrl;
+
+        await streamChat(
+          convId,
+          content,
+          (e: ChatEvent) => {
+            if (loadedIdRef.current !== convId) return;
+            handleStreamEvent(e, assistantIndex);
+          },
+          ctrl.signal,
+          attachmentPayloads.length > 0 ? attachmentPayloads : undefined,
+          i18n.language,
+        );
+      } catch (err) {
+        if ((err as Error)?.name !== "AbortError") {
+          updateMeta(assistantIndex, (prev) => ({
+            ...prev,
+            hasError: true,
+          }));
+          setMessages((m) => {
+            if (m.length > 0 && m[m.length - 1].role === "assistant") {
+              const copy = [...m];
+              copy[copy.length - 1] = {
+                ...copy[copy.length - 1],
+                content:
+                  copy[copy.length - 1].content +
+                  "\n\n" +
+                  t("chatPage.sendFailed"),
+              };
+              return copy;
+            }
+            return [
+              ...m,
+              {
+                role: "assistant",
+                content: t("chatPage.sendFailed"),
+              },
+            ];
+          });
+          setInput((prev) => prev || content);
+          if (snapAttachments.length > 0) {
+            setAttachments(snapAttachments);
+          }
+          userScrolledUpRef.current = false;
+        }
+      } finally {
+        streamCtrlRef.current = null;
+        setStreaming(false);
+        updateMeta(assistantIndex, (prev) => {
+          if (!prev.toolCalls.some((tc) => tc.status === "running"))
+            return prev;
+          return {
+            ...prev,
+            toolCalls: prev.toolCalls.map((tc) =>
+              tc.status === "running"
+                ? {
+                    ...tc,
+                    status: "error",
+                    error: t("chatPage.toolStoppedBeforeComplete"),
+                  }
+                : tc,
+            ),
+          };
+        });
+      }
+    },
+    [
+      input,
+      attachments,
+      streaming,
+      id,
+      messages.length,
+      navigate,
+      reloadConversations,
+      handleStreamEvent,
+      i18n.language,
+      updateMeta,
+      t,
+      toast,
+    ],
+  );
 
   const stopGeneration = () => {
     streamCtrlRef.current?.abort();

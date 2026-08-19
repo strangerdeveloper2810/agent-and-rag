@@ -184,13 +184,17 @@ function normalizeEvent(raw: Record<string, unknown>): ChatEvent | null {
   if (type === "ask_user") {
     return {
       type: "ask_user",
-      questions: Array.isArray(raw.questions) ? (raw.questions as ClarifyQuestion[]) : [],
+      questions: Array.isArray(raw.questions)
+        ? (raw.questions as ClarifyQuestion[])
+        : [],
     };
   }
   if (type === "suggestions") {
     return {
       type: "suggestions",
-      suggestions: Array.isArray(raw.suggestions) ? (raw.suggestions as string[]) : [],
+      suggestions: Array.isArray(raw.suggestions)
+        ? (raw.suggestions as string[])
+        : [],
     };
   }
   if (type === "citation") return { type: "citation", text: str("text") };

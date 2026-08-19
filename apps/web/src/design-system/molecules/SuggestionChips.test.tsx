@@ -4,10 +4,7 @@ import SuggestionChips from "./SuggestionChips";
 
 describe("SuggestionChips", () => {
   it("renders suggestions and calls onSelect when clicked", () => {
-    const suggestions = [
-      "Chi tiết kiến trúc DB",
-      "Thiết kế RESTful API",
-    ];
+    const suggestions = ["Chi tiết kiến trúc DB", "Thiết kế RESTful API"];
 
     const onSelect = vi.fn();
     render(<SuggestionChips suggestions={suggestions} onSelect={onSelect} />);
@@ -21,7 +18,9 @@ describe("SuggestionChips", () => {
   });
 
   it("renders null when suggestions is empty", () => {
-    const { container } = render(<SuggestionChips suggestions={[]} onSelect={vi.fn()} />);
+    const { container } = render(
+      <SuggestionChips suggestions={[]} onSelect={vi.fn()} />,
+    );
     expect(container.firstChild).toBeNull();
   });
 });

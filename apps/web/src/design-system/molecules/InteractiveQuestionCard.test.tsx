@@ -10,7 +10,11 @@ describe("InteractiveQuestionCard", () => {
         prompt: "Chọn framework mục tiêu?",
         header: "Tech Stack",
         options: [
-          { label: "React / Next.js", description: "Dành cho Web", recommended: true },
+          {
+            label: "React / Next.js",
+            description: "Dành cho Web",
+            recommended: true,
+          },
           { label: "Flutter", description: "Dành cho Mobile" },
         ],
         multiSelect: false,
@@ -18,7 +22,9 @@ describe("InteractiveQuestionCard", () => {
     ];
 
     const onSubmit = vi.fn();
-    render(<InteractiveQuestionCard questions={questions} onSubmit={onSubmit} />);
+    render(
+      <InteractiveQuestionCard questions={questions} onSubmit={onSubmit} />,
+    );
 
     expect(screen.getByText("Tech Stack")).toBeInTheDocument();
     expect(screen.getByText("Chọn framework mục tiêu?")).toBeInTheDocument();
@@ -39,7 +45,9 @@ describe("InteractiveQuestionCard", () => {
     ];
 
     const onSubmit = vi.fn();
-    render(<InteractiveQuestionCard questions={questions} onSubmit={onSubmit} />);
+    render(
+      <InteractiveQuestionCard questions={questions} onSubmit={onSubmit} />,
+    );
 
     const input = screen.getByPlaceholderText(/Hoặc nhập phương án/i);
     fireEvent.change(input, { target: { value: "Python FastAPI" } });
@@ -62,7 +70,9 @@ describe("InteractiveQuestionCard", () => {
     ];
 
     const onSubmit = vi.fn();
-    render(<InteractiveQuestionCard questions={questions} onSubmit={onSubmit} />);
+    render(
+      <InteractiveQuestionCard questions={questions} onSubmit={onSubmit} />,
+    );
 
     expect(screen.getByText("Chọn nhiều")).toBeInTheDocument();
 
@@ -92,7 +102,9 @@ describe("InteractiveQuestionCard", () => {
     ];
 
     const onSubmit = vi.fn();
-    render(<InteractiveQuestionCard questions={questions} onSubmit={onSubmit} />);
+    render(
+      <InteractiveQuestionCard questions={questions} onSubmit={onSubmit} />,
+    );
 
     expect(screen.getByText("Bước 1 / 2")).toBeInTheDocument();
     expect(screen.getByText("Bước 1: Chọn OS?")).toBeInTheDocument();
