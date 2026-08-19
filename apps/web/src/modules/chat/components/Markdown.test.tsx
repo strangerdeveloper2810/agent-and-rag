@@ -28,4 +28,14 @@ describe("Markdown code block copy button", () => {
     renderMarkdown();
     expect(screen.getByText("Copy")).toBeInTheDocument();
   });
+
+  it("renders Mermaid diagram block for mermaid code block", () => {
+    const MERMAID_CONTENT = "```mermaid\ngraph TD\nA --> B\n```";
+    render(
+      <I18nextProvider i18n={i18n}>
+        <Markdown content={MERMAID_CONTENT} />
+      </I18nextProvider>,
+    );
+    expect(screen.getByText(/Sơ đồ kiến trúc/i)).toBeInTheDocument();
+  });
 });

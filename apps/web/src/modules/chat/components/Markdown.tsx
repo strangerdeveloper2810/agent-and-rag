@@ -3,6 +3,25 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ClipboardDocumentIcon, CheckIcon } from "@heroicons/react/24/outline";
 import { useTranslation } from "react-i18next";
+import { MermaidBlock } from "@/design-system/molecules/MermaidBlock";
+
+function isMermaidCode(code: string, givenLang?: string): boolean {
+  if (givenLang?.toLowerCase() === "mermaid") return true;
+  const trimmed = code.trim();
+  return (
+    trimmed.startsWith("graph ") ||
+    trimmed.startsWith("flowchart ") ||
+    trimmed.startsWith("sequenceDiagram") ||
+    trimmed.startsWith("classDiagram") ||
+    trimmed.startsWith("stateDiagram") ||
+    trimmed.startsWith("erDiagram") ||
+    trimmed.startsWith("gantt") ||
+    trimmed.startsWith("pie") ||
+    trimmed.startsWith("mindmap") ||
+    trimmed.startsWith("gitGraph") ||
+    trimmed.startsWith("C4Context")
+  );
+}
 
 function detectLanguage(code: string, givenLang?: string): string {
   if (givenLang && givenLang !== "code") return givenLang;
@@ -144,7 +163,13 @@ const components: Components = {
         </code>
       );
     }
-    return <CodeBlock language={match?.[1]} code={codeStr} />;
+
+    const lang = match?.[1];
+    if (isMermaidCode(codeStr, lang)) {
+      return <MermaidBlock code={codeStr} />;
+    }
+
+    return <CodeBlock language={lang} code={codeStr} />;
   },
   pre: ({ children }) => <>{children}</>,
   h1: ({ children }) => (
