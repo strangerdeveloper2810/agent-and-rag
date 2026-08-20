@@ -12,8 +12,7 @@ import { getPgPool } from "../../../database/postgres/postgres.module";
 // fallback "default" chỉ để phòng hờ, không nên xảy ra trong thực tế vì mọi
 // route chat đều có authGuard (xem chat.routes.ts).
 const getTenantId = (req: FastifyRequest): string =>
-  ((req as unknown as Record<string, unknown>).tenantId as string) ??
-  "default";
+  ((req as unknown as Record<string, unknown>).tenantId as string) ?? "default";
 
 export const postConversation = async (req: FastifyRequest) => {
   const tenantId = getTenantId(req);

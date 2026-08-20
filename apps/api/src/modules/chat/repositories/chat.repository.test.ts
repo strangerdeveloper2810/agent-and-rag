@@ -9,10 +9,7 @@ vi.mock("../../../lib/mongo", async (importOriginal) => ({
   isMongoConnected: () => true,
 }));
 
-import {
-  buildConversationDocs,
-  createChatRepository,
-} from "./chat.repository";
+import { buildConversationDocs, createChatRepository } from "./chat.repository";
 import type { ConversationDoc, MessageDoc } from "../../../lib/collections";
 
 describe("buildConversationDoc", () => {
@@ -130,10 +127,7 @@ describe("createChatRepository — tenant isolation", () => {
       () => fakeMessages as unknown as Collection<MessageDoc>,
     );
 
-    await repo.deleteConversation(
-      "tenant-a",
-      "64b7f0000000000000000000",
-    );
+    await repo.deleteConversation("tenant-a", "64b7f0000000000000000000");
 
     expect(fakeMessages.deleteMany).toHaveBeenCalledWith({
       tenantId: "tenant-a",
