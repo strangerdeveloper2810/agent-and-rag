@@ -99,7 +99,12 @@ describe("streamReply", () => {
     ]);
 
     // Text các mảnh được gộp lại rồi lưu 1 lần.
-    expect(repo.addMessage).toHaveBeenCalledWith("c1", "assistant", "Xin chào");
+    expect(repo.addMessage).toHaveBeenCalledWith(
+      "default",
+      "c1",
+      "assistant",
+      "Xin chào",
+    );
 
     // Metadata phải có backend mặc định.
     expect(metadata.backend).toBeDefined();
@@ -128,7 +133,12 @@ describe("streamReply", () => {
     const run = drain(result);
     await expect(run).rejects.toThrow();
     // Nhờ khối finally: phần đã sinh không bị mất.
-    expect(repo.addMessage).toHaveBeenCalledWith("c1", "assistant", "một phần");
+    expect(repo.addMessage).toHaveBeenCalledWith(
+      "default",
+      "c1",
+      "assistant",
+      "một phần",
+    );
   });
 
   it("metadata ghi nhận agent name và tokens từ event done", async () => {
@@ -172,7 +182,12 @@ describe("streamReply", () => {
     expect(events.map((e) => e.type)).toContain("truncated");
     expect(metadata.truncated).toBe(true);
     // Phần text đã sinh vẫn được lưu.
-    expect(repo.addMessage).toHaveBeenCalledWith("c1", "assistant", "một phần");
+    expect(repo.addMessage).toHaveBeenCalledWith(
+      "default",
+      "c1",
+      "assistant",
+      "một phần",
+    );
   });
 
   // Tier 4: FE cần contextTokens/contextBudget (Go tính, gửi qua event done)
@@ -281,6 +296,7 @@ describe("continueReply", () => {
     await drain(result);
 
     expect(repo.appendToLastAssistantMessage).toHaveBeenCalledWith(
+      "default",
       "c1",
       "phần còn lại</html>",
     );
