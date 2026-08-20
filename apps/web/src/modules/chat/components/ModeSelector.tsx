@@ -82,7 +82,11 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
         aria-label={t("modeSelector.selectAria")}
       >
         <ActiveIcon className="h-4 w-4 text-primary" />
-        <span className="font-bold tracking-tight text-foreground">
+        {/* Label đầy đủ ("Auto (Smart Router)") chiếm quá nhiều chỗ trên
+            header mobile — cộng dồn với hamburger + title + LanguageSwitcher +
+            ThemeToggle sẽ tràn ra ngoài viewport 375px (thấy rõ khi test bằng
+            screenshot thật). Icon + chevron vẫn đủ để bấm mở dropdown. */}
+        <span className="hidden sm:inline font-bold tracking-tight text-foreground">
           {activeOption.label}
         </span>
         <ChevronDownIcon
@@ -93,7 +97,12 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
       </Button>
 
       {open && (
-        <div className="glass absolute left-0 top-full z-50 mt-1.5 w-80 rounded-2xl p-2 shadow-2xl animate-scale-in bg-popover text-popover-foreground border border-border">
+        <div className="glass absolute left-1/2 top-full z-50 mt-1.5 w-[min(20rem,calc(100vw-2rem))] -translate-x-1/2 rounded-2xl p-2 shadow-2xl animate-scale-in bg-popover text-popover-foreground border border-border">
+          {/* Căn giữa dropdown theo TÂM của trigger (left-1/2 + -translate-x-1/2)
+              thay vì neo theo mép trái (left-0): trigger nằm giữa header, không
+              sát mép màn hình — neo trái khiến dropdown tràn hẳn ra ngoài mép
+              phải trên mobile dù đã giới hạn max-width (thấy rõ qua screenshot
+              thật ở 375px). */}
           <div className="px-3 py-1.5 mb-1.5 border-b border-border flex items-center justify-between">
             <p className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground">
               {t("modeSelector.menuLabel")}
