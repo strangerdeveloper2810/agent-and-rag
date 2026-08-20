@@ -14,6 +14,7 @@
     "lint": "tsc --noEmit",
     "clean": "rm -rf dist/",
     "migrate:docs": "tsx --env-file=.env src/scripts/backfill-document-versions.ts",
+    "migrate:legacy-tenant": "tsx --env-file=.env src/scripts/backfill-legacy-tenant-id.ts",
     "graph:print": "tsx --env-file=.env src/agent/print-graph.ts"
   },
   "dependencies": {
