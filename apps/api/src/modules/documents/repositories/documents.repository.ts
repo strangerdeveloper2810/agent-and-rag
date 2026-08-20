@@ -26,11 +26,19 @@ export function createDocumentRepository(
   /**
    * Liệt kê tài liệu (bản mới nhất) CỦA MỘT TENANT, gom theo documentId.
    * Mỗi chunk cùng documentId chia sẻ source + version nên $first là an toàn.
+   *
+   * Loại bỏ documentId có prefix "learned-": đây là tri thức agent-go TỰ HỌC
+   * từ hội thoại (xem services/agent-go/internal/memory/learner.go, hàm
+   * saveKnowledgeItemToMongo — ghi thẳng vào collection `documents` để
+   * ragSearch/searchSimilar vẫn dùng được khi trả lời), KHÔNG phải file user
+   * upload. User không có nhu cầu xem/quản lý mục này qua màn hình Documents
+   * — chỉ cần nó không hiện lẫn với file họ tự upload. searchSimilar bên dưới
+   * KHÔNG loại trừ, để agent vẫn recall được tri thức đã tự học khi trả lời.
    */
   const listDocuments = async (tenantId: string) =>
     docs()
       .aggregate([
-        { $match: { tenantId } },
+        { $match: { tenantId, documentId: { $not: /^learned-/ } } },
         {
           $group: {
             _id: "$documentId",
