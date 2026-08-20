@@ -43,10 +43,17 @@ func TestNew_ZeroCooldownKept(t *testing.T) {
 	}
 }
 
-// Provider đầu trả stream RỖNG (đóng ngay) → coi là thành công, không failover.
-func TestGenerate_EmptyStreamCountsAsSuccess(t *testing.T) {
+// Provider đầu trả stream RỖNG (đóng ngay, không text/tool call) → PHẢI
+// failover sang provider kế tiếp, KHÔNG được coi là thành công.
+//
+// Trước đây: 1 chunk rỗng/đóng kênh ngay được coi là "thành công" — đúng bug
+// gặp trong log production (Gemini trả 200 kèm content rỗng, KHÔNG failover
+// sang DeepSeek/Anthropic, user nhận lỗi dù còn nguyên chuỗi fallback phía
+// sau chưa thử).
+func TestGenerate_EmptyStreamTriggersFailover(t *testing.T) {
 	fb, err := New(time.Second, provider.NewFake(), provider.NewFake(
 		provider.StreamChunk{Kind: provider.ChunkText, Text: "fallback"},
+		provider.StreamChunk{Kind: provider.ChunkDone},
 	))
 	if err != nil {
 		t.Fatalf("New: %v", err)
@@ -57,15 +64,90 @@ func TestGenerate_EmptyStreamCountsAsSuccess(t *testing.T) {
 		t.Fatalf("Generate: %v", err)
 	}
 
-	n := 0
-	for range stream {
-		n++
+	var text string
+	for ch := range stream {
+		if ch.Kind == provider.ChunkText {
+			text += ch.Text
+		}
 	}
-	if n != 0 {
-		t.Errorf("nhận %d chunk, want 0 (stream rỗng của provider đầu)", n)
+	if text != "fallback" {
+		t.Errorf("text = %q, want %q (phải failover sang provider kế tiếp)", text, "fallback")
+	}
+	if s := fb.Status(); s[0].Failures != 1 {
+		t.Errorf("provider đầu (rỗng) phải bị tính lỗi: %+v", s[0])
+	}
+}
+
+// Tất cả provider đều trả stream rỗng → Generate() phải trả lỗi, không được
+// âm thầm trả 1 câu trả lời rỗng cho caller.
+func TestGenerate_AllEmptyReturnsError(t *testing.T) {
+	fb, err := New(time.Second, provider.NewFake(), provider.NewFake())
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	_, err = fb.Generate(context.Background(), provider.GenerateRequest{})
+	if err == nil {
+		t.Fatal("expected error khi mọi provider đều trả response rỗng")
+	}
+}
+
+// Bị cắt vì max_tokens ngay từ đầu (finish=length, không sinh được token nào)
+// KHÔNG được coi là "rỗng" — đây không phải lỗi provider, phải forward
+// nguyên trạng để node_model.go tự set Truncated như cũ.
+func TestGenerate_TruncatedEmptyIsNotRetried(t *testing.T) {
+	fb, err := New(time.Second, provider.NewFake(
+		provider.StreamChunk{Kind: provider.ChunkDone, FinishReason: provider.FinishLength},
+	), provider.NewFake(
+		provider.StreamChunk{Kind: provider.ChunkText, Text: "không nên chạy tới đây"},
+	))
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	stream, err := fb.Generate(context.Background(), provider.GenerateRequest{})
+	if err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	var chunks []provider.StreamChunk
+	for ch := range stream {
+		chunks = append(chunks, ch)
+	}
+	if len(chunks) != 1 || chunks[0].FinishReason != provider.FinishLength {
+		t.Errorf("chunks = %+v, want đúng 1 chunk ChunkDone finish=length được forward", chunks)
 	}
 	if s := fb.Status(); s[0].Failures != 0 {
-		t.Errorf("provider đầu bị tính lỗi: %+v", s[0])
+		t.Errorf("provider bị cắt vì max_tokens không được tính lỗi: %+v", s[0])
+	}
+}
+
+// Nội dung thật đến ở chunk THỨ HAI trở đi (vd sau 1 chunk usage) vẫn phải
+// được nhận diện là thành công, không bị coi nhầm là rỗng.
+func TestGenerate_ContentOnLaterChunkStillCommits(t *testing.T) {
+	fb, err := New(time.Second, provider.NewFake(
+		provider.StreamChunk{Kind: provider.ChunkUsage, Usage: &provider.Usage{InputTokens: 10}},
+		provider.StreamChunk{Kind: provider.ChunkText, Text: "trễ nhưng vẫn có"},
+		provider.StreamChunk{Kind: provider.ChunkDone},
+	), provider.NewFake())
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	stream, err := fb.Generate(context.Background(), provider.GenerateRequest{})
+	if err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	var text string
+	for ch := range stream {
+		if ch.Kind == provider.ChunkText {
+			text += ch.Text
+		}
+	}
+	if text != "trễ nhưng vẫn có" {
+		t.Errorf("text = %q, want %q", text, "trễ nhưng vẫn có")
+	}
+	if s := fb.Status(); s[0].Failures != 0 {
+		t.Errorf("provider có nội dung (dù đến trễ) không được tính lỗi: %+v", s[0])
 	}
 }
 
@@ -179,20 +261,63 @@ func TestIsRetryable(t *testing.T) {
 	}
 }
 
-func TestEmptyStream_IsClosed(t *testing.T) {
-	ch := emptyStream()
-	if _, open := <-ch; open {
-		t.Error("emptyStream() phải trả channel đã đóng")
+// isDailyQuotaExhausted phải nhận diện đúng lỗi cạn quota theo NGÀY của
+// Gemini — dùng nguyên văn rút gọn từ log production 2026-08-20, quotaId
+// "GenerateRequestsPerDayPerProjectPerModel-FreeTier" là 1 identifier
+// camelCase KHÔNG có khoảng trắng, trước đây không khớp pattern "per day".
+func TestIsDailyQuotaExhausted(t *testing.T) {
+	cases := map[string]bool{
+		"Error 429, Message: You exceeded your current quota... Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash-lite... quotaId:GenerateRequestsPerDayPerProjectPerModel-FreeTier quotaMetric:generativelanguage.googleapis.com/generate_content_free_tier_requests": true,
+		"429 rate limit, retry in 2s (per-minute limit)":    false,
+		"Rate limit exceeded, resets daily at midnight UTC": true,
+		"quota RPD exceeded":                                true,
+		"context canceled":                                  false,
+	}
+	for msg, want := range cases {
+		if got := isDailyQuotaExhausted(errors.New(msg)); got != want {
+			t.Errorf("isDailyQuotaExhausted(%q) = %v, want %v", msg, got, want)
+		}
+	}
+	if isDailyQuotaExhausted(nil) {
+		t.Error("isDailyQuotaExhausted(nil) = true, want false")
 	}
 }
 
-func TestReplayStream_ReplaysFirstThenRest(t *testing.T) {
+// Lỗi cạn quota theo ngày phải bị khoá cooldown 2 tiếng (không phải cooldown
+// ngắn thông thường) — nếu không hệ thống cứ dò lại provider đã cạn quota cả
+// ngày mỗi vài phút, đúng như log production cho thấy.
+func TestRecordFailure_DailyQuotaExhaustedGetsTwoHourCooldown(t *testing.T) {
+	// "429" để isRetryable() = true (tới được recordFailure); quotaId là
+	// nguyên văn định dạng thật Gemini trả về khi cạn quota theo ngày.
+	dailyErr := errors.New("429 quotaId:GenerateRequestsPerDayPerProjectPerModel-FreeTier")
+	primary := &errorProvider{name: "gemini", err: dailyErr}
+	secondary := provider.NewFake(
+		provider.StreamChunk{Kind: provider.ChunkText, Text: "ok"},
+		provider.StreamChunk{Kind: provider.ChunkDone},
+	)
+
+	fb, err := New(time.Second, primary, secondary)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if _, err := fb.Generate(context.Background(), provider.GenerateRequest{}); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+
+	coolUntil := fb.chain[0].coolUntil.Load()
+	wantMin := time.Now().Add(90 * time.Minute).UnixNano() // > 5 phút cooldown thường, gần 2h
+	if coolUntil < wantMin {
+		t.Errorf("coolUntil quá gần — muốn cooldown ~2h cho lỗi cạn quota theo ngày, got %v", time.Unix(0, coolUntil))
+	}
+}
+
+func TestReplayBuffered_ReplaysBufferedThenRest(t *testing.T) {
 	rest := make(chan provider.StreamChunk, 2)
 	rest <- provider.StreamChunk{Kind: provider.ChunkText, Text: "b"}
 	rest <- provider.StreamChunk{Kind: provider.ChunkDone}
 	close(rest)
 
-	out := replayStream(provider.StreamChunk{Kind: provider.ChunkText, Text: "a"}, rest)
+	out := replayBuffered([]provider.StreamChunk{{Kind: provider.ChunkText, Text: "a"}}, rest)
 
 	var texts []string
 	for ch := range out {
