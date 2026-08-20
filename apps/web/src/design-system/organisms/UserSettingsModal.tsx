@@ -164,6 +164,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
     createMcpServer,
     updateMcpServer,
     deleteMcpServer,
+    testMcpServer,
   } = useMcpServers({ enabled: isOpen });
   const {
     skills,
@@ -224,6 +225,9 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
     id: string;
     name: string;
   } | null>(null);
+  // id server đang test kết nối — chỉ 1 tại 1 thời điểm, disable đúng nút đó
+  // (không disable cả danh sách) trong lúc đợi Go agent phản hồi.
+  const [testingMcpId, setTestingMcpId] = useState<string | null>(null);
   const [pendingDeleteSkill, setPendingDeleteSkill] = useState<{
     id: string;
     name: string;
@@ -381,6 +385,22 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
       await updateMcpServer(id, { enabled });
     } catch (err: any) {
       toast.error(err?.message || "Lỗi cập nhật MCP server");
+    }
+  };
+
+  const handleTestMcpServer = async (id: string) => {
+    setTestingMcpId(id);
+    try {
+      const result = await testMcpServer(id);
+      if (result.ok) {
+        toast.success(t("mcp.testSuccess", { count: result.toolCount ?? 0 }));
+      } else {
+        toast.error(t("mcp.testFailure", { error: result.error ?? "" }));
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Lỗi test kết nối MCP server");
+    } finally {
+      setTestingMcpId(null);
     }
   };
 
@@ -1306,6 +1326,17 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                               : t("mcp.enableAria", { name: server.name })
                           }
                         />
+                        <button
+                          type="button"
+                          onClick={() => handleTestMcpServer(server.id)}
+                          disabled={testingMcpId === server.id}
+                          aria-label={t("mcp.testAria", { name: server.name })}
+                          className="px-2 py-1 rounded-lg text-[11px] font-medium text-muted-foreground border border-border hover:text-foreground hover:border-foreground/40 transition shrink-0 disabled:opacity-60 disabled:pointer-events-none"
+                        >
+                          {testingMcpId === server.id
+                            ? t("mcp.testing")
+                            : t("mcp.testButton")}
+                        </button>
                         <button
                           type="button"
                           onClick={() =>

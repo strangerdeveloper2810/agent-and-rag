@@ -75,8 +75,16 @@ const request = async <T = unknown>(
 ): Promise<T> => {
   const { headers: extraHeaders, skipAuthRefresh, ...fetchOptions } = options;
 
+  // Chỉ set Content-Type khi THỰC SỰ có body — Fastify mặc định reject request
+  // với Content-Type: application/json nhưng body rỗng bằng lỗi
+  // FST_ERR_CTP_EMPTY_JSON_BODY (400), xảy ra TRƯỚC KHI chạm route handler.
+  // api.del() (vd xoá MCP server, xoá skill) không gửi body -- set cứng header
+  // này trước đây khiến MỌI request DELETE luôn bị Fastify chặn với lỗi 400,
+  // dù logic controller/service hoàn toàn đúng.
   const headers: HeadersInit = {
-    "Content-Type": "application/json",
+    ...(fetchOptions.body !== undefined
+      ? { "Content-Type": "application/json" }
+      : {}),
     ...(extraHeaders ?? {}),
   };
 

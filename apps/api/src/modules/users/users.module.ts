@@ -84,6 +84,11 @@ export const usersModule = async (
     { preHandler: [authGuard] },
     controller.deleteMcpServer,
   );
+  app.post(
+    "/api/user/mcp-servers/:id/test-connection",
+    { preHandler: [authGuard] },
+    controller.testMcpServer,
+  );
 
   // ── Skills routes ──
   app.get(

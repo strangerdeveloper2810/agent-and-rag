@@ -102,6 +102,55 @@ export const checkGoAgentHealth = async (): Promise<boolean> => {
   }
 };
 
+// ----- MCP Test Connection -----
+
+export interface McpTestConnectionResult {
+  ok: boolean;
+  toolCount?: number;
+  error?: string;
+}
+
+/**
+ * Gọi POST /mcp/test-connection lên Go agent để kiểm tra 1 MCP server remote
+ * (handshake + list tools) mà không cần chờ hết 1 lượt chat thật. Dùng lại
+ * đúng mcp.DiscoverSSE ở phía Go — không viết lại logic MCP client ở TS.
+ *
+ * ok=false là KẾT QUẢ HỢP LỆ (server cấu hình sai/không phản hồi), không
+ * throw AgentUnavailableError — chỉ throw khi bản thân Go agent không gọi
+ * được (mạng đứt, Go agent down), để phân biệt "server MCP của user lỗi"
+ * với "hệ thống của mình lỗi".
+ */
+export const testMcpConnection = async (
+  name: string,
+  url: string,
+  apiKey?: string,
+): Promise<McpTestConnectionResult> => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 12_000);
+
+  try {
+    const res = await fetch(`${config.AGENT_GO_URL}/mcp/test-connection`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, url, apiKey }),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      throw new AgentUnavailableError(
+        `Go agent trả về lỗi ${res.status} khi test kết nối MCP.`,
+      );
+    }
+    return (await res.json()) as McpTestConnectionResult;
+  } catch (err) {
+    if (err instanceof AgentUnavailableError) throw err;
+    throw new AgentUnavailableError(
+      "Không thể kết nối đến AI agent để test MCP server.",
+    );
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
 // ----- SSE Parser -----
 
 /**

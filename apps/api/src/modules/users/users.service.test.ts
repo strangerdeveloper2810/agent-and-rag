@@ -1,12 +1,23 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { UsersService } from "./users.service";
 import { NotFoundError } from "../../common/errors/app-errors";
 import type { UsersRepository } from "./users.repository";
+import type { UsersService as UsersServiceType } from "./users.service";
+
+// testMcpConnection gọi thật sang Go agent qua fetch — mock để test service
+// không cần network, và để assert đúng arg (name/url/auth_token) được forward.
+vi.mock("../../agent/client/go-agent.client", () => ({
+  testMcpConnection: vi.fn(),
+}));
+
+const { UsersService } = await import("./users.service");
+const { testMcpConnection } =
+  await import("../../agent/client/go-agent.client");
 
 // Fake repo tối giản: chỉ implement những method UsersService thực sự gọi.
 // Dùng `as unknown as UsersRepository` để không phải mock cả class thật.
 const makeFakeRepo = () => ({
   findMcpServers: vi.fn(),
+  findMcpServerById: vi.fn(),
   createMcpServer: vi.fn(),
   updateMcpServer: vi.fn(),
   deleteMcpServer: vi.fn(),
@@ -22,7 +33,7 @@ const userId = "11111111-1111-1111-1111-111111111111";
 
 describe("UsersService — MCP servers", () => {
   let repo: ReturnType<typeof makeFakeRepo>;
-  let service: UsersService;
+  let service: UsersServiceType;
 
   beforeEach(() => {
     repo = makeFakeRepo();
@@ -71,11 +82,56 @@ describe("UsersService — MCP servers", () => {
       service.deleteMcpServer(userId, "own-server"),
     ).resolves.toBeUndefined();
   });
+
+  it("testMcpServer: repo trả null (không thuộc user này) → NotFoundError, KHÔNG gọi Go agent", async () => {
+    repo.findMcpServerById.mockResolvedValue(null);
+    await expect(
+      service.testMcpServer(userId, "server-of-another-user"),
+    ).rejects.toBeInstanceOf(NotFoundError);
+    expect(testMcpConnection).not.toHaveBeenCalled();
+  });
+
+  it("testMcpServer: tra đúng url/auth_token thật từ DB, forward xuống Go agent (KHÔNG nhận từ FE)", async () => {
+    repo.findMcpServerById.mockResolvedValue({
+      id: "own-server",
+      name: "github",
+      url: "https://mcp.github.com",
+      auth_token: "real-secret-token",
+    });
+    vi.mocked(testMcpConnection).mockResolvedValue({ ok: true, toolCount: 5 });
+
+    const result = await service.testMcpServer(userId, "own-server");
+
+    expect(testMcpConnection).toHaveBeenCalledWith(
+      "github",
+      "https://mcp.github.com",
+      "real-secret-token",
+    );
+    expect(result).toEqual({ ok: true, toolCount: 5 });
+  });
+
+  it("testMcpServer: auth_token null trong DB → forward undefined (không phải chuỗi 'null')", async () => {
+    repo.findMcpServerById.mockResolvedValue({
+      id: "own-server",
+      name: "public-server",
+      url: "https://mcp.example.com",
+      auth_token: null,
+    });
+    vi.mocked(testMcpConnection).mockResolvedValue({ ok: true, toolCount: 0 });
+
+    await service.testMcpServer(userId, "own-server");
+
+    expect(testMcpConnection).toHaveBeenCalledWith(
+      "public-server",
+      "https://mcp.example.com",
+      undefined,
+    );
+  });
 });
 
 describe("UsersService — Custom skills", () => {
   let repo: ReturnType<typeof makeFakeRepo>;
-  let service: UsersService;
+  let service: UsersServiceType;
 
   beforeEach(() => {
     repo = makeFakeRepo();

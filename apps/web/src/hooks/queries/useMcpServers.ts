@@ -47,6 +47,12 @@ export interface UpdateMcpServerInput {
   auth_token?: string;
 }
 
+export interface TestMcpServerResult {
+  ok: boolean;
+  toolCount?: number;
+  error?: string;
+}
+
 const fetchMcpServers = async (): Promise<McpServer[]> => {
   const res = await api.get<{ servers: McpServer[] }>("/api/user/mcp-servers");
   return res.servers;
@@ -89,6 +95,15 @@ export const useMcpServers = ({
     onSuccess: invalidate,
   });
 
+  // Không invalidate (không đổi dữ liệu server) — chỉ trả kết quả test tức
+  // thời cho caller tự hiển thị (toast).
+  const testMutation = useMutation({
+    mutationFn: (id: string) =>
+      api.post<TestMcpServerResult>(
+        `/api/user/mcp-servers/${id}/test-connection`,
+      ),
+  });
+
   return {
     mcpServers: query.data ?? [],
     isLoadingMcp: query.isPending && enabled,
@@ -104,6 +119,10 @@ export const useMcpServers = ({
     deleteMcpServer: useCallback(
       (id: string) => deleteMutation.mutateAsync(id),
       [deleteMutation],
+    ),
+    testMcpServer: useCallback(
+      (id: string) => testMutation.mutateAsync(id),
+      [testMutation],
     ),
   };
 };
