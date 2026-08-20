@@ -127,6 +127,14 @@ export class UsersController {
     return reply.status(204).send();
   };
 
+  /** POST /api/user/mcp-servers/:id/test-connection */
+  testMcpServer = async (req: FastifyRequest, reply: FastifyReply) => {
+    const userId = req.user!.sub;
+    const { id } = req.params as { id: string };
+    const result = await this.service.testMcpServer(userId, id);
+    return reply.status(200).send(result);
+  };
+
   // ── Skills ──
 
   /** GET /api/user/skills */

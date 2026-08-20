@@ -449,6 +449,7 @@ func newHTTPHandler(prov provider.Provider, runner agent.Runner, pinger agenthtt
 	}
 	mux.HandleFunc("POST /chat", chatHandler.ServeHTTP)
 	mux.HandleFunc("GET /suggestions", agenthttp.NewSuggestionsHandler(runner).ServeHTTP)
+	mux.HandleFunc("POST /mcp/test-connection", agenthttp.NewMcpTestConnectionHandler())
 
 	var handler http.Handler = mux
 	handler = middleware.TenantMiddleware(handler)

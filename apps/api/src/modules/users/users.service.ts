@@ -1,6 +1,10 @@
 import bcrypt from "bcrypt";
 import type { UserRow } from "../auth/auth.repository";
 import {
+  testMcpConnection,
+  type McpTestConnectionResult,
+} from "../../agent/client/go-agent.client";
+import {
   UsersRepository,
   type UserSettingsRow,
   type McpServerRow,
@@ -141,6 +145,26 @@ export class UsersService {
     if (!deleted) {
       throw new NotFoundError("Không tìm thấy MCP server.");
     }
+  };
+
+  /**
+   * Test kết nối 1 MCP server đã lưu — tra url/auth_token thật từ DB theo
+   * ĐÚNG userId của người gọi (không bao giờ nhận url/token từ FE), forward
+   * sang Go agent (mcp.DiscoverSSE) để handshake + list tools thật.
+   */
+  testMcpServer = async (
+    userId: string,
+    id: string,
+  ): Promise<McpTestConnectionResult> => {
+    const server = await this.repo.findMcpServerById(userId, id);
+    if (!server) {
+      throw new NotFoundError("Không tìm thấy MCP server.");
+    }
+    return testMcpConnection(
+      server.name,
+      server.url,
+      server.auth_token ?? undefined,
+    );
   };
 
   // ── Skills ──
