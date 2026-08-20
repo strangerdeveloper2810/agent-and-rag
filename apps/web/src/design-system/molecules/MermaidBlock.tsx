@@ -64,13 +64,6 @@ export const MermaidBlock: React.FC<MermaidBlockProps> = ({ code }) => {
   const { t, i18n } = useTranslation();
   const isEn = i18n?.language?.startsWith("en") || false;
 
-  // Stable ID that never changes across re-renders for this component instance
-  const idRef = useRef<string | null>(null);
-  if (!idRef.current) {
-    idRef.current = `mermaid-${++mermaidCounter}`;
-  }
-  const diagramId = idRef.current;
-
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showSource, setShowSource] = useState(false);
@@ -85,6 +78,19 @@ export const MermaidBlock: React.FC<MermaidBlockProps> = ({ code }) => {
     let cancelled = false;
     setError(null);
     setRendered(false);
+
+    // ID MỚI cho MỖI lần effect chạy (không dùng id cố định qua idRef như
+    // trước) — trong lúc SSE stream text, `code` (và do đó cleanCode) đổi ở
+    // MỖI token, effect re-run liên tục với code CHƯA HOÀN CHỈNH (chắc chắn
+    // parse error) trước khi tới code cuối cùng hợp lệ. mermaid.render(id, …)
+    // dùng `id` để dựng 1 DOM node tạm — nếu nhiều lần gọi CHIA SẺ CÙNG id
+    // (idRef cũ), `finally` bên dưới của 1 lần gọi CŨ đã bị cancel có thể xoá
+    // đúng lúc node tạm mà lần gọi MỚI (đang chạy, dùng cùng id) cần tới,
+    // khiến ngay cả lần render CUỐI CÙNG với code hợp lệ cũng lỗi
+    // ("getBBox is not a function" / "Cannot read properties of null") dù
+    // cú pháp hoàn toàn đúng — tái hiện được 100% bằng test giả lập streaming
+    // thật. Mỗi lần gọi 1 id riêng loại bỏ hoàn toàn khả năng đụng độ này.
+    const diagramId = `mermaid-${++mermaidCounter}`;
 
     const render = async () => {
       try {
@@ -121,7 +127,7 @@ export const MermaidBlock: React.FC<MermaidBlockProps> = ({ code }) => {
     return () => {
       cancelled = true;
     };
-  }, [cleanCode, diagramId]);
+  }, [cleanCode]);
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(cleanCode);

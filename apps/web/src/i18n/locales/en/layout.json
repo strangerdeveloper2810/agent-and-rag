@@ -27,6 +27,8 @@
     "logoutAccount": "Log out of account",
     "logoutSuccess": "Successfully logged out!",
     "logoutError": "An error occurred while logging out.",
+    "deleteError": "Couldn't delete the conversation. Please try again.",
+    "renameError": "Couldn't rename the conversation. Please try again.",
     "deleteDialog": {
       "title": "Delete conversation?",
       "message": "The conversation \"{{title}}\" will be permanently deleted.",

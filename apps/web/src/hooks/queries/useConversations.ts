@@ -9,6 +9,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import {
   deleteConversation,
   listConversations,
@@ -17,11 +18,14 @@ import {
 } from "@/modules/chat/chat.api";
 import { STALE_TIME } from "@/lib/query-client";
 import { queryKeys } from "@/lib/query-keys";
+import { useToast } from "@/design-system/molecules/Toast";
 
 export type { Conversation };
 
 export const useConversations = () => {
   const queryClient = useQueryClient();
+  const toast = useToast();
+  const { t } = useTranslation("layout");
 
   const query = useQuery({
     queryKey: queryKeys.conversations(),
@@ -58,6 +62,11 @@ export const useConversations = () => {
       if (context?.previous) {
         queryClient.setQueryData(queryKeys.conversations(), context.previous);
       }
+      // Optimistic update đã ẩn item khỏi sidebar ngay lập tức — nếu request
+      // thật thất bại, rollback ở trên đưa item quay lại NHƯNG không có
+      // thông báo nào thì user chỉ thấy nó "tự dưng biến mất rồi hiện lại",
+      // không hiểu vì sao xoá không được.
+      toast.error(t("sidebar.deleteError"));
     },
     onSettled: invalidate,
   });
@@ -74,6 +83,7 @@ export const useConversations = () => {
       if (context?.previous) {
         queryClient.setQueryData(queryKeys.conversations(), context.previous);
       }
+      toast.error(t("sidebar.renameError"));
     },
     onSettled: invalidate,
   });

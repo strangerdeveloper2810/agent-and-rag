@@ -94,7 +94,10 @@ export const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
   if (filtered.length === 0) return null;
 
   return (
-    <div className="glass absolute bottom-full left-0 z-50 mb-2 w-80 overflow-hidden rounded-2xl p-2 shadow-2xl animate-slide-up bg-popover text-popover-foreground border border-border">
+    <div className="glass absolute bottom-full left-1/2 z-50 mb-2 w-[min(20rem,calc(100vw-2rem))] -translate-x-1/2 overflow-hidden rounded-2xl p-2 shadow-2xl animate-slide-up bg-popover text-popover-foreground border border-border">
+      {/* Căn giữa theo tâm trigger (left-1/2 + -translate-x-1/2), giống
+          ModeSelector — neo trái (left-0) tràn ra ngoài mép phải trên mobile
+          dù đã giới hạn max-width. */}
       <div className="px-3 py-1.5 mb-1.5 border-b border-border flex items-center justify-between">
         <span className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground">
           {t("slashCommandMenu.header")}

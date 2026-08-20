@@ -383,6 +383,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
   const handleToggleMcpServer = async (id: string, enabled: boolean) => {
     try {
       await updateMcpServer(id, { enabled });
+      toast.success(enabled ? t("mcp.enableSuccess") : t("mcp.disableSuccess"));
     } catch (err: any) {
       toast.error(err?.message || "Lỗi cập nhật MCP server");
     }
@@ -407,6 +408,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
   const handleDeleteMcpServer = async (id: string) => {
     try {
       await deleteMcpServer(id);
+      toast.success(t("mcp.deleteSuccess"));
     } catch (err: any) {
       toast.error(err?.message || "Lỗi xoá MCP server");
     }
@@ -442,6 +444,9 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
   const handleToggleBuiltinSkill = async (name: string, enabled: boolean) => {
     try {
       await toggleBuiltinSkill(name, enabled);
+      toast.success(
+        enabled ? t("skills.enableSuccess") : t("skills.disableSuccess"),
+      );
     } catch (err: any) {
       toast.error(err?.message || "Lỗi cập nhật skill");
     }
@@ -450,6 +455,9 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
   const handleToggleCustomSkill = async (id: string, enabled: boolean) => {
     try {
       await updateSkill(id, { enabled });
+      toast.success(
+        enabled ? t("skills.enableSuccess") : t("skills.disableSuccess"),
+      );
     } catch (err: any) {
       toast.error(err?.message || "Lỗi cập nhật skill");
     }
@@ -458,6 +466,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
   const handleDeleteSkill = async (id: string) => {
     try {
       await deleteSkill(id);
+      toast.success(t("skills.deleteSuccess"));
     } catch (err: any) {
       toast.error(err?.message || "Lỗi xoá skill");
     }

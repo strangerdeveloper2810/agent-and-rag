@@ -347,48 +347,54 @@ export const DocumentsView: React.FC = () => {
                       border: "1px solid var(--border)",
                     }}
                   >
-                    <div className="group flex items-center gap-3.5">
-                      <div
-                        onClick={() => onViewVersion(d.documentId, d.version)}
-                        className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-xl transition hover:scale-105 hover:shadow-sm"
-                        style={{
-                          backgroundColor: "var(--accent-bg)",
-                          color: "var(--accent)",
-                          border: "1px solid rgba(0,240,255,0.2)",
-                        }}
-                        title={t("list.viewContentTitle")}
-                      >
-                        <DocIcon width={18} height={18} />
-                      </div>
-                      <div
-                        className="min-w-0 flex-1 cursor-pointer group"
-                        onClick={() => onViewVersion(d.documentId, d.version)}
-                      >
-                        <p
-                          className="flex items-center gap-2 truncate text-xs font-semibold group-hover:text-[var(--accent)] transition"
-                          style={{ color: "var(--text)" }}
+                    {/* flex-col trên mobile: 4 nút hành động (View/Update/
+                        History/Delete) + icon + tên file không đủ chỗ chung 1
+                        hàng ở 375px — tên file bị bóp còn vài ký tự (thấy rõ
+                        qua screenshot thật). Từ sm trở lên giữ nguyên 1 hàng. */}
+                    <div className="group flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-3.5">
+                      <div className="flex min-w-0 items-center gap-3.5">
+                        <div
+                          onClick={() => onViewVersion(d.documentId, d.version)}
+                          className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-xl transition hover:scale-105 hover:shadow-sm"
+                          style={{
+                            backgroundColor: "var(--accent-bg)",
+                            color: "var(--accent)",
+                            border: "1px solid rgba(0,240,255,0.2)",
+                          }}
+                          title={t("list.viewContentTitle")}
                         >
-                          {d.source}
-                          <span
-                            className="rounded-full px-2 py-0.5 text-[10px] font-mono font-medium"
-                            style={{
-                              backgroundColor: "var(--accent-bg)",
-                              color: "var(--accent)",
-                              border: "1px solid rgba(0, 240, 255, 0.2)",
-                            }}
+                          <DocIcon width={18} height={18} />
+                        </div>
+                        <div
+                          className="min-w-0 flex-1 cursor-pointer group"
+                          onClick={() => onViewVersion(d.documentId, d.version)}
+                        >
+                          <p
+                            className="flex items-center gap-2 truncate text-xs font-semibold group-hover:text-[var(--accent)] transition"
+                            style={{ color: "var(--text)" }}
                           >
-                            v{d.version}
-                          </span>
-                        </p>
-                        <p
-                          className="text-[10px] font-mono"
-                          style={{ color: "var(--text-tertiary)" }}
-                        >
-                          {t("list.chunksIndexed", { count: d.chunks })}
-                        </p>
+                            {d.source}
+                            <span
+                              className="rounded-full px-2 py-0.5 text-[10px] font-mono font-medium"
+                              style={{
+                                backgroundColor: "var(--accent-bg)",
+                                color: "var(--accent)",
+                                border: "1px solid rgba(0, 240, 255, 0.2)",
+                              }}
+                            >
+                              v{d.version}
+                            </span>
+                          </p>
+                          <p
+                            className="text-[10px] font-mono"
+                            style={{ color: "var(--text-tertiary)" }}
+                          >
+                            {t("list.chunksIndexed", { count: d.chunks })}
+                          </p>
+                        </div>
                       </div>
 
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex flex-wrap items-center gap-1.5 sm:shrink-0">
                         <button
                           type="button"
                           onClick={() => onViewVersion(d.documentId, d.version)}

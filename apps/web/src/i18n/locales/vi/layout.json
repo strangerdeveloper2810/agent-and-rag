@@ -27,6 +27,8 @@
     "logoutAccount": "Đăng xuất tài khoản",
     "logoutSuccess": "Đã đăng xuất thành công!",
     "logoutError": "Đã xảy ra lỗi khi đăng xuất.",
+    "deleteError": "Không thể xoá cuộc trò chuyện. Vui lòng thử lại.",
+    "renameError": "Không thể đổi tên cuộc trò chuyện. Vui lòng thử lại.",
     "deleteDialog": {
       "title": "Xóa cuộc trò chuyện?",
       "message": "Cuộc hội thoại \"{{title}}\" sẽ bị xóa vĩnh viễn.",
