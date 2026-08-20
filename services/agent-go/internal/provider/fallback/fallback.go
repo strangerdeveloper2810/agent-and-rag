@@ -64,6 +64,7 @@ func (p *Provider) Name() string {
 func (p *Provider) Generate(ctx context.Context, req provider.GenerateRequest) (<-chan provider.StreamChunk, error) {
 	var lastErr error
 
+chainLoop:
 	for i := range p.chain {
 		np := &p.chain[i]
 
@@ -88,39 +89,62 @@ func (p *Provider) Generate(ctx context.Context, req provider.GenerateRequest) (
 			continue
 		}
 
-		// Check first chunk from stream — rate limit errors may arrive on stream, not via Generate()
-		wrapped := make(chan provider.StreamChunk, 1)
-		go func() {
-			defer close(wrapped)
-			first := true
-			for chunk := range stream {
-				if first && chunk.Kind == provider.ChunkError && isRetryable(chunk.Err) {
-					// Rate limit on stream → don't forward, try next provider below
-					wrapped <- chunk
-					return
+		// Đọc tới khi biết chắc CÓ nội dung thật (text/tool call) hoặc gặp lỗi
+		// cần forward nguyên trạng cho caller — commit ngay khi biết, không
+		// đợi hết stream (đường bình thường không tốn thêm latency).
+		//
+		// Nếu stream đóng mà HOÀN TOÀN rỗng (không text, không tool call,
+		// không lỗi, không bị cắt vì max_tokens) → coi là lỗi retryable NGAY
+		// TẠI ĐÂY, thử provider kế tiếp, thay vì forward 1 câu trả lời rỗng
+		// cho caller. Trước đây case này (Gemini có lúc trả 200 kèm content
+		// rỗng khi gặp lỗi nội bộ, không báo qua ChunkError — xem
+		// node_model.go) chỉ bị phát hiện ở tầng dispatch phía TRÊN fallback,
+		// quá muộn để thử provider khác — nguyên nhân của log prod
+		// "model: empty response" mà KHÔNG có dòng "provider lỗi, thử
+		// provider kế tiếp" đứng trước nó.
+		var buffered []provider.StreamChunk
+		finish := provider.FinishReason("")
+		committed := false
+
+		for chunk := range stream {
+			buffered = append(buffered, chunk)
+
+			if chunk.Kind == provider.ChunkError {
+				if len(buffered) == 1 && isRetryable(chunk.Err) {
+					for range stream {
+					} // drain phần còn lại trước khi thử provider kế tiếp
+					lastErr = chunk.Err
+					p.recordFailure(np, chunk.Err)
+					p.logFailure(np, scoped, i, chunk.Err, "stream")
+					continue chainLoop
 				}
-				first = false
-				wrapped <- chunk
+				committed = true
+				break
 			}
-		}()
 
-		// Peek at first chunk
-		firstChunk, ok := <-wrapped
-		if !ok {
-			np.failures.Store(0)
-			return emptyStream(), nil
-		}
-		if firstChunk.Kind == provider.ChunkError && isRetryable(firstChunk.Err) {
-			lastErr = firstChunk.Err
-			p.recordFailure(np, firstChunk.Err)
-			p.logFailure(np, scoped, i, firstChunk.Err, "stream")
-			// Drain the wrapper goroutine
-			for range wrapped {
+			if (chunk.Kind == provider.ChunkText && chunk.Text != "") ||
+				chunk.Kind == provider.ChunkToolCall {
+				committed = true
+				break
 			}
-			continue // try next provider
+
+			if chunk.Kind == provider.ChunkDone {
+				finish = chunk.FinishReason
+			}
 		}
 
-		// Success — return a stream that replays first chunk then continues
+		if !committed && finish != provider.FinishLength {
+			emptyErr := fmt.Errorf("empty response (no text, no tool calls, finish=%q)", finish)
+			lastErr = emptyErr
+			p.recordFailure(np, emptyErr)
+			p.logFailure(np, scoped, i, emptyErr, "empty")
+			continue
+		}
+
+		// Success — có nội dung thật, hoặc lỗi non-retryable cần forward
+		// nguyên trạng cho caller quyết định (giữ nguyên hành vi cũ), hoặc bị
+		// cắt vì max_tokens ngay từ đầu (hiếm — node_model.go tự set
+		// Truncated dựa trên finish reason).
 		np.failures.Store(0)
 		// Chỉ log khi đã phải bỏ qua provider nào đó: lượt gọi thành công ngay ở
 		// provider đầu là đường bình thường, log nữa chỉ làm nhiễu.
@@ -132,7 +156,7 @@ func (p *Provider) Generate(ctx context.Context, req provider.GenerateRequest) (
 				"skipped", i,
 			)
 		}
-		return replayStream(firstChunk, wrapped), nil
+		return replayBuffered(buffered, stream), nil
 	}
 
 	return nil, fmt.Errorf("fallback: all %d providers failed: %w", len(p.chain), lastErr)
@@ -255,23 +279,27 @@ func (p *Provider) Status() []ProviderStatus {
 	return out
 }
 
-func emptyStream() <-chan provider.StreamChunk {
-	ch := make(chan provider.StreamChunk)
-	close(ch)
-	return ch
-}
-
-func replayStream(first provider.StreamChunk, rest <-chan provider.StreamChunk) <-chan provider.StreamChunk {
+// replayBuffered trả về channel phát lại các chunk đã đọc để xác định verdict
+// (buffered) rồi tiếp tục forward trực tiếp phần CÒN LẠI của stream gốc.
+// Timeout 5s mỗi lần gửi: phòng caller bỏ đọc channel (goroutine không rò rỉ
+// vô thời hạn).
+func replayBuffered(buffered []provider.StreamChunk, stream <-chan provider.StreamChunk) <-chan provider.StreamChunk {
 	out := make(chan provider.StreamChunk, 16)
 	go func() {
 		defer close(out)
-		select {
-		case out <- first:
-		case <-time.After(5 * time.Second):
-			return
+		for _, c := range buffered {
+			select {
+			case out <- c:
+			case <-time.After(5 * time.Second):
+				return
+			}
 		}
-		for chunk := range rest {
-			out <- chunk
+		for c := range stream {
+			select {
+			case out <- c:
+			case <-time.After(5 * time.Second):
+				return
+			}
 		}
 	}()
 	return out
@@ -323,7 +351,17 @@ func isDailyQuotaExhausted(err error) bool {
 		return false
 	}
 	msg := strings.ToLower(err.Error())
+	// "perday" (không khoảng trắng): quotaId thật của Gemini là 1 identifier
+	// camelCase — "GenerateRequestsPerDayPerProjectPerModel-FreeTier" — lowercase
+	// thành "generaterequestsperdayperprojectpermodel..." nên KHÔNG khớp "per day"
+	// (có khoảng trắng) hay "free_tier_requests_per_day" (snake_case, sai —
+	// metric thật là "generate_content_free_tier_requests", "_per_day" không hề
+	// xuất hiện trong đó). Thiếu pattern này khiến production log lúc nào cũng
+	// ghi daily_quota_exhausted=false dù lỗi RÕ RÀNG là cạn quota theo ngày —
+	// cooldown 2h không bao giờ kích hoạt, hệ thống cứ dò lại provider đã cạn
+	// quota cả ngày mỗi vài phút, tốn latency vô ích tới hết ngày.
 	return strings.Contains(msg, "per day") ||
+		strings.Contains(msg, "perday") ||
 		strings.Contains(msg, "daily") ||
 		strings.Contains(msg, "day limit") ||
 		strings.Contains(msg, "free_tier_requests_per_day") ||

@@ -128,6 +128,7 @@ func TestFallback_RecoveryAfterCooldown(t *testing.T) {
 		},
 	}
 	fallback := provider.NewFake(
+		provider.StreamChunk{Kind: provider.ChunkText, Text: "ok"},
 		provider.StreamChunk{Kind: provider.ChunkDone},
 	)
 	fb, _ := New(10*time.Millisecond, flaky, fallback)
@@ -173,5 +174,8 @@ func (f *flakyProvider) Generate(ctx context.Context, req provider.GenerateReque
 	if err := f.fn(); err != nil {
 		return nil, err
 	}
-	return provider.NewFake(provider.StreamChunk{Kind: provider.ChunkDone}).Generate(ctx, req)
+	return provider.NewFake(
+		provider.StreamChunk{Kind: provider.ChunkText, Text: "ok"},
+		provider.StreamChunk{Kind: provider.ChunkDone},
+	).Generate(ctx, req)
 }
