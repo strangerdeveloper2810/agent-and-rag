@@ -17,6 +17,7 @@ coverage
 
 # Tài liệu kiến trúc cá nhân (không commit vào repo chung)
 /ARCHITECTURE_BFF_AGENT_GO.md
+/ARCHITECTURE_DEEP_DIVE/
 
 # Claude Code worktrees (mỗi thư mục là một git worktree riêng, không commit)
 .claude/worktrees/
