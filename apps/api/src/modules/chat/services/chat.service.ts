@@ -53,17 +53,21 @@ export const toAnthropicMessages = (history: ChatMessage[]) =>
 
 // ----- CRUD hội thoại -----
 
-export const createConversation = (firstMessage: string) =>
-  createConversationRepo(firstMessage);
+export const createConversation = (tenantId: string, firstMessage: string) =>
+  createConversationRepo(tenantId, firstMessage);
 
-export const listConversations = () => listConversationsRepo();
+export const listConversations = (tenantId: string) =>
+  listConversationsRepo(tenantId);
 
-export const getConversationMessages = (id: string) => getMessagesRepo(id);
+export const getConversationMessages = (tenantId: string, id: string) =>
+  getMessagesRepo(tenantId, id);
 
-export const deleteConversation = (id: string) => deleteConversationRepo(id);
+export const deleteConversation = (tenantId: string, id: string) =>
+  deleteConversationRepo(tenantId, id);
 
 /** Lưu tin nhắn user (gọi TRƯỚC khi mở SSE để validate sớm). */
 export const appendUserMessage = (
+  tenantId: string,
   conversationId: string,
   content: string,
   attachments?: Array<{
@@ -90,6 +94,7 @@ export const appendUserMessage = (
   }));
 
   return addMessage(
+    tenantId,
     conversationId,
     "user",
     content,
@@ -139,7 +144,12 @@ export async function streamReply(
     triggers?: string[];
   }>,
 ): Promise<StreamResult> {
+  // tenantId LUÔN có giá trị thật ở production (authGuard set từ JWT trước khi
+  // route chạm tới đây) — fallback "default" chỉ để phòng hờ, cùng quy ước với
+  // getTenantId() ở documents/upload module.
+  const tid = tenantId ?? "default";
   const raw = (await getMessagesRepo(
+    tid,
     conversationId,
   )) as unknown as ChatMessage[];
   const history = toAnthropicMessages(raw);
@@ -199,7 +209,7 @@ export async function streamReply(
           tokensUsed: 0,
           truncated: false,
         });
-        await addMessage(conversationId, "assistant", cached);
+        await addMessage(tid, conversationId, "assistant", cached);
         return;
       }
     } catch {
@@ -244,7 +254,7 @@ export async function streamReply(
       });
 
       if (full.trim().length > 0) {
-        await addMessage(conversationId, "assistant", full);
+        await addMessage(tid, conversationId, "assistant", full);
 
         // Lưu response vào chat cache
         try {
@@ -299,7 +309,9 @@ export async function continueReply(
   agent: AgentClient = defaultAgent,
   tenantId?: string,
 ): Promise<StreamResult> {
+  const tid = tenantId ?? "default";
   const raw = (await getMessagesRepo(
+    tid,
     conversationId,
   )) as unknown as ChatMessage[];
 
@@ -353,7 +365,7 @@ export async function continueReply(
       });
 
       if (full.trim().length > 0) {
-        await appendToLastAssistantMessage(conversationId, full);
+        await appendToLastAssistantMessage(tid, conversationId, full);
       }
     }
   }

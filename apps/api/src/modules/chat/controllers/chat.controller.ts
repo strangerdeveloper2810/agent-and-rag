@@ -7,21 +7,33 @@ import {
 } from "../../../schemas/chat-request";
 import { getPgPool } from "../../../database/postgres/postgres.module";
 
+// Cùng pattern với modules/documents/controllers, modules/upload/upload.routes.ts
+// — authGuard đã set req.tenantId từ JWT trước khi route chạm tới controller;
+// fallback "default" chỉ để phòng hờ, không nên xảy ra trong thực tế vì mọi
+// route chat đều có authGuard (xem chat.routes.ts).
+const getTenantId = (req: FastifyRequest): string =>
+  ((req as unknown as Record<string, unknown>).tenantId as string) ??
+  "default";
+
 export const postConversation = async (req: FastifyRequest) => {
+  const tenantId = getTenantId(req);
   const body = parseOrBadRequest(createConversationBodySchema, req.body);
-  return chatService.createConversation(body.firstMessage ?? "");
+  return chatService.createConversation(tenantId, body.firstMessage ?? "");
 };
 
-export const getConversations = async () => chatService.listConversations();
+export const getConversations = async (req: FastifyRequest) =>
+  chatService.listConversations(getTenantId(req));
 
 export const getConversationMessages = async (req: FastifyRequest) => {
+  const tenantId = getTenantId(req);
   const { id } = req.params as { id: string };
-  return chatService.getConversationMessages(id);
+  return chatService.getConversationMessages(tenantId, id);
 };
 
 export const deleteConversation = async (req: FastifyRequest) => {
+  const tenantId = getTenantId(req);
   const { id } = req.params as { id: string };
-  return chatService.deleteConversation(id);
+  return chatService.deleteConversation(tenantId, id);
 };
 
 /**
@@ -36,6 +48,7 @@ export const deleteConversation = async (req: FastifyRequest) => {
  */
 export const postChat = async (req: FastifyRequest, reply: FastifyReply) => {
   const { id } = req.params as { id: string };
+  const tenantId = getTenantId(req);
   const { content, attachments, lang } = parseOrBadRequest(
     chatBodySchema,
     req.body,
@@ -43,7 +56,7 @@ export const postChat = async (req: FastifyRequest, reply: FastifyReply) => {
 
   // Lưu user msg TRƯỚC khi mở SSE -> lỗi sớm (validate/DB) vẫn trả HTTP JSON
   // qua error handler (chưa "chiếm" reply nên còn gửi JSON được).
-  await chatService.appendUserMessage(id, content, attachments);
+  await chatService.appendUserMessage(tenantId, id, content, attachments);
 
   // hijack(): ta tự ghi thẳng vào socket (SSE); Fastify không serialize/gửi nữa.
   reply.hijack();
@@ -65,9 +78,6 @@ export const postChat = async (req: FastifyRequest, reply: FastifyReply) => {
   };
 
   try {
-    const tenantId = (req as unknown as Record<string, unknown>).tenantId as
-      string | undefined;
-
     let personaSettings:
       | {
           personaPreset?: string;
@@ -219,8 +229,7 @@ export const postContinue = async (
   reply: FastifyReply,
 ) => {
   const { id } = req.params as { id: string };
-  const tenantId = (req as unknown as Record<string, unknown>).tenantId as
-    string | undefined;
+  const tenantId = getTenantId(req);
 
   const ac = new AbortController();
 

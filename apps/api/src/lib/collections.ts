@@ -6,6 +6,7 @@ import type { MessageRole } from "../schemas/message";
 
 export interface ConversationDoc {
   _id?: ObjectId;
+  tenantId: string;
   title: string;
   createdAt: Date;
   updatedAt: Date;
@@ -21,6 +22,7 @@ export interface AttachmentMetaDoc {
 
 export interface MessageDoc {
   _id?: ObjectId;
+  tenantId: string;
   conversationId: string;
   role: MessageRole;
   content: string;

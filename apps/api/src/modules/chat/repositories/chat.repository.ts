@@ -10,9 +10,13 @@ import type { MessageRole } from "../../../schemas/message";
 import { isMongoConnected } from "../../../lib/mongo";
 
 // Hàm thuần (không I/O) — giữ standalone để test dễ.
-export const buildConversationDocs = (firstMessage: string, now: Date) => {
+export const buildConversationDocs = (
+  tenantId: string,
+  firstMessage: string,
+  now: Date,
+) => {
   const title = firstMessage.trim().slice(0, 50) || "Hội thoại mới";
-  return { title, createdAt: now, updatedAt: now };
+  return { tenantId, title, createdAt: now, updatedAt: now };
 };
 
 /**
@@ -24,26 +28,30 @@ export function createChatRepository(
   messages: () => Collection<MessageDoc> = collections.messages,
 ) {
   return {
-    createConversation: async (firstMessage: string) => {
-      const doc = buildConversationDocs(firstMessage, new Date());
+    createConversation: async (tenantId: string, firstMessage: string) => {
+      const doc = buildConversationDocs(tenantId, firstMessage, new Date());
       const response = await conversations().insertOne(doc);
       return { _id: response.insertedId, ...doc };
     },
 
-    listConversations: async () => {
+    listConversations: async (tenantId: string) => {
       if (!isMongoConnected()) return [];
-      return conversations().find().sort({ updatedAt: -1 }).toArray();
+      return conversations()
+        .find({ tenantId })
+        .sort({ updatedAt: -1 })
+        .toArray();
     },
 
-    getMessages: async (conversationId: string) => {
+    getMessages: async (tenantId: string, conversationId: string) => {
       if (!isMongoConnected()) return [];
       return messages()
-        .find({ conversationId })
+        .find({ tenantId, conversationId })
         .sort({ createdAt: 1 })
         .toArray();
     },
 
     addMessage: async (
+      tenantId: string,
       conversationId: string,
       role: MessageRole,
       content: string,
@@ -51,6 +59,7 @@ export function createChatRepository(
       attachments?: AttachmentMetaDoc[],
     ) => {
       const doc: MessageDoc = {
+        tenantId,
         conversationId,
         role,
         content,
@@ -60,7 +69,7 @@ export function createChatRepository(
       };
       await messages().insertOne(doc);
       await conversations().updateOne(
-        { _id: toObjectId(conversationId) },
+        { _id: toObjectId(conversationId), tenantId },
         { $set: { updatedAt: new Date() } },
       );
       return doc;
@@ -79,17 +88,19 @@ export function createChatRepository(
      * mất trắng).
      */
     appendToLastAssistantMessage: async (
+      tenantId: string,
       conversationId: string,
       additionalContent: string,
     ) => {
       const [last] = await messages()
-        .find({ conversationId, role: "assistant" })
+        .find({ tenantId, conversationId, role: "assistant" })
         .sort({ createdAt: -1 })
         .limit(1)
         .toArray();
 
       if (!last) {
         const doc: MessageDoc = {
+          tenantId,
           conversationId,
           role: "assistant",
           content: additionalContent,
@@ -97,7 +108,7 @@ export function createChatRepository(
         };
         await messages().insertOne(doc);
         await conversations().updateOne(
-          { _id: toObjectId(conversationId) },
+          { _id: toObjectId(conversationId), tenantId },
           { $set: { updatedAt: new Date() } },
         );
         return doc;
@@ -106,21 +117,23 @@ export function createChatRepository(
       // Update qua aggregation pipeline ($concat) để nối atomic ngay trong
       // Mongo — không đọc content cũ về app rồi ghi lại (tránh race nếu có
       // 2 continue chạy chồng, dù thực tế FE chỉ cho phép 1 request/lúc).
+      // last đã được lọc theo tenantId ở find() phía trên -> update theo _id
+      // là an toàn (không cần lặp lại tenantId ở đây).
       await messages().updateOne({ _id: last._id }, [
         { $set: { content: { $concat: ["$content", additionalContent] } } },
       ] as never);
       await conversations().updateOne(
-        { _id: toObjectId(conversationId) },
+        { _id: toObjectId(conversationId), tenantId },
         { $set: { updatedAt: new Date() } },
       );
 
       return { ...last, content: last.content + additionalContent };
     },
 
-    deleteConversation: async (conversationId: string) => {
+    deleteConversation: async (tenantId: string, conversationId: string) => {
       const _id = toObjectId(conversationId); // validate sớm, trước khi chạm DB
-      await messages().deleteMany({ conversationId });
-      await conversations().deleteOne({ _id });
+      await messages().deleteMany({ tenantId, conversationId });
+      await conversations().deleteOne({ _id, tenantId });
       return { ok: true };
     },
   };

@@ -67,6 +67,12 @@ export async function ensureIndexes(): Promise<void> {
       .collection(COLLECTIONS.documents)
       .createIndex({ tenantId: 1, documentId: 1, chunkIndex: 1 }),
     database
+      .collection(COLLECTIONS.conversations)
+      .createIndex({ tenantId: 1, updatedAt: -1 }),
+    database
+      .collection(COLLECTIONS.messages)
+      .createIndex({ tenantId: 1, conversationId: 1, createdAt: 1 }),
+    database
       .collection(COLLECTIONS.documentVersions)
       .createIndex({ documentId: 1, version: 1 }),
     database
