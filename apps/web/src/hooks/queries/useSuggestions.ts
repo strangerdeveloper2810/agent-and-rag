@@ -1,10 +1,15 @@
 /**
- * Gợi ý mở đầu hội thoại — GET {agent}/suggestions.
+ * Gợi ý mở đầu hội thoại — GET /api/suggestions (BFF proxy sang agent-go).
  *
  * ĐÂY LÀ MỘT LƯỢT GỌI LLM ở agent-go, không phải một endpoint đọc DB. Nó tốn
  * token thật và ăn quota RPM của free tier, nên là query đắt nhất trong app
  * và được cache lâu nhất (STALE_TIME.suggestions = 30 phút), tắt
  * refetchOnWindowFocus (đã tắt toàn cục), và không retry khi lỗi.
+ *
+ * QUAN TRỌNG: gọi qua BFF (api.get, có cookie session) thay vì thẳng agent-go
+ * — trước đây gọi thẳng VITE_AGENT_URL không có tenant nào cả, mọi user rơi
+ * về tenant "default" nên gợi ý không cá nhân hoá được (xem
+ * apps/api/src/modules/chat/controllers/chat.controller.ts getSuggestions).
  *
  * Trả về null khi gọi thất bại hoặc server không có gợi ý nào — component tự
  * lấy pool tĩnh trong file i18n làm phương án dự phòng. Cố tình KHÔNG nhét
@@ -13,16 +18,20 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
+import api from "@/lib/http";
 import { STALE_TIME } from "@/lib/query-client";
 import { queryKeys } from "@/lib/query-keys";
 
-const fetchSuggestions = async (): Promise<string[] | null> => {
-  const baseUrl = import.meta.env.VITE_AGENT_URL ?? "";
-  // cache: "no-store" thay cho tham số `?_t=Date.now()` cũ — vẫn đảm bảo
-  // bấm "đổi gợi ý" là gọi thật, nhưng không tạo URL mới mỗi lần render.
-  const res = await fetch(`${baseUrl}/suggestions`, { cache: "no-store" });
-  if (!res.ok) return null;
-  const data = (await res.json()) as { suggestions?: string[] };
+/** Một gợi ý, kèm category để lọc theo tab đang chọn (creative/rag/dev/search/productivity). */
+export interface AgentSuggestion {
+  text: string;
+  category?: string;
+}
+
+const fetchSuggestions = async (): Promise<AgentSuggestion[] | null> => {
+  const data = await api.get<{ suggestions?: AgentSuggestion[] }>(
+    "/api/suggestions",
+  );
   return data.suggestions?.length ? data.suggestions : null;
 };
 

@@ -20,13 +20,16 @@ const renderEmptyState = () =>
   );
 
 /**
- * Giả lập GET /suggestions (một lượt gọi LLM ở agent-go).
+ * Giả lập GET /api/suggestions (một lượt gọi LLM ở agent-go, qua BFF).
  *
  * Stub trùm lên global fetch nên spy nhận CẢ /api/user/settings (component còn
  * đọc avatar agent) — vì vậy phải đếm riêng theo URL, xem suggestionCalls().
  */
 const mockSuggestionsFetch = (
-  response: { ok: boolean; suggestions?: string[] } = { ok: true },
+  response: {
+    ok: boolean;
+    suggestions?: { text: string; category?: string }[];
+  } = { ok: true },
 ) => {
   const spy = vi.fn((url: string) =>
     Promise.resolve({
@@ -86,7 +89,10 @@ describe("EmptyState", () => {
   // được gọi lại. Đây chính là khoản tốn kém mà bản Zustand cũ không chặn được.
   describe("gợi ý từ agent", () => {
     it("hiện gợi ý agent trả về", async () => {
-      mockSuggestionsFetch({ ok: true, suggestions: ["Tóm tắt tài liệu này"] });
+      mockSuggestionsFetch({
+        ok: true,
+        suggestions: [{ text: "Tóm tắt tài liệu này" }],
+      });
 
       renderEmptyState();
 
@@ -98,7 +104,7 @@ describe("EmptyState", () => {
     it("chỉ gọi /suggestions một lần dù component mount lại", async () => {
       const spy = mockSuggestionsFetch({
         ok: true,
-        suggestions: ["Gợi ý đã cache"],
+        suggestions: [{ text: "Gợi ý đã cache" }],
       });
 
       const first = renderEmptyState();
@@ -110,6 +116,35 @@ describe("EmptyState", () => {
       await screen.findByText("Gợi ý đã cache");
 
       // Vẫn 1 — lần mount thứ hai đọc từ cache theo queryKey ["suggestions"].
+      expect(suggestionCalls(spy)).toBe(1);
+    });
+
+    // Trước fix: mục "Gợi ý thông minh từ AI Agent" lặp lại y hệt dù đổi tab
+    // (không phụ thuộc activeTab). Giờ agent-go trả 1 lô kèm category, FE lọc
+    // theo tab đang chọn ở client — KHÔNG gọi lại LLM mỗi lần đổi tab.
+    it("đổi tab thì lọc gợi ý agent theo category, không gọi lại LLM", async () => {
+      const spy = mockSuggestionsFetch({
+        ok: true,
+        suggestions: [
+          { text: "Gợi ý lập trình", category: "dev" },
+          { text: "Gợi ý tra cứu", category: "search" },
+        ],
+      });
+
+      renderEmptyState();
+      // Tab mặc định "Ý tưởng & Kế hoạch" (creative) không khớp category nào
+      // trong lô trả về → hiện đủ (base), không để trống cả mục.
+      await screen.findByText("Gợi ý lập trình");
+      expect(screen.getByText("Gợi ý tra cứu")).toBeInTheDocument();
+
+      fireEvent.click(screen.getByText("Lập trình & Clean Code"));
+
+      await waitFor(() => {
+        expect(screen.getByText("Gợi ý lập trình")).toBeInTheDocument();
+        expect(screen.queryByText("Gợi ý tra cứu")).not.toBeInTheDocument();
+      });
+
+      // Vẫn 1 lần gọi — đổi tab chỉ lọc lại dữ liệu đã cache, không tốn quota LLM.
       expect(suggestionCalls(spy)).toBe(1);
     });
 
@@ -126,7 +161,7 @@ describe("EmptyState", () => {
     it("bấm nút đổi gợi ý thì gọi lại agent", async () => {
       const spy = mockSuggestionsFetch({
         ok: true,
-        suggestions: ["Gợi ý ban đầu"],
+        suggestions: [{ text: "Gợi ý ban đầu" }],
       });
 
       renderEmptyState();
