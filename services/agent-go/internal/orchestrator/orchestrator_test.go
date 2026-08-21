@@ -251,3 +251,41 @@ func TestOrchestrator_ListAgents(t *testing.T) {
 		t.Errorf("order wrong: %v", list)
 	}
 }
+
+func TestExtractRoutableText(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     string
+		wantText  string
+		wantReply bool
+	}{
+		{
+			name:      "format Q:/A: → chỉ lấy phần sau A:",
+			input:     "Q: Bạn muốn tập trung tìm hiểu phần nào của repo này trước?\nA: Core AI/RAG Logic",
+			wantText:  "Core AI/RAG Logic",
+			wantReply: true,
+		},
+		{
+			name:      "câu bình thường không có format Q:/A: → giữ nguyên",
+			input:     "đi sâu vào services-go của repo",
+			wantText:  "đi sâu vào services-go của repo",
+			wantReply: false,
+		},
+		{
+			name:      "chỉ có A: không có Q: ở đầu → không coi là reply",
+			input:     "A: là một chữ cái, không liên quan",
+			wantText:  "A: là một chữ cái, không liên quan",
+			wantReply: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotText, gotReply := extractRoutableText(tt.input)
+			if gotText != tt.wantText || gotReply != tt.wantReply {
+				t.Errorf("extractRoutableText(%q) = (%q, %v), want (%q, %v)",
+					tt.input, gotText, gotReply, tt.wantText, tt.wantReply)
+			}
+		})
+	}
+}

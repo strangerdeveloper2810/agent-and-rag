@@ -126,6 +126,25 @@ func (o *Orchestrator) route(input string) *AgentSpec {
 	return o.agents[o.defaultAgent]
 }
 
+// qaReplyRe khớp input dạng "Q: <câu hỏi>\nA: <câu trả lời>" — format mà FE
+// gửi lại khi user trả lời tool ask_user. Bắt buộc bắt đầu bằng "Q:" để
+// tránh false positive với câu user gõ tự nhiên có chứa "A: " ở đâu đó.
+var qaReplyRe = regexp.MustCompile(`(?s)^Q:\s*.*?\nA:\s*(.*)$`)
+
+// extractRoutableText trả về phần nên dùng để match keyword routing.
+//
+// Nếu input là reply cho ask_user (dạng "Q: .../A: ..."), CHỈ lấy phần sau
+// "A: " — bỏ phần câu hỏi do chính JARVIS đặt ra. Không làm vậy thì keyword
+// trong câu hỏi JARVIS tự sinh (vd "tìm hiểu", "giải thích") tự khớp trigger
+// của agent khác, khiến JARVIS tự lạc đề khỏi agent đang xử lý hội thoại.
+func extractRoutableText(input string) (text string, isReply bool) {
+	m := qaReplyRe.FindStringSubmatch(strings.TrimSpace(input))
+	if m == nil {
+		return input, false
+	}
+	return strings.TrimSpace(m[1]), true
+}
+
 // asciiWordRe nhận diện keyword ASCII đơn từ (chữ cái/số, không khoảng trắng).
 var asciiWordRe = regexp.MustCompile(`^[a-z0-9]+$`)
 
