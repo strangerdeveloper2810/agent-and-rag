@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/ai-agent-tut/agent-go/internal/agent"
 	"github.com/ai-agent-tut/agent-go/internal/provider"
@@ -38,13 +39,30 @@ type Orchestrator struct {
 	order              []string              // thứ tự đăng ký (ưu tiên)
 	defaultAgent       string                // fallback agent name
 	maxDelegationDepth int                   // chốt an toàn cho Delegate() đệ quy
+
+	stickyAgent map[string]stickyEntry // conversationID → agent đang xử lý hội thoại
+	stickyMu    sync.RWMutex
 }
+
+// stickyEntry ghi lại agent đang "sở hữu" một hội thoại, để reply cho
+// ask_user (format Q:/A:) không bị route lại dựa trên keyword tình cờ xuất
+// hiện trong câu trả lời của user.
+type stickyEntry struct {
+	agentName string
+	lastUsed  time.Time
+}
+
+// stickyAgentTTL: entry cũ hơn ngưỡng này bị coi như chưa có, route lại từ
+// đầu — tránh 1 hội thoại bỏ dở nhiều ngày trước "kẹt cứng" agent cũ mãi mãi.
+// Không cần sweep định kỳ: TTL tự áp dụng khi ĐỌC lại entry (xem stickyAgentFor).
+const stickyAgentTTL = 24 * time.Hour
 
 // New tạo Orchestrator rỗng.
 func New() *Orchestrator {
 	return &Orchestrator{
 		agents:             make(map[string]*AgentSpec),
 		maxDelegationDepth: defaultMaxDelegationDepth,
+		stickyAgent:        make(map[string]stickyEntry),
 	}
 }
 
@@ -93,17 +111,29 @@ func (o *Orchestrator) SetDefault(name string) error {
 // Run xử lý user input: route → chọn agent → run engine.
 // Giữ nguyên signature giống Engine.Run để dễ swap.
 func (o *Orchestrator) Run(ctx context.Context, in agent.RunInput, emit agent.EmitFunc) (provider.Usage, error) {
-	// 1. Route: chọn agent dựa trên keyword matching
-	spec := o.route(in.UserMessage)
+	routableText, isReply := extractRoutableText(in.UserMessage)
+
+	var spec *AgentSpec
+	// Reply cho ask_user PHẢI tiếp tục agent đang xử lý hội thoại — câu trả
+	// lời của user (thường là chọn 1 option) không phải tín hiệu đổi chủ đề,
+	// dù tình cờ chứa keyword của agent khác.
+	if isReply {
+		if sticky, ok := o.stickyAgentFor(in.ConversationID); ok {
+			spec = sticky
+		}
+	}
+	if spec == nil {
+		spec = o.route(routableText)
+	}
+	o.setStickyAgent(in.ConversationID, spec.Name)
+
 	slog.Info("orchestrator: routed", "agent", spec.Name, "input_preview", truncate(in.UserMessage, 100))
 
-	// 2. Báo client biết agent nào đang xử lý
 	emit(agent.Event{
 		Type: "agent",
 		Node: spec.Name,
 	})
 
-	// 3. Chạy engine của agent được chọn (GIỮ NGUYÊN Engine.Run)
 	return spec.Engine.Run(ctx, in, emit)
 }
 
@@ -124,6 +154,35 @@ func (o *Orchestrator) route(input string) *AgentSpec {
 	}
 
 	return o.agents[o.defaultAgent]
+}
+
+// stickyAgentFor trả về agent đã ghi cho conversationID này, nếu còn hiệu
+// lực (chưa quá TTL và agent đó còn đăng ký trong orchestrator).
+func (o *Orchestrator) stickyAgentFor(conversationID string) (*AgentSpec, bool) {
+	if conversationID == "" {
+		return nil, false
+	}
+	o.stickyMu.RLock()
+	entry, ok := o.stickyAgent[conversationID]
+	o.stickyMu.RUnlock()
+	if !ok || time.Since(entry.lastUsed) > stickyAgentTTL {
+		return nil, false
+	}
+	spec, exists := o.agents[entry.agentName]
+	if !exists {
+		return nil, false
+	}
+	return spec, true
+}
+
+// setStickyAgent ghi lại agent vừa xử lý hội thoại này.
+func (o *Orchestrator) setStickyAgent(conversationID, agentName string) {
+	if conversationID == "" {
+		return
+	}
+	o.stickyMu.Lock()
+	o.stickyAgent[conversationID] = stickyEntry{agentName: agentName, lastUsed: time.Now()}
+	o.stickyMu.Unlock()
 }
 
 // qaReplyRe khớp input dạng "Q: <câu hỏi>\nA: <câu trả lời>" — format mà FE
