@@ -406,6 +406,8 @@ func worthLearning(messages []provider.Message) bool {
 
 Xoá hằng số `trivialAssistantRunes` và comment liên quan (dòng khai báo `const (... trivialAssistantRunes = 400)`), cập nhật lại comment phía trên hàm để phản ánh đúng logic mới (bỏ đoạn "Câu trả lời dài (> trivialAssistantRunes) → học").
 
+> **Deviation đã xác nhận (implement thực tế, xác nhận qua code review)**: `trivialAssistantRunes` KHÔNG bị xoá — hằng số này vẫn được `learner_gate_test.go` dùng để dựng fixture `longAnswer` (loop bound), xoá sẽ vỡ compile test. Giữ nguyên hằng số, chỉ xoá phần dùng nó trong `worthLearning`, và sửa lại comment nói rõ nó giờ chỉ phục vụ test fixture. Quyết định này đúng và tối thiểu hơn — chấp nhận, không cần sửa code lại.
+
 **Lưu ý**: hàm `lastByRole` vẫn trả về `(user, assistant string)` — giữ nguyên, chỉ không dùng biến `assistant` trong `worthLearning` nữa (dùng `_`). KHÔNG xoá `lastByRole` vì `TestLastByRole_LayTinNhanGanNhat` vẫn test nó trực tiếp.
 
 **Step 4: Chạy test, xác nhận PASS**
