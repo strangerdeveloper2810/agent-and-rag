@@ -274,3 +274,40 @@ func TestNewReflectionProvider_FallsBackWithoutDeepSeek(t *testing.T) {
 		t.Errorf("Name() = %q, want fallback[gemini→anthropic] (fallback về provider chính khi thiếu DeepSeek key)", p.Name())
 	}
 }
+
+// auto + Claude key thứ 2 → chain thêm 1 tầng Claude, tên phân biệt để dễ
+// debug log (anthropic-1/anthropic-2) thay vì trùng tên "anthropic".
+func TestNew_AutoWithSecondAnthropicKey(t *testing.T) {
+	cfg := baseCfg()
+	cfg.Provider = "auto"
+	cfg.GeminiKey = "gk"
+	cfg.AnthropicKey = "ak1"
+	cfg.AnthropicKey2 = "ak2"
+
+	p, err := New(cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	want := "fallback[gemini→anthropic-1→anthropic-2]"
+	if p.Name() != want {
+		t.Errorf("Name() = %q, want %q", p.Name(), want)
+	}
+}
+
+// Không set AnthropicKey2 → hành vi CŨ y nguyên (backward-compat), tên vẫn
+// là "anthropic" (không bị đổi thành "anthropic-1" khi chỉ có 1 key).
+func TestNew_AutoWithoutSecondAnthropicKey_Unchanged(t *testing.T) {
+	cfg := baseCfg()
+	cfg.Provider = "auto"
+	cfg.GeminiKey = "gk"
+	cfg.AnthropicKey = "ak1"
+
+	p, err := New(cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	want := "fallback[gemini→anthropic]"
+	if p.Name() != want {
+		t.Errorf("Name() = %q, want %q (không set key 2 phải giữ nguyên tên cũ)", p.Name(), want)
+	}
+}

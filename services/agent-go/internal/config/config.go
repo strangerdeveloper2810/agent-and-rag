@@ -25,6 +25,7 @@ type Config struct {
 	ThinkingLevel        string   // OFF|LOW|MEDIUM|HIGH (Gemini 3.x)
 	AnthropicKey         string
 	AnthropicModel       string
+	AnthropicKey2        string // Claude key thứ 2, dùng làm fallback tiếp theo nếu key 1 hết quota (optional)
 	DeepSeekKey          string
 	DeepSeekFlashModel   string // cho task đơn giản, rẻ + nhanh
 	DeepSeekProModel     string // cho task cần reasoning nhiều
@@ -188,6 +189,7 @@ func Load() (Config, error) {
 		ThinkingLevel:         envOr("GOOGLE_THINKING_LEVEL", "OFF"),
 		AnthropicKey:          os.Getenv("ANTHROPIC_API_KEY"),
 		AnthropicModel:        envOr("CLAUDE_MODEL", "claude-haiku-4-5-20251001"),
+		AnthropicKey2:         os.Getenv("ANTHROPIC_API_KEY_2"),
 		OllamaURL:             envOr("OLLAMA_URL", "http://localhost:11434"),
 		OllamaModel:           envOr("OLLAMA_MODEL", "llama3.1:8b"),
 		DeepSeekKey:           os.Getenv("DEEPSEEK_API_KEY"),
