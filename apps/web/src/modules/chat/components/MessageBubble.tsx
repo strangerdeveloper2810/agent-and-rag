@@ -334,7 +334,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         {/* Message Content */}
         {hasContent ? (
           <div className="prose-slate dark:prose-invert relative">
-            <Markdown content={message.content} />
+            <Markdown content={message.content} isStreaming={streaming} />
             {streaming && (
               <span className="inline-block w-2 h-4.5 bg-primary ml-1 animate-pulse align-middle" />
             )}

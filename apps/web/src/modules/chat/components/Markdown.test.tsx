@@ -38,4 +38,19 @@ describe("Markdown code block copy button", () => {
     );
     expect(screen.getByText(/Sơ đồ kiến trúc/i)).toBeInTheDocument();
   });
+
+  // Trước fix: Markdown không truyền isStreaming xuống MermaidBlock nên diagram
+  // luôn thử render ngay cả khi message còn đang SSE stream, dễ ăn hết retry
+  // budget của lỗi getBBox và kẹt vĩnh viễn ở fallback tới khi user F5.
+  it("truyền isStreaming xuống MermaidBlock để nó giữ spinner, không thử render dở dang", () => {
+    const MERMAID_CONTENT = "```mermaid\ngraph TD\nA --> B\n```";
+    render(
+      <I18nextProvider i18n={i18n}>
+        <Markdown content={MERMAID_CONTENT} isStreaming />
+      </I18nextProvider>,
+    );
+    expect(
+      screen.getByText(/Đang vẽ sơ đồ|Rendering diagram/i),
+    ).toBeInTheDocument();
+  });
 });

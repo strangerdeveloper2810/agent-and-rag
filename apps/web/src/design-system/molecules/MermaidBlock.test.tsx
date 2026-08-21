@@ -100,4 +100,45 @@ describe("MermaidBlock", () => {
 
     expect(vi.mocked(mermaid.render).mock.calls.length).toBe(1);
   });
+
+  // Bug thật: trong lúc SSE stream còn chạy, `code` đổi ở mỗi token khiến
+  // effect render liên tục dưới áp lực DOM churn, dễ ăn hết budget retry của
+  // lỗi getBBox trước khi trang ổn định -> sơ đồ kẹt vĩnh viễn ở fallback tới
+  // khi user F5. Trong lúc isStreaming=true, component không được thử render
+  // gì cả (chỉ giữ spinner), chờ đúng 1 lần thử (có kèm retry) sau khi dừng.
+  it("đang streaming thì không thử render, chỉ giữ spinner chờ", async () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <MermaidBlock code={"graph TD\n  A --> B"} isStreaming />
+      </I18nextProvider>,
+    );
+
+    // Đợi 1 nhịp để chắc chắn không có effect nào âm thầm gọi render.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(vi.mocked(mermaid.render).mock.calls.length).toBe(0);
+    expect(
+      screen.getByText(/Đang vẽ sơ đồ|Rendering diagram/i),
+    ).toBeInTheDocument();
+  });
+
+  it("hết streaming thì thử render đúng 1 lần cho code cuối cùng", async () => {
+    const { rerender } = render(
+      <I18nextProvider i18n={i18n}>
+        <MermaidBlock code={"graph TD\n  A"} isStreaming />
+      </I18nextProvider>,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(vi.mocked(mermaid.render).mock.calls.length).toBe(0);
+
+    rerender(
+      <I18nextProvider i18n={i18n}>
+        <MermaidBlock code={"graph TD\n  A --> B --> C"} isStreaming={false} />
+      </I18nextProvider>,
+    );
+
+    await waitFor(() =>
+      expect(vi.mocked(mermaid.render).mock.calls.length).toBe(1),
+    );
+  });
 });
