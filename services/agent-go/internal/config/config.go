@@ -29,6 +29,10 @@ type Config struct {
 	DeepSeekFlashModel   string // cho task đơn giản, rẻ + nhanh
 	DeepSeekProModel     string // cho task cần reasoning nhiều
 
+	// ReflectionBatchTurns: số lượt chat gộp lại trước khi Learner thực sự
+	// chạy 1 lần reflection (giảm số request LLM nền). default: 3.
+	ReflectionBatchTurns int
+
 	// Ollama (local LLM)
 	OllamaURL   string // default: http://localhost:11434
 	OllamaModel string // default: llama3.1:8b
@@ -189,6 +193,7 @@ func Load() (Config, error) {
 		DeepSeekKey:           os.Getenv("DEEPSEEK_API_KEY"),
 		DeepSeekFlashModel:    envOr("DEEPSEEK_FLASH_MODEL", "deepseek-v4-flash"),
 		DeepSeekProModel:      envOr("DEEPSEEK_PRO_MODEL", "deepseek-v4-pro"),
+		ReflectionBatchTurns:  intEnvOr("REFLECTION_BATCH_TURNS", 3),
 		DBPath:                envOr("JARVIS_DB_PATH", "jarvis.db"),
 		SkillsDir:             envOr("JARVIS_SKILLS_DIR", "./skills"),
 		AllowedPaths:          []string{".", os.Getenv("HOME")},

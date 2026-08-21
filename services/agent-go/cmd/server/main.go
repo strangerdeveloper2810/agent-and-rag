@@ -340,6 +340,7 @@ Bạn là chuyên gia nghiên cứu internet của JARVIS. Nhiệm vụ của b�
 			reflectionProv = prov
 		}
 		learner = memory.NewLearner(store, mongoClient, reflectionProv, fastModel(cfg), embedder)
+		learner.SetBatchTurns(cfg.ReflectionBatchTurns)
 		slog.Info("learner: autonomous continuous learning enabled")
 	}
 

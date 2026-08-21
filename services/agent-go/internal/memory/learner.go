@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"regexp"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ai-agent-tut/agent-go/internal/middleware"
@@ -22,17 +24,70 @@ type Learner struct {
 	provider    provider.Provider
 	model       string
 	embedder    Embedder
+
+	batchTurns atomic.Int32 // số lượt gộp lại trước khi thực sự chạy reflection; xem SetBatchTurns
+	turnMu     sync.Mutex
+	turnCount  map[string]int // conversationID → số lượt "đáng học" (qua gate worthLearning) đã tích lũy chưa reflect
+
+	// rawTurnsSinceReflect đếm MỌI lượt gọi LearnFromConversation (kể cả lượt
+	// tán gẫu bị worthLearning chặn) kể từ lần reflect thực sự gần nhất.
+	//
+	// Tách riêng khỏi turnCount vì lý do sau: LearnFromConversation luôn nhận
+	// TOÀN BỘ lịch sử hội thoại (kể cả các lượt tán gẫu), và windowing
+	// (ReflectAndExtractWithWindow) cắt theo "N tin nhắn CUỐI" của lịch sử
+	// đó. Nếu tính windowMessages = 2*batchTurns (chỉ đếm lượt "đáng học"),
+	// một lượt tán gẫu xen giữa batch (không tăng batchTurns nhưng vẫn nằm
+	// trong lịch sử đầy đủ) có thể đẩy nội dung của lượt "đáng học" đầu tiên
+	// ra ngoài cửa sổ. Đếm theo số lượt RAW mới phản ánh đúng kích thước
+	// lịch sử cần giữ lại.
+	rawTurnsSinceReflect map[string]int
 }
 
 // NewLearner creates a continuous memory & knowledge learner.
 func NewLearner(store *Store, mongoClient *mongo.Client, p provider.Provider, model string, embedder Embedder) *Learner {
-	return &Learner{
-		store:       store,
-		mongoClient: mongoClient,
-		provider:    p,
-		model:       model,
-		embedder:    embedder,
+	l := &Learner{
+		store:                store,
+		mongoClient:          mongoClient,
+		provider:             p,
+		model:                model,
+		embedder:             embedder,
+		turnCount:            make(map[string]int),
+		rawTurnsSinceReflect: make(map[string]int),
 	}
+	// mặc định KHÔNG batch — giữ hành vi cũ (chạy ngay mỗi lượt). atomic.Int32
+	// zero value là 0, PHẢI Store(1) rõ ràng — 0 nghĩa là "luôn gộp, không
+	// bao giờ reflect", sai với hợp đồng cũ.
+	l.batchTurns.Store(1)
+	return l
+}
+
+// SetBatchTurns đặt số lượt chat gộp lại trước khi thực sự chạy 1 lần
+// reflection (giảm số request LLM nền). n <= 0 → coi như 1 (không batch).
+//
+// batchTurns dùng atomic.Int32 (thay vì int thường) vì nó được ĐỌC từ goroutine
+// nền của LearnFromConversation (không giữ turnMu ở đó) trong khi có thể bị
+// SetBatchTurns GHI từ goroutine khác — dù wiring hiện tại (main.go gọi đúng 1
+// lần lúc khởi động, trước khi có request nào) khiến race này chưa xảy ra
+// trên thực tế, atomic vẫn cần để đúng theo Go memory model, không chỉ "may
+// mắn chưa crash".
+func (l *Learner) SetBatchTurns(n int) {
+	if n <= 0 {
+		n = 1
+	}
+	l.batchTurns.Store(int32(n))
+}
+
+// shouldReflectNow tăng bộ đếm lượt của conversationID và trả true khi đã
+// đạt batchTurns (rồi reset về 0 cho chu kỳ tiếp theo).
+func (l *Learner) shouldReflectNow(conversationID string) bool {
+	l.turnMu.Lock()
+	defer l.turnMu.Unlock()
+	l.turnCount[conversationID]++
+	if l.turnCount[conversationID] < int(l.batchTurns.Load()) {
+		return false
+	}
+	l.turnCount[conversationID] = 0
+	return true
 }
 
 // LearnFromConversation triggers autonomous reflection in a background goroutine.
@@ -52,11 +107,40 @@ func (l *Learner) LearnFromConversation(ctx context.Context, messages []provider
 		return
 	}
 
+	// Đếm MỌI lượt gọi (kể cả tán gẫu bị gate chặn dưới đây) — xem comment ở
+	// field rawTurnsSinceReflect để biết vì sao cần tách khỏi turnCount.
+	l.turnMu.Lock()
+	l.rawTurnsSinceReflect[conversationID]++
+	l.turnMu.Unlock()
+
 	// Lượt tán gẫu không có gì để học, nhưng reflection vẫn là một lượt gọi LLM
 	// đầy đủ — tức mỗi câu "xin chào" đang trả tiền hai lần. Bỏ qua sớm.
 	if !worthLearning(messages) {
 		slog.Debug("learner: bỏ qua lượt tán gẫu (không có gì để học)")
 		return
+	}
+
+	// Batch: gộp N lượt liền trước khi thực sự chạy reflection (giảm số
+	// request LLM nền). batchTurns=1 (mặc định) → luôn chạy ngay, giữ đúng
+	// hành vi cũ.
+	if !l.shouldReflectNow(conversationID) {
+		return
+	}
+
+	// Cửa sổ tin nhắn đưa vào reflection PHẢI dựa trên số lượt RAW (kể cả tán
+	// gẫu) đã tích lũy kể từ lần reflect trước, KHÔNG dựa trực tiếp vào
+	// batchTurns — xem comment ở rawTurnsSinceReflect. Sàn ở
+	// maxReflectionMessages để trường hợp batchTurns=1 (mặc định, không
+	// batch) giữ đúng cửa sổ cũ của ReflectAndExtract (lượt hiện tại + 1 lượt
+	// trước làm ngữ cảnh = 4 tin nhắn) thay vì bị co hẹp về 2*1=2.
+	l.turnMu.Lock()
+	rawTurns := l.rawTurnsSinceReflect[conversationID]
+	l.rawTurnsSinceReflect[conversationID] = 0
+	l.turnMu.Unlock()
+
+	windowMessages := 2 * rawTurns
+	if windowMessages < maxReflectionMessages {
+		windowMessages = maxReflectionMessages
 	}
 
 	tenantID := middleware.GetTenantID(ctx)
@@ -70,7 +154,7 @@ func (l *Learner) LearnFromConversation(ctx context.Context, messages []provider
 		bgCtx, cancel := context.WithTimeout(bgCtx, 45*time.Second)
 		defer cancel()
 
-		res, err := ReflectAndExtract(bgCtx, l.provider, l.model, msgsCopy)
+		res, err := ReflectAndExtractWithWindow(bgCtx, l.provider, l.model, msgsCopy, windowMessages)
 		if err != nil {
 			slog.Warn("learner: reflection failed", "err", err)
 			return

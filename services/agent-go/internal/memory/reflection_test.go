@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,9 +13,17 @@ import (
 
 type mockReflectionProvider struct {
 	response string
+	// onGenerate, khi được set, được gọi với request TRƯỚC khi trả response —
+	// dùng để capture prompt đã gửi (vd kiểm tra windowMessages) mà không cần
+	// định nghĩa type mock mới. nil-checked nên mọi call site cũ (chỉ set
+	// response) không bị ảnh hưởng.
+	onGenerate func(provider.GenerateRequest)
 }
 
 func (m *mockReflectionProvider) Generate(ctx context.Context, req provider.GenerateRequest) (<-chan provider.StreamChunk, error) {
+	if m.onGenerate != nil {
+		m.onGenerate(req)
+	}
 	ch := make(chan provider.StreamChunk, 2)
 	ch <- provider.StreamChunk{Kind: provider.ChunkText, Text: m.response}
 	ch <- provider.StreamChunk{Kind: provider.ChunkDone}
@@ -496,6 +505,39 @@ func TestRepairTruncatedJSON(t *testing.T) {
 				t.Errorf("repairTruncatedJSON(%q) = %q, want %q", tt.in, got, tt.want)
 			}
 		})
+	}
+}
+
+// ReflectAndExtractWithWindow phải tôn trọng windowMessages truyền vào, khác
+// hằng số cứng maxReflectionMessages — cần khi batch N lượt (N>1) để không
+// mất fact của các lượt bị gộp lại (xem Learner.turnCounter).
+func TestReflectAndExtractWithWindow_RespectsCustomWindow(t *testing.T) {
+	// 6 tin nhắn user/assistant xen kẽ (3 lượt trao đổi) — với window mặc định
+	// (4 = 2 lượt) thì lượt ĐẦU TIÊN ("Lượt 1 user"/"Lượt 1 assistant") sẽ bị
+	// cắt bỏ; với windowMessages=6 thì phải giữ đủ cả 3 lượt.
+	messages := []provider.Message{
+		{Role: provider.RoleUser, Content: "Lượt 1 user"},
+		{Role: provider.RoleAssistant, Content: "Lượt 1 assistant"},
+		{Role: provider.RoleUser, Content: "Lượt 2 user"},
+		{Role: provider.RoleAssistant, Content: "Lượt 2 assistant"},
+		{Role: provider.RoleUser, Content: "Lượt 3 user"},
+		{Role: provider.RoleAssistant, Content: "Lượt 3 assistant"},
+	}
+
+	var capturedPrompt string
+	mockP := &mockReflectionProvider{
+		response: `{"user_facts":[],"knowledge_items":[]}`,
+		onGenerate: func(req provider.GenerateRequest) {
+			capturedPrompt = req.Messages[0].Content
+		},
+	}
+
+	_, err := ReflectAndExtractWithWindow(context.Background(), mockP, "mock-model", messages, 6)
+	if err != nil {
+		t.Fatalf("ReflectAndExtractWithWindow: %v", err)
+	}
+	if !strings.Contains(capturedPrompt, "Lượt 1 user") {
+		t.Errorf("prompt thiếu 'Lượt 1 user' — windowMessages=6 phải giữ đủ 3 lượt trao đổi, không cắt về mặc định 4")
 	}
 }
 
