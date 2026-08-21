@@ -11,6 +11,8 @@ import { useTranslation } from "react-i18next";
 
 export interface MermaidBlockProps {
   code: string;
+  /** true khi message này còn đang stream token — xem lý do ở useEffect. */
+  isStreaming?: boolean;
 }
 
 /** Singleton counter for stable, unique mermaid element IDs across all renders. */
@@ -60,7 +62,10 @@ function initMermaid(mermaid: Mermaid) {
   });
 }
 
-export const MermaidBlock: React.FC<MermaidBlockProps> = ({ code }) => {
+export const MermaidBlock: React.FC<MermaidBlockProps> = ({
+  code,
+  isStreaming = false,
+}) => {
   const { t, i18n } = useTranslation();
   const isEn = i18n?.language?.startsWith("en") || false;
 
@@ -74,6 +79,23 @@ export const MermaidBlock: React.FC<MermaidBlockProps> = ({ code }) => {
 
   useEffect(() => {
     if (!containerRef.current) return;
+
+    if (isStreaming) {
+      // Đợi stream xong hẳn mới thử render. mermaid tự đo text bằng cách gắn
+      // 1 <svg> tạm vào <body> rồi gọi getBBox() (xem comment dài hơn ở
+      // isTransientMermaidError bên dưới) — trong lúc đang stream, `code` đổi
+      // ở MỖI token và cả trang re-render liên tục, khiến việc đo này dễ bị
+      // sai NHIỀU LẦN LIÊN TIẾP, ăn hết cả budget retry trước khi trang ổn
+      // định. Hậu quả thật đã gặp: sơ đồ kẹt vĩnh viễn ở fallback "hiện mã
+      // nguồn" cho tới khi user tự F5 lại trang (mount lại component từ đầu,
+      // lúc đó stream đã xong nên không còn áp lực render liên tục). Thay vì
+      // thử render dở dang rồi hết lượt retry, KHÔNG thử gì cả khi còn đang
+      // stream — giữ spinner "đang vẽ sơ đồ...", chỉ thử đúng 1 lần (có kèm
+      // retry sẵn) ngay khi stream dừng.
+      setError(null);
+      setRendered(false);
+      return;
+    }
 
     let cancelled = false;
     setError(null);
@@ -168,7 +190,7 @@ export const MermaidBlock: React.FC<MermaidBlockProps> = ({ code }) => {
     return () => {
       cancelled = true;
     };
-  }, [cleanCode]);
+  }, [cleanCode, isStreaming]);
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(cleanCode);
