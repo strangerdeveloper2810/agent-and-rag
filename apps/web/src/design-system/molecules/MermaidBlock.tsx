@@ -118,7 +118,8 @@ export const MermaidBlock: React.FC<MermaidBlockProps> = ({ code }) => {
       } catch (err: unknown) {
         return {
           ok: false,
-          message: err instanceof Error ? err.message : "Failed to render diagram",
+          message:
+            err instanceof Error ? err.message : "Failed to render diagram",
         };
       } finally {
         // Clean up any detached DOM nodes mermaid may have appended to <body>
@@ -148,7 +149,10 @@ export const MermaidBlock: React.FC<MermaidBlockProps> = ({ code }) => {
         }
 
         lastMessage = result.message;
-        if (attempt === maxAttempts || !isTransientMermaidError(result.message)) {
+        if (
+          attempt === maxAttempts ||
+          !isTransientMermaidError(result.message)
+        ) {
           break;
         }
         // Đợi 1 nhịp cho DOM/mermaid ổn định rồi thử lại — không cần backoff

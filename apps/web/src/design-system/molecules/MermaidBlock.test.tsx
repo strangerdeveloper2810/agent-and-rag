@@ -72,7 +72,9 @@ describe("MermaidBlock", () => {
     // implementation gốc chạy) không phản ánh đúng — dùng thẳng
     // vi.fn().mock.calls, luôn đếm MỌI lần gọi bất kể override hay không.
     await waitFor(() =>
-      expect(vi.mocked(mermaid.render).mock.calls.length).toBeGreaterThanOrEqual(2),
+      expect(
+        vi.mocked(mermaid.render).mock.calls.length,
+      ).toBeGreaterThanOrEqual(2),
     );
 
     // Không rơi về view "hiện mã nguồn" (banner lỗi) — phải render được sơ đồ.
