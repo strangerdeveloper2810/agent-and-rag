@@ -92,28 +92,34 @@ export const MermaidBlock: React.FC<MermaidBlockProps> = ({ code }) => {
     // thật. Mỗi lần gọi 1 id riêng loại bỏ hoàn toàn khả năng đụng độ này.
     const diagramId = `mermaid-${++mermaidCounter}`;
 
-    const render = async () => {
+    // mermaid tự đo kích thước text bằng cách gắn 1 <svg> TẠM vào <body>, gọi
+    // SVGElement.getBBox() trên đó, rồi xoá đi (xem
+    // mermaid/dist/chunks/mermaid.core/chunk-NSK5VX7P.mjs calculateTextDimensions,
+    // và getBBox trong labelHelper cho các node hình lục giác/erDiagram). Đây là
+    // timing NỘI BỘ của mermaid, không phải lỗi cú pháp — tái hiện được: cùng 1
+    // sơ đồ, cùng 1 id, THI THOẢNG ném "getBBox is not a function" / "svg
+    // element not in render tree" rồi lần render lại NGAY SAU đó (không đổi gì)
+    // lại thành công. Coi 2 lỗi này là "transient" và tự thử lại vài lần trước
+    // khi rơi về hiện mã nguồn — thay vì báo lỗi oan cho 1 sơ đồ cú pháp đúng.
+    const isTransientMermaidError = (msg: string) =>
+      /getBBox|not in render tree/i.test(msg);
+    const maxAttempts = 3;
+
+    const attemptRender = async (): Promise<
+      { ok: true; svg: string } | { ok: false; message: string }
+    > => {
       try {
         // Dynamic import: mermaid (~500kb+) tách thành chunk riêng, chỉ tải khi
         // thực sự gặp block ```mermaid — phần lớn hội thoại không có diagram.
         const mermaid = (await import("mermaid")).default;
         initMermaid(mermaid);
         const { svg } = await mermaid.render(diagramId, cleanCode);
-        if (cancelled || !containerRef.current) return;
-        containerRef.current.innerHTML = svg;
-        // Make SVG responsive
-        const svgEl = containerRef.current.querySelector("svg");
-        if (svgEl) {
-          svgEl.style.maxWidth = "100%";
-          svgEl.style.height = "auto";
-        }
-        setRendered(true);
+        return { ok: true, svg };
       } catch (err: unknown) {
-        if (cancelled) return;
-        const msg =
-          err instanceof Error ? err.message : "Failed to render diagram";
-        setError(msg);
-        setRendered(true); // stop loading spinner
+        return {
+          ok: false,
+          message: err instanceof Error ? err.message : "Failed to render diagram",
+        };
       } finally {
         // Clean up any detached DOM nodes mermaid may have appended to <body>
         const stray = document.getElementById(diagramId);
@@ -121,6 +127,37 @@ export const MermaidBlock: React.FC<MermaidBlockProps> = ({ code }) => {
           stray.remove();
         }
       }
+    };
+
+    const render = async () => {
+      let lastMessage = "Failed to render diagram";
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        const result = await attemptRender();
+        if (cancelled || !containerRef.current) return;
+
+        if (result.ok) {
+          containerRef.current.innerHTML = result.svg;
+          // Make SVG responsive
+          const svgEl = containerRef.current.querySelector("svg");
+          if (svgEl) {
+            svgEl.style.maxWidth = "100%";
+            svgEl.style.height = "auto";
+          }
+          setRendered(true);
+          return;
+        }
+
+        lastMessage = result.message;
+        if (attempt === maxAttempts || !isTransientMermaidError(result.message)) {
+          break;
+        }
+        // Đợi 1 nhịp cho DOM/mermaid ổn định rồi thử lại — không cần backoff
+        // dài vì đây là race cực ngắn (đo xong là xoá node tạm ngay).
+        await new Promise((resolve) => setTimeout(resolve, 60));
+      }
+      if (cancelled) return;
+      setError(lastMessage);
+      setRendered(true); // stop loading spinner
     };
 
     render();
