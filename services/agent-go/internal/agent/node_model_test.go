@@ -351,6 +351,63 @@ func TestNodeModel_LangOverride(t *testing.T) {
 	}
 }
 
+// TestNodeModel_LangOverride_FollowsCurrentMessage khoá bug thật (log user
+// report): ngôn ngữ trả lời PHẢI bám theo NGÔN NGỮ CỦA CÂU VỪA GỬI, không
+// phải cấu hình UI (RunInput.Lang). Trước fix: UI để "vi" (mặc định) làm
+// auto-detect tiếng Anh không bao giờ chạy (gate `s.Lang != "vi"`), và UI để
+// "en" thì ép tiếng Anh dù user gõ tiếng Việt. RunInput.Lang chỉ nên là
+// fallback khi câu hiện tại quá ngắn/mơ hồ để nhận diện.
+func TestNodeModel_LangOverride_FollowsCurrentMessage(t *testing.T) {
+	tests := []struct {
+		name        string
+		lang        string
+		userMessage string
+		wantContain string
+		wantAbsent  string
+	}{
+		{
+			name:        "UI=vi nhưng câu vừa gửi là tiếng Anh → phải ép tiếng Anh",
+			lang:        "vi",
+			userMessage: "can you give me the plan to learning",
+			wantContain: "MUST respond completely in English",
+		},
+		{
+			name:        "UI rỗng nhưng câu vừa gửi là tiếng Anh → phải ép tiếng Anh",
+			lang:        "",
+			userMessage: "I wanna learning backend development with go",
+			wantContain: "MUST respond completely in English",
+		},
+		{
+			name:        "UI=en nhưng câu vừa gửi là tiếng Việt → KHÔNG được ép tiếng Anh",
+			lang:        "en",
+			userMessage: "bạn cho tôi lộ trình học được không",
+			wantAbsent:  "respond in English",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fake := newCapturingProvider(
+				provider.StreamChunk{Kind: provider.ChunkText, Text: "OK"},
+				provider.StreamChunk{Kind: provider.ChunkDone},
+			)
+			eng := &fakeEngine{prov: fake, registry: tools.NewRegistry()}
+			s := newState(RunInput{UserMessage: tt.userMessage, MaxSteps: 12, Lang: tt.lang})
+
+			if _, err := nodeModel(context.Background(), eng, s, nilEmit); err != nil {
+				t.Fatalf("nodeModel error: %v", err)
+			}
+
+			if tt.wantContain != "" && !strings.Contains(fake.LastRequest.System, tt.wantContain) {
+				t.Errorf("system prompt thiếu %q: %q", tt.wantContain, fake.LastRequest.System)
+			}
+			if tt.wantAbsent != "" && strings.Contains(fake.LastRequest.System, tt.wantAbsent) {
+				t.Errorf("system prompt không nên chứa %q: %q", tt.wantAbsent, fake.LastRequest.System)
+			}
+		})
+	}
+}
+
 // --- helpers cho test ---
 
 var nilEmit EmitFunc = func(Event) {}

@@ -10,6 +10,15 @@ export const chatRoutes = async (app: FastifyInstance) => {
     ctrl.postConversation,
   );
   app.get("/conversations", { preHandler: [authGuard] }, ctrl.getConversations);
+  // Gọi LLM (1 lượt) → siết rate limit như chat, không để tốn quota vô hạn.
+  app.get(
+    "/suggestions",
+    {
+      preHandler: [authGuard],
+      config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    },
+    ctrl.getSuggestions,
+  );
   app.get(
     "/conversations/:id/messages",
     { preHandler: [authGuard] },

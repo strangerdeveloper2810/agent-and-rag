@@ -132,15 +132,30 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 	// Per-request UI language override (i18n). getSystemPrompt() is the
 	// STATIC prompt built once at wiring time (agent.BuildSystemPrompt), which
 	// defaults to Vietnamese and is shared across every concurrent request —
-	// it can't carry a per-user language choice. When the frontend user picked
-	// English (s.Lang == "en", forwarded via RunInput.Lang for this turn
-	// only), append an explicit override here instead, mirroring how
-	// RecalledMemories above is woven in per-request without mutating the
-	// cacheable prefix.
-	if s.Lang == "en" {
-		systemPrompt += "\n\n[NGÔN NGỮ TRẢ LỜI CHO LƯỢT NÀY]\nALWAYS respond in English for this turn (including all ask_user clarifying question prompts, headers, option labels, descriptions, and follow-up suggestions) — this overrides any earlier Vietnamese-default instruction above.\n"
-	} else if s.Lang != "vi" && isEnglishInput(userInput) {
+	// it can't carry a per-user language choice. Append an explicit override
+	// here instead, mirroring how RecalledMemories above is woven in
+	// per-request without mutating the cacheable prefix.
+	//
+	// QUAN TRỌNG: ngôn ngữ trả lời PHẢI bám theo NGÔN NGỮ CỦA CÂU VỪA GỬI
+	// (detectInputLanguage(userInput)), KHÔNG phải cấu hình UI (s.Lang) — bug
+	// thật đã gặp: UI để "vi" (mặc định) khiến auto-detect tiếng Anh không
+	// bao giờ chạy (gate cũ `s.Lang != "vi"`), và UI để "en" thì ép tiếng Anh
+	// dù user gõ tiếng Việt. s.Lang giờ chỉ dùng làm fallback khi câu hiện
+	// tại quá ngắn/mơ hồ để nhận diện (vd "ok", "hello").
+	switch detectInputLanguage(userInput) {
+	case "en":
 		systemPrompt += "\n\n[USER IS COMMUNICATING IN ENGLISH]\nThe user prompt is in English. You MUST respond completely in English for this turn (including all text responses, markdown tables, code explanations, ask_user question prompts/headers/options, and follow-up suggestions).\n"
+	case "vi":
+		if s.Lang == "en" {
+			systemPrompt += "\n\n[NGƯỜI DÙNG ĐANG GIAO TIẾP BẰNG TIẾNG VIỆT]\nCâu vừa gửi là tiếng Việt — PHẢI trả lời bằng tiếng Việt cho lượt này (kể cả câu hỏi ask_user, header, option, gợi ý follow-up), dù cấu hình UI đang để tiếng Anh.\n"
+		}
+		// else: base prompt mặc định đã là tiếng Việt, không cần ghi đè thêm.
+	default:
+		// Câu hiện tại quá ngắn/mơ hồ để nhận diện (vd "ok", "hello") → dùng
+		// cấu hình UI (s.Lang) làm fallback.
+		if s.Lang == "en" {
+			systemPrompt += "\n\n[NGÔN NGỮ TRẢ LỜI CHO LƯỢT NÀY]\nALWAYS respond in English for this turn (including all ask_user clarifying question prompts, headers, option labels, descriptions, and follow-up suggestions) — this overrides any earlier Vietnamese-default instruction above.\n"
+		}
 	}
 
 	// Per-user Custom Instructions
@@ -491,18 +506,23 @@ func estimateTokens(messages []provider.Message) int {
 	return total / 4
 }
 
-// isEnglishInput phát hiện câu hỏi người dùng có phải là tiếng Anh hay không.
-func isEnglishInput(s string) bool {
+// detectInputLanguage đoán ngôn ngữ của CÂU VỪA GỬI (không phải cấu hình UI):
+// trả "vi" nếu có dấu thanh tiếng Việt, "en" nếu toàn ASCII và đủ dài (>= 3
+// từ) để tin cậy, "" (không rõ) nếu câu quá ngắn/mơ hồ (vd "ok", "hello").
+func detectInputLanguage(s string) string {
 	if s == "" {
-		return false
+		return ""
 	}
 	// Nếu có dấu thanh tiếng Việt → tiếng Việt
 	for _, r := range s {
 		if (r >= 0x00C0 && r <= 0x00FF) || (r >= 0x0100 && r <= 0x024F) || (r >= 0x1EA0 && r <= 0x1EF9) {
-			return false
+			return "vi"
 		}
 	}
 	// Kiểm tra độ dài từ tiếng Anh
 	words := strings.Fields(strings.ToLower(s))
-	return len(words) >= 3
+	if len(words) >= 3 {
+		return "en"
+	}
+	return ""
 }

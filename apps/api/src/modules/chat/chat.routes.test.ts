@@ -88,4 +88,16 @@ describe("chat routes - validation", () => {
     });
     expect(res.statusCode).toBe(401);
   });
+
+  // /suggestions proxy sang Go agent kèm X-Tenant-ID — trước đây FE gọi
+  // thẳng agent-go không qua route này/authGuard nên mọi user rơi về tenant
+  // "default". Test này chỉ khoá phần route đã đăng ký + có authGuard, không
+  // mock fetch tới agent-go (không có agent-go thật trong test env).
+  it("GET /api/suggestions thiếu access_token → 401", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/suggestions",
+    });
+    expect(res.statusCode).toBe(401);
+  });
 });

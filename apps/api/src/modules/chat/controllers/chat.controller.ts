@@ -6,6 +6,7 @@ import {
   createConversationBodySchema,
 } from "../../../schemas/chat-request";
 import { getPgPool } from "../../../database/postgres/postgres.module";
+import { getSuggestions as fetchSuggestions } from "../../../agent/client/go-agent.client";
 
 // Cùng pattern với modules/documents/controllers, modules/upload/upload.routes.ts
 // — authGuard đã set req.tenantId từ JWT trước khi route chạm tới controller;
@@ -33,6 +34,16 @@ export const deleteConversation = async (req: FastifyRequest) => {
   const tenantId = getTenantId(req);
   const { id } = req.params as { id: string };
   return chatService.deleteConversation(tenantId, id);
+};
+
+/**
+ * Gợi ý mở đầu hội thoại (GET /api/suggestions) — proxy sang Go agent kèm
+ * đúng X-Tenant-ID để agent-go cá nhân hoá theo tenant thật, thay vì FE gọi
+ * thẳng agent-go không qua authGuard (mọi user rơi về tenant "default").
+ */
+export const getSuggestions = async (req: FastifyRequest) => {
+  const tenantId = getTenantId(req);
+  return fetchSuggestions(tenantId);
 };
 
 /**

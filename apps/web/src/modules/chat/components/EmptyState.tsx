@@ -14,7 +14,10 @@ import {
 import type { EmptyStateProps } from "@/types";
 import { Card } from "@/components/ui/card";
 import { useAgentAvatarUrl } from "@/hooks/queries/useUserSettings";
-import { useSuggestions } from "@/hooks/queries/useSuggestions";
+import {
+  useSuggestions,
+  type AgentSuggestion,
+} from "@/hooks/queries/useSuggestions";
 
 const PROMPT_CATEGORY_IDS = [
   "creative",
@@ -84,12 +87,25 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ onPick }) => {
 
   // Fallback tính ở phía component (không nằm trong cache) để đổi ngôn ngữ là
   // đổi gợi ý theo ngay, không phải chờ cache hết hạn.
-  const suggestions = useMemo(
-    () => agentSuggestions ?? shuffledFallbackPool(t),
+  //
+  // agent-go trả 1 lô ~8 gợi ý kèm category (creative/rag/dev/search/
+  // productivity) trong 1 lượt gọi LLM duy nhất — lọc theo activeTab ở ĐÂY
+  // (client-side) để đổi tab thấy gợi ý đổi theo mà KHÔNG phải gọi lại LLM
+  // mỗi lần bấm tab (tốn quota). Gợi ý không có category (fallback tĩnh)
+  // luôn hiện ở mọi tab.
+  const suggestions = useMemo((): AgentSuggestion[] => {
+    const base: AgentSuggestion[] =
+      agentSuggestions ?? shuffledFallbackPool(t).map((text) => ({ text }));
+    const activeCategory = PROMPT_CATEGORY_IDS[activeTab];
+    const matching = base.filter(
+      (s) => !s.category || s.category === activeCategory,
+    );
+    // Không có gợi ý nào khớp category hiện tại (lô LLM lệch hướng) → vẫn
+    // hiện đủ gợi ý (base) thay vì để trống cả mục.
+    return matching.length > 0 ? matching : base;
     // refreshSeed đứng trong deps để bấm "đổi gợi ý" cũng xáo lại pool tĩnh.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [agentSuggestions, t, refreshSeed],
-  );
+  }, [agentSuggestions, t, refreshSeed, activeTab]);
 
   const currentPrompts = useMemo(() => {
     void refreshSeed;
@@ -227,14 +243,14 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ onPick }) => {
             <div className="flex flex-wrap items-center justify-center gap-2">
               {suggestions.slice(0, 4).map((item) => (
                 <button
-                  key={item}
+                  key={item.text}
                   type="button"
-                  onClick={() => handlePick(item)}
+                  onClick={() => handlePick(item.text)}
                   className="inline-flex items-center gap-2 rounded-full border border-border/80 bg-card px-3.5 py-1.5 text-xs sm:text-sm font-medium text-foreground hover:text-primary hover:border-primary/40 hover:bg-primary/[0.04] transition-all duration-200 shadow-xs cursor-pointer"
                 >
                   <span className="text-amber-500">✨</span>
                   <span className="truncate max-w-[280px] sm:max-w-none">
-                    {item}
+                    {item.text}
                   </span>
                 </button>
               ))}

@@ -151,6 +151,45 @@ export const testMcpConnection = async (
   }
 };
 
+/** Một gợi ý mở đầu hội thoại, kèm category để FE lọc theo tab đang chọn. */
+export interface SuggestionItem {
+  text: string;
+  category?: string;
+}
+
+/**
+ * Gọi GET /suggestions lên Go agent, gửi kèm X-Tenant-ID để agent-go cá
+ * nhân hoá theo ĐÚNG tenant đang đăng nhập (lịch sử hội thoại + facts đã
+ * học) — trước đây FE gọi thẳng agent-go không qua BFF nên không có tenant
+ * nào cả, mọi user đều rơi về "default".
+ */
+export const getSuggestions = async (
+  tenantId: string,
+): Promise<{ suggestions: SuggestionItem[] }> => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15_000);
+
+  try {
+    const res = await fetch(`${config.AGENT_GO_URL}/suggestions`, {
+      headers: { "X-Tenant-ID": tenantId },
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      throw new AgentUnavailableError(
+        `Go agent trả về lỗi ${res.status} khi lấy suggestions.`,
+      );
+    }
+    return (await res.json()) as { suggestions: SuggestionItem[] };
+  } catch (err) {
+    if (err instanceof AgentUnavailableError) throw err;
+    throw new AgentUnavailableError(
+      "Không thể kết nối đến AI agent để lấy suggestions.",
+    );
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
 // ----- SSE Parser -----
 
 /**
