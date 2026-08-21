@@ -129,13 +129,29 @@ dùng dấu nháy đơn ' thay vì nháy kép để tránh phá vỡ cấu trúc
 output phải là JSON hợp lệ, parse được bằng json.Unmarshal ngay lần đầu.`
 
 // ReflectAndExtract runs a fast LLM pass over conversation messages to extract user facts and knowledge items.
+// Dùng cửa sổ mặc định maxReflectionMessages. Giữ lại vì có nhiều call site
+// hiện có (test + Learner khi không batch) — xem ReflectAndExtractWithWindow
+// cho phiên bản cho phép chỉ định cửa sổ.
+func ReflectAndExtract(ctx context.Context, p provider.Provider, model string, messages []provider.Message) (*ReflectionResult, error) {
+	return ReflectAndExtractWithWindow(ctx, p, model, messages, maxReflectionMessages)
+}
+
+// ReflectAndExtractWithWindow giống ReflectAndExtract nhưng cho phép chỉ định
+// số tin nhắn cuối đưa vào prompt (windowMessages) thay vì hằng số cố định
+// maxReflectionMessages. Cần khi Learner batch N lượt liền — phải mở cửa sổ
+// rộng tương ứng (2*N) để không mất fact của các lượt bị gộp lại, xem
+// Learner.turnCounter trong learner.go.
+//
 // Lỗi parse JSON (khác lỗi Generate() thật sự) được retry tối đa
 // maxReflectionAttempts lần trước khi bỏ cuộc — đây là lỗi xác suất phụ
 // thuộc vào output cụ thể của model, không phải lỗi hệ thống, nên thử lại
 // thường cứu được lượt học thay vì mất trắng.
-func ReflectAndExtract(ctx context.Context, p provider.Provider, model string, messages []provider.Message) (*ReflectionResult, error) {
+func ReflectAndExtractWithWindow(ctx context.Context, p provider.Provider, model string, messages []provider.Message, windowMessages int) (*ReflectionResult, error) {
 	if len(messages) == 0 || p == nil {
 		return &ReflectionResult{}, nil
+	}
+	if windowMessages <= 0 {
+		windowMessages = maxReflectionMessages
 	}
 
 	// Chỉ lấy các tin nhắn CUỐI: lượt cũ đã được reflect ở những lần gọi trước
@@ -147,8 +163,8 @@ func ReflectAndExtract(ctx context.Context, p provider.Provider, model string, m
 			dialogue = append(dialogue, m)
 		}
 	}
-	if len(dialogue) > maxReflectionMessages {
-		dialogue = dialogue[len(dialogue)-maxReflectionMessages:]
+	if len(dialogue) > windowMessages {
+		dialogue = dialogue[len(dialogue)-windowMessages:]
 	}
 
 	var convText strings.Builder

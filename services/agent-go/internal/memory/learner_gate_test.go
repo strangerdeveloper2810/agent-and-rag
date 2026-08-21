@@ -57,8 +57,13 @@ func TestWorthLearning(t *testing.T) {
 			want: true,
 		},
 		{
-			name: "user ngắn nhưng trả lời dài (bài học kỹ thuật) → phải học",
+			name: "user ngắn + trả lời dài nhưng KHÔNG có từ khoá fact → bỏ qua (siết gate)",
 			msgs: exchange("sao chậm?", longAnswer),
+			want: false, // trước đây true — điều kiện "assistant dài" đã bị bỏ vì gần như luôn đúng, vô hiệu hoá gate
+		},
+		{
+			name: "user ngắn CÓ từ khoá fact + trả lời dài → vẫn phải học",
+			msgs: exchange("tôi thích Go", longAnswer),
 			want: true,
 		},
 		{

@@ -3,12 +3,35 @@ package memory
 import (
 	"context"
 	"errors"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/ai-agent-tut/agent-go/internal/middleware"
 	"github.com/ai-agent-tut/agent-go/internal/provider"
 )
+
+// safeCapture bọc 1 chuỗi bằng mutex — cần vì mockReflectionProvider.onGenerate
+// chạy trong goroutine NỀN của Learner.LearnFromConversation, còn test đọc lại
+// (waitFor/assert) từ goroutine chính; một string trần không có lock ở đây bị
+// go test -race bắt được là data race thật.
+type safeCapture struct {
+	mu  sync.Mutex
+	val string
+}
+
+func (c *safeCapture) set(v string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.val = v
+}
+
+func (c *safeCapture) get() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.val
+}
 
 // scriptedLearnerProvider trả một JSON reflection cố định (hoặc lỗi) — đủ để
 // chạy trọn đường học mà không cần LLM thật, không cần Mongo.
@@ -151,6 +174,147 @@ func TestLearnFromConversation_LearnerNilVaProviderNil(t *testing.T) {
 	l2 := NewLearner(NewStore(), nil, &scriptedLearnerProvider{json: `{}`}, "m", nil)
 	l2.LearnFromConversation(tenantCtx("t"),
 		[]provider.Message{{Role: provider.RoleUser, Content: "chỉ có một tin nhắn dài đủ để qua gate"}}, "c")
+}
+
+// TestLearner_BatchTurns_SkipsUntilNthTurn khoá đúng hành vi batch: khi
+// SetBatchTurns(3), 2 lượt đầu KHÔNG gọi provider (dù có fact đáng học), chỉ
+// lượt thứ 3 mới thực sự chạy reflection.
+func TestLearner_BatchTurns_SkipsUntilNthTurn(t *testing.T) {
+	spy := &gateSpyProvider{}
+	ctx := tenantCtx("tenant-batch")
+
+	l := NewLearner(NewStore(), nil, spy, "deepseek-v4-flash", nil)
+	l.SetBatchTurns(3)
+
+	l.LearnFromConversation(ctx, exchange("tôi tên An", "Chào An!"), "conv-batch")
+	l.LearnFromConversation(ctx, exchange("tôi thích Go", "Ghi nhận!"), "conv-batch")
+	time.Sleep(150 * time.Millisecond)
+	if n := spy.calls.Load(); n != 0 {
+		t.Fatalf("provider bị gọi %d lần trước lượt thứ N — batch không hoạt động", n)
+	}
+
+	// "tôi cần Postgres" (từ khoá "cần") — PHẢI qua được gate worthLearning
+	// (Task 3 đã siết gate: câu ngắn không có từ khoá bị bỏ qua), nếu không
+	// batch counter không tăng và test này fail vì lý do khác, không liên
+	// quan đến batching.
+	l.LearnFromConversation(ctx, exchange("tôi cần Postgres", "Ghi nhận!"), "conv-batch")
+	if !waitFor(2*time.Second, func() bool { return spy.calls.Load() > 0 }) {
+		t.Error("lượt thứ N (đủ batch) nhưng provider không được gọi")
+	}
+}
+
+// Mặc định (không gọi SetBatchTurns) PHẢI giữ hành vi cũ: gọi ngay lượt đầu.
+// Đây là test hồi quy quan trọng nhất — bảo vệ 2 test cũ trong
+// learner_gate_test.go khỏi bị batch mặc định phá vỡ.
+func TestLearner_DefaultBatchTurns_IsOne(t *testing.T) {
+	spy := &gateSpyProvider{}
+	ctx := tenantCtx("tenant-default")
+
+	l := NewLearner(NewStore(), nil, spy, "deepseek-v4-flash", nil)
+	l.LearnFromConversation(ctx, exchange("tôi tên Bình", "Chào Bình!"), "conv-default")
+
+	if !waitFor(2*time.Second, func() bool { return spy.calls.Load() > 0 }) {
+		t.Error("batch mặc định phải = 1 (gọi ngay), không được hoãn")
+	}
+}
+
+// TestLearner_DefaultBatchTurns_PreservesFullWindow là test hồi quy cho Bug 1
+// (window-sizing): với batchTurns MẶC ĐỊNH (1, không gọi SetBatchTurns), cửa
+// sổ tin nhắn gửi tới reflection PHẢI giữ nguyên hành vi cũ của
+// ReflectAndExtract — tối thiểu maxReflectionMessages (4 = 2 lượt trao đổi:
+// lượt hiện tại + 1 lượt trước làm ngữ cảnh). Công thức cũ 2*batchTurns cho
+// N=1 ra window=2, co hẹp MỘT NỬA so với hành vi cũ, làm mất lượt trước —
+// đúng như báo cáo review đã tái hiện bằng thực nghiệm.
+func TestLearner_DefaultBatchTurns_PreservesFullWindow(t *testing.T) {
+	captured := &safeCapture{}
+	mockP := &mockReflectionProvider{
+		response: `{"user_facts":[],"knowledge_items":[]}`,
+		onGenerate: func(req provider.GenerateRequest) {
+			captured.set(req.Messages[0].Content)
+		},
+	}
+
+	l := NewLearner(NewStore(), nil, mockP, "deepseek-v4-flash", nil)
+
+	messages := []provider.Message{
+		{Role: provider.RoleUser, Content: "Lượt trước user"},
+		{Role: provider.RoleAssistant, Content: "Lượt trước assistant"},
+		{Role: provider.RoleUser, Content: "tôi tên An"},
+		{Role: provider.RoleAssistant, Content: "Chào An!"},
+	}
+
+	l.LearnFromConversation(tenantCtx("tenant-window-default"), messages, "conv-window-default")
+
+	if !waitFor(2*time.Second, func() bool { return captured.get() != "" }) {
+		t.Fatal("provider không được gọi")
+	}
+	if prompt := captured.get(); !strings.Contains(prompt, "Lượt trước user") {
+		t.Errorf("prompt thiếu 'Lượt trước user' — batchTurns mặc định=1 phải giữ cửa sổ cũ "+
+			"(tối thiểu 4 tin nhắn = 2 lượt), không co hẹp về 2*batchTurns=2: %q", prompt)
+	}
+}
+
+// TestLearner_BatchTurns_WindowCoversAllRawTurnsInBatch là test hồi quy cho
+// Bug 2 (window-sizing): khi có lượt TÁN GẪU bị gate worthLearning chặn xen
+// giữa 1 batch (không tăng batchTurns counter), cửa sổ tin nhắn khi batch
+// thực sự fire vẫn phải đủ rộng để bao gồm lượt fact ĐẦU TIÊN của batch đó.
+// Nếu chỉ dùng công thức cố định 2*batchTurns (chỉ đếm lượt "đáng học"), lượt
+// tán gẫu xen giữa vẫn nằm trong lịch sử ĐẦY ĐỦ được gửi lại mỗi lần, đẩy lượt
+// fact đầu tiên ra ngoài cửa sổ — đúng bug đã được review tái hiện.
+func TestLearner_BatchTurns_WindowCoversAllRawTurnsInBatch(t *testing.T) {
+	captured := &safeCapture{}
+	mockP := &mockReflectionProvider{
+		response: `{"user_facts":[],"knowledge_items":[]}`,
+		onGenerate: func(req provider.GenerateRequest) {
+			captured.set(req.Messages[0].Content)
+		},
+	}
+
+	l := NewLearner(NewStore(), nil, mockP, "deepseek-v4-flash", nil)
+	l.SetBatchTurns(3)
+	ctx := tenantCtx("tenant-window-batch")
+
+	var history []provider.Message
+	appendTurn := func(user, assistant string) {
+		history = append(history,
+			provider.Message{Role: provider.RoleUser, Content: user},
+			provider.Message{Role: provider.RoleAssistant, Content: assistant},
+		)
+	}
+
+	// Lượt A: fact (từ khoá "tên") → batch counter → 1.
+	appendTurn("tôi tên An-FACT-A", "Chào An!")
+	l.LearnFromConversation(ctx, history, "conv-window-batch")
+
+	// Lượt B: tán gẫu ("cảm ơn nhé" — xem learner_gate_test.go) → gate chặn,
+	// KHÔNG tăng batch counter, nhưng VẪN nằm trong lịch sử đầy đủ.
+	appendTurn("cảm ơn nhé", "Không có gì!")
+	l.LearnFromConversation(ctx, history, "conv-window-batch")
+
+	// Lượt C: fact (từ khoá "thích") → batch counter → 2.
+	appendTurn("tôi thích Go-FACT-C", "Ghi nhận!")
+	l.LearnFromConversation(ctx, history, "conv-window-batch")
+
+	time.Sleep(150 * time.Millisecond)
+	if prompt := captured.get(); prompt != "" {
+		t.Fatalf("provider bị gọi trước khi đủ batch: %q", prompt)
+	}
+
+	// Lượt D: fact (từ khoá "cần") → batch counter → 3 → fires.
+	appendTurn("tôi cần Postgres-FACT-D", "Ghi nhận!")
+	l.LearnFromConversation(ctx, history, "conv-window-batch")
+
+	if !waitFor(2*time.Second, func() bool { return captured.get() != "" }) {
+		t.Fatal("lượt thứ N (đủ batch) nhưng provider không được gọi")
+	}
+	prompt := captured.get()
+	if !strings.Contains(prompt, "FACT-A") {
+		t.Errorf("prompt thiếu nội dung lượt A (lượt fact ĐẦU TIÊN của batch) — window bị co hẹp "+
+			"bởi lượt tán gẫu (B) xen giữa: %q", prompt)
+	}
+	if !strings.Contains(prompt, "FACT-C") || !strings.Contains(prompt, "FACT-D") {
+		t.Errorf("prompt thiếu lượt C hoặc D: %q", prompt)
+	}
 }
 
 func TestSlugify(t *testing.T) {

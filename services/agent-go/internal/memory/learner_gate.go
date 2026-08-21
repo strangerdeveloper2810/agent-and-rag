@@ -6,14 +6,20 @@ import (
 	"github.com/ai-agent-tut/agent-go/internal/provider"
 )
 
-// Ngưỡng cho "lượt tán gẫu": câu user ngắn VÀ câu trả lời ngắn thì gần như chắc
-// chắn không chứa fact về người dùng hay bài học kỹ thuật nào.
+// Ngưỡng cho "lượt tán gẫu": câu user ngắn thì gần như chắc chắn không chứa
+// fact về người dùng hay bài học kỹ thuật nào.
 //
-// Cố tình đặt thấp và yêu cầu CẢ HAI điều kiện: bỏ sót một lượt đáng học chỉ làm
-// mất một fact (lượt sau nhắc lại là học được), nhưng học mọi lượt tán gẫu thì
-// nhân đôi hoá đơn LLM của toàn hệ thống.
+// Cố tình đặt thấp: bỏ sót một lượt đáng học chỉ làm mất một fact (lượt sau
+// nhắc lại là học được), nhưng học mọi lượt tán gẫu thì nhân đôi hoá đơn LLM
+// của toàn hệ thống.
 const (
-	trivialUserRunes      = 25
+	trivialUserRunes = 25
+
+	// trivialAssistantRunes không còn được worthLearning dùng — điều kiện
+	// "assistant dài → học" đã bị xoá vì gần như luôn đúng với bất kỳ câu trả
+	// lời có nội dung, khiến gate vô hiệu (production log cho thấy reflection
+	// chạy hầu như mọi lượt). Hằng số này chỉ còn phục vụ test
+	// (dựng longAnswer trong learner_gate_test.go).
 	trivialAssistantRunes = 400
 )
 
@@ -29,11 +35,10 @@ const (
 //     RecallNode — một nguồn sự thật, xem recall.go) → LUÔN học.
 //   - Câu user dài (> trivialUserRunes) → học, vì câu dài thường mang yêu cầu
 //     hoặc thông tin thật.
-//   - Câu trả lời dài (> trivialAssistantRunes) → học, vì câu trả lời dài
-//     thường là giải pháp kỹ thuật đáng lưu thành knowledge item.
-//   - Còn lại (user ngắn + trả lời ngắn + không từ khoá) → bỏ qua.
+//   - Còn lại (user ngắn + không từ khoá, bất kể câu trả lời dài hay ngắn) →
+//     bỏ qua.
 func worthLearning(messages []provider.Message) bool {
-	lastUser, lastAssistant := lastByRole(messages)
+	lastUser, _ := lastByRole(messages)
 
 	if lastUser == "" {
 		return false
@@ -46,10 +51,7 @@ func worthLearning(messages []provider.Message) bool {
 		}
 	}
 
-	if len([]rune(lastUser)) > trivialUserRunes {
-		return true
-	}
-	return len([]rune(lastAssistant)) > trivialAssistantRunes
+	return len([]rune(lastUser)) > trivialUserRunes
 }
 
 // lastByRole trả về nội dung tin nhắn user và assistant gần nhất.

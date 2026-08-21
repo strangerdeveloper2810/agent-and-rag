@@ -334,7 +334,13 @@ Bạn là chuyên gia nghiên cứu internet của JARVIS. Nhiệm vụ của b�
 				return vc.Embed(ctx, texts, "document")
 			})
 		}
-		learner = memory.NewLearner(store, mongoClient, prov, fastModel(cfg), embedder)
+		reflectionProv, err := factory.NewReflectionProvider(cfg)
+		if err != nil {
+			slog.Warn("main: không tạo được reflection provider riêng, dùng provider chính", "err", err)
+			reflectionProv = prov
+		}
+		learner = memory.NewLearner(store, mongoClient, reflectionProv, fastModel(cfg), embedder)
+		learner.SetBatchTurns(cfg.ReflectionBatchTurns)
 		slog.Info("learner: autonomous continuous learning enabled")
 	}
 

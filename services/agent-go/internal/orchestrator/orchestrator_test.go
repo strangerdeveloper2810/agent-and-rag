@@ -3,6 +3,7 @@ package orchestrator
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/ai-agent-tut/agent-go/internal/agent"
 	"github.com/ai-agent-tut/agent-go/internal/provider"
@@ -249,5 +250,153 @@ func TestOrchestrator_ListAgents(t *testing.T) {
 	}
 	if list[0].Name != "a" || list[1].Name != "b" {
 		t.Errorf("order wrong: %v", list)
+	}
+}
+
+// TestOrchestrator_StickyAgentOnReply khoá đúng bug tìm thấy trong log
+// production: khi user trả lời câu hỏi ask_user (format "Q:/A:"), câu trả
+// lời có thể tình cờ chứa keyword của agent KHÁC (vd "tìm hiểu" khớp agent
+// research) — nhưng vì đây là reply cho 1 hội thoại agent "code" đang xử lý,
+// PHẢI tiếp tục dùng agent "code", không được nhảy sang "research".
+func TestOrchestrator_StickyAgentOnReply(t *testing.T) {
+	orch := New()
+	orch.Register(&AgentSpec{
+		Name:            "code",
+		Engine:          newFakeEngine("code", provider.StreamChunk{Kind: provider.ChunkText, Text: "code agent trả lời"}, provider.StreamChunk{Kind: provider.ChunkDone}),
+		TriggerKeywords: []string{"code", "repo", "go"},
+	})
+	orch.Register(&AgentSpec{
+		Name:            "research",
+		Engine:          newFakeEngine("research", provider.StreamChunk{Kind: provider.ChunkText, Text: "research agent trả lời"}, provider.StreamChunk{Kind: provider.ChunkDone}),
+		TriggerKeywords: []string{"tìm hiểu", "research"},
+	})
+
+	ctx := context.Background()
+	emit := func(agent.Event) {}
+	const convID = "conv-sticky-1"
+
+	// Lượt 1: input khớp "code" → agent code xử lý, ghi sticky.
+	_, err := orch.Run(ctx, agent.RunInput{ConversationID: convID, UserMessage: "đi sâu vào repo code này", MaxSteps: 2}, emit)
+	if err != nil {
+		t.Fatalf("Run lượt 1: %v", err)
+	}
+
+	// Lượt 2: reply Q:/A: mà phần A: chứa keyword "tìm hiểu" (của research) —
+	// PHẢI vẫn ở lại agent "code" nhờ sticky, KHÔNG bị route sang "research".
+	var gotAgent string
+	emitCapture := func(e agent.Event) {
+		if e.Type == "agent" {
+			gotAgent = e.Node
+		}
+	}
+	_, err = orch.Run(ctx, agent.RunInput{
+		ConversationID: convID,
+		UserMessage:    "Q: Bạn muốn tập trung tìm hiểu phần nào?\nA: Muốn tìm hiểu core logic",
+		MaxSteps:       2,
+	}, emitCapture)
+	if err != nil {
+		t.Fatalf("Run lượt 2: %v", err)
+	}
+	if gotAgent != "code" {
+		t.Errorf("agent lượt 2 = %q, want %q (sticky phải giữ nguyên agent cũ)", gotAgent, "code")
+	}
+}
+
+// TestOrchestrator_StickyAgentIgnoredWithoutReplyFormat đảm bảo sticky CHỈ áp
+// dụng cho reply dạng Q:/A: — câu hỏi mới bình thường (không phải reply) vẫn
+// phải route lại theo keyword như cũ, không bị "kẹt" vĩnh viễn ở agent cũ.
+func TestOrchestrator_StickyAgentIgnoredWithoutReplyFormat(t *testing.T) {
+	orch := New()
+	orch.Register(&AgentSpec{
+		Name: "code",
+		// node_model.go coi completion rỗng (không text, không tool call) là lỗi
+		// ("model: empty response...") — thêm ChunkText để tránh trip guard đó,
+		// vì test này chỉ quan tâm agent nào được route, không quan tâm nội dung.
+		Engine:          newFakeEngine("code", provider.StreamChunk{Kind: provider.ChunkText, Text: "ok"}, provider.StreamChunk{Kind: provider.ChunkDone}),
+		TriggerKeywords: []string{"code"},
+	})
+	orch.Register(&AgentSpec{
+		Name:            "research",
+		Engine:          newFakeEngine("research", provider.StreamChunk{Kind: provider.ChunkText, Text: "ok"}, provider.StreamChunk{Kind: provider.ChunkDone}),
+		TriggerKeywords: []string{"tìm hiểu"},
+	})
+
+	ctx := context.Background()
+	const convID = "conv-sticky-2"
+
+	_, _ = orch.Run(ctx, agent.RunInput{ConversationID: convID, UserMessage: "sửa code này", MaxSteps: 2}, func(agent.Event) {})
+
+	var gotAgent string
+	emitCapture := func(e agent.Event) {
+		if e.Type == "agent" {
+			gotAgent = e.Node
+		}
+	}
+	// Câu MỚI, không phải format Q:/A: → phải route lại theo keyword, không sticky.
+	_, err := orch.Run(ctx, agent.RunInput{ConversationID: convID, UserMessage: "tôi muốn tìm hiểu thêm", MaxSteps: 2}, emitCapture)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if gotAgent != "research" {
+		t.Errorf("agent = %q, want %q (câu mới không phải reply, phải route lại)", gotAgent, "research")
+	}
+}
+
+// TestOrchestrator_StickyAgentFor_ExpiredAndDeregistered khoá 2 edge case của
+// stickyAgentFor mà 2 test end-to-end phía trên không chạm tới: entry đã quá
+// stickyAgentTTL (hội thoại bỏ dở lâu ngày không được "kẹt cứng" agent cũ
+// mãi mãi), và entry trỏ tới agent đã bị deregister/không còn tồn tại (agent
+// đổi tên hoặc gỡ khỏi orchestrator giữa các lượt). Cả hai PHẢI bị coi như
+// không có sticky, để Run() route lại bình thường qua route().
+func TestOrchestrator_StickyAgentFor_ExpiredAndDeregistered(t *testing.T) {
+	orch := New()
+	orch.Register(&AgentSpec{Name: "code", Engine: newFakeEngine("code", provider.StreamChunk{Kind: provider.ChunkDone})})
+
+	orch.stickyAgent["conv-old"] = stickyEntry{agentName: "code", lastUsed: time.Now().Add(-25 * time.Hour)}
+	if _, ok := orch.stickyAgentFor("conv-old"); ok {
+		t.Error("expired sticky entry should be ignored")
+	}
+
+	orch.stickyAgent["conv-gone"] = stickyEntry{agentName: "deleted-agent", lastUsed: time.Now()}
+	if _, ok := orch.stickyAgentFor("conv-gone"); ok {
+		t.Error("sticky entry for deregistered agent should be ignored")
+	}
+}
+
+func TestExtractRoutableText(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     string
+		wantText  string
+		wantReply bool
+	}{
+		{
+			name:      "format Q:/A: → chỉ lấy phần sau A:",
+			input:     "Q: Bạn muốn tập trung tìm hiểu phần nào của repo này trước?\nA: Core AI/RAG Logic",
+			wantText:  "Core AI/RAG Logic",
+			wantReply: true,
+		},
+		{
+			name:      "câu bình thường không có format Q:/A: → giữ nguyên",
+			input:     "đi sâu vào services-go của repo",
+			wantText:  "đi sâu vào services-go của repo",
+			wantReply: false,
+		},
+		{
+			name:      "chỉ có A: không có Q: ở đầu → không coi là reply",
+			input:     "A: là một chữ cái, không liên quan",
+			wantText:  "A: là một chữ cái, không liên quan",
+			wantReply: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotText, gotReply := extractRoutableText(tt.input)
+			if gotText != tt.wantText || gotReply != tt.wantReply {
+				t.Errorf("extractRoutableText(%q) = (%q, %v), want (%q, %v)",
+					tt.input, gotText, gotReply, tt.wantText, tt.wantReply)
+			}
+		})
 	}
 }

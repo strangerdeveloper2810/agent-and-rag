@@ -102,3 +102,21 @@ func TestBuildSystemPrompt_Lang(t *testing.T) {
 		t.Error("lang=en nhưng prompt vẫn còn chỉ dẫn 'LUÔN trả lời bằng tiếng Việt'")
 	}
 }
+
+// TestBuildSystemPrompt_GroundingRule khoá rule chống hallucination: model đã
+// đọc ĐÚNG tool result (case thật trong log prod: go.mod thật, SHA khớp) vẫn
+// bịa ra tech stack khác (Gin/GORM/Viper) vì system prompt trước đây không hề
+// yêu cầu bám sát tool output. Xem design doc
+// 2026-08-21-jarvis-reliability-fixes-design.md, mục Hallucination.
+func TestBuildSystemPrompt_GroundingRule(t *testing.T) {
+	prompt := BuildSystemPrompt(nil, nil, "")
+
+	for _, want := range []string{
+		"GROUNDING VÀO KẾT QUẢ TOOL",
+		"không tìm thấy",
+	} {
+		if !strings.Contains(prompt, want) {
+			t.Errorf("prompt thiếu %q — rule chống bịa thông tin từ tool result", want)
+		}
+	}
+}

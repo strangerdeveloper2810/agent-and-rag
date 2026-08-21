@@ -5,6 +5,7 @@ package factory
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -15,6 +16,35 @@ import (
 	"github.com/ai-agent-tut/agent-go/internal/provider/fallback"
 	"github.com/ai-agent-tut/agent-go/internal/provider/gemini"
 )
+
+// namedOverride bọc 1 provider để đổi Name() hiển thị — dùng khi có NHIỀU
+// instance cùng loại provider trong 1 chain (vd 2 Claude key khác nhau) và
+// muốn log phân biệt được đang chạy key nào, không đổi gì trong package con
+// (anthropic.Client.Name() vẫn trả "anthropic" như cũ).
+//
+// ⚠️ Đổi tên qua namedOverride làm "anthropic-1"/"anthropic-2" KHÔNG còn khớp
+// exact-match với modelFamily() trong fallback.go (luôn trả "anthropic" cho
+// model claude-*) — nếu sau này có caller set Options.Model="claude-..." khi
+// gọi qua chain có 2 Claude key, scopeModel() sẽ không nhận diện đúng family
+// nữa. Hiện tại chưa có caller nào set Options.Model=claude-* (luôn DeepSeek/
+// Gemini) nên chưa phải bug sống, nhưng cần biết nếu sau này thêm caller mới.
+type namedOverride struct {
+	provider.Provider
+	name string
+}
+
+func (n namedOverride) Name() string { return n.name }
+
+// Model forward tới provider gốc nếu nó implement interface này (vd
+// *anthropic.Client.Model()) — thiếu forward này thì log lỗi fallback cho
+// nhánh anthropic-1/anthropic-2 sẽ mất tên model thật, chỉ còn tên chain
+// position (regression đúng loại vấn đề cả plan này đang sửa).
+func (n namedOverride) Model() string {
+	if mn, ok := n.Provider.(interface{ Model() string }); ok {
+		return mn.Model()
+	}
+	return ""
+}
 
 // New tạo Provider theo cfg.Provider:
 //
@@ -67,6 +97,13 @@ func newAuto(cfg config.Config) (provider.Provider, error) {
 	hasDeepSeek := cfg.DeepSeekKey != ""
 	hasClaude := cfg.AnthropicKey != ""
 
+	if cfg.AnthropicKey2 != "" && !hasClaude {
+		// Key 2 vô nghĩa nếu không có key 1 — im lặng bỏ qua sẽ khiến operator
+		// tưởng key 2 đã được dùng (vd gõ nhầm ANTHROPIC_API_KEY_2 thay vì
+		// ANTHROPIC_API_KEY trên VPS) mà không có tín hiệu gì báo lỗi.
+		slog.Warn("factory: ANTHROPIC_API_KEY_2 được set nhưng thiếu ANTHROPIC_API_KEY — key thứ 2 bị bỏ qua, kiểm tra lại biến môi trường")
+	}
+
 	providers := make([]provider.Provider, 0, 10)
 
 	if hasGemini {
@@ -116,12 +153,25 @@ func newAuto(cfg config.Config) (provider.Provider, error) {
 		providers = append(providers, d)
 	}
 	if hasClaude {
-		// Claude (last resort fallback)
+		// Claude key 1 (last resort fallback trước đây).
 		c, err := newAnthropic(cfg)
 		if err != nil {
 			return nil, err
 		}
-		providers = append(providers, c)
+		if cfg.AnthropicKey2 != "" {
+			// Có key 2 → đổi tên cả 2 thành anthropic-1/anthropic-2 để log
+			// phân biệt được. Không đổi tên khi CHỈ có 1 key (giữ đúng tên
+			// "anthropic" cũ, backward-compat với test/log hiện có).
+			providers = append(providers, namedOverride{Provider: c, name: "anthropic-1"})
+
+			c2, err := anthropic.New(cfg.AnthropicKey2, cfg.AnthropicModel)
+			if err != nil {
+				return nil, err
+			}
+			providers = append(providers, namedOverride{Provider: c2, name: "anthropic-2"})
+		} else {
+			providers = append(providers, c)
+		}
 	}
 
 	switch len(providers) {
@@ -133,4 +183,24 @@ func newAuto(cfg config.Config) (provider.Provider, error) {
 		// 15s base cooldown kết hợp circuit breaker (exponential backoff cho RPM, day-lock 2h cho RPD)
 		return fallback.New(15*time.Second, providers...)
 	}
+}
+
+// NewReflectionProvider tạo provider RIÊNG cho tác vụ reflection nền (trích
+// user facts / knowledge items sau mỗi lượt chat — xem internal/memory.Learner).
+//
+// Vì sao KHÔNG dùng chung provider chính (factory.New): reflection là tác vụ
+// phụ trợ, không nên cạnh tranh quota Gemini free-tier với luồng chat chính —
+// log production cho thấy reflection cascade qua 6+ biến thể Gemini (429 liên
+// tiếp) trước khi rơi xuống DeepSeek, làm chậm và tốn request quota vô ích.
+// DeepSeek đơn (rẻ, không rate-limit chặt như Gemini free-tier) là lựa chọn
+// hợp lý cho 1 tác vụ trích xuất JSON máy móc, không cần model tốt nhất.
+//
+// Nếu KHÔNG có DEEPSEEK_API_KEY, fallback về provider chính (factory.New) để
+// không phá vỡ khi thiếu key — hành vi giống trước khi có hàm này.
+func NewReflectionProvider(cfg config.Config) (provider.Provider, error) {
+	if cfg.DeepSeekKey != "" {
+		return newDeepSeek(cfg)
+	}
+	slog.Warn("factory: thiếu DEEPSEEK_API_KEY — reflection dùng chung provider chính, có thể cạnh tranh quota Gemini với chat chính")
+	return New(cfg)
 }
