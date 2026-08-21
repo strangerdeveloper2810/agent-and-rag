@@ -5,6 +5,7 @@ package factory
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -133,4 +134,24 @@ func newAuto(cfg config.Config) (provider.Provider, error) {
 		// 15s base cooldown kết hợp circuit breaker (exponential backoff cho RPM, day-lock 2h cho RPD)
 		return fallback.New(15*time.Second, providers...)
 	}
+}
+
+// NewReflectionProvider tạo provider RIÊNG cho tác vụ reflection nền (trích
+// user facts / knowledge items sau mỗi lượt chat — xem internal/memory.Learner).
+//
+// Vì sao KHÔNG dùng chung provider chính (factory.New): reflection là tác vụ
+// phụ trợ, không nên cạnh tranh quota Gemini free-tier với luồng chat chính —
+// log production cho thấy reflection cascade qua 6+ biến thể Gemini (429 liên
+// tiếp) trước khi rơi xuống DeepSeek, làm chậm và tốn request quota vô ích.
+// DeepSeek đơn (rẻ, không rate-limit chặt như Gemini free-tier) là lựa chọn
+// hợp lý cho 1 tác vụ trích xuất JSON máy móc, không cần model tốt nhất.
+//
+// Nếu KHÔNG có DEEPSEEK_API_KEY, fallback về provider chính (factory.New) để
+// không phá vỡ khi thiếu key — hành vi giống trước khi có hàm này.
+func NewReflectionProvider(cfg config.Config) (provider.Provider, error) {
+	if cfg.DeepSeekKey != "" {
+		return newDeepSeek(cfg)
+	}
+	slog.Warn("factory: thiếu DEEPSEEK_API_KEY — reflection dùng chung provider chính, có thể cạnh tranh quota Gemini với chat chính")
+	return New(cfg)
 }
