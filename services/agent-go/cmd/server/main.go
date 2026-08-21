@@ -345,7 +345,7 @@ Bạn là chuyên gia nghiên cứu internet của JARVIS. Nhiệm vụ của b�
 	}
 
 	// --- HTTP Routes ---
-	srv := &http.Server{Addr: ":" + cfg.Port, Handler: newHTTPHandler(prov, orch, mongoPinger(mongoClient), learnerOrNil(learner))}
+	srv := &http.Server{Addr: ":" + cfg.Port, Handler: newHTTPHandler(prov, orch, mongoPinger(mongoClient), learnerOrNil(learner), recentMessagesFetcher(mongoClient), store)}
 
 	// Start server
 	go func() {
@@ -445,7 +445,7 @@ func fastModel(cfg config.Config) string {
 
 // newHTTPHandler dựng router + chuỗi middleware (CORS → Tenant → mux).
 // Tách khỏi main để test được routing và middleware mà không cần chạy server.
-func newHTTPHandler(prov provider.Provider, runner agent.Runner, pinger agenthttp.MongoPinger, learner agenthttp.ConversationLearner) http.Handler {
+func newHTTPHandler(prov provider.Provider, runner agent.Runner, pinger agenthttp.MongoPinger, learner agenthttp.ConversationLearner, recentMessages agenthttp.RecentMessagesFetcher, facts agenthttp.FactsProvider) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", agenthttp.Healthz)
 	mux.HandleFunc("GET /readyz", agenthttp.NewReadyzHandler(prov, pinger))
@@ -454,7 +454,7 @@ func newHTTPHandler(prov provider.Provider, runner agent.Runner, pinger agenthtt
 		chatHandler.SetLearner(learner)
 	}
 	mux.HandleFunc("POST /chat", chatHandler.ServeHTTP)
-	mux.HandleFunc("GET /suggestions", agenthttp.NewSuggestionsHandler(runner).ServeHTTP)
+	mux.HandleFunc("GET /suggestions", agenthttp.NewSuggestionsHandler(runner, recentMessages, facts).ServeHTTP)
 	mux.HandleFunc("POST /mcp/test-connection", agenthttp.NewMcpTestConnectionHandler())
 
 	var handler http.Handler = mux
@@ -467,6 +467,15 @@ func newHTTPHandler(prov provider.Provider, runner agent.Runner, pinger agenthtt
 // (gán thẳng *mongo.Client nil vào interface sẽ tạo interface non-nil và làm
 // readyz gọi Ping trên con trỏ nil).
 func mongoPinger(c *mongo.Client) agenthttp.MongoPinger {
+	if c == nil {
+		return nil
+	}
+	return c
+}
+
+// recentMessagesFetcher trả interface RecentMessagesFetcher, giữ nil ĐÚNG
+// NGHĨA khi chưa nối Mongo — cùng lý do với mongoPinger ở trên.
+func recentMessagesFetcher(c *mongo.Client) agenthttp.RecentMessagesFetcher {
 	if c == nil {
 		return nil
 	}
