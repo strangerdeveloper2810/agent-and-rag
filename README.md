@@ -8,6 +8,8 @@ JARVIS is a self-built AI agent platform featuring a **Go agent runtime** with a
 
 ## Architecture
 
+> Sơ đồ dưới đây là tổng quan ngắn. Xem [`docs/ARCHITECTURE_DEEP_DIVE/agent-go-and-bff.md`](docs/ARCHITECTURE_DEEP_DIVE/agent-go-and-bff.md) cho kiến trúc chi tiết agent-go + BFF (hợp đồng tenant, provider fallback chain, orchestrator/sticky-agent, memory/learner, MCP, mô hình Mongo dùng chung) — và [`docs/architecture-backend-agent.md`](docs/architecture-backend-agent.md) cho nhánh LangGraph/LangChain legacy (`AGENT_BACKEND=langgraph`).
+
 ```
  POST /chat (JSON)                          SSE (text/event-stream)
 ┌─────────────────────┐                 ┌───────────────────────────────┐
@@ -128,7 +130,8 @@ ai-agent-tut/
 │       │   ├── proactive/          # cron scheduler cho prompt định kỳ
 │       │   ├── mcp/                # MCP client (subprocess JSON-RPC) + YAML tool discovery
 │       │   ├── guardrails/         # circuit breaker, tool guard, prompt-injection filter, HITL
-│       │   ├── mongo/              # MongoDB driver (tasks, documents, memories)
+│       │   ├── middleware/         # tenant middleware (X-Tenant-ID → context, BFF là nơi duy nhất set header này), CORS
+│       │   ├── mongo/              # MongoDB driver (tasks, documents, memories) — CHUNG database với apps/api
 │       │   ├── storage/            # sqlite (conversations local) + chroma (in-memory vector store)
 │       │   ├── rag/                # Voyage AI embedding + Atlas vector search (PDR, HyDE, rerank)
 │       │   ├── skills/             # progressive disclosure engine (list/load/match SKILL.md)
@@ -158,7 +161,7 @@ ai-agent-tut/
 |---------|:------:|-------------|
 | **SSE Streaming** | Done | Token-by-token real-time output; tool call chips in UI |
 | **ReAct Agent Loop** | Done | model -> route -> tools -> model -> ... with step limit |
-| **Pluggable LLM + Auto-Fallback** | Done | Gemini, Claude, DeepSeek, Ollama; `LLM_PROVIDER=auto` chain: DeepSeek → Gemini → Claude, zero-cooldown failover |
+| **Pluggable LLM + Auto-Fallback** | Done | Gemini, Claude, DeepSeek, Ollama; `LLM_PROVIDER=auto` chain: Gemini (full free-tier pool) → DeepSeek → Claude key 1 → Claude key 2 (optional, `ANTHROPIC_API_KEY_2`); cooldown per chain position |
 | **Tool System (25 tools)** | Done | Interface-based registry; parallel fan-out via goroutines; per-tool timeout |
 | **3-Tier Memory + Learner** | Done | Working (in-msg), episodic (summarize), semantic (extract+store); autonomous learner (`ENABLE_LEARNER`); facts survive restart (`Store.LoadFromMongo`) and are shared across conversations for the same tenant |
 | **Context-Bloat Prevention** | Done | Dedup identical tool calls within a batch; cumulative tool-output budget across steps; real LLM-based context compaction when the token budget is exceeded (honest fallback on failure — never a fake "summarized" placeholder) |

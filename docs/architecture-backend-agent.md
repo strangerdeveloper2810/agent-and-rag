@@ -377,3 +377,5 @@ Vòng `agent → tools → agent → tools → agent` lặp đến khi Claude th
 3. **Streaming xuyên suốt.** `streamEvents(v2)` cho token chảy real-time + báo tool đang chạy → SSE → UI hiện chữ dần + chip "đang đọc tài liệu".
 
 > Xem trực quan: `pnpm graph:print` (Mermaid) hoặc bật LangSmith tracing để soi từng node/token/tool/latency của mỗi lượt thật.
+
+> **Lưu ý (2026-08):** Tài liệu này mô tả kiến trúc LangGraph/LangChain — vẫn giữ nguyên, chạy được qua `AGENT_BACKEND=langgraph`. Đường chạy chính hiện tại (production) là service Go riêng `services/agent-go` — xem kiến trúc agent-go + BFF (Fastify là gateway/proxy, không còn chạy agent in-process) tại [`docs/ARCHITECTURE_DEEP_DIVE/agent-go-and-bff.md`](./ARCHITECTURE_DEEP_DIVE/agent-go-and-bff.md).
