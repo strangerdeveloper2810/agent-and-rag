@@ -17,6 +17,7 @@ import (
 	"github.com/ai-agent-tut/agent-go/internal/provider/gemini"
 	"github.com/ai-agent-tut/agent-go/internal/provider/ollama"
 	"github.com/ai-agent-tut/agent-go/internal/provider/openai_compat"
+	"github.com/ai-agent-tut/agent-go/internal/provider/router"
 )
 
 // namedOverride bọc 1 provider để đổi Name() hiển thị — dùng khi có NHIỀU
@@ -56,6 +57,8 @@ func (n namedOverride) Model() string {
 //	"ollama"        → Ollama local (single)
 //	"openai_compat" → server local kiểu OpenAI-compatible (vLLM, llama.cpp, LM Studio...) (single)
 //	"auto"          → Fallback chain: Gemini (toàn bộ free-tier pool) → DeepSeek (nếu có key) → Claude (nếu có key)
+//	"router"        → RouterProvider: request "nhẹ" (ThinkingOff + không tool) đi local
+//	                  (Ollama/OpenAI-compat theo cfg.RouterLocalBackend), còn lại đi chain "auto"
 func New(cfg config.Config) (provider.Provider, error) {
 	switch cfg.Provider {
 	case "gemini":
@@ -70,8 +73,10 @@ func New(cfg config.Config) (provider.Provider, error) {
 		return newOpenAICompat(cfg)
 	case "auto":
 		return newAuto(cfg)
+	case "router":
+		return newRouter(cfg)
 	default:
-		return nil, fmt.Errorf("unknown LLM_PROVIDER: %q (use gemini, anthropic, deepseek, ollama, openai_compat, or auto)", cfg.Provider)
+		return nil, fmt.Errorf("unknown LLM_PROVIDER: %q (use gemini, anthropic, deepseek, ollama, openai_compat, router, or auto)", cfg.Provider)
 	}
 }
 
@@ -208,6 +213,36 @@ func newAuto(cfg config.Config) (provider.Provider, error) {
 		// 15s base cooldown kết hợp circuit breaker (exponential backoff cho RPM, day-lock 2h cho RPD)
 		return fallback.New(15*time.Second, providers...)
 	}
+}
+
+// newRouter tạo RouterProvider (internal/provider/router): request "nhẹ"
+// (ThinkingLevel=OFF và không kèm tool nào) được route sang model LOCAL rẻ/
+// nhanh; các request còn lại (cần tool hoặc thinking) route sang chuỗi CLOUD
+// hiện có (newAuto — tái dùng nguyên vẹn, không viết lại fallback chain).
+//
+// Local backend chọn theo cfg.RouterLocalBackend ("ollama" mặc định, hoặc
+// "openai_compat") — tái dùng đúng 2 constructor private đã có sẵn ở trên,
+// không viết lại logic gọi Ollama/OpenAI-compat.
+func newRouter(cfg config.Config) (provider.Provider, error) {
+	cloud, err := newAuto(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("router: cloud chain: %w", err)
+	}
+
+	var local provider.Provider
+	switch cfg.RouterLocalBackend {
+	case "", "ollama":
+		local, err = newOllama(cfg)
+	case "openai_compat":
+		local, err = newOpenAICompat(cfg)
+	default:
+		return nil, fmt.Errorf("router: unknown ROUTER_LOCAL_BACKEND: %q (use ollama or openai_compat)", cfg.RouterLocalBackend)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("router: local backend %q: %w", cfg.RouterLocalBackend, err)
+	}
+
+	return router.New(local, cloud), nil
 }
 
 // NewReflectionProvider tạo provider RIÊNG cho tác vụ reflection nền (trích
