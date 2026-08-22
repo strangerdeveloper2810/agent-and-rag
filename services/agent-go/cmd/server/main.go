@@ -357,10 +357,18 @@ Bạn là chuyên gia nghiên cứu internet của JARVIS. Nhiệm vụ của b�
 		for _, spec := range orch.ListAgents() {
 			spec.Engine.SetInterruptStore(pausedRunsStore)
 			spec.Engine.SetName(spec.Name)
-			// Tái dùng CÙNG 1 *sqlite.Store cho cost ledger per-tenant (bảng
-			// cost_ledger, xem internal/storage/sqlite/cost_ledger.go) — không
-			// mở thêm kết nối SQLite thứ 2.
-			spec.Engine.SetCostLedger(pausedRunsStore)
+			if cfg.EnableCostLedger {
+				// Tái dùng CÙNG 1 *sqlite.Store cho cost ledger per-tenant
+				// (bảng cost_ledger, xem
+				// internal/storage/sqlite/cost_ledger.go) — không mở thêm
+				// kết nối SQLite thứ 2. TẮT MẶC ĐỊNH (ENABLE_COST_LEDGER=
+				// true để bật) — trước đây bật ngầm định cho mọi request
+				// ngay khi SQLite mở được, không có cách tắt riêng.
+				spec.Engine.SetCostLedger(pausedRunsStore)
+			}
+		}
+		if cfg.EnableCostLedger {
+			slog.Info("sqlite: cost ledger bật (ENABLE_COST_LEDGER=true) — ghi chi phí per-tenant")
 		}
 		slog.Info("sqlite: paused_runs sẵn sàng — /chat/resume khả dụng", "path", cfg.DBPath)
 	}
@@ -407,7 +415,7 @@ Bạn là chuyên gia nghiên cứu internet của JARVIS. Nhiệm vụ của b�
 	}
 
 	// --- HTTP Routes ---
-	srv := &http.Server{Addr: ":" + cfg.Port, Handler: newHTTPHandler(prov, orch, mongoPinger(mongoClient), learnerOrNil(learner), recentMessagesFetcher(mongoClient), store, pausedRunStoreOrNil(pausedRunsStore))}
+	srv := &http.Server{Addr: ":" + cfg.Port, Handler: newHTTPHandler(prov, orch, mongoPinger(mongoClient), learnerOrNil(learner), recentMessagesFetcher(mongoClient), store, pausedRunStoreOrNil(pausedRunsStore), cfg.MCPAPIKey)}
 
 	// Start server
 	go func() {
@@ -511,7 +519,7 @@ func fastModel(cfg config.Config) string {
 // pausedRuns có thể nil (resume tắt — vd sqlite.Open thất bại lúc wiring):
 // route /chat/resume CHỈ đăng ký khi runner là *orchestrator.Orchestrator (để
 // tìm lại đúng Engine theo agent_name) VÀ pausedRuns != nil.
-func newHTTPHandler(prov provider.Provider, runner agent.Runner, pinger agenthttp.MongoPinger, learner agenthttp.ConversationLearner, recentMessages agenthttp.RecentMessagesFetcher, facts agenthttp.FactsProvider, pausedRuns agenthttp.PausedRunStore) http.Handler {
+func newHTTPHandler(prov provider.Provider, runner agent.Runner, pinger agenthttp.MongoPinger, learner agenthttp.ConversationLearner, recentMessages agenthttp.RecentMessagesFetcher, facts agenthttp.FactsProvider, pausedRuns agenthttp.PausedRunStore, mcpAPIKey string) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", agenthttp.Healthz)
 	mux.HandleFunc("GET /readyz", agenthttp.NewReadyzHandler(prov, pinger))
@@ -526,7 +534,12 @@ func newHTTPHandler(prov provider.Provider, runner agent.Runner, pinger agenthtt
 	// làm client): registry riêng, tối giản, KHÔNG chứa tool đặc quyền — xem
 	// mcp.NewDefaultToolRegistry + mcp.Server.allowed (hard-exclude
 	// tools.IsPrivilegedTool, không có ngoại lệ).
-	mux.Handle("POST /mcp", mcp.NewServer(mcp.NewDefaultToolRegistry(), nil))
+	mcpServer := mcp.NewServer(mcp.NewDefaultToolRegistry(), nil)
+	// mcpAPIKey rỗng (mặc định) → Server tự fallback chỉ chấp nhận request
+	// loopback (xem Server.authorized) — an toàn theo mặc định vì endpoint
+	// này không có khái niệm owner-tenant như /chat.
+	mcpServer.SetAPIKey(mcpAPIKey)
+	mux.Handle("POST /mcp", mcpServer)
 	if orch, ok := runner.(*orchestrator.Orchestrator); ok && pausedRuns != nil {
 		mux.HandleFunc("POST /chat/resume", agenthttp.NewChatResumeHandler(orch, pausedRuns).ServeHTTP)
 	}

@@ -45,6 +45,13 @@ type Config struct {
 	// chỉ chạy kênh HTTP/SSE như trước, không fail khởi động.
 	TelegramBotToken string
 
+	// MCPAPIKey xác thực request tới endpoint MCP server (POST /mcp — JARVIS
+	// đóng vai MCP server, xem internal/mcp/server.go). Để trống (mặc định):
+	// server chỉ chấp nhận request từ loopback (127.0.0.1/::1), KHÔNG mở toang
+	// ra ngoài — set MCP_API_KEY khi cần gọi /mcp từ máy khác, client phải gửi
+	// header "Authorization: Bearer <MCP_API_KEY>".
+	MCPAPIKey string
+
 	// OpenAI-compatible local server (vLLM, llama.cpp server, LM Studio...).
 	// Không có default cố định như Ollama vì mỗi server nghe ở cổng khác nhau
 	// và chạy model do người dùng tự nạp — phải cấu hình rõ qua env.
@@ -150,6 +157,15 @@ type Config struct {
 	// chi phí + tránh side-effect ghi Mongo ngoài ý muốn.
 	EnableLearner bool
 
+	// EnableCostLedger bật ghi bảng cost_ledger (chi phí ước tính mỗi lượt gọi
+	// LLM, gắn theo tenant — xem internal/agent/engine.go SetCostLedger).
+	// TẮT MẶC ĐỊNH: đây là side-effect ghi SQLite thêm cho MỌI request, không
+	// phải chỉ khi cần — bật qua ENABLE_COST_LEDGER=true khi thực sự cần theo
+	// dõi chi phí per-tenant. Sửa sau khi phát hiện tính năng này vô tình bật
+	// ngầm định cho mọi người dùng ngay khi SQLite mở được, không có cách tắt
+	// riêng biệt với /chat/resume.
+	EnableCostLedger bool
+
 	// AllowDestructiveTools cho phép agent TỰ CHẠY tool xếp loại
 	// KindDestructive (hiện chỉ có shell.exec) mà không cần xác nhận.
 	//
@@ -241,6 +257,7 @@ func Load() (Config, error) {
 		OllamaURL:             envOr("OLLAMA_URL", "http://localhost:11434"),
 		OllamaModel:           envOr("OLLAMA_MODEL", "llama3.1:8b"),
 		TelegramBotToken:      os.Getenv("TELEGRAM_BOT_TOKEN"),
+		MCPAPIKey:             os.Getenv("MCP_API_KEY"),
 		OpenAICompatBaseURL:   os.Getenv("OPENAI_COMPAT_BASE_URL"),
 		OpenAICompatModel:     os.Getenv("OPENAI_COMPAT_MODEL"),
 		OpenAICompatKey:       os.Getenv("OPENAI_COMPAT_API_KEY"),
@@ -277,6 +294,7 @@ func Load() (Config, error) {
 		AllowDestructiveTools: envOr("ALLOW_DESTRUCTIVE_TOOLS", "false") == "true",
 		OwnerTenantIDs:        splitCSV(os.Getenv("OWNER_TENANT_IDS")),
 		EnableLearner:         envOr("ENABLE_LEARNER", "false") == "true",
+		EnableCostLedger:      envOr("ENABLE_COST_LEDGER", "false") == "true",
 	}
 
 	// Validate: ít nhất 1 LLM provider phải được cấu hình
