@@ -8,7 +8,7 @@ JARVIS is a self-built AI agent platform featuring a **Go agent runtime** with a
 
 ## Architecture
 
-> Sơ đồ dưới đây là tổng quan ngắn. Xem [`docs/ARCHITECTURE_DEEP_DIVE/agent-go-and-bff.md`](docs/ARCHITECTURE_DEEP_DIVE/agent-go-and-bff.md) cho kiến trúc chi tiết agent-go + BFF (hợp đồng tenant, provider fallback chain, orchestrator/sticky-agent, memory/learner, MCP, mô hình Mongo dùng chung) — và [`docs/architecture-backend-agent.md`](docs/architecture-backend-agent.md) cho nhánh LangGraph/LangChain legacy (`AGENT_BACKEND=langgraph`).
+> Sơ đồ dưới đây là tổng quan ngắn. Xem [`docs/ARCHITECTURE_DEEP_DIVE/agent-go-and-bff/`](docs/ARCHITECTURE_DEEP_DIVE/agent-go-and-bff/README.md) (10 file, chia theo chủ đề) cho kiến trúc chi tiết agent-go + BFF (hợp đồng tenant, provider fallback chain + RouterProvider, orchestrator/sticky-agent, memory/learner, MCP client & server, checkpoint/resume, sandbox, cost ledger, mô hình dữ liệu dùng chung) — và [`docs/architecture-backend-agent.md`](docs/architecture-backend-agent.md) cho nhánh LangGraph/LangChain legacy (`AGENT_BACKEND=langgraph`).
 
 ```
  POST /chat (JSON)                          SSE (text/event-stream)
@@ -146,10 +146,15 @@ ai-agent-tut/
 │       │   ├── config/             # cấu hình theo env (fail-fast)
 │       │   └── transport/         # http (SSE chat + resume + MCP server) và telegram (long-polling)
 │       ├── skills/                 # 30 SKILL.md files (định nghĩa dữ liệu skill)
+│       ├── docs/security-model.md  # Mô hình tin cậy: privileged tools, sandbox Docker, MCP auth
 │       ├── go.mod
 │       └── Dockerfile
+#   → Chi tiết từng package (engine, provider, memory, MCP, resilience): xem
+#     docs/ARCHITECTURE_DEEP_DIVE/agent-go-and-bff/
 ├── docs/
-│   ├── architecture/                # Architecture deep-dives
+│   ├── ARCHITECTURE_DEEP_DIVE/
+│   │   └── agent-go-and-bff/        # ★ Kiến trúc chi tiết agent-go + BFF, chia 10 file theo chủ đề
+│   ├── architecture/                # Architecture deep-dives (lịch sử thiết kế, so sánh phương án)
 │   ├── plans/                       # Design + implementation plans (theo mốc thời gian)
 │   └── go-patterns/                 # Go production patterns catalog
 ├── docker/                          # docker-compose cho dev và deployment
@@ -208,7 +213,7 @@ ai-agent-tut/
 | **Object Storage** | MinIO / S3 | Uploaded files (ảnh, doc, file agent tạo) |
 | **Local Storage (Go)** | SQLite (modernc.org/sqlite) + in-memory Chroma-style vector store | Conversation/memory offline, semantic search MVP |
 | **Streaming** | SSE (Server-Sent Events) | Real-time token + event streaming |
-| **Observability** | slog + metrics snapshot + OpenTelemetry (tracer noop) | Structured logging, in-process metrics |
+| **Observability** | slog + OpenTelemetry (real `sdktrace.TracerProvider`, stdout/OTLP exporter) + in-process metrics snapshot | Structured logging, distributed tracing, request/token/latency metrics |
 | **Container** | Multi-stage Docker (distroless) | ~15MB production image cho agent-go |
 | **Monorepo** | pnpm + Turborepo | Task orchestration, caching, 4 packages + 2 apps + 1 service |
 
