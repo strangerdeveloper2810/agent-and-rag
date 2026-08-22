@@ -2,8 +2,10 @@ package mcp
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 
 	"github.com/ai-agent-tut/agent-go/internal/provider"
@@ -115,6 +117,42 @@ type dispatchError struct {
 type Server struct {
 	registry *tools.Registry
 	filter   func(name string) bool
+	apiKey   string
+}
+
+// SetAPIKey bật xác thực bằng API key cho endpoint MCP: request phải gửi
+// header "Authorization: Bearer <key>" khớp đúng key, nếu không trả 401.
+//
+// KHÔNG gọi hàm này (apiKey rỗng, mặc định) → server áp dụng fallback an toàn
+// hơn KHÔNG-cấu-hình: chỉ chấp nhận request từ loopback (127.0.0.1/::1), trả
+// 403 cho mọi nơi khác — xem authorized(). Lý do cần fallback này thay vì "mở
+// toàn bộ nếu quên set key": endpoint MCP không có khái niệm owner-tenant như
+// kênh /chat (xem comment đầu file), nên PHẢI an toàn theo mặc định (secure
+// by default) — quên cấu hình chỉ khiến MCP dùng được từ chính máy chủ, không
+// phải mở toang ra Internet.
+func (s *Server) SetAPIKey(key string) { s.apiKey = key }
+
+// authorized quyết định request có được phép gọi MCP endpoint hay không.
+// So khớp API key bằng subtle.ConstantTimeCompare để tránh timing attack dò
+// từng ký tự của key.
+func (s *Server) authorized(r *http.Request) bool {
+	if s.apiKey != "" {
+		want := "Bearer " + s.apiKey
+		got := r.Header.Get("Authorization")
+		return len(got) == len(want) && subtle.ConstantTimeCompare([]byte(got), []byte(want)) == 1
+	}
+	return isLoopbackAddr(r.RemoteAddr)
+}
+
+// isLoopbackAddr kiểm tra r.RemoteAddr (dạng "host:port") có phải loopback
+// (127.0.0.1, ::1) không. Parse lỗi → coi như KHÔNG loopback (fail-closed).
+func isLoopbackAddr(remoteAddr string) bool {
+	host, _, err := net.SplitHostPort(remoteAddr)
+	if err != nil {
+		host = remoteAddr // remoteAddr có thể không có port (test/edge case)
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 // NewServer tạo MCP server bọc quanh registry.
@@ -162,6 +200,13 @@ func (s *Server) allowedToolDefs() []provider.ToolDef {
 
 // ServeHTTP implement http.Handler — điểm vào duy nhất của MCP endpoint.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if !s.authorized(r) {
+		// Không phân biệt "sai key" với "không phải loopback" trong message —
+		// tránh lộ cấu hình auth đang dùng chế độ nào cho request dò tìm.
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	if r.Method != http.MethodPost {
 		// Theo spec Streamable HTTP: GET/DELETE chỉ hợp lệ nếu server hỗ trợ
 		// server-initiated SSE stream hoặc session termination — server này

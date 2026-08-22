@@ -67,6 +67,7 @@ func doRPC(t *testing.T, s *Server, method string, id string, params interface{}
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(string(body)))
+	req.RemoteAddr = "127.0.0.1:1234" // authorized() mặc định chỉ cho loopback
 	s.ServeHTTP(rec, req)
 
 	var resp rpcServerResponse
@@ -288,6 +289,7 @@ func TestServer_Notification_Returns202NoBody(t *testing.T) {
 	body := `{"jsonrpc":"2.0","method":"notifications/initialized"}`
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(body))
+	req.RemoteAddr = "127.0.0.1:1234" // authorized() mặc định chỉ cho loopback
 	s.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusAccepted {
@@ -306,6 +308,7 @@ func TestServer_MalformedJSON_ReturnsParseError(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader("{ khong phai json"))
+	req.RemoteAddr = "127.0.0.1:1234" // authorized() mặc định chỉ cho loopback
 	s.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusBadRequest {
@@ -328,6 +331,7 @@ func TestServer_GetMethod_NotAllowed(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/mcp", nil)
+	req.RemoteAddr = "127.0.0.1:1234" // authorized() mặc định chỉ cho loopback
 	s.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusMethodNotAllowed {
@@ -391,4 +395,104 @@ func marshalResult(t *testing.T, result interface{}) []byte {
 		t.Fatalf("marshal result: %v", err)
 	}
 	return b
+}
+
+// --- Auth (SetAPIKey / authorized) ---
+//
+// Thêm SAU khi phát hiện endpoint /mcp mặc định KHÔNG có auth (ai gọi HTTP
+// tới server đều dùng được tool non-privileged) — không phải "risky/breaking
+// behavior" theo nghĩa hẹp (không đổi response cho /chat), nhưng vẫn là 1 mặt
+// tấn công mới tự động bật ngay khi server khởi động, nên cần secure-by-
+// default: không cấu hình API key → chỉ chấp nhận loopback.
+
+func TestServer_NoAPIKey_RejectsNonLoopback(t *testing.T) {
+	reg, _ := testRegistry()
+	s := NewServer(reg, nil) // apiKey rỗng (mặc định)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":"1","method":"tools/list"}`))
+	req.RemoteAddr = "203.0.113.7:54321" // TEST-NET-3, chắc chắn không phải loopback
+
+	s.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401 (non-loopback, no API key configured)", rec.Code)
+	}
+}
+
+func TestServer_NoAPIKey_AllowsLoopback(t *testing.T) {
+	reg, _ := testRegistry()
+	s := NewServer(reg, nil) // apiKey rỗng (mặc định)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":"1","method":"tools/list"}`))
+	req.RemoteAddr = "127.0.0.1:54321"
+
+	s.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (loopback, no API key configured)", rec.Code)
+	}
+}
+
+func TestServer_APIKeySet_RejectsMissingOrWrongHeader(t *testing.T) {
+	reg, _ := testRegistry()
+	s := NewServer(reg, nil)
+	s.SetAPIKey("super-secret")
+
+	for name, header := range map[string]string{
+		"missing header":   "",
+		"wrong key":        "Bearer nope",
+		"no Bearer prefix": "super-secret",
+	} {
+		t.Run(name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":"1","method":"tools/list"}`))
+			req.RemoteAddr = "127.0.0.1:54321" // ngay cả loopback cũng phải bị chặn khi key sai
+			if header != "" {
+				req.Header.Set("Authorization", header)
+			}
+
+			s.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusUnauthorized {
+				t.Errorf("status = %d, want 401", rec.Code)
+			}
+		})
+	}
+}
+
+func TestServer_APIKeySet_AllowsCorrectHeaderFromAnywhere(t *testing.T) {
+	reg, _ := testRegistry()
+	s := NewServer(reg, nil)
+	s.SetAPIKey("super-secret")
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":"1","method":"tools/list"}`))
+	req.RemoteAddr = "203.0.113.7:54321" // KHÔNG loopback — key đúng vẫn phải qua được
+	req.Header.Set("Authorization", "Bearer super-secret")
+
+	s.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (correct API key from non-loopback)", rec.Code)
+	}
+}
+
+func TestIsLoopbackAddr(t *testing.T) {
+	cases := []struct {
+		addr string
+		want bool
+	}{
+		{"127.0.0.1:1234", true},
+		{"[::1]:1234", true},
+		{"203.0.113.7:1234", false},
+		{"not-an-ip:1234", false},
+		{"", false},
+	}
+	for _, c := range cases {
+		if got := isLoopbackAddr(c.addr); got != c.want {
+			t.Errorf("isLoopbackAddr(%q) = %v, want %v", c.addr, got, c.want)
+		}
+	}
 }
