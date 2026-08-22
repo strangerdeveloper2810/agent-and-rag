@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/ai-agent-tut/agent-go/internal/middleware"
 )
 
 // FileSearchTool tìm file theo pattern (glob) trong thư mục được phép.
@@ -60,6 +62,8 @@ func (t *fileSearchTool) Execute(ctx context.Context, rawArgs json.RawMessage) (
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
+	tenantID := middleware.GetTenantID(ctx)
+
 	basePath := args.Path
 	if basePath == "" {
 		if len(t.allowedPaths) == 0 {
@@ -67,6 +71,10 @@ func (t *fileSearchTool) Execute(ctx context.Context, rawArgs json.RawMessage) (
 		}
 		basePath = t.allowedPaths[0]
 	}
+	// Nest into a tenant-specific subdirectory so a tenant can never list
+	// files that belong to another tenant's subdirectory, even if they
+	// explicitly pass a "path" trying to point elsewhere.
+	basePath = filepath.Join(basePath, tenantID)
 
 	// Validate basePath nằm trong allowedPaths
 	if !t.isAllowed(basePath) {
@@ -200,6 +208,11 @@ func (t *fileReadTool) Execute(ctx context.Context, rawArgs json.RawMessage) (Re
 	if args.Path == "" {
 		return Result{}, fmt.Errorf("file.read: path is required")
 	}
+
+	tenantID := middleware.GetTenantID(ctx)
+	// Nest into the tenant-specific subdirectory so a tenant can only read
+	// files under its own subdirectory (matching where file.write puts them).
+	args.Path = filepath.Join(filepath.Dir(args.Path), tenantID, filepath.Base(args.Path))
 
 	// Validate path
 	if !t.isAllowed(args.Path) {
