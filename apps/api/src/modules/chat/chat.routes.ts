@@ -47,4 +47,14 @@ export const chatRoutes = async (app: FastifyInstance) => {
     },
     ctrl.postContinue,
   );
+  // Resume 1 run đã dừng giữa chừng (interrupt HITL/crash) — cũng gọi LLM
+  // nên chung mức giới hạn với chat/continue.
+  app.post(
+    "/conversations/:id/resume",
+    {
+      preHandler: [authGuard],
+      config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    },
+    ctrl.postResume,
+  );
 };

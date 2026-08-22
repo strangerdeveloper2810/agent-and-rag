@@ -89,6 +89,31 @@ describe("chat routes - validation", () => {
     expect(res.statusCode).toBe(401);
   });
 
+  it("POST /conversations/:id/resume thiếu runId → 400", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: `/api/conversations/${validId}/resume`,
+      headers: { "content-type": "application/json", ...authCookie },
+      payload: {},
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  // Test env dùng AGENT_BACKEND mặc định "langgraph" (không override trong
+  // vitest.config.ts) — langGraphAgentClient KHÔNG implement resume(), nên
+  // resumeReply phải ném BadRequestError SỚM (trước khi chạm Mongo/agent-go
+  // thật). Đồng thời xác nhận route /resume đã được đăng ký đúng.
+  it("POST /conversations/:id/resume khi backend không hỗ trợ resume → 400", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: `/api/conversations/${validId}/resume`,
+      headers: { "content-type": "application/json", ...authCookie },
+      payload: { runId: "run-123" },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().code).toBe("BAD_REQUEST");
+  });
+
   // /suggestions proxy sang Go agent kèm X-Tenant-ID — trước đây FE gọi
   // thẳng agent-go không qua route này/authGuard nên mọi user rơi về tenant
   // "default". Test này chỉ khoá phần route đã đăng ký + có authGuard, không

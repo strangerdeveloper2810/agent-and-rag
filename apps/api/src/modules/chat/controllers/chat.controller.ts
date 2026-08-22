@@ -4,6 +4,7 @@ import { parseOrBadRequest } from "../../../lib/validate";
 import {
   chatBodySchema,
   createConversationBodySchema,
+  resumeBodySchema,
 } from "../../../schemas/chat-request";
 import { getPgPool } from "../../../database/postgres/postgres.module";
 import { getSuggestions as fetchSuggestions } from "../../../agent/client/go-agent.client";
@@ -294,6 +295,81 @@ export const postContinue = async (
       write({
         type: "error",
         message: "Đã xảy ra lỗi khi tiếp tục câu trả lời.",
+      });
+    }
+  }
+
+  if (!reply.raw.writableEnded) reply.raw.end();
+};
+
+/**
+ * Tiếp tục 1 run đã dừng giữa chừng ở agent-go (interrupt HITL — FE nhận
+ * `runId` qua event SSE `interrupt` — hoặc crash/restart) qua SSE, giống
+ * postChat/postContinue. `runId` xác định run cần resume ở agent-go, KHÔNG
+ * PHẢI conversationId trong URL (`:id`) — `:id` chỉ dùng để biết lưu response
+ * tiếp vào hội thoại nào trong Mongo.
+ *
+ * `resumeReply` tự ném BadRequestError SỚM (trước khi hijack) nếu backend
+ * hiện tại không hỗ trợ resume — lỗi này vẫn trả HTTP JSON bình thường qua
+ * error handler chung, đúng pattern của continueReply.
+ */
+export const postResume = async (req: FastifyRequest, reply: FastifyReply) => {
+  const { id } = req.params as { id: string };
+  const tenantId = getTenantId(req);
+  const { runId, answer } = parseOrBadRequest(resumeBodySchema, req.body);
+
+  const ac = new AbortController();
+
+  const { events, metadata } = await chatService.resumeReply(
+    id,
+    runId,
+    answer,
+    ac.signal,
+    undefined,
+    tenantId,
+  );
+
+  reply.hijack();
+  req.raw.on("close", () => ac.abort());
+
+  reply.raw.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive",
+  });
+
+  const write = (payload: unknown) => {
+    if (!reply.raw.writableEnded) {
+      reply.raw.write(`data: ${JSON.stringify(payload)}\n\n`);
+    }
+  };
+
+  try {
+    for await (const ev of events) {
+      if (ev.type === "text") {
+        write({ token: ev.text });
+      } else if (ev.type === "done") {
+        // Controller tự gửi event done cuối cùng, giống postChat/postContinue.
+      } else {
+        write(ev);
+      }
+    }
+
+    const meta = await metadata;
+    write({
+      done: true,
+      agent: meta.backend,
+      tokens: meta.tokensUsed,
+      truncated: meta.truncated,
+      contextTokens: meta.contextTokens,
+      contextBudget: meta.contextBudget,
+    });
+  } catch (err) {
+    if (!ac.signal.aborted) {
+      req.log.error(err);
+      write({
+        type: "error",
+        message: "Đã xảy ra lỗi khi tiếp tục (resume) câu trả lời.",
       });
     }
   }

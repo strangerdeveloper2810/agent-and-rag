@@ -50,6 +50,15 @@ export type AgentStreamOptions = {
   }>;
 };
 
+/** Tuỳ chọn cho AgentClient.resume — nhẹ hơn AgentStreamOptions vì resume
+ * không gửi lại history/attachments/persona (agent-go tự phục hồi từ
+ * checkpoint đã lưu, xem services/agent-go/internal/agent/resume.go). */
+export type AgentResumeOptions = {
+  signal?: AbortSignal;
+  /** req.tenantId (từ authGuard) — forward sang agent-go qua header X-Tenant-ID. */
+  tenantId?: string;
+};
+
 /**
  * AgentClient — BIÊN GIỚI giữa gateway (Fastify) và agent runtime.
  */
@@ -57,5 +66,22 @@ export interface AgentClient {
   stream(
     history: AgentMessage[],
     opts?: AgentStreamOptions,
+  ): AsyncIterable<AgentEvent>;
+
+  /**
+   * Tiếp tục 1 run đã dừng giữa chừng (interrupt HITL hoặc crash) theo
+   * `runId` — xem services/agent-go/internal/transport/http/chat_resume.go.
+   * `answer` optional: chỉ cần khi run đang chờ trả lời 1 câu hỏi interrupt
+   * thật; bỏ trống nếu chỉ đơn giản resume từ node đã dừng.
+   *
+   * OPTIONAL vì chỉ agent-go (checkpoint/resume) hỗ trợ — LangGraph (legacy,
+   * `AGENT_BACKEND=langgraph`) không có khái niệm checkpoint nên không
+   * implement. Caller (chat.service.resumeReply) PHẢI kiểm tra tồn tại
+   * trước khi gọi, ném lỗi rõ ràng nếu backend không hỗ trợ.
+   */
+  resume?(
+    runId: string,
+    answer: string | undefined,
+    opts?: AgentResumeOptions,
   ): AsyncIterable<AgentEvent>;
 }

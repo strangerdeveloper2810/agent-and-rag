@@ -37,7 +37,15 @@ export type AgentEvent =
     }
   | { type: "citation"; text?: string }
   | { type: "memory"; message?: string }
-  | { type: "interrupt"; name?: string; message?: string }
+  | {
+      type: "interrupt";
+      name?: string;
+      message?: string;
+      /** Định danh run đang dừng (chỉ Go agent gửi) — dùng làm `runId` khi
+       * gọi AgentClient.resume() để tiếp tục. Xem
+       * services/agent-go/internal/agent/event.go. */
+      runId?: string;
+    }
   | { type: "ask_user"; questions: any[] }
   | { type: "suggestions"; suggestions: string[] };
 
