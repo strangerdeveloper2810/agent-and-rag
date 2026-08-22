@@ -38,6 +38,13 @@ type Config struct {
 	OllamaURL   string // default: http://localhost:11434
 	OllamaModel string // default: llama3.1:8b
 
+	// Channels (kênh chat khác ngoài HTTP/SSE /chat)
+	//
+	// TelegramBotToken bật kênh Telegram long-polling (internal/transport/telegram)
+	// khi khác rỗng — đọc từ TELEGRAM_BOT_TOKEN, OPTIONAL: để trống thì JARVIS
+	// chỉ chạy kênh HTTP/SSE như trước, không fail khởi động.
+	TelegramBotToken string
+
 	// OpenAI-compatible local server (vLLM, llama.cpp server, LM Studio...).
 	// Không có default cố định như Ollama vì mỗi server nghe ở cổng khác nhau
 	// và chạy model do người dùng tự nạp — phải cấu hình rõ qua env.
@@ -227,6 +234,7 @@ func Load() (Config, error) {
 		AnthropicKey2:         os.Getenv("ANTHROPIC_API_KEY_2"),
 		OllamaURL:             envOr("OLLAMA_URL", "http://localhost:11434"),
 		OllamaModel:           envOr("OLLAMA_MODEL", "llama3.1:8b"),
+		TelegramBotToken:      os.Getenv("TELEGRAM_BOT_TOKEN"),
 		OpenAICompatBaseURL:   os.Getenv("OPENAI_COMPAT_BASE_URL"),
 		OpenAICompatModel:     os.Getenv("OPENAI_COMPAT_MODEL"),
 		OpenAICompatKey:       os.Getenv("OPENAI_COMPAT_API_KEY"),

@@ -29,6 +29,7 @@ import (
 	"github.com/ai-agent-tut/agent-go/internal/storage/sqlite"
 	"github.com/ai-agent-tut/agent-go/internal/tools"
 	agenthttp "github.com/ai-agent-tut/agent-go/internal/transport/http"
+	"github.com/ai-agent-tut/agent-go/internal/transport/telegram"
 )
 
 func main() {
@@ -336,6 +337,24 @@ Bạn là chuyên gia nghiên cứu internet của JARVIS. Nhiệm vụ của b�
 	if err := orch.SetDefault("general"); err != nil {
 		slog.Error("orchestrator", "err", err)
 		os.Exit(1)
+	}
+
+	// --- Wire Telegram Channel (long-polling, optional) ---
+	// TELEGRAM_BOT_TOKEN rỗng → bot không khởi động, hành vi hiện tại giữ
+	// nguyên (chỉ có kênh HTTP/SSE /chat). Bot tái dùng CHÍNH orch đã dựng ở
+	// trên — không tạo engine riêng, nên mọi cấu hình (tool registry, system
+	// prompt, memory, guardrails, owner tenant...) áp dụng y hệt kênh HTTP.
+	// Không graceful-shutdown ở v1 (bỏ qua cho đơn giản): goroutine bị bỏ lại
+	// khi process thoát, an toàn vì không giữ tài nguyên cần đóng sạch (không
+	// ghi file/DB dở dang) — xem báo cáo triển khai để biết chi tiết.
+	if cfg.TelegramBotToken != "" {
+		bot := telegram.New(cfg.TelegramBotToken)
+		go func() {
+			if err := bot.Run(context.Background(), orch); err != nil {
+				slog.Error("telegram: bot dừng với lỗi", "err", err)
+			}
+		}()
+		slog.Info("telegram: bot đã khởi động (long-polling)")
 	}
 
 	// --- Wire SQLite paused_runs (resume tối giản CHỈ cho NodeInterrupt) ---
