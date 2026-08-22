@@ -290,3 +290,21 @@ trong `internal/tools/shell.go`), nếu `SHELL_SANDBOX=docker`:
 Đây là cùng triết lý "fail-safe, không chặn đường chính" đã thấy ở
 `SetInterruptStore`/SQLite (§1.4) — tính năng mới KHÔNG BAO GIỜ được phép làm
 sập tính năng cũ khi nó không sẵn sàng.
+
+## 4. MCP Server (JARVIS as MCP server)
+
+JARVIS expose 1 tập tool tối giản qua `POST /mcp` (JSON-RPC 2.0, Streamable
+HTTP, xem `internal/mcp/server.go`): `calculator, datetime, echo, version,
+web.search, web.fetch, notes.search, notes.create`.
+
+Tool đặc quyền (`shell.exec`, `file.*`, `git` — xem §1.1) bị hard-exclude
+tuyệt đối khỏi cả `tools/list` lẫn `tools/call`, không có ngoại lệ, không có
+cấu hình bật lại — đây là 1 đường vào mới không đi qua `node_tools.go`/
+owner-tenant gate (§1.2) nên phải nghiêm hơn kênh chat thường, không được
+phép tin tưởng bất kỳ filter nào caller truyền vào (defense-in-depth, xem
+test `TestServer_CallerFilter_NarrowsFurtherButNeverWidens`).
+
+**Giới hạn biết trước:** endpoint này CHƯA có auth/rate-limit — ai gọi HTTP
+tới được server đều dùng được các tool non-privileged này bình đẳng. Nếu
+deploy public, cần thêm auth (API key/JWT) và rate-limit ở tầng ngoài
+(reverse proxy/API gateway) trước khi mở `/mcp` ra Internet.
