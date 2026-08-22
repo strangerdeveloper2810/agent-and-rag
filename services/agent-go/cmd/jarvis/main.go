@@ -5,6 +5,7 @@
 //	serve                start HTTP server (SSE chat)
 //	ask "câu hỏi"        one-shot question, in kết quả ra stdout
 //	chat                 interactive chat (REPL)
+//	eval <cases.json>    run eval cases against the agent, print report
 //
 //	stdlib only — không dùng thư viện CLI ngoài.
 //
@@ -13,11 +14,13 @@
 //	jarvis serve
 //	jarvis ask "thời tiết hôm nay thế nào?"
 //	jarvis chat
+//	jarvis eval cases.json
 package main
 
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -31,6 +34,7 @@ import (
 
 	"github.com/ai-agent-tut/agent-go/internal/agent"
 	"github.com/ai-agent-tut/agent-go/internal/config"
+	"github.com/ai-agent-tut/agent-go/internal/eval"
 	"github.com/ai-agent-tut/agent-go/internal/memory"
 	"github.com/ai-agent-tut/agent-go/internal/middleware"
 	"github.com/ai-agent-tut/agent-go/internal/orchestrator"
@@ -66,6 +70,12 @@ func run(args []string, stdout, stderr io.Writer) int {
 		runAsk(strings.Join(args[1:], " "))
 	case "chat":
 		runChat()
+	case "eval":
+		if len(args) < 2 {
+			fmt.Fprintln(stderr, "usage: jarvis eval <path-to-cases.json>")
+			return 1
+		}
+		return runEval(args[1])
 	case "help", "-h", "--help":
 		fmt.Fprintln(stdout, usageText)
 	default:
@@ -79,10 +89,11 @@ func run(args []string, stdout, stderr io.Writer) int {
 const usageText = `JARVIS — AI assistant CLI
 
 usage:
-  jarvis serve              start HTTP server
-  jarvis ask "câu hỏi"      one-shot question
-  jarvis chat               interactive chat (REPL)
-  jarvis help               show this help`
+  jarvis serve                       start HTTP server
+  jarvis ask "câu hỏi"               one-shot question
+  jarvis chat                        interactive chat (REPL)
+  jarvis eval <path-to-cases.json>   run eval cases against the agent
+  jarvis help                        show this help`
 
 // --- serve ---
 
@@ -218,6 +229,103 @@ func chatLoop(ctx context.Context, runner agent.Runner, in io.Reader, stdout, st
 			})
 		}
 	}
+}
+
+// --- eval ---
+
+// runEval là entrypoint mỏng cho subcommand "eval": đọc file JSON cases,
+// dựng orchestrator thật qua setup(), rồi chạy runEvalCases để lấy exit
+// code. Giống runAsk/runChat, phần setup() không test được (cần config/LLM
+// thật) nên logic có thể test được (parse file, chạy harness, in report)
+// được tách ra loadEvalCases và runEvalCases bên dưới.
+func runEval(path string) int {
+	cases, err := loadEvalCases(path)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "eval: %v\n", err)
+		return 1
+	}
+	if len(cases) == 0 {
+		fmt.Fprintf(os.Stderr, "eval: no cases found in %s\n", path)
+		return 1
+	}
+
+	_, _, orch := setup()
+	return runEvalCases(context.Background(), orch, cases, os.Stdout)
+}
+
+// loadEvalCases đọc và parse 1 file JSON chứa mảng eval.EvalCase.
+// Tách khỏi runEval để test được mà không cần setup() (config/LLM thật).
+func loadEvalCases(path string) ([]eval.EvalCase, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read %s: %w", path, err)
+	}
+	var cases []eval.EvalCase
+	if err := json.Unmarshal(data, &cases); err != nil {
+		return nil, fmt.Errorf("parse %s: %w", path, err)
+	}
+	return cases, nil
+}
+
+// evalRunnerAdapter bọc 1 agent.Runner (Engine hoặc Orchestrator) thành
+// eval.AgentRunner: chạy 1 lượt cho mỗi input, gom các event "text" thành
+// 1 string trả về (giống cách askOnce gom text event ra stdout).
+type evalRunnerAdapter struct {
+	runner agent.Runner
+}
+
+func (a *evalRunnerAdapter) Run(ctx context.Context, input string) (string, error) {
+	var reply strings.Builder
+	emit := func(e agent.Event) {
+		if e.Type == "text" {
+			reply.WriteString(e.Text)
+		}
+	}
+
+	in := agent.RunInput{UserMessage: input, MaxSteps: 12}
+	if _, err := a.runner.Run(ctx, in, emit); err != nil {
+		return "", err
+	}
+	return reply.String(), nil
+}
+
+// runEvalCases chạy cases qua runner bằng eval.EvalHarness, in báo cáo dạng
+// text ngắn gọn ra stdout, và trả về exit code: 0 nếu mọi case pass, 1 nếu
+// có case fail hoặc lỗi. Tách khỏi runEval để test được với runner giả
+// (không cần LLM thật), giống stubRunner dùng cho askOnce/chatLoop.
+func runEvalCases(ctx context.Context, runner agent.Runner, cases []eval.EvalCase, stdout io.Writer) int {
+	harness := eval.NewEvalHarness(&evalRunnerAdapter{runner: runner}, nil)
+	report := harness.RunAll(ctx, cases)
+
+	printEvalReport(stdout, report)
+
+	if report.Failed == 0 && report.Errored == 0 {
+		return 0
+	}
+	return 1
+}
+
+// printEvalReport in kết quả eval dạng bảng text ngắn gọn (không màu mè,
+// đơn giản, nhất quán với style output của ask/chat): 1 dòng PASS/FAIL/ERROR
+// mỗi case, kèm lý do/lỗi nếu không pass, rồi 1 dòng tổng kết pass rate.
+func printEvalReport(w io.Writer, report eval.EvalReport) {
+	for _, r := range report.Results {
+		status := "PASS"
+		switch {
+		case r.Error != "":
+			status = "ERROR"
+		case !r.Passed:
+			status = "FAIL"
+		}
+		fmt.Fprintf(w, "[%s] %s (%s)\n", status, r.Case.Name, r.Duration)
+		if r.Error != "" {
+			fmt.Fprintf(w, "       error: %s\n", r.Error)
+		} else if !r.Passed && r.Reason != "" {
+			fmt.Fprintf(w, "       reason: %s\n", r.Reason)
+		}
+	}
+	fmt.Fprintf(w, "\n%d/%d passed (%.1f%%), %d failed, %d errored, took %s\n",
+		report.Passed, report.Total, report.PassRate, report.Failed, report.Errored, report.Duration)
 }
 
 // --- wiring ---

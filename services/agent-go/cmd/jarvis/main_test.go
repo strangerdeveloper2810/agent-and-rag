@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/ai-agent-tut/agent-go/internal/agent"
+	"github.com/ai-agent-tut/agent-go/internal/eval"
 	"github.com/ai-agent-tut/agent-go/internal/provider"
 )
 
@@ -73,6 +76,17 @@ func TestRun_AskWithoutQuestion(t *testing.T) {
 		t.Errorf("exit code = %d, want 1", code)
 	}
 	if !strings.Contains(errOut.String(), `jarvis ask`) {
+		t.Errorf("stderr = %q", errOut.String())
+	}
+}
+
+func TestRun_EvalWithoutPath(t *testing.T) {
+	var out, errOut bytes.Buffer
+
+	if code := run([]string{"eval"}, &out, &errOut); code != 1 {
+		t.Errorf("exit code = %d, want 1", code)
+	}
+	if !strings.Contains(errOut.String(), "jarvis eval") {
 		t.Errorf("stderr = %q", errOut.String())
 	}
 }
@@ -211,9 +225,167 @@ func TestChatLoop_EmptyResponseNotStored(t *testing.T) {
 }
 
 func TestUsageText(t *testing.T) {
-	for _, want := range []string{"jarvis serve", "jarvis ask", "jarvis chat", "jarvis help"} {
+	for _, want := range []string{"jarvis serve", "jarvis ask", "jarvis chat", "jarvis eval", "jarvis help"} {
 		if !strings.Contains(usageText, want) {
 			t.Errorf("usageText thiếu %q", want)
 		}
+	}
+}
+
+// --- eval ---
+
+// echoRunner phát 1 câu trả lời cố định (không phụ thuộc input) cho mỗi
+// lượt Run, để test runEvalCases xác định được pass/fail/error mà không cần
+// LLM thật.
+type echoRunner struct {
+	reply string
+	err   error
+	calls []agent.RunInput
+}
+
+func (r *echoRunner) Run(_ context.Context, in agent.RunInput, emit agent.EmitFunc) (provider.Usage, error) {
+	r.calls = append(r.calls, in)
+	if r.err != nil {
+		return provider.Usage{}, r.err
+	}
+	emit(agent.TextEvent(r.reply))
+	return provider.Usage{}, nil
+}
+
+func TestLoadEvalCases_ValidFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "cases.json")
+	content := `[
+		{"name":"c1","input":"hi","expected":"hi","mode":0},
+		{"name":"c2","input":"world","expected":"wor","mode":1,"tags":["smoke"]}
+	]`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+
+	cases, err := loadEvalCases(path)
+	if err != nil {
+		t.Fatalf("loadEvalCases: %v", err)
+	}
+	if len(cases) != 2 {
+		t.Fatalf("len(cases) = %d, want 2", len(cases))
+	}
+	if cases[0].Name != "c1" || cases[1].Name != "c2" {
+		t.Errorf("cases = %+v", cases)
+	}
+	if cases[1].Mode != eval.MatchContains {
+		t.Errorf("cases[1].Mode = %v, want MatchContains", cases[1].Mode)
+	}
+	if len(cases[1].Tags) != 1 || cases[1].Tags[0] != "smoke" {
+		t.Errorf("cases[1].Tags = %v", cases[1].Tags)
+	}
+}
+
+func TestLoadEvalCases_MissingFile(t *testing.T) {
+	if _, err := loadEvalCases(filepath.Join(t.TempDir(), "nope.json")); err == nil {
+		t.Fatal("expected error for missing file")
+	}
+}
+
+func TestLoadEvalCases_InvalidJSON(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "bad.json")
+	if err := os.WriteFile(path, []byte("{not valid json"), 0o644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+
+	if _, err := loadEvalCases(path); err == nil {
+		t.Fatal("expected error for invalid JSON")
+	}
+}
+
+func TestEvalRunnerAdapter_CollectsTextEvents(t *testing.T) {
+	runner := &stubRunner{events: []agent.Event{
+		agent.TextEvent("xin "),
+		agent.TextEvent("chào"),
+		agent.MemoryEvent("bo qua"),
+	}}
+	adapter := &evalRunnerAdapter{runner: runner}
+
+	got, err := adapter.Run(context.Background(), "hoi gi do")
+	if err != nil {
+		t.Fatalf("adapter.Run: %v", err)
+	}
+	if got != "xin chào" {
+		t.Errorf("got = %q, want %q", got, "xin chào")
+	}
+	if len(runner.inputs) != 1 || runner.inputs[0].UserMessage != "hoi gi do" {
+		t.Errorf("inputs = %+v", runner.inputs)
+	}
+	if runner.inputs[0].MaxSteps != 12 {
+		t.Errorf("MaxSteps = %d, want 12", runner.inputs[0].MaxSteps)
+	}
+}
+
+func TestEvalRunnerAdapter_PropagatesError(t *testing.T) {
+	runner := &stubRunner{err: errors.New("engine chet")}
+	adapter := &evalRunnerAdapter{runner: runner}
+
+	if _, err := adapter.Run(context.Background(), "hoi"); err == nil {
+		t.Fatal("expected error from adapter.Run")
+	}
+}
+
+func TestRunEvalCases_AllPass(t *testing.T) {
+	runner := &echoRunner{reply: "hello world"}
+	cases := []eval.EvalCase{
+		{Name: "c1", Input: "hi", Expected: "hello", Mode: eval.MatchContains},
+		{Name: "c2", Input: "hi", Expected: "world", Mode: eval.MatchContains},
+	}
+
+	var out bytes.Buffer
+	code := runEvalCases(context.Background(), runner, cases, &out)
+	if code != 0 {
+		t.Errorf("code = %d, want 0", code)
+	}
+	if strings.Count(out.String(), "[PASS]") != 2 {
+		t.Errorf("output = %q, want 2 PASS entries", out.String())
+	}
+	if !strings.Contains(out.String(), "2/2 passed") {
+		t.Errorf("output = %q, want summary line", out.String())
+	}
+}
+
+func TestRunEvalCases_SomeFail(t *testing.T) {
+	runner := &echoRunner{reply: "hello world"}
+	cases := []eval.EvalCase{
+		{Name: "ok", Input: "hi", Expected: "hello", Mode: eval.MatchContains},
+		{Name: "boom", Input: "hi", Expected: "nope", Mode: eval.MatchContains},
+	}
+
+	var out bytes.Buffer
+	code := runEvalCases(context.Background(), runner, cases, &out)
+	if code != 1 {
+		t.Errorf("code = %d, want 1", code)
+	}
+	if !strings.Contains(out.String(), "[FAIL] boom") {
+		t.Errorf("output = %q, want FAIL entry for 'boom'", out.String())
+	}
+	if !strings.Contains(out.String(), "1/2 passed") {
+		t.Errorf("output = %q, want summary line", out.String())
+	}
+}
+
+func TestRunEvalCases_RunnerError(t *testing.T) {
+	runner := &echoRunner{err: errors.New("engine chet")}
+	cases := []eval.EvalCase{
+		{Name: "c1", Input: "hi", Expected: "x", Mode: eval.MatchContains},
+	}
+
+	var out bytes.Buffer
+	code := runEvalCases(context.Background(), runner, cases, &out)
+	if code != 1 {
+		t.Errorf("code = %d, want 1", code)
+	}
+	if !strings.Contains(out.String(), "[ERROR] c1") {
+		t.Errorf("output = %q, want ERROR entry", out.String())
+	}
+	if !strings.Contains(out.String(), "engine chet") {
+		t.Errorf("output = %q, want error message included", out.String())
 	}
 }
