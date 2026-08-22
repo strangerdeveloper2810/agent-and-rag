@@ -129,12 +129,17 @@ func nodeTools(ctx context.Context, eng toolsEngine, s *State, emit EmitFunc) (N
 
 	if len(destructiveCalls) > 0 {
 		for i, dc := range destructiveCalls {
-			emit(InterruptEvent("confirm_destructive", dc.Name))
+			// RunID đi kèm event interrupt để client biết dùng run_id nào khi
+			// gọi POST /chat/resume — xem Interrupt (state.go) và resume.go.
+			ev := InterruptEvent("confirm_destructive", dc.Name)
+			ev.RunID = s.RunID
+			emit(ev)
 			if i == 0 {
 				s.Interrupt = &Interrupt{
 					Reason: "confirm_destructive",
 					Tool:   dc.Name,
 					Args:   string(dc.Args),
+					CallID: dc.ID,
 				}
 			}
 		}
