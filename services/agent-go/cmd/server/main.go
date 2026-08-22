@@ -16,6 +16,7 @@ import (
 	"github.com/ai-agent-tut/agent-go/internal/agent"
 	"github.com/ai-agent-tut/agent-go/internal/config"
 	"github.com/ai-agent-tut/agent-go/internal/guardrails"
+	"github.com/ai-agent-tut/agent-go/internal/mcp"
 	"github.com/ai-agent-tut/agent-go/internal/memory"
 	"github.com/ai-agent-tut/agent-go/internal/middleware"
 	"github.com/ai-agent-tut/agent-go/internal/mongo"
@@ -495,6 +496,11 @@ func newHTTPHandler(prov provider.Provider, runner agent.Runner, pinger agenthtt
 	mux.HandleFunc("POST /chat", chatHandler.ServeHTTP)
 	mux.HandleFunc("GET /suggestions", agenthttp.NewSuggestionsHandler(runner, recentMessages, facts).ServeHTTP)
 	mux.HandleFunc("POST /mcp/test-connection", agenthttp.NewMcpTestConnectionHandler())
+	// JARVIS làm MCP SERVER (chiều ngược lại của internal/mcp/sse.go, nơi JARVIS
+	// làm client): registry riêng, tối giản, KHÔNG chứa tool đặc quyền — xem
+	// mcp.NewDefaultToolRegistry + mcp.Server.allowed (hard-exclude
+	// tools.IsPrivilegedTool, không có ngoại lệ).
+	mux.Handle("POST /mcp", mcp.NewServer(mcp.NewDefaultToolRegistry(), nil))
 	if orch, ok := runner.(*orchestrator.Orchestrator); ok && pausedRuns != nil {
 		mux.HandleFunc("POST /chat/resume", agenthttp.NewChatResumeHandler(orch, pausedRuns).ServeHTTP)
 	}
