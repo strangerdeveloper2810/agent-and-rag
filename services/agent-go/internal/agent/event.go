@@ -9,8 +9,14 @@ import (
 
 // Event là 1 sự kiện phát ra trong lúc engine chạy (→ được transport ghi ra SSE).
 // Mỗi event có Type và các trường liên quan; client (UI) dựa vào Type để render.
+//
+// Type do Engine phát ra (15 loại, xem các hàm dựng event bên dưới): text,
+// step, error, ask_user, suggestions, done, truncated, usage, tool_start,
+// tool_end, citation, interrupt, memory, plan, reflect. Khi chạy qua
+// Orchestrator (nhiều agent), client còn nhận thêm 1 loại "agent" (phát ở
+// orchestrator.Run khi routing xong) không định nghĩa trong package này.
 type Event struct {
-	Type        string          `json:"type"`                  // step|text|tool_start|tool_end|error|done|citation|interrupt|usage|truncated
+	Type        string          `json:"type"`                  // xem danh sách ở comment struct phía trên
 	Node        string          `json:"node,omitempty"`        // node hiện tại (khi Type=step)
 	Text        string          `json:"text,omitempty"`        // token (khi Type=text)
 	Name        string          `json:"name,omitempty"`        // tên tool (tool_start/tool_end)
@@ -18,6 +24,13 @@ type Event struct {
 	Usage       *provider.Usage `json:"usage,omitempty"`       // per-step usage (Type=usage) hoặc cumulative (Type=done)
 	TotalTokens int             `json:"totalTokens,omitempty"` // cumulative total (input+output) across all steps
 	Truncated   bool            `json:"truncated,omitempty"`   // true khi Type=truncated hoặc Type=done của lượt bị cắt
+
+	// RunID (Type=interrupt): định danh lượt chạy đang dừng — client dùng giá
+	// trị này làm "run_id" khi gọi POST /chat/resume để tiếp tục. Luôn được
+	// điền (mỗi State có RunID riêng), nhưng resume CHỈ thành công nếu Engine
+	// có cấu hình SetInterruptStore (nếu không, run coi như kết thúc tại đây
+	// và /chat/resume trả lỗi "not found") — xem agent.Interrupt và resume.go.
+	RunID string `json:"runId,omitempty"`
 
 	// AskUser & Suggestions
 	Questions   []ClarifyQuestion `json:"questions,omitempty"`   // Danh sách câu hỏi làm rõ (Type=ask_user)

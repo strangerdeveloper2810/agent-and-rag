@@ -1,5 +1,14 @@
-// Package mcp cung cấp MCP client qua subprocess stdin/stdout JSON-RPC 2.0,
-// và MCPRegistry tự động discovery tool từ file YAML cấu hình.
+// Package mcp cung cấp 2 cơ chế MCP client, KHÔNG chỉ 1:
+//
+//   - Subprocess stdin/stdout JSON-RPC 2.0 (MCPClient.Connect + MCPRegistry.
+//     Discover đọc file YAML *.yaml/*.yml trong configDir) — cơ chế GỐC của
+//     package này. Hiện KHÔNG có caller nào trong cmd/server hay cmd/jarvis
+//     gọi MCPRegistry.Discover — dead code ở tầng wiring (vẫn còn test riêng),
+//     giữ lại phòng khi cần MCP server chạy local dạng subprocess.
+//   - SSE/Streamable HTTP remote (sse.go: DiscoverSSE + ServerConfig) — cơ chế
+//     THẬT ĐANG CHẠY production: Engine.Run gọi mcp.DiscoverSSE ở MỖI lượt
+//     chat cho các MCP server user tự cấu hình qua RunInput.McpServers (không
+//     qua file YAML, không phải subprocess).
 package mcp
 
 import (

@@ -26,6 +26,7 @@ import (
 	"github.com/ai-agent-tut/agent-go/internal/provider/ollama"
 	"github.com/ai-agent-tut/agent-go/internal/rag"
 	"github.com/ai-agent-tut/agent-go/internal/skills"
+	"github.com/ai-agent-tut/agent-go/internal/storage/sqlite"
 	"github.com/ai-agent-tut/agent-go/internal/tools"
 	agenthttp "github.com/ai-agent-tut/agent-go/internal/transport/http"
 )
@@ -38,6 +39,20 @@ func main() {
 	}
 
 	// --- Wire Observability & LangSmith Tracer ---
+	// OTel tracer THẬT (stdouttrace mặc định, OTLP HTTP nếu có
+	// OTEL_EXPORTER_OTLP_ENDPOINT) — xem observability.SetupTracer. Lỗi setup
+	// không chặn khởi động (tracing là phụ trợ, không phải đường dẫn chính).
+	otelShutdown, err := observability.SetupTracer(context.Background(), "jarvis-agent-go")
+	if err != nil {
+		slog.Warn("observability: OTel tracer setup thất bại — chạy tiếp không có tracing", "err", err)
+	} else {
+		defer func() {
+			if err := otelShutdown(context.Background()); err != nil {
+				slog.Warn("observability: OTel tracer shutdown lỗi", "err", err)
+			}
+		}()
+	}
+
 	lsClient := observability.InitLangSmith(cfg)
 	defer lsClient.Close()
 
@@ -323,6 +338,26 @@ Bạn là chuyên gia nghiên cứu internet của JARVIS. Nhiệm vụ của b�
 		os.Exit(1)
 	}
 
+	// --- Wire SQLite paused_runs (resume tối giản CHỈ cho NodeInterrupt) ---
+	// cfg.DBPath đã tồn tại trong config từ trước (JARVIS_DB_PATH, mặc định
+	// "jarvis.db") nhưng chưa nơi nào đọc — dùng lại làm nơi lưu paused_runs
+	// thay vì thêm biến env mới. Lỗi mở DB không chặn khởi động: resume chỉ
+	// là tính năng phụ trợ — nếu không mở được, mọi Engine giữ interruptStore
+	// = nil (mặc định), tức NodeInterrupt vẫn dừng bình thường như trước khi
+	// có tính năng này, chỉ không lưu lại gì để /chat/resume dùng.
+	var pausedRunsStore *sqlite.Store
+	if st, err := sqlite.Open(cfg.DBPath); err != nil {
+		slog.Warn("sqlite: mở DB thất bại — /chat/resume sẽ không khả dụng", "path", cfg.DBPath, "err", err)
+	} else {
+		pausedRunsStore = st
+		defer st.Close()
+		for _, spec := range orch.ListAgents() {
+			spec.Engine.SetInterruptStore(pausedRunsStore)
+			spec.Engine.SetName(spec.Name)
+		}
+		slog.Info("sqlite: paused_runs sẵn sàng — /chat/resume khả dụng", "path", cfg.DBPath)
+	}
+
 	// --- Wire Autonomous Learner (opt-in via ENABLE_LEARNER — costs 1 extra
 	// LLM call per response, TẮT mặc định) ---
 	var learner *memory.Learner
@@ -345,7 +380,7 @@ Bạn là chuyên gia nghiên cứu internet của JARVIS. Nhiệm vụ của b�
 	}
 
 	// --- HTTP Routes ---
-	srv := &http.Server{Addr: ":" + cfg.Port, Handler: newHTTPHandler(prov, orch, mongoPinger(mongoClient), learnerOrNil(learner), recentMessagesFetcher(mongoClient), store)}
+	srv := &http.Server{Addr: ":" + cfg.Port, Handler: newHTTPHandler(prov, orch, mongoPinger(mongoClient), learnerOrNil(learner), recentMessagesFetcher(mongoClient), store, pausedRunStoreOrNil(pausedRunsStore))}
 
 	// Start server
 	go func() {
@@ -445,7 +480,11 @@ func fastModel(cfg config.Config) string {
 
 // newHTTPHandler dựng router + chuỗi middleware (CORS → Tenant → mux).
 // Tách khỏi main để test được routing và middleware mà không cần chạy server.
-func newHTTPHandler(prov provider.Provider, runner agent.Runner, pinger agenthttp.MongoPinger, learner agenthttp.ConversationLearner, recentMessages agenthttp.RecentMessagesFetcher, facts agenthttp.FactsProvider) http.Handler {
+//
+// pausedRuns có thể nil (resume tắt — vd sqlite.Open thất bại lúc wiring):
+// route /chat/resume CHỈ đăng ký khi runner là *orchestrator.Orchestrator (để
+// tìm lại đúng Engine theo agent_name) VÀ pausedRuns != nil.
+func newHTTPHandler(prov provider.Provider, runner agent.Runner, pinger agenthttp.MongoPinger, learner agenthttp.ConversationLearner, recentMessages agenthttp.RecentMessagesFetcher, facts agenthttp.FactsProvider, pausedRuns agenthttp.PausedRunStore) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", agenthttp.Healthz)
 	mux.HandleFunc("GET /readyz", agenthttp.NewReadyzHandler(prov, pinger))
@@ -456,6 +495,9 @@ func newHTTPHandler(prov provider.Provider, runner agent.Runner, pinger agenthtt
 	mux.HandleFunc("POST /chat", chatHandler.ServeHTTP)
 	mux.HandleFunc("GET /suggestions", agenthttp.NewSuggestionsHandler(runner, recentMessages, facts).ServeHTTP)
 	mux.HandleFunc("POST /mcp/test-connection", agenthttp.NewMcpTestConnectionHandler())
+	if orch, ok := runner.(*orchestrator.Orchestrator); ok && pausedRuns != nil {
+		mux.HandleFunc("POST /chat/resume", agenthttp.NewChatResumeHandler(orch, pausedRuns).ServeHTTP)
+	}
 
 	var handler http.Handler = mux
 	handler = middleware.TenantMiddleware(handler)
@@ -491,4 +533,14 @@ func learnerOrNil(l *memory.Learner) agenthttp.ConversationLearner {
 		return nil
 	}
 	return l
+}
+
+// pausedRunStoreOrNil trả interface PausedRunStore, giữ nil ĐÚNG NGHĨA khi
+// sqlite.Open thất bại lúc wiring (resume tắt) — cùng lý do với mongoPinger
+// ở trên.
+func pausedRunStoreOrNil(s *sqlite.Store) agenthttp.PausedRunStore {
+	if s == nil {
+		return nil
+	}
+	return s
 }

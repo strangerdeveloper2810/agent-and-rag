@@ -7,6 +7,10 @@ import (
 	"log/slog"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/ai-agent-tut/agent-go/internal/guardrails"
 	"github.com/ai-agent-tut/agent-go/internal/mcp"
 	"github.com/ai-agent-tut/agent-go/internal/observability"
@@ -14,6 +18,11 @@ import (
 	"github.com/ai-agent-tut/agent-go/internal/skills"
 	"github.com/ai-agent-tut/agent-go/internal/tools"
 )
+
+// stepTracer là tracer OTel dùng riêng cho span quanh mỗi step của engine
+// loop — xem observability.SetupTracer cho cách TracerProvider global được
+// dựng thật (trước đây là noop, không phát telemetry gì).
+var stepTracer = observability.Tracer("agent-go/engine")
 
 // Engine là trái tim của agent runtime — chạy vòng lặp ReAct:
 // recall → summarize → model → route → tools → model → route → ... → extract → end.
@@ -90,6 +99,62 @@ type Engine struct {
 	// phải model chat chính. Rỗng → trimContext không gọi LLM, chỉ dùng
 	// fallback trung thực (lược bỏ, không tóm tắt).
 	fastModel string
+
+	// interruptStore lưu State khi engine dừng ở NodeInterrupt, cho phép
+	// client resume sau qua POST /chat/resume — xem SetInterruptStore,
+	// resume.go. nil (mặc định) = resume TẮT: engine dừng ở NodeInterrupt
+	// giống hệt hành vi trước khi có tính năng này (emit done, không lưu gì).
+	interruptStore InterruptStore
+
+	// name định danh agent này (vd "general"/"code"/"research" — khớp
+	// orchestrator.AgentSpec.Name) — CHỈ dùng để gắn kèm khi lưu paused run
+	// (saveInterruptedState), giúp /chat/resume tìm lại ĐÚNG Engine gốc
+	// (registry tool khác nhau giữa các agent — vd chỉ codeRegistry có
+	// shell.exec/git). Rỗng nếu không gọi SetName (vd cmd/jarvis dùng 1
+	// engine duy nhất, không cần phân biệt).
+	name string
+}
+
+// InterruptStore là nơi lưu/xoá snapshot State khi engine dừng ở
+// NodeInterrupt — implement bởi *sqlite.Store (bảng paused_runs, xem
+// internal/storage/sqlite/paused_runs.go). Khai báo interface NHỎ ở đây
+// (thay vì Engine phụ thuộc thẳng *sqlite.Store) để package agent không phải
+// import internal/storage/sqlite.
+type InterruptStore interface {
+	SaveInterruptedState(runID, agentName string, stateJSON []byte) error
+}
+
+// SetInterruptStore gán nơi lưu State khi engine dừng ở NodeInterrupt. Truyền
+// nil để tắt tính năng resume (mặc định) — engine vẫn dừng ở NodeInterrupt
+// bình thường, chỉ không lưu gì nên /chat/resume không thể tiếp tục run đó.
+func (e *Engine) SetInterruptStore(store InterruptStore) {
+	e.interruptStore = store
+}
+
+// SetName gán tên agent (xem field name) — gọi cùng lúc với SetInterruptStore
+// khi wiring nhiều Engine trong 1 Orchestrator.
+func (e *Engine) SetName(name string) {
+	e.name = name
+}
+
+// saveInterruptedState serialize s và lưu qua interruptStore (nếu có cấu
+// hình). Lỗi chỉ log — không chặn engine emit done bình thường cho request
+// hiện tại, vì tool destructive vẫn đang bị chặn đúng như thiết kế guardrails
+// dù resume có lưu được hay không.
+func (e *Engine) saveInterruptedState(s *State) {
+	if e.interruptStore == nil {
+		return
+	}
+	data, err := s.SerializeForResume()
+	if err != nil {
+		slog.Error("engine: serialize state để resume thất bại — /chat/resume sẽ không dùng được cho run này", "runID", s.RunID, "err", err)
+		return
+	}
+	if err := e.interruptStore.SaveInterruptedState(s.RunID, e.name, data); err != nil {
+		slog.Error("engine: lưu paused run thất bại — /chat/resume sẽ không dùng được cho run này", "runID", s.RunID, "err", err)
+		return
+	}
+	slog.Info("engine: run paused ở NodeInterrupt — state đã lưu, có thể resume", "runID", s.RunID, "agent", e.name)
 }
 
 // SetMaxOutputTokens đặt trần output token cho mỗi lần gọi LLM. n <= 0 = không giới hạn.
@@ -318,6 +383,15 @@ func (e *Engine) Run(ctx context.Context, in RunInput, emit EmitFunc) (provider.
 		}()
 	}
 
+	return e.runLoop(ctx, node, s, emit, start)
+}
+
+// runLoop chạy vòng lặp dispatch bắt đầu từ startNode — logic dùng chung giữa
+// Run() (bắt đầu từ NodeRecall) và Resume() (bắt đầu từ node do route() quyết
+// định sau khi caller đã xử lý xong Interrupt — xem resume.go). Tách ra khỏi
+// Run() để Resume() không phải chạy lại discovery MCP / LangSmith root run,
+// chỉ tiếp tục ĐÚNG state machine từ giữa.
+func (e *Engine) runLoop(ctx context.Context, node NodeID, s *State, emit EmitFunc, start time.Time) (provider.Usage, error) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -329,17 +403,40 @@ func (e *Engine) Run(ctx context.Context, in RunInput, emit EmitFunc) (provider.
 		emit(StepEvent(node))
 		stepStart := time.Now()
 
-		next, err := e.dispatch(ctx, node, s, emit)
+		// Span OTel THẬT quanh 1 step của engine loop (dispatch 1 node) — con
+		// của span run tổng (nếu caller đã mở span cha qua ctx). stepCtx được
+		// truyền xuống dispatch nên tool/LLM span bên trong (node_tools.go,
+		// node_model.go) trở thành CON của step span này.
+		stepCtx, stepSpan := stepTracer.Start(ctx, "step."+string(node), trace.WithAttributes(
+			attribute.String("node", string(node)),
+			attribute.Int("step", s.Step),
+		))
+
+		next, err := e.dispatch(stepCtx, node, s, emit)
 		elapsed := time.Since(stepStart)
 		if err != nil {
+			stepSpan.RecordError(err)
+			stepSpan.SetStatus(codes.Error, err.Error())
+			stepSpan.End()
 			slog.Error("engine: dispatch failed", "node", node, "step", s.Step, "err", err)
 			emit(ErrorEvent(err.Error()))
 			return s.Usage, fmt.Errorf("engine: dispatch %s: %w", node, err)
 		}
+		stepSpan.SetAttributes(attribute.String("next_node", string(next)))
+		stepSpan.End()
 
 		slog.Info("engine: step done", "node", node, "next", next, "step", s.Step, "elapsed", elapsed.Round(time.Millisecond))
 
-		if next == NodeEnd || next == NodeInterrupt {
+		if next == NodeInterrupt {
+			// Lưu State lại (nếu có nơi lưu cấu hình) để client resume sau
+			// qua POST /chat/resume — xem SetInterruptStore và resume.go.
+			// Trước đây (và vẫn là hành vi mặc định khi KHÔNG cấu hình
+			// interruptStore) engine chỉ emit done rồi QUÊN LUÔN state, không
+			// có cách nào tiếp tục lượt chạy đã dừng.
+			e.saveInterruptedState(s)
+			break
+		}
+		if next == NodeEnd {
 			break
 		}
 		node = next
