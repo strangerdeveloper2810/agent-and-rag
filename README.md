@@ -2,7 +2,7 @@
 
 **JARVIS** là một AI agent runtime tự xây (self-built), viết bằng **Go** cho agent engine và **TypeScript (Fastify)** cho API gateway. Hệ thống hoạt động như một trợ lý AI vạn năng có khả năng: hội thoại thông minh, RAG tìm kiếm tài liệu, quản lý task, ghi nhớ ngữ cảnh xuyên phiên (có autonomous learner, sống sót qua restart), đa tác tử (multi-agent), tích hợp MCP, và tự động gọi công cụ (tool) để hoàn thành yêu cầu.
 
-JARVIS is a self-built AI agent platform featuring a **Go agent runtime** with a custom ReAct loop, an auto-fallback multi-provider LLM layer (Gemini → DeepSeek → Claude), a 25-tool registry with parallel execution, 3-tier memory with an autonomous learner (persisted across restarts), multi-agent orchestration, MCP client, a personality engine, proactive (cron) scheduling, active context-bloat prevention (dedup + budget + real LLM compaction), and SSE streaming. It replaces LangGraph with a hand-crafted state machine for full control, deep learning, and zero framework lock-in — see [Why Not LangChain?](#why-not-langchain--langgraph) below.
+JARVIS is a self-built AI agent platform featuring a **Go agent runtime** with a custom ReAct loop, an auto-fallback multi-provider LLM layer (Gemini → DeepSeek → Claude, plus local Ollama/OpenAI-compatible backends and a cost-aware RouterProvider), a 25-tool registry with parallel execution, 3-tier memory with an autonomous learner (persisted across restarts), multi-agent orchestration, an MCP client **and server**, a personality engine, proactive (cron) scheduling, active context-bloat prevention (dedup + budget + real LLM compaction), crash-safe checkpoint/resume, per-tenant cost tracking, real OpenTelemetry tracing, a Telegram channel, and SSE streaming. It replaces LangGraph with a hand-crafted state machine for full control, deep learning, and zero framework lock-in — see [Why Not LangChain?](#why-not-langchain--langgraph) below.
 
 ---
 
@@ -41,11 +41,13 @@ JARVIS is a self-built AI agent platform featuring a **Go agent runtime** with a
 │  tasks, memory│  (uploads)          │  │  │  Memory   │  ┌────────────┐  │
 └──────────────┴──────────────────────┘  │  │ 3-tier +  │  │Personality │  │
                                          │  │ learner   │  │  Proactive │  │
-                                         │  │ (persist) │  │  MCP client│  │
-                                         │  └───────────┘  └────────────┘  │
-                                         │  Provider Layer (auto-fallback):│
+                                         │  │ (persist) │  │MCP client/ │  │
+                                         │  └───────────┘  │server, TG  │  │
+                                         │                 └────────────┘  │
+                                         │  Provider Layer (auto-fallback  │
+                                         │  + RouterProvider local/cloud): │
                                          │  Gemini | DeepSeek | Claude |   │
-                                         │  Ollama | Fake                 │
+                                         │  Ollama | openai_compat | Fake  │
                                          └───────────────────────────────┘
 ```
 
@@ -115,31 +117,34 @@ ai-agent-tut/
 ├── services/
 │   └── agent-go/                   # JARVIS Go agent runtime
 │       ├── cmd/
-│       │   ├── server/main.go      # HTTP server entrypoint
-│       │   └── jarvis/main.go      # CLI entrypoint (serve / ask / chat)
+│       │   ├── server/main.go      # HTTP server entrypoint (chat/resume/MCP server/Telegram)
+│       │   └── jarvis/main.go      # CLI entrypoint (serve / ask / chat / eval / cost)
 │       ├── internal/
-│       │   ├── agent/              # Engine, State, Nodes (plan/model/route/tools/extract), Router, Events
+│       │   ├── agent/              # Engine, State, Nodes (plan/model/route/tools/extract), Router, Events,
+│       │   │                         checkpoint/resume (mọi node), cost ledger hook
 │       │   ├── provider/           # LLM abstraction
-│       │   │   ├── factory/        # chọn provider theo env (gemini/anthropic/deepseek/auto)
+│       │   │   ├── factory/        # chọn provider theo env (gemini/anthropic/deepseek/ollama/openai_compat/router/auto)
 │       │   │   ├── fallback/       # auto-fallback chain: DeepSeek → Gemini → Claude
-│       │   │   ├── gemini/ anthropic/ deepseek/ ollama/  # các adapter
-│       │   ├── tools/              # 25 tools: file, web, rag, memory, notes, shell, git, calendar, ...
+│       │   │   ├── router/         # RouterProvider: local (Ollama/openai_compat) khi rẻ, cloud khi cần
+│       │   │   ├── pricing/        # bảng giá ước tính cho cost ledger
+│       │   │   ├── gemini/ anthropic/ deepseek/ ollama/ openai_compat/  # các adapter
+│       │   ├── tools/              # 25 tools: file, web, rag, memory, notes, shell (allowlist+sandbox Docker opt-in), git, calendar, ...
 │       │   ├── memory/             # 3-tier memory (store, recall, extract, summarize) + learner + Mongo persistence
 │       │   ├── orchestrator/       # multi-agent routing (keyword) + handoff
 │       │   ├── personality/        # personality profile (formality, humor, verbosity)
 │       │   ├── proactive/          # cron scheduler cho prompt định kỳ
-│       │   ├── mcp/                # MCP client (subprocess JSON-RPC) + YAML tool discovery
+│       │   ├── mcp/                # MCP CLIENT (subprocess/SSE JSON-RPC) + MCP SERVER (POST /mcp, hard-exclude tool đặc quyền)
 │       │   ├── guardrails/         # circuit breaker, tool guard, prompt-injection filter, HITL
 │       │   ├── middleware/         # tenant middleware (X-Tenant-ID → context, BFF là nơi duy nhất set header này), CORS
 │       │   ├── mongo/              # MongoDB driver (tasks, documents, memories) — CHUNG database với apps/api
-│       │   ├── storage/            # sqlite (conversations local) + chroma (in-memory vector store)
+│       │   ├── storage/            # sqlite (conversations, paused_runs, cost_ledger) + chroma (in-memory vector store)
 │       │   ├── rag/                # Voyage AI embedding + Atlas vector search (PDR, HyDE, rerank)
 │       │   ├── skills/             # progressive disclosure engine (list/load/match SKILL.md)
-│       │   ├── eval/               # eval harness (exact/contains/regex/LLM-judge) — thư viện, chưa có CLI
+│       │   ├── eval/               # eval harness (exact/contains/regex/LLM-judge) — wired qua `jarvis eval`
 │       │   ├── metrics/            # snapshot metrics (requests, tokens, latency, tool calls)
-│       │   ├── observability/      # slog + OpenTelemetry (tracer còn noop)
+│       │   ├── observability/      # slog + OpenTelemetry THẬT (stdouttrace/OTLP)
 │       │   ├── config/             # cấu hình theo env (fail-fast)
-│       │   └── transport/http/     # SSE chat handler + health endpoint
+│       │   └── transport/         # http (SSE chat + resume + MCP server) và telegram (long-polling)
 │       ├── skills/                 # 30 SKILL.md files (định nghĩa dữ liệu skill)
 │       ├── go.mod
 │       └── Dockerfile
@@ -161,13 +166,18 @@ ai-agent-tut/
 |---------|:------:|-------------|
 | **SSE Streaming** | Done | Token-by-token real-time output; tool call chips in UI |
 | **ReAct Agent Loop** | Done | model -> route -> tools -> model -> ... with step limit |
-| **Pluggable LLM + Auto-Fallback** | Done | Gemini, Claude, DeepSeek, Ollama; `LLM_PROVIDER=auto` chain: Gemini (full free-tier pool) → DeepSeek → Claude key 1 → Claude key 2 (optional, `ANTHROPIC_API_KEY_2`); cooldown per chain position |
-| **Tool System (25 tools)** | Done | Interface-based registry; parallel fan-out via goroutines; per-tool timeout |
+| **Pluggable LLM + Auto-Fallback** | Done | Gemini, Claude, DeepSeek, Ollama, OpenAI-compatible local servers; `LLM_PROVIDER=auto` chain: Gemini (full free-tier pool) → DeepSeek → Claude key 1 → Claude key 2 (optional, `ANTHROPIC_API_KEY_2`); cooldown per chain position |
+| **RouterProvider (local + cloud)** | Done | `LLM_PROVIDER=router`: request `ThinkingOff` + no tools → free local model (Ollama/OpenAI-compatible); everything else → cloud fallback chain. Falls back local→cloud only on immediate error, never mid-stream |
+| **Tool System (25 tools)** | Done | Interface-based registry; parallel fan-out via goroutines; per-tool timeout; `shell.exec` has a real allowlist + process-group kill + opt-in Docker sandbox |
 | **3-Tier Memory + Learner** | Done | Working (in-msg), episodic (summarize), semantic (extract+store); autonomous learner (`ENABLE_LEARNER`); facts survive restart (`Store.LoadFromMongo`) and are shared across conversations for the same tenant |
 | **Context-Bloat Prevention** | Done | Dedup identical tool calls within a batch; cumulative tool-output budget across steps; real LLM-based context compaction when the token budget is exceeded (honest fallback on failure — never a fake "summarized" placeholder) |
 | **Context-Size Warning** | Done | `done` event carries context tokens vs. budget; FE banner suggests starting a new chat past ~80% usage; learned facts aren't lost (tenant-scoped, not conversation-scoped) |
 | **Multi-Agent Orchestrator** | Done | Keyword routing; agent-to-agent handoff |
-| **MCP Client** | Done | Subprocess JSON-RPC 2.0 + YAML config auto-discovery cho external tool servers |
+| **Checkpoint / Resume** | Done | State checkpointed to SQLite after every node transition (not just HITL interrupt) — `POST /chat/resume` continues a crashed/paused run from where it stopped. Known gap: no idempotency key yet for tool calls mid-parallel-batch |
+| **MCP Client** | Done | Subprocess/SSE JSON-RPC 2.0 + YAML config auto-discovery cho external tool servers |
+| **MCP Server** | Done | JARVIS exposes a safe tool whitelist via `POST /mcp` (Streamable HTTP) for other MCP clients — privileged tools hard-excluded, auth via loopback-only default or `MCP_API_KEY` |
+| **Per-Tenant Cost Ledger** | Done | `ENABLE_COST_LEDGER=true` tracks estimated USD cost per tenant/provider/model in SQLite; `jarvis cost <tenantID>` CLI shows totals + estimated savings vs. the priciest provider |
+| **Telegram Channel** | Done | Long-polling bot (`TELEGRAM_BOT_TOKEN`) reusing the same orchestrator as `/chat` — each Telegram chat gets its own isolated tenant |
 | **Personality Engine** | Done | Formality/humor/verbosity profile, adapt prompt + tự học theo thời gian |
 | **Proactive Scheduler** | Done | Cron-based scheduler gọi prompt định kỳ (robfig/cron) |
 | **Skills System (30 skills)** | Done | Progressive disclosure qua SKILL.md — list gọn trong system prompt, load đầy đủ khi trigger |
@@ -178,8 +188,8 @@ ai-agent-tut/
 | **Task Management** | Partial | `GET /api/tasks` (chỉ đọc) qua `apps/api/modules/tasks`; **chưa có route/tool tạo-sửa-xoá task, chưa có UI task board** |
 | **Auth Multi-tenant** | Done | JWT + refresh, Google OAuth, OTP email verify (Resend), tenant isolation |
 | **Object Storage** | Done | MinIO/S3 cho file upload (ảnh, doc, file agent tạo) |
-| **Eval Harness** | Partial | Package `internal/eval` có đầy đủ (exact/contains/regex/LLM-judge) nhưng chưa wire vào CLI hay dataset thật |
-| **OpenTelemetry** | Planned | `observability.SetupTracer` hiện là no-op provider; metrics in-process (`internal/metrics`) đã có, tracing export chưa có |
+| **Eval Harness** | Done | `jarvis eval path/to/cases.json` chạy `internal/eval` (exact/contains/regex/LLM-judge) qua agent thật, in báo cáo pass/fail |
+| **OpenTelemetry** | Done | Real `sdktrace.TracerProvider` (stdout exporter mặc định, OTLP HTTP nếu có `OTEL_EXPORTER_OTLP_ENDPOINT`); spans quanh mỗi tool call, LLM call, và node transition |
 
 ---
 
@@ -190,7 +200,7 @@ ai-agent-tut/
 | **Agent Runtime** | Go 1.25+ | Custom ReAct engine, orchestrator, tool execution, memory, MCP |
 | **API Gateway** | Fastify 5 + TypeScript | Auth, file upload, PDF extraction, CRUD, proxy SSE sang Go agent |
 | **Frontend** | React 19 + Vite + Tailwind CSS 4 (shadcn, indigo) | Chat UI, auth pages, document management |
-| **LLM Providers** | Gemini 3.1 Flash Lite, Claude Haiku 4.5, DeepSeek v4, Ollama (local) | Text generation with tool calling, auto-fallback |
+| **LLM Providers** | Gemini 3.1 Flash Lite, Claude Haiku 4.5, DeepSeek v4, Ollama (local), OpenAI-compatible servers (vLLM/llama.cpp/LM Studio) | Text generation with tool calling, auto-fallback, cost-aware routing |
 | **Embedding** | Voyage AI voyage-3 (1024d) | Document + memory vectorization |
 | **Primary DB** | MongoDB Atlas | Conversations, documents (vector search), tasks, memories |
 | **Auth DB** | PostgreSQL 17 | Users, credentials, refresh tokens |
