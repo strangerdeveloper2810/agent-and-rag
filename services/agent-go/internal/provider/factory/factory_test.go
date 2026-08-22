@@ -311,3 +311,73 @@ func TestNew_AutoWithoutSecondAnthropicKey_Unchanged(t *testing.T) {
 		t.Errorf("Name() = %q, want %q (không set key 2 phải giữ nguyên tên cũ)", p.Name(), want)
 	}
 }
+
+// provider="router" với RouterLocalBackend mặc định (rỗng → "ollama") phải
+// wire đúng: local=ollama, cloud=chain "auto" hiện có, không lỗi "unknown
+// LLM_PROVIDER".
+func TestNew_RouterDefaultsToOllamaLocal(t *testing.T) {
+	cfg := baseCfg()
+	cfg.Provider = "router"
+	cfg.GeminiKey = "gk"
+	cfg.DeepSeekKey = "dk"
+
+	p, err := New(cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	want := "router(local=ollama,cloud=fallback[gemini→deepseek])"
+	if p.Name() != want {
+		t.Errorf("Name() = %q, want %q", p.Name(), want)
+	}
+}
+
+// provider="router" + RouterLocalBackend="openai_compat" phải dùng
+// openai_compat làm local backend thay vì ollama.
+func TestNew_RouterWithOpenAICompatLocal(t *testing.T) {
+	cfg := baseCfg()
+	cfg.Provider = "router"
+	cfg.RouterLocalBackend = "openai_compat"
+	cfg.OpenAICompatBaseURL = "http://localhost:8000/v1"
+	cfg.OpenAICompatModel = "local-model"
+	cfg.DeepSeekKey = "dk"
+
+	p, err := New(cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	want := "router(local=openai_compat,cloud=deepseek)"
+	if p.Name() != want {
+		t.Errorf("Name() = %q, want %q", p.Name(), want)
+	}
+}
+
+// provider="router" nhưng cloud chain không có key nào → lỗi propagate từ
+// newAuto, không bị nuốt im lặng.
+func TestNew_RouterPropagatesCloudChainError(t *testing.T) {
+	cfg := baseCfg()
+	cfg.Provider = "router"
+
+	_, err := New(cfg)
+	if err == nil {
+		t.Fatal("New() = nil error, want lỗi từ newAuto (cloud chain thiếu key)")
+	}
+	if !strings.Contains(err.Error(), "need at least one of") {
+		t.Errorf("err = %q, want chứa lỗi cloud chain thiếu key", err)
+	}
+}
+
+// RouterLocalBackend không hợp lệ → lỗi rõ ràng, không mặc định âm thầm về ollama.
+func TestNew_RouterUnknownLocalBackend(t *testing.T) {
+	cfg := baseCfg()
+	cfg.Provider = "router"
+	cfg.RouterLocalBackend = "vllm-direct"
+	cfg.DeepSeekKey = "dk"
+
+	_, err := New(cfg)
+	if err == nil {
+		t.Fatal("New() = nil error, want lỗi ROUTER_LOCAL_BACKEND không hợp lệ")
+	}
+	if !strings.Contains(err.Error(), "ROUTER_LOCAL_BACKEND") {
+		t.Errorf("err = %q, want chứa ROUTER_LOCAL_BACKEND", err)
+	}
+}

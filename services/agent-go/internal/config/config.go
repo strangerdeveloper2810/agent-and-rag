@@ -45,6 +45,12 @@ type Config struct {
 	OpenAICompatModel   string // OPENAI_COMPAT_MODEL
 	OpenAICompatKey     string // OPENAI_COMPAT_API_KEY, optional — nhiều server local không cần auth
 
+	// RouterLocalBackend chọn backend LOCAL cho provider="router" (xem
+	// internal/provider/router) — "ollama" (mặc định) hoặc "openai_compat".
+	// Đọc từ ROUTER_LOCAL_BACKEND. Nhánh CLOUD của router luôn dùng chain
+	// "auto" (Gemini → DeepSeek → Claude), không cấu hình được riêng.
+	RouterLocalBackend string
+
 	// SQLite Storage
 	DBPath       string   // SQLite database path. default: jarvis.db
 	SkillsDir    string   // Skills directory. default: ./skills
@@ -230,6 +236,7 @@ func Load() (Config, error) {
 		OpenAICompatBaseURL:   os.Getenv("OPENAI_COMPAT_BASE_URL"),
 		OpenAICompatModel:     os.Getenv("OPENAI_COMPAT_MODEL"),
 		OpenAICompatKey:       os.Getenv("OPENAI_COMPAT_API_KEY"),
+		RouterLocalBackend:    envOr("ROUTER_LOCAL_BACKEND", "ollama"),
 		DeepSeekKey:           os.Getenv("DEEPSEEK_API_KEY"),
 		DeepSeekFlashModel:    envOr("DEEPSEEK_FLASH_MODEL", "deepseek-v4-flash"),
 		DeepSeekProModel:      envOr("DEEPSEEK_PRO_MODEL", "deepseek-v4-pro"),
@@ -279,8 +286,14 @@ func Load() (Config, error) {
 		hasProvider = true // local server, key optional (nhiều server không cần auth)
 	case "auto":
 		hasProvider = c.GeminiKey != "" || c.AnthropicKey != "" || c.DeepSeekKey != "" // cần ít nhất 1 key
+	case "router":
+		// Local side (Ollama/OpenAI-compat) không cần key, nhưng nhánh CLOUD
+		// của router luôn là chain "auto" — cần ít nhất 1 key y hệt case "auto"
+		// ở trên, nếu không nhánh cloud sẽ lỗi ngay khi có request cần tool/
+		// thinking (không route được sang local).
+		hasProvider = c.GeminiKey != "" || c.AnthropicKey != "" || c.DeepSeekKey != ""
 	default:
-		return Config{}, fmt.Errorf("unknown LLM_PROVIDER: %q (use gemini, anthropic, deepseek, ollama, openai_compat, or auto)", c.Provider)
+		return Config{}, fmt.Errorf("unknown LLM_PROVIDER: %q (use gemini, anthropic, deepseek, ollama, openai_compat, router, or auto)", c.Provider)
 	}
 	if !hasProvider {
 		return Config{}, fmt.Errorf("%s requires API key (set GEMINI_API_KEY or ANTHROPIC_API_KEY)", c.Provider)
