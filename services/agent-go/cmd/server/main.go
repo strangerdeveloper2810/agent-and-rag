@@ -354,6 +354,10 @@ Bạn là chuyên gia nghiên cứu internet của JARVIS. Nhiệm vụ của b�
 		for _, spec := range orch.ListAgents() {
 			spec.Engine.SetInterruptStore(pausedRunsStore)
 			spec.Engine.SetName(spec.Name)
+			// Tái dùng CÙNG 1 *sqlite.Store cho cost ledger per-tenant (bảng
+			// cost_ledger, xem internal/storage/sqlite/cost_ledger.go) — không
+			// mở thêm kết nối SQLite thứ 2.
+			spec.Engine.SetCostLedger(pausedRunsStore)
 		}
 		slog.Info("sqlite: paused_runs sẵn sàng — /chat/resume khả dụng", "path", cfg.DBPath)
 	}
