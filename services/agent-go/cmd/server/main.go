@@ -29,6 +29,7 @@ import (
 	"github.com/ai-agent-tut/agent-go/internal/storage/sqlite"
 	"github.com/ai-agent-tut/agent-go/internal/tools"
 	agenthttp "github.com/ai-agent-tut/agent-go/internal/transport/http"
+	"github.com/ai-agent-tut/agent-go/internal/transport/telegram"
 )
 
 func main() {
@@ -338,7 +339,8 @@ Bạn là chuyên gia nghiên cứu internet của JARVIS. Nhiệm vụ của b�
 		os.Exit(1)
 	}
 
-	// --- Wire SQLite paused_runs (resume tối giản CHỈ cho NodeInterrupt) ---
+	// --- Wire SQLite paused_runs (checkpoint/resume — mọi node, không chỉ
+	// NodeInterrupt) ---
 	// cfg.DBPath đã tồn tại trong config từ trước (JARVIS_DB_PATH, mặc định
 	// "jarvis.db") nhưng chưa nơi nào đọc — dùng lại làm nơi lưu paused_runs
 	// thay vì thêm biến env mới. Lỗi mở DB không chặn khởi động: resume chỉ
@@ -356,6 +358,26 @@ Bạn là chuyên gia nghiên cứu internet của JARVIS. Nhiệm vụ của b�
 			spec.Engine.SetName(spec.Name)
 		}
 		slog.Info("sqlite: paused_runs sẵn sàng — /chat/resume khả dụng", "path", cfg.DBPath)
+	}
+
+	// --- Wire Telegram Channel (long-polling, optional) ---
+	// TELEGRAM_BOT_TOKEN rỗng → bot không khởi động, hành vi hiện tại giữ
+	// nguyên (chỉ có kênh HTTP/SSE /chat). Bot tái dùng CHÍNH orch đã dựng ở
+	// trên — không tạo engine riêng, nên mọi cấu hình (tool registry, system
+	// prompt, memory, guardrails, owner tenant, checkpoint/resume...) áp dụng
+	// y hệt kênh HTTP. Khởi động SAU khi SetInterruptStore đã gán xong ở trên,
+	// để mọi run từ Telegram cũng được checkpoint ngay từ tin nhắn đầu tiên.
+	// Không graceful-shutdown ở v1 (bỏ qua cho đơn giản): goroutine bị bỏ lại
+	// khi process thoát, an toàn vì không giữ tài nguyên cần đóng sạch (không
+	// ghi file/DB dở dang) — xem báo cáo triển khai để biết chi tiết.
+	if cfg.TelegramBotToken != "" {
+		bot := telegram.New(cfg.TelegramBotToken)
+		go func() {
+			if err := bot.Run(context.Background(), orch); err != nil {
+				slog.Error("telegram: bot dừng với lỗi", "err", err)
+			}
+		}()
+		slog.Info("telegram: bot đã khởi động (long-polling)")
 	}
 
 	// --- Wire Autonomous Learner (opt-in via ENABLE_LEARNER — costs 1 extra

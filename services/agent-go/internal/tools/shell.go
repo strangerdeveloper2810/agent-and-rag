@@ -11,11 +11,54 @@ import (
 	"time"
 )
 
-// shellTool executes shell commands via os/exec.
-// Kind=KindDestructive because it can modify the system.
+// execBackend là nơi shell.exec THỰC SỰ chạy 1 lệnh. Mặc định (hostBackend)
+// chạy trực tiếp trên host qua os/exec — hành vi này giữ NGUYÊN như trước khi
+// có sandbox. Backend khác (dockerSandbox, xem shell_sandbox_docker.go) cắm
+// vào được mà không đổi Execute()/allowlist/timeout logic bên dưới.
+//
+// Run trả err THÔ (chưa wrap) để Execute() tự phân biệt lỗi do ctx
+// (timeout/cancel) hay lỗi thực thi bình thường (non-zero exit) — giữ đúng
+// hành vi cũ hệt trước khi có interface này.
+type execBackend interface {
+	Run(ctx context.Context, command string, args []string) (stdout, stderr string, exitCode int, err error)
+}
+
+// hostBackend chạy lệnh trực tiếp trên host qua os/exec — hành vi MẶC ĐỊNH từ
+// trước tới giờ, KHÔNG đổi: vẫn Setpgid + kill cả process group khi
+// timeout/cancel (xem comment trong Run).
+type hostBackend struct{}
+
+func (hostBackend) Run(ctx context.Context, command string, args []string) (string, string, int, error) {
+	cmd := exec.CommandContext(ctx, command, args...)
+
+	// Setpgid gom cả tiến trình con LẪN mọi tiến trình cháu nó tự fork (vd:
+	// "sh -c 'sleep 100 &'") vào 1 process group riêng, tách khỏi group của
+	// agent. Nếu không có dòng này, exec.CommandContext khi timeout/cancel mặc
+	// định chỉ kill đúng tiến trình con trực tiếp — tiến trình cháu SỐNG SÓT vô
+	// thời hạn sau khi tool đã báo timeout (resource leak / DoS).
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	// Ghi đè Cancel mặc định (chỉ gọi cmd.Process.Kill(), tức kill 1 tiến
+	// trình) để kill CẢ process group bằng PID âm — cmd.Process.Pid ở đây
+	// chính là pgid vì Setpgid=true ở trên khiến tiến trình con trở thành
+	// process group leader (pgid == pid của chính nó).
+	cmd.Cancel = func() error {
+		return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+	}
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	return stdout.String(), stderr.String(), exitCode(err), err
+}
+
+// shellTool executes shell commands via os/exec (hoặc qua backend khác, xem
+// execBackend). Kind=KindDestructive because it can modify the system.
 type shellTool struct {
 	allowedCommands map[string]bool // empty = allow all
 	timeout         time.Duration
+	backend         execBackend
 }
 
 const (
@@ -32,6 +75,11 @@ func NewShellTool(allowedCommands []string) Tool {
 // NewShellToolWithTimeout is like NewShellTool but with a configurable
 // timeout (timeout <= 0 falls back to the 30s default). Registry.runOne
 // applies this via the TimeoutTool interface — see tool.go.
+//
+// Backend mặc định LUÔN là hostBackend (chạy thẳng trên host, hành vi cũ) TRỪ
+// KHI biến môi trường SHELL_SANDBOX=docker và Docker khả dụng — xem
+// resolveDefaultBackend trong shell_sandbox_docker.go. Spawn container là
+// thay đổi risk cao nên bắt buộc opt-in qua env, không bao giờ bật ngầm.
 func NewShellToolWithTimeout(allowedCommands []string, timeout time.Duration) Tool {
 	ac := make(map[string]bool, len(allowedCommands))
 	for _, cmd := range allowedCommands {
@@ -40,7 +88,20 @@ func NewShellToolWithTimeout(allowedCommands []string, timeout time.Duration) To
 	if timeout <= 0 {
 		timeout = defaultShellTimeout
 	}
-	return &shellTool{allowedCommands: ac, timeout: timeout}
+	return &shellTool{allowedCommands: ac, timeout: timeout, backend: resolveDefaultBackend()}
+}
+
+// NewShellToolWithSandbox là NewShellToolWithTimeout nhưng cho phép caller ép
+// 1 execBackend cụ thể (dùng để test, hoặc 1 call site tương lai muốn chọn
+// sandbox mà không phụ thuộc biến môi trường). sandbox == nil rơi về
+// hostBackend{}.
+func NewShellToolWithSandbox(allowedCommands []string, timeout time.Duration, sandbox execBackend) Tool {
+	tool := NewShellToolWithTimeout(allowedCommands, timeout).(*shellTool)
+	if sandbox == nil {
+		sandbox = hostBackend{}
+	}
+	tool.backend = sandbox
+	return tool
 }
 
 func (t *shellTool) Name() string           { return "shell.exec" }
@@ -82,28 +143,14 @@ func (t *shellTool) Execute(ctx context.Context, rawArgs json.RawMessage) (Resul
 	}
 
 	// Deadline áp qua TimeoutTool ở Registry.runOne (xem tool.go) — ctx ở đây
-	// đã mang deadline đó khi tool chạy qua registry.
-	cmd := exec.CommandContext(ctx, args.Command, args.Args...)
-
-	// Setpgid gom cả tiến trình con LẪN mọi tiến trình cháu nó tự fork (vd:
-	// "sh -c 'sleep 100 &'") vào 1 process group riêng, tách khỏi group của
-	// agent. Nếu không có dòng này, exec.CommandContext khi timeout/cancel mặc
-	// định chỉ kill đúng tiến trình con trực tiếp — tiến trình cháu SỐNG SÓT vô
-	// thời hạn sau khi tool đã báo timeout (resource leak / DoS).
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	// Ghi đè Cancel mặc định (chỉ gọi cmd.Process.Kill(), tức kill 1 tiến
-	// trình) để kill CẢ process group bằng PID âm — cmd.Process.Pid ở đây
-	// chính là pgid vì Setpgid=true ở trên khiến tiến trình con trở thành
-	// process group leader (pgid == pid của chính nó).
-	cmd.Cancel = func() error {
-		return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+	// đã mang deadline đó khi tool chạy qua registry. Backend (host hoặc
+	// docker) tự chịu trách nhiệm tôn trọng ctx — cả 2 đều dùng
+	// exec.CommandContext bên trong.
+	backend := t.backend
+	if backend == nil {
+		backend = hostBackend{} // an toàn nếu shellTool bị khởi tạo tay, bỏ qua constructor
 	}
-
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	err := cmd.Run()
+	stdout, stderr, code, err := backend.Run(ctx, args.Command, args.Args)
 
 	// Propagate context errors (deadline exceeded, cancelled)
 	if err != nil {
@@ -112,12 +159,12 @@ func (t *shellTool) Execute(ctx context.Context, rawArgs json.RawMessage) (Resul
 		}
 	}
 
-	output := stdout.String()
-	if stderr.Len() > 0 {
+	output := stdout
+	if len(stderr) > 0 {
 		if output != "" {
 			output += "\n"
 		}
-		output += "[stderr]\n" + stderr.String()
+		output += "[stderr]\n" + stderr
 	}
 
 	// Truncate
@@ -128,7 +175,7 @@ func (t *shellTool) Execute(ctx context.Context, rawArgs json.RawMessage) (Resul
 	out, _ := json.Marshal(map[string]any{
 		"command":  args.Command,
 		"args":     args.Args,
-		"exitCode": exitCode(err),
+		"exitCode": code,
 		"output":   output,
 	})
 	return Result{Content: string(out)}, nil

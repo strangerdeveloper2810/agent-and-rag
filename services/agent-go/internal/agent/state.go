@@ -100,9 +100,11 @@ type Observation struct {
 	Error  string // nếu có lỗi khi chạy tool (rỗng = ok)
 }
 
-// Interrupt mô tả một điểm dừng chờ xác nhận từ người dùng (HITL).
-// Engine phát Event{Type:"interrupt", RunID: s.RunID} rồi DỪNG. Nếu Engine có
-// cấu hình SetInterruptStore, State được lưu lại và client có thể gọi
+// Interrupt mô tả một điểm dừng CÓ CHỦ Ý chờ xác nhận từ người dùng (HITL) —
+// khác với checkpoint (lưu SAU MỖI node, xem engine.checkpoint) vốn không cần
+// Interrupt để resume được (xem resume.go). Engine phát
+// Event{Type:"interrupt", RunID: s.RunID} rồi DỪNG. Nếu Engine có cấu hình
+// SetInterruptStore, State được lưu lại và client có thể gọi
 // POST /chat/resume {"run_id":"...","answer":"..."} để tiếp tục — xem
 // resume.go (ResolveInterrupt + Engine.Resume). Nếu KHÔNG cấu hình
 // interruptStore, run coi như kết thúc tại đây (hành vi cũ, không đổi).
@@ -183,7 +185,11 @@ type State struct {
 	Verbosity          string
 	CustomInstructions string
 
-	// RunID là định danh duy nhất cho lượt chạy này (dùng cho LangSmith / Tracing)
+	// RunID là định danh duy nhất cho lượt chạy này (dùng cho LangSmith /
+	// Tracing, VÀ để checkpoint/resume — xem newState, engine.checkpoint,
+	// resume.go). LUÔN được sinh ngay khi State khởi tạo (newState), không chỉ
+	// khi run dừng ở NodeInterrupt — mọi run, kể cả run bình thường không bao
+	// giờ dừng giữa chừng, đều có RunID ổn định xuyên suốt.
 	RunID string
 
 	// mcpRegistry chứa tools discovery từ MCP servers (SSE) của lượt chạy này.
@@ -290,8 +296,9 @@ func (s *State) AppendObservation(obs Observation) {
 	})
 }
 
-// SerializeForResume trả về State dưới dạng JSON để lưu vào paused_runs khi
-// engine dừng ở NodeInterrupt (xem Engine.saveInterruptedState).
+// SerializeForResume trả về State dưới dạng JSON để lưu vào paused_runs —
+// gọi SAU MỖI LẦN CHUYỂN NODE (checkpoint định kỳ, xem Engine.checkpoint)
+// VÀ khi engine dừng ở NodeInterrupt (xem Engine.saveInterruptedState).
 //
 // CHỈ field EXPORTED được giữ lại — encoding/json bỏ qua field không export
 // một cách im lặng (không lỗi). Các field mất sau khi resume, và vì sao mất
@@ -302,7 +309,8 @@ func (s *State) AppendObservation(obs Observation) {
 //     Engine có circuitBreaker cấu hình (xem Resume), cùng cách Run() làm.
 //   - mcpRegistry/mcpClients: nil sau khi phục hồi → tool MCP (SSE remote)
 //     của lượt gốc KHÔNG còn khả dụng sau resume. Đây là giới hạn có chủ đích
-//     của bản resume tối giản (chỉ cho NodeInterrupt), không phải bug.
+//     của resume (dù resume từ NodeInterrupt hay từ checkpoint bất kỳ), không
+//     phải bug.
 func (s *State) SerializeForResume() ([]byte, error) {
 	data, err := json.Marshal(s)
 	if err != nil {
