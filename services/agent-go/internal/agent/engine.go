@@ -100,10 +100,18 @@ type Engine struct {
 	// fallback trung thực (lược bỏ, không tóm tắt).
 	fastModel string
 
-	// interruptStore lưu State khi engine dừng ở NodeInterrupt, cho phép
-	// client resume sau qua POST /chat/resume — xem SetInterruptStore,
-	// resume.go. nil (mặc định) = resume TẮT: engine dừng ở NodeInterrupt
-	// giống hệt hành vi trước khi có tính năng này (emit done, không lưu gì).
+	// interruptStore lưu SNAPSHOT MỚI NHẤT của State — không chỉ khi dừng ở
+	// NodeInterrupt (HITL) mà SAU MỖI LẦN CHUYỂN NODE của cả lượt chạy (xem
+	// checkpoint(), gọi từ runLoop). Tên field/interface giữ nguyên
+	// "interruptStore"/"InterruptStore" (thay vì đổi thành "checkpointStore")
+	// để không phải sửa cmd/server/main.go — nơi duy nhất gọi SetInterruptStore
+	// — nhưng NGỮ NGHĨA đã tổng quát hơn tên gọi: đây giờ là "nơi lưu
+	// checkpoint mới nhất của run", cho phép resume:
+	//   (a) khi dừng CÓ CHỦ ĐÍCH ở NodeInterrupt (HITL, hành vi gốc), hoặc
+	//   (b) khi tiến trình agent-go CRASH/RESTART giữa lúc đang chạy 1 node
+	//       bất kỳ khác (NodeModel, NodeTools, NodeReflect...) — xem resume.go.
+	// nil (mặc định) = resume TẮT hoàn toàn: engine chạy y hệt trước khi có
+	// tính năng này, không lưu gì bất kể dừng ở đâu.
 	interruptStore InterruptStore
 
 	// name định danh agent này (vd "general"/"code"/"research" — khớp
@@ -115,18 +123,28 @@ type Engine struct {
 	name string
 }
 
-// InterruptStore là nơi lưu/xoá snapshot State khi engine dừng ở
-// NodeInterrupt — implement bởi *sqlite.Store (bảng paused_runs, xem
+// InterruptStore là nơi lưu/đọc/xoá snapshot MỚI NHẤT của State cho một
+// RunID — implement bởi *sqlite.Store (bảng paused_runs, xem
 // internal/storage/sqlite/paused_runs.go). Khai báo interface NHỎ ở đây
 // (thay vì Engine phụ thuộc thẳng *sqlite.Store) để package agent không phải
 // import internal/storage/sqlite.
+//
+// SaveInterruptedState là UPSERT theo run_id (ghi đè bản cũ) — dùng được làm
+// checkpoint gọi LẶP LẠI nhiều lần trong đời 1 run (mỗi lần chuyển node),
+// không chỉ 1 lần duy nhất khi dừng ở NodeInterrupt như thiết kế ban đầu.
+// DeleteInterruptedState được Engine gọi khi run kết thúc TỰ NHIÊN ở NodeEnd
+// (dọn checkpoint không còn cần nữa) — trước đây chỉ được gọi bởi handler
+// /chat/resume sau khi resolve xong 1 interrupt.
 type InterruptStore interface {
 	SaveInterruptedState(runID, agentName string, stateJSON []byte) error
+	DeleteInterruptedState(runID string) error
 }
 
-// SetInterruptStore gán nơi lưu State khi engine dừng ở NodeInterrupt. Truyền
-// nil để tắt tính năng resume (mặc định) — engine vẫn dừng ở NodeInterrupt
-// bình thường, chỉ không lưu gì nên /chat/resume không thể tiếp tục run đó.
+// SetInterruptStore gán nơi lưu checkpoint của State — được gọi SAU MỖI LẦN
+// CHUYỂN NODE trong runLoop (không chỉ khi dừng ở NodeInterrupt), cho phép
+// /chat/resume tiếp tục MỘT lượt chạy đã dừng vì BẤT KỲ lý do gì (HITL, hoặc
+// tiến trình agent-go crash/restart giữa chừng) — xem resume.go. Truyền nil
+// để tắt tính năng resume hoàn toàn (mặc định).
 func (e *Engine) SetInterruptStore(store InterruptStore) {
 	e.interruptStore = store
 }
@@ -137,24 +155,77 @@ func (e *Engine) SetName(name string) {
 	e.name = name
 }
 
-// saveInterruptedState serialize s và lưu qua interruptStore (nếu có cấu
-// hình). Lỗi chỉ log — không chặn engine emit done bình thường cho request
-// hiện tại, vì tool destructive vẫn đang bị chặn đúng như thiết kế guardrails
-// dù resume có lưu được hay không.
+// persistCheckpoint serialize s và lưu qua interruptStore. KHÔNG tự kiểm tra
+// e.interruptStore == nil — caller (checkpoint/saveInterruptedState) phải
+// check trước, vì 2 caller đó log lỗi khác nhau khi thất bại.
+func (e *Engine) persistCheckpoint(s *State) error {
+	data, err := s.SerializeForResume()
+	if err != nil {
+		return fmt.Errorf("serialize: %w", err)
+	}
+	if err := e.interruptStore.SaveInterruptedState(s.RunID, e.name, data); err != nil {
+		return fmt.Errorf("save: %w", err)
+	}
+	return nil
+}
+
+// checkpoint lưu snapshot MỚI NHẤT của s (nếu có cấu hình interruptStore) —
+// gọi SAU MỖI LẦN CHUYỂN NODE trong runLoop (trừ khi dừng ở NodeInterrupt/
+// NodeEnd, xem 2 hàm riêng bên dưới). Đây là phần MỞ RỘNG so với thiết kế
+// gốc (chỉ lưu 1 lần khi dừng ở NodeInterrupt) — cho phép resume một run bị
+// CRASH giữa chừng ở bất kỳ node nào, không chỉ khi cố ý hỏi user.
+//
+// FAIL-SAFE TUYỆT ĐỐI: đây là tính năng PHỤ TRỢ (checkpoint để phục hồi sau
+// crash), KHÔNG PHẢI đường dẫn chính của response. Lỗi ở đây CHỈ log cảnh
+// báo — không bao giờ được phép làm hỏng/chặn response cho user hiện tại,
+// cùng triết lý với saveInterruptedState/SetInterruptStore fallback.
+//
+// Gọi ĐỒNG BỘ (không phải goroutine): serialize + 1 lần ghi SQLite mỗi bước
+// tốn thêm vài ms, chấp nhận được cho use case này. Làm ASYNC sẽ nhanh hơn
+// nhưng có nguy cơ 2 checkpoint ghi song song hoán đổi thứ tự (checkpoint cũ
+// hơn ghi ĐÈ lên checkpoint mới hơn nếu goroutine sau hoàn thành trước) — để
+// dành tối ưu sau khi thật sự cần, không làm sớm rồi tạo race condition.
+func (e *Engine) checkpoint(s *State) {
+	if e.interruptStore == nil {
+		return
+	}
+	if err := e.persistCheckpoint(s); err != nil {
+		slog.Warn("engine: checkpoint thất bại — bỏ qua, run vẫn tiếp tục bình thường (nếu crash NGAY BÂY GIỜ, run này sẽ không resume được từ đúng bước này)",
+			"runID", s.RunID, "step", s.Step, "err", err)
+		return
+	}
+	slog.Debug("engine: checkpoint saved", "runID", s.RunID, "step", s.Step)
+}
+
+// saveInterruptedState là bản checkpoint DÀNH RIÊNG cho lúc dừng ở
+// NodeInterrupt (HITL) — logic lưu giống hệt checkpoint(), chỉ khác mức log
+// (Info thay vì Warn/Debug) vì đây là điểm dừng CÓ CHỦ Ý, không phải checkpoint
+// định kỳ âm thầm.
 func (e *Engine) saveInterruptedState(s *State) {
 	if e.interruptStore == nil {
 		return
 	}
-	data, err := s.SerializeForResume()
-	if err != nil {
-		slog.Error("engine: serialize state để resume thất bại — /chat/resume sẽ không dùng được cho run này", "runID", s.RunID, "err", err)
-		return
-	}
-	if err := e.interruptStore.SaveInterruptedState(s.RunID, e.name, data); err != nil {
+	if err := e.persistCheckpoint(s); err != nil {
 		slog.Error("engine: lưu paused run thất bại — /chat/resume sẽ không dùng được cho run này", "runID", s.RunID, "err", err)
 		return
 	}
 	slog.Info("engine: run paused ở NodeInterrupt — state đã lưu, có thể resume", "runID", s.RunID, "agent", e.name)
+}
+
+// deleteCheckpoint xoá checkpoint của s (nếu có cấu hình interruptStore) khi
+// run kết thúc TỰ NHIÊN ở NodeEnd — tránh tích luỹ rác trong paused_runs cho
+// những run KHÔNG BAO GIỜ dừng ở NodeInterrupt (đa số run bình thường). Lỗi
+// chỉ log cảnh báo — không chặn response, chỉ để lại 1 dòng rác vô hại trong
+// SQLite (không ảnh hưởng correctness, /chat/resume chỉ đọc theo run_id cụ
+// thể nên rác không tự nhiên bị dùng nhầm).
+func (e *Engine) deleteCheckpoint(s *State) {
+	if e.interruptStore == nil {
+		return
+	}
+	if err := e.interruptStore.DeleteInterruptedState(s.RunID); err != nil {
+		slog.Warn("engine: xoá checkpoint sau khi run kết thúc thất bại — bỏ qua, chỉ để lại rác vô hại trong SQLite",
+			"runID", s.RunID, "err", err)
+	}
 }
 
 // SetMaxOutputTokens đặt trần output token cho mỗi lần gọi LLM. n <= 0 = không giới hạn.
@@ -437,8 +508,28 @@ func (e *Engine) runLoop(ctx context.Context, node NodeID, s *State, emit EmitFu
 			break
 		}
 		if next == NodeEnd {
+			// Run kết thúc TỰ NHIÊN (không qua interrupt) — xoá checkpoint
+			// (nếu có) đã tích luỹ qua các bước trước đó, tránh rác trong
+			// paused_runs cho những run KHÔNG BAO GIỜ dừng ở NodeInterrupt.
+			e.deleteCheckpoint(s)
 			break
 		}
+		// Checkpoint SAU MỖI LẦN CHUYỂN NODE (không chỉ khi dừng ở
+		// NodeInterrupt) — cho phép /chat/resume tiếp tục run này nếu tiến
+		// trình agent-go crash/restart NGAY SAU bước vừa dispatch xong. state
+		// ở đây LUÔN Ở RANH GIỚI SẠCH giữa 2 node (mọi side-effect của node
+		// vừa chạy — kể cả AppendObservation của tool call — đã ghi xong vào
+		// s trước khi dispatch() trả về), nên route(s) khi resume từ checkpoint
+		// này luôn tính đúng node kế tiếp, không bao giờ chạy lại 1 tool đã
+		// thực thi xong — xem resume.go và resume_test.go. Rủi ro CÒN LẠI (đã
+		// đánh giá, chấp nhận có tài liệu): nếu crash xảy ra NGAY GIỮA lúc
+		// dispatch(NodeTools) đang chạy (vd 1 trong nhiều tool call song song
+		// đã thực thi xong, tool khác chưa), checkpoint gần nhất vẫn là bản
+		// TRƯỚC khi NodeTools bắt đầu (tool call chưa trả lời) — resume sẽ
+		// chạy lại NodeTools từ đầu, có thể gọi lại tool ĐÃ chạy thành công ở
+		// lần trước đó. Việc này cần idempotency key riêng cho từng tool call
+		// để giải quyết triệt để — CHƯA làm trong sprint này (xem báo cáo).
+		e.checkpoint(s)
 		node = next
 	}
 

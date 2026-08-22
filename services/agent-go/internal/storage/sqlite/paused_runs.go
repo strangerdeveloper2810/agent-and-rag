@@ -7,10 +7,22 @@ import (
 
 // migratePausedRuns tạo bảng paused_runs — KHÔNG đụng schema
 // conversations/messages/memories trong sqlite.go (migrate()). Bảng này lưu
-// snapshot JSON của agent.State khi Engine dừng ở NodeInterrupt (resume tối
-// giản CHỈ cho node đó — xem internal/agent/resume.go), để POST /chat/resume
-// đọc lại và tiếp tục lượt chạy. Dùng 1 lần: xoá ngay sau khi resume xong
-// (thành công hay lỗi) qua DeleteInterruptedState, tránh state rác tích luỹ.
+// SNAPSHOT MỚI NHẤT (checkpoint) của agent.State cho MỘT run_id — không chỉ
+// khi Engine dừng ở NodeInterrupt (HITL) mà SAU MỖI LẦN CHUYỂN NODE của cả
+// lượt chạy (xem internal/agent/engine.go: checkpoint/saveInterruptedState),
+// để POST /chat/resume đọc lại và tiếp tục lượt chạy dù dừng vì lý do gì (hỏi
+// user, hay tiến trình agent-go crash/restart giữa chừng) — xem
+// internal/agent/resume.go. Tên bảng/hàm giữ nguyên "paused_runs"/
+// "*InterruptedState" (không đổi) để tránh phá vỡ code/test đang gọi các tên
+// này ở nhiều nơi — coi đây là "bảng checkpoint mới nhất theo run_id", KHÔNG
+// còn đúng nghĩa hẹp "chỉ run đang tạm dừng chờ user" như tên gợi ý nữa.
+//
+// 1 dòng / run_id (UPSERT theo run_id — SaveInterruptedState) — bản ghi được
+// ghi ĐÈ liên tục trong lúc run đang chạy, và bị XOÁ khi run kết thúc theo 1
+// trong 2 cách: (a) resume xong xuôi (thành công hay lỗi, dùng 1 lần) qua
+// handler /chat/resume, hoặc (b) run tự nhiên chạy tới NodeEnd không qua
+// interrupt (xem Engine.deleteCheckpoint) — tránh state rác tích luỹ trong cả
+// 2 trường hợp.
 //
 // Tách riêng khỏi migrate() và gọi từ Open() (không sửa migrate()) để tính
 // năng resume không chạm vào schema đã ổn định.
@@ -26,9 +38,10 @@ func migratePausedRuns(db *sql.DB) error {
 	return err
 }
 
-// SaveInterruptedState lưu (hoặc ghi đè, nếu cùng run_id resume rồi lại dừng
-// ở interrupt tiếp theo) snapshot JSON của agent.State theo run_id. Implements
-// agent.InterruptStore.
+// SaveInterruptedState lưu (hoặc ghi đè — UPSERT theo run_id) snapshot JSON
+// mới nhất của agent.State. Được gọi LẶP LẠI nhiều lần trong đời 1 run (mỗi
+// lần chuyển node — checkpoint định kỳ) VÀ khi engine dừng ở NodeInterrupt.
+// Implements agent.InterruptStore.
 //
 // agentName ghi lại agent nào (general/code/research — xem AgentSpec.Name)
 // đã tạo ra run này: orchestrator dùng NHIỀU Engine với registry tool KHÁC
@@ -63,8 +76,10 @@ func (s *Store) LoadInterruptedState(runID string) (stateJSON []byte, agentName 
 	return []byte(raw), agentName, nil
 }
 
-// DeleteInterruptedState xoá bản ghi paused_runs sau khi resume xử lý xong
-// (thành công hay lỗi) — dùng 1 lần, tránh state rác tích luỹ trong bảng.
+// DeleteInterruptedState xoá bản ghi paused_runs — hoặc sau khi resume xử lý
+// xong (thành công hay lỗi, dùng 1 lần — chat_resume.go), hoặc khi Engine
+// thấy run kết thúc TỰ NHIÊN ở NodeEnd không qua interrupt (Engine.
+// deleteCheckpoint). Cả 2 trường hợp đều tránh state rác tích luỹ trong bảng.
 func (s *Store) DeleteInterruptedState(runID string) error {
 	if _, err := s.db.Exec("DELETE FROM paused_runs WHERE run_id = ?", runID); err != nil {
 		return fmt.Errorf("sqlite: delete interrupted state: %w", err)
