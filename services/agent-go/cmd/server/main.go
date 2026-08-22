@@ -16,6 +16,7 @@ import (
 	"github.com/ai-agent-tut/agent-go/internal/agent"
 	"github.com/ai-agent-tut/agent-go/internal/config"
 	"github.com/ai-agent-tut/agent-go/internal/guardrails"
+	"github.com/ai-agent-tut/agent-go/internal/mcp"
 	"github.com/ai-agent-tut/agent-go/internal/memory"
 	"github.com/ai-agent-tut/agent-go/internal/middleware"
 	"github.com/ai-agent-tut/agent-go/internal/mongo"
@@ -356,6 +357,10 @@ Bạn là chuyên gia nghiên cứu internet của JARVIS. Nhiệm vụ của b�
 		for _, spec := range orch.ListAgents() {
 			spec.Engine.SetInterruptStore(pausedRunsStore)
 			spec.Engine.SetName(spec.Name)
+			// Tái dùng CÙNG 1 *sqlite.Store cho cost ledger per-tenant (bảng
+			// cost_ledger, xem internal/storage/sqlite/cost_ledger.go) — không
+			// mở thêm kết nối SQLite thứ 2.
+			spec.Engine.SetCostLedger(pausedRunsStore)
 		}
 		slog.Info("sqlite: paused_runs sẵn sàng — /chat/resume khả dụng", "path", cfg.DBPath)
 	}
@@ -517,6 +522,11 @@ func newHTTPHandler(prov provider.Provider, runner agent.Runner, pinger agenthtt
 	mux.HandleFunc("POST /chat", chatHandler.ServeHTTP)
 	mux.HandleFunc("GET /suggestions", agenthttp.NewSuggestionsHandler(runner, recentMessages, facts).ServeHTTP)
 	mux.HandleFunc("POST /mcp/test-connection", agenthttp.NewMcpTestConnectionHandler())
+	// JARVIS làm MCP SERVER (chiều ngược lại của internal/mcp/sse.go, nơi JARVIS
+	// làm client): registry riêng, tối giản, KHÔNG chứa tool đặc quyền — xem
+	// mcp.NewDefaultToolRegistry + mcp.Server.allowed (hard-exclude
+	// tools.IsPrivilegedTool, không có ngoại lệ).
+	mux.Handle("POST /mcp", mcp.NewServer(mcp.NewDefaultToolRegistry(), nil))
 	if orch, ok := runner.(*orchestrator.Orchestrator); ok && pausedRuns != nil {
 		mux.HandleFunc("POST /chat/resume", agenthttp.NewChatResumeHandler(orch, pausedRuns).ServeHTTP)
 	}
