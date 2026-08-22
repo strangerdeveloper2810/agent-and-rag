@@ -7,6 +7,10 @@ import (
 	"log/slog"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/ai-agent-tut/agent-go/internal/guardrails"
 	"github.com/ai-agent-tut/agent-go/internal/mcp"
 	"github.com/ai-agent-tut/agent-go/internal/observability"
@@ -14,6 +18,11 @@ import (
 	"github.com/ai-agent-tut/agent-go/internal/skills"
 	"github.com/ai-agent-tut/agent-go/internal/tools"
 )
+
+// stepTracer là tracer OTel dùng riêng cho span quanh mỗi step của engine
+// loop — xem observability.SetupTracer cho cách TracerProvider global được
+// dựng thật (trước đây là noop, không phát telemetry gì).
+var stepTracer = observability.Tracer("agent-go/engine")
 
 // Engine là trái tim của agent runtime — chạy vòng lặp ReAct:
 // recall → summarize → model → route → tools → model → route → ... → extract → end.
@@ -329,13 +338,27 @@ func (e *Engine) Run(ctx context.Context, in RunInput, emit EmitFunc) (provider.
 		emit(StepEvent(node))
 		stepStart := time.Now()
 
-		next, err := e.dispatch(ctx, node, s, emit)
+		// Span OTel THẬT quanh 1 step của engine loop (dispatch 1 node) — con
+		// của span run tổng (nếu caller đã mở span cha qua ctx). stepCtx được
+		// truyền xuống dispatch nên tool/LLM span bên trong (node_tools.go,
+		// node_model.go) trở thành CON của step span này.
+		stepCtx, stepSpan := stepTracer.Start(ctx, "step."+string(node), trace.WithAttributes(
+			attribute.String("node", string(node)),
+			attribute.Int("step", s.Step),
+		))
+
+		next, err := e.dispatch(stepCtx, node, s, emit)
 		elapsed := time.Since(stepStart)
 		if err != nil {
+			stepSpan.RecordError(err)
+			stepSpan.SetStatus(codes.Error, err.Error())
+			stepSpan.End()
 			slog.Error("engine: dispatch failed", "node", node, "step", s.Step, "err", err)
 			emit(ErrorEvent(err.Error()))
 			return s.Usage, fmt.Errorf("engine: dispatch %s: %w", node, err)
 		}
+		stepSpan.SetAttributes(attribute.String("next_node", string(next)))
+		stepSpan.End()
 
 		slog.Info("engine: step done", "node", node, "next", next, "step", s.Step, "elapsed", elapsed.Round(time.Millisecond))
 

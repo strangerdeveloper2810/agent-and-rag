@@ -38,6 +38,20 @@ func main() {
 	}
 
 	// --- Wire Observability & LangSmith Tracer ---
+	// OTel tracer THẬT (stdouttrace mặc định, OTLP HTTP nếu có
+	// OTEL_EXPORTER_OTLP_ENDPOINT) — xem observability.SetupTracer. Lỗi setup
+	// không chặn khởi động (tracing là phụ trợ, không phải đường dẫn chính).
+	otelShutdown, err := observability.SetupTracer(context.Background(), "jarvis-agent-go")
+	if err != nil {
+		slog.Warn("observability: OTel tracer setup thất bại — chạy tiếp không có tracing", "err", err)
+	} else {
+		defer func() {
+			if err := otelShutdown(context.Background()); err != nil {
+				slog.Warn("observability: OTel tracer shutdown lỗi", "err", err)
+			}
+		}()
+	}
+
 	lsClient := observability.InitLangSmith(cfg)
 	defer lsClient.Close()
 

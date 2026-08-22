@@ -33,6 +33,7 @@ import (
 	"github.com/ai-agent-tut/agent-go/internal/config"
 	"github.com/ai-agent-tut/agent-go/internal/memory"
 	"github.com/ai-agent-tut/agent-go/internal/middleware"
+	"github.com/ai-agent-tut/agent-go/internal/observability"
 	"github.com/ai-agent-tut/agent-go/internal/orchestrator"
 	"github.com/ai-agent-tut/agent-go/internal/provider"
 	"github.com/ai-agent-tut/agent-go/internal/provider/factory"
@@ -44,7 +45,21 @@ import (
 )
 
 func main() {
-	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
+	// OTel tracer THẬT (stdouttrace mặc định, OTLP HTTP nếu có
+	// OTEL_EXPORTER_OTLP_ENDPOINT) — xem observability.SetupTracer. Không dùng
+	// defer trước os.Exit vì defer KHÔNG chạy khi os.Exit được gọi; phải
+	// shutdown tường minh trước khi thoát để flush span còn lại trong buffer.
+	otelShutdown, err := observability.SetupTracer(context.Background(), "jarvis-cli")
+	if err != nil {
+		slog.Warn("observability: OTel tracer setup thất bại — chạy tiếp không có tracing", "err", err)
+	}
+
+	code := run(os.Args[1:], os.Stdout, os.Stderr)
+
+	if otelShutdown != nil {
+		_ = otelShutdown(context.Background())
+	}
+	os.Exit(code)
 }
 
 // run điều phối subcommand và TRẢ VỀ exit code thay vì gọi os.Exit trực tiếp,
