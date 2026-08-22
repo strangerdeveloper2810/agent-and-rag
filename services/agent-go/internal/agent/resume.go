@@ -1,30 +1,52 @@
-// Resume tối giản CHO ĐÚNG 1 NODE: NodeInterrupt.
+// Resume TỔNG QUÁT — tiếp tục MỘT lượt chạy đã dừng giữa chừng ở BẤT KỲ node
+// nào, không chỉ NodeInterrupt (HITL). Đây là bản mở rộng của thiết kế gốc
+// (resume tối giản, chỉ áp dụng cho NodeInterrupt) — xem engine.go
+// (checkpoint/saveInterruptedState/deleteCheckpoint, gọi từ runLoop) cho cơ
+// chế lưu snapshot SAU MỖI LẦN CHUYỂN NODE.
 //
-// Đây KHÔNG phải checkpoint tổng quát cho mọi node trong engine loop — nếu
-// cần resume từ NodeModel/NodeTools/NodeReflect... đang chạy dở (crash giữa
-// chừng, không phải HITL) thì kiến trúc này KHÔNG áp dụng được nguyên vẹn.
+// Có 2 lý do một run dừng giữa chừng và cần resume:
 //
-// Phạm vi hiện có: interrupt DUY NHẤT trong codebase là "confirm_destructive"
-// (guardrails chặn 1 tool call KindDestructive — xem node_tools.go). Khi đó
-// Engine dừng ở NodeInterrupt, lưu State (nếu có SetInterruptStore), và chờ
-// client gọi POST /chat/resume {"run_id":"...","answer":"..."}. Luồng xử lý
-// (xem internal/transport/http/chat_resume.go):
+//  1. HITL: guardrails chặn 1 tool call KindDestructive ("confirm_destructive"
+//     — xem node_tools.go). Engine dừng ở NodeInterrupt, state.Interrupt != nil.
+//     Cần Answer của user để biết đồng ý/từ chối trước khi tiếp tục.
+//  2. Crash/restart: tiến trình agent-go bị dừng đột ngột (crash, deploy,
+//     OOM...) giữa lúc đang chạy 1 node BẤT KỲ khác (NodeModel, NodeTools,
+//     NodeReflect...). state.Interrupt == nil — không cần Answer, chỉ cần
+//     route() tính lại đúng node kế tiếp dựa trên state đã checkpoint.
+//
+// Luồng xử lý chung (xem internal/transport/http/chat_resume.go):
 //
 //  1. Load lại State đã lưu theo run_id (sqlite.Store.LoadInterruptedState).
-//  2. Gọi Engine.ResolveInterrupt(ctx, state, answer) — diễn giải answer
-//     (đồng ý/từ chối), THỰC THI THẬT tool bị chặn nếu đồng ý, ghi tool result
-//     vào state.Messages, rồi xoá state.Interrupt.
-//  3. Gọi Engine.Resume(ctx, state, emit) — chạy tiếp NGAY SAU NodeInterrupt
-//     (route() tự quyết định node kế tiếp dựa trên state đã cập nhật), KHÔNG
-//     chạy lại từ đầu.
+//  2. NẾU state.Interrupt != nil: gọi Engine.ResolveInterrupt(ctx, state,
+//     answer) — diễn giải answer (đồng ý/từ chối), THỰC THI THẬT tool bị chặn
+//     nếu đồng ý, ghi tool result vào state.Messages, rồi xoá state.Interrupt.
+//     answer là BẮT BUỘC trong trường hợp này (400 nếu thiếu).
+//     NẾU state.Interrupt == nil: bỏ qua bước này hoàn toàn — answer không
+//     cần thiết (bỏ qua nếu client có gửi).
+//  3. Gọi Engine.Resume(ctx, state, emit) — route() tự quyết định node kế
+//     tiếp dựa trên state hiện tại (đã cập nhật ở bước 2 nếu có), KHÔNG chạy
+//     lại từ đầu (NodeRecall).
 //  4. Xoá bản ghi paused_runs (dùng 1 lần) — dù bước 2/3 thành công hay lỗi.
 //
-// GIỚI HẠN CÓ CHỦ ĐÍCH: nếu 1 batch tool call chặn NHIỀU HƠN 1 tool destructive
-// cùng lúc, State.Interrupt chỉ giữ tool ĐẦU TIÊN (xem node_tools.go) — đây là
-// hành vi ĐÃ CÓ TỪ TRƯỚC, không phải giới hạn riêng của resume. Sau khi
-// ResolveInterrupt xử lý xong cái đầu tiên và Resume() chạy tiếp, các tool
-// destructive còn lại (nếu có) sẽ bị guardrails chặn lại thành 1 Interrupt MỚI
-// — client resume tuần tự từng cái, mỗi lần 1 tool.
+// GIỚI HẠN CÒN LẠI (chưa giải quyết, cần idempotency key cho tool call ở
+// sprint sau nếu muốn triệt để): checkpoint được lưu Ở RANH GIỚI GIỮA 2 NODE
+// (sau khi 1 node dispatch xong, TRƯỚC khi node kế tiếp bắt đầu — xem
+// engine.go checkpoint()). Nếu crash xảy ra TRONG LÚC dispatch(NodeTools)
+// đang chạy (vd 1 trong nhiều tool call song song đã thực thi thành công,
+// tool khác chưa xong), checkpoint gần nhất vẫn là bản TRƯỚC khi NodeTools bắt
+// đầu (tool call chưa có kết quả) — resume sẽ chạy lại TOÀN BỘ NodeTools,
+// có thể gọi lại (side-effect kép) tool ĐÃ chạy thành công ở lần trước cho
+// các tool KindWrite/KindDestructive (vd shell.exec, file.write chạy 2 lần).
+// Case "crash NGAY SAU KHI NodeTools chạy xong toàn bộ" (checkpoint đã ghi
+// nhận đủ observation) thì AN TOÀN — resume() sẽ route đúng sang NodeModel,
+// không gọi lại tool nào — xem TestEngine_Resume_CrashMidNodeTools_KhongGoiLaiTool.
+//
+// GIỚI HẠN CÓ CHỦ ĐÍCH (từ thiết kế gốc, không đổi): nếu 1 batch tool call
+// chặn NHIỀU HƠN 1 tool destructive cùng lúc, State.Interrupt chỉ giữ tool
+// ĐẦU TIÊN (xem node_tools.go). Sau khi ResolveInterrupt xử lý xong cái đầu
+// tiên và Resume() chạy tiếp, các tool destructive còn lại (nếu có) sẽ bị
+// guardrails chặn lại thành 1 Interrupt MỚI — client resume tuần tự từng cái,
+// mỗi lần 1 tool.
 package agent
 
 import (
@@ -102,14 +124,23 @@ func (e *Engine) ResolveInterrupt(ctx context.Context, s *State, answer string) 
 	return nil
 }
 
-// Resume tiếp tục MỘT lượt chạy đã dừng ở NodeInterrupt, bắt đầu NGAY SAU
-// NodeInterrupt (KHÔNG chạy lại từ NodeRecall) — gọi SAU KHI ResolveInterrupt
-// đã xử lý xong (s.Interrupt phải là nil, nếu không Resume trả lỗi ngay).
+// Resume tiếp tục MỘT lượt chạy đã dừng giữa chừng — ở NodeInterrupt (HITL,
+// gọi SAU KHI ResolveInterrupt đã xử lý xong answer) HOẶC ở BẤT KỲ node nào
+// khác state đã được checkpoint (crash/restart, không cần ResolveInterrupt —
+// xem comment đầu file). Trong CẢ HAI trường hợp, s.Interrupt PHẢI là nil khi
+// gọi hàm này (Resume tự kiểm tra, trả lỗi ngay nếu không — chốt an toàn
+// tránh vòng lặp vô hạn nếu caller quên gọi ResolveInterrupt).
+//
+// route(s) (hàm THUẦN, chỉ đọc State) tự quyết định node kế tiếp dựa trên
+// state hiện tại — KHÔNG cần biết state được checkpoint ở node nào: nếu tool
+// call cuối đã có kết quả (đã chạy xong TRƯỚC lúc checkpoint) → NodeModel;
+// nếu chưa → NodeTools; v.v. Đây chính là cơ chế cho phép Resume() hoạt động
+// đúng cho MỌI checkpoint mà không cần biết "checkpoint này thuộc node nào".
 //
 // Khác Run(): Resume KHÔNG discovery lại MCP servers (registry riêng của lượt
 // gốc — s.mcpRegistry — đã mất khi State bị serialize/deserialize qua JSON,
 // xem SerializeForResume) và KHÔNG mở LangSmith root run mới (root run của
-// lượt gốc coi như đã kết thúc ở lần dừng interrupt).
+// lượt gốc coi như đã kết thúc ở lần dừng).
 func (e *Engine) Resume(ctx context.Context, s *State, emit EmitFunc) (provider.Usage, error) {
 	if s == nil {
 		return provider.Usage{}, fmt.Errorf("engine: resume: state is nil")
