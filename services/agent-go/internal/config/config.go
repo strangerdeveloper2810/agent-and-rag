@@ -17,7 +17,7 @@ type Config struct {
 	Port string // default: 3002
 
 	// Provider (LLM)
-	Provider             string // "gemini" | "anthropic" | "ollama" | "deepseek"
+	Provider             string // "gemini" | "anthropic" | "deepseek" | "ollama" | "openai_compat" | "auto"
 	GeminiKey            string
 	GeminiModel          string
 	GeminiSecondaryModel string   // fallback model khi primary bị rate limit (vd: "gemini-3.5-flash-lite")
@@ -37,6 +37,13 @@ type Config struct {
 	// Ollama (local LLM)
 	OllamaURL   string // default: http://localhost:11434
 	OllamaModel string // default: llama3.1:8b
+
+	// OpenAI-compatible local server (vLLM, llama.cpp server, LM Studio...).
+	// Không có default cố định như Ollama vì mỗi server nghe ở cổng khác nhau
+	// và chạy model do người dùng tự nạp — phải cấu hình rõ qua env.
+	OpenAICompatBaseURL string // OPENAI_COMPAT_BASE_URL, vd: http://localhost:8000/v1
+	OpenAICompatModel   string // OPENAI_COMPAT_MODEL
+	OpenAICompatKey     string // OPENAI_COMPAT_API_KEY, optional — nhiều server local không cần auth
 
 	// SQLite Storage
 	DBPath       string   // SQLite database path. default: jarvis.db
@@ -220,6 +227,9 @@ func Load() (Config, error) {
 		AnthropicKey2:         os.Getenv("ANTHROPIC_API_KEY_2"),
 		OllamaURL:             envOr("OLLAMA_URL", "http://localhost:11434"),
 		OllamaModel:           envOr("OLLAMA_MODEL", "llama3.1:8b"),
+		OpenAICompatBaseURL:   os.Getenv("OPENAI_COMPAT_BASE_URL"),
+		OpenAICompatModel:     os.Getenv("OPENAI_COMPAT_MODEL"),
+		OpenAICompatKey:       os.Getenv("OPENAI_COMPAT_API_KEY"),
 		DeepSeekKey:           os.Getenv("DEEPSEEK_API_KEY"),
 		DeepSeekFlashModel:    envOr("DEEPSEEK_FLASH_MODEL", "deepseek-v4-flash"),
 		DeepSeekProModel:      envOr("DEEPSEEK_PRO_MODEL", "deepseek-v4-pro"),
@@ -265,10 +275,12 @@ func Load() (Config, error) {
 		hasProvider = c.DeepSeekKey != ""
 	case "ollama":
 		hasProvider = true // local, no key needed
+	case "openai_compat":
+		hasProvider = true // local server, key optional (nhiều server không cần auth)
 	case "auto":
 		hasProvider = c.GeminiKey != "" || c.AnthropicKey != "" || c.DeepSeekKey != "" // cần ít nhất 1 key
 	default:
-		return Config{}, fmt.Errorf("unknown LLM_PROVIDER: %q (use gemini, anthropic, deepseek, ollama, or auto)", c.Provider)
+		return Config{}, fmt.Errorf("unknown LLM_PROVIDER: %q (use gemini, anthropic, deepseek, ollama, openai_compat, or auto)", c.Provider)
 	}
 	if !hasProvider {
 		return Config{}, fmt.Errorf("%s requires API key (set GEMINI_API_KEY or ANTHROPIC_API_KEY)", c.Provider)

@@ -119,6 +119,18 @@ type ollamaMessage struct {
 	Role      string           `json:"role"`
 	Content   string           `json:"content,omitempty"`
 	ToolCalls []ollamaToolCall `json:"tool_calls,omitempty"`
+	// ToolName là tên tool đã chạy, dùng khi Role="tool" để Ollama khớp kết quả
+	// với lời gọi tương ứng.
+	//
+	// Ollama KHÔNG dùng "tool_call_id" kiểu OpenAI — đã xác nhận qua tài liệu
+	// chính thức (docs.ollama.com/capabilities/tool-calling và
+	// github.com/ollama/ollama/blob/main/docs/api.md, mục "Chat request (With
+	// history, with tools)"): ví dụ chính thức là
+	// {"role":"tool","tool_name":"get_weather","content":"11 degrees celsius"}.
+	// Field "tool_name" là optional/thông tin thêm cho model, không bắt buộc
+	// để request hợp lệ — nên nếu không tra được tên tool (call id lạ/rỗng),
+	// gửi rỗng vẫn an toàn, không làm hỏng model không hỗ trợ tool role.
+	ToolName string `json:"tool_name,omitempty"`
 }
 
 type ollamaTool struct {
@@ -156,6 +168,24 @@ type ollamaChunk struct {
 // --- Translation functions (PURE, testable) ---
 
 func toOllamaMessages(msgs []provider.Message) []ollamaMessage {
+	// toolNameByCallID tra ngược ToolCallID → tên tool, dựng từ toàn bộ
+	// tool_calls xuất hiện trong lịch sử hội thoại (msgs bao giờ cũng chứa cả
+	// assistant message phát sinh tool call NGAY TRƯỚC message role=tool tương
+	// ứng, vì đây là toàn bộ lịch sử gửi lại mỗi request).
+	//
+	// Cần bước tra ngược này vì provider.Message (lõi hệ thống, chuẩn theo
+	// OpenAI) chỉ mang ToolCallID chứ không mang tên tool trên message role=tool
+	// — trong khi Ollama /api/chat lại cần "tool_name" (xem comment ở
+	// ollamaMessage.ToolName).
+	toolNameByCallID := make(map[string]string)
+	for _, m := range msgs {
+		for _, tc := range m.ToolCalls {
+			if tc.ID != "" {
+				toolNameByCallID[tc.ID] = tc.Name
+			}
+		}
+	}
+
 	out := make([]ollamaMessage, 0, len(msgs))
 	for _, m := range msgs {
 		om := ollamaMessage{}
@@ -167,8 +197,11 @@ func toOllamaMessages(msgs []provider.Message) []ollamaMessage {
 		case provider.RoleSystem:
 			om.Role = "system"
 		case provider.RoleTool:
-			om.Role = "user"
-			om.Content = fmt.Sprintf("Tool result (call_id=%s): %s", m.ToolCallID, m.Content)
+			// Dùng đúng role "tool" chuẩn của Ollama /api/chat thay vì giả lập
+			// role "user" với text mô tả — trước đây model không phân biệt được
+			// đây là kết quả tool hay câu người dùng gõ thật.
+			om.Role = "tool"
+			om.ToolName = toolNameByCallID[m.ToolCallID]
 		default:
 			om.Role = "user"
 		}
