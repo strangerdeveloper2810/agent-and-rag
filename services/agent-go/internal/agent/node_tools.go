@@ -9,12 +9,34 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/ai-agent-tut/agent-go/internal/guardrails"
 	"github.com/ai-agent-tut/agent-go/internal/middleware"
 	"github.com/ai-agent-tut/agent-go/internal/observability"
 	"github.com/ai-agent-tut/agent-go/internal/provider"
 	"github.com/ai-agent-tut/agent-go/internal/tools"
 )
+
+// toolTracer là tracer OTel dùng riêng cho span quanh mỗi tool call thật —
+// xem observability.SetupTracer cho cách TracerProvider global được dựng.
+var toolTracer = observability.Tracer("agent-go/tools")
+
+// endToolSpan đóng span của 1 tool call, gắn lỗi (nếu có) vào span trước khi
+// End() — dùng chung cho cả tool đại diện (thực thi thật) và tool trùng lặp
+// (dùng lại kết quả, xem dedupeSafeCalls).
+func endToolSpan(span trace.Span, err error) {
+	if span == nil {
+		return
+	}
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	span.End()
+}
 
 type toolsEngine interface {
 	getRegistry() *tools.Registry
@@ -107,12 +129,17 @@ func nodeTools(ctx context.Context, eng toolsEngine, s *State, emit EmitFunc) (N
 
 	if len(destructiveCalls) > 0 {
 		for i, dc := range destructiveCalls {
-			emit(InterruptEvent("confirm_destructive", dc.Name))
+			// RunID đi kèm event interrupt để client biết dùng run_id nào khi
+			// gọi POST /chat/resume — xem Interrupt (state.go) và resume.go.
+			ev := InterruptEvent("confirm_destructive", dc.Name)
+			ev.RunID = s.RunID
+			emit(ev)
 			if i == 0 {
 				s.Interrupt = &Interrupt{
 					Reason: "confirm_destructive",
 					Tool:   dc.Name,
 					Args:   string(dc.Args),
+					CallID: dc.ID,
 				}
 			}
 		}
@@ -126,8 +153,19 @@ func nodeTools(ctx context.Context, eng toolsEngine, s *State, emit EmitFunc) (N
 		emit(TextEvent(destructiveBlockedMessage(destructiveCalls)))
 	}
 
+	// toolSpans giữ 1 span OTel THẬT cho mỗi tool call trong safeCalls (kể cả
+	// bản trùng lặp — dedupeSafeCalls chỉ tránh THỰC THI lại, không ảnh hưởng
+	// tới việc mỗi call vẫn có tool_start/tool_end riêng). Đóng ở nơi tool đó
+	// nhận kết quả: đại diện đóng trong callback RunParallelStreaming, bản
+	// trùng lặp đóng ở vòng lặp "members[1:]" bên dưới.
+	toolSpans := make(map[string]trace.Span, len(safeCalls))
 	for _, tc := range safeCalls {
 		emit(ToolStartEvent(tc.Name))
+		_, span := toolTracer.Start(ctx, "tool."+tc.Name, trace.WithAttributes(
+			attribute.String("tool.name", tc.Name),
+			attribute.String("tool.call_id", tc.ID),
+		))
+		toolSpans[tc.ID] = span
 	}
 
 	if len(safeCalls) > 0 {
@@ -146,6 +184,8 @@ func nodeTools(ctx context.Context, eng toolsEngine, s *State, emit EmitFunc) (N
 			} else {
 				emit(ToolEndEvent(res.Call.Name, true, toolResultPreview(res.Result.Content)))
 			}
+			endToolSpan(toolSpans[res.Call.ID], res.Err)
+			delete(toolSpans, res.Call.ID)
 		})
 
 		resultByRepID := make(map[string]tools.CallResult, len(results))
@@ -233,6 +273,11 @@ func nodeTools(ctx context.Context, eng toolsEngine, s *State, emit EmitFunc) (N
 				}
 				s.AppendObservation(obsDup)
 				emit(ToolEndEvent(dup.Name, res.Err == nil, note))
+				if span, ok := toolSpans[dup.ID]; ok {
+					span.SetAttributes(attribute.String("tool.duplicate_of", rep.ID))
+					endToolSpan(span, res.Err)
+					delete(toolSpans, dup.ID)
+				}
 				slog.Info("tools: bỏ qua thực thi trùng lặp, dùng lại kết quả đã chạy",
 					"tool", dup.Name, "call_id", dup.ID, "representative_call_id", rep.ID)
 			}

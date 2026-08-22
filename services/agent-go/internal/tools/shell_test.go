@@ -4,7 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -87,6 +91,25 @@ func TestShellTool(t *testing.T) {
 		json.Unmarshal([]byte(res.Content), &out)
 		if out.ExitCode != 0 {
 			t.Errorf("expected exitCode 0, got %d. output=%q", out.ExitCode, out.Output)
+		}
+	})
+
+	// Call site production (buildRegistries, NewShellToolWithTimeout) là nơi
+	// allowlist thật sự được nạp (khác NewShellTool(nil) dùng ở hầu hết test
+	// khác trong file này) — khoá lại rằng khi có allowlist rõ ràng qua
+	// constructor này, lệnh không nằm trong danh sách vẫn bị chặn.
+	t.Run("disallowed command blocked via NewShellToolWithTimeout", func(t *testing.T) {
+		tool := NewShellToolWithTimeout([]string{"echo", "ls"}, 5*time.Second)
+		args, _ := json.Marshal(map[string]any{
+			"command": "rm",
+			"args":    []string{"-rf", "/tmp/should-not-run"},
+		})
+		_, err := tool.Execute(context.Background(), args)
+		if err == nil {
+			t.Fatal("expected error for disallowed command, got nil")
+		}
+		if !strings.Contains(err.Error(), "not allowed") {
+			t.Errorf("expected 'not allowed' error, got: %v", err)
 		}
 	})
 
@@ -219,5 +242,54 @@ func TestShellTool_TimeoutViaRegistry(t *testing.T) {
 	var timeoutErr *TimeoutError
 	if !errors.As(results[0].Err, &timeoutErr) {
 		t.Fatalf("Err = %v, want *TimeoutError", results[0].Err)
+	}
+}
+
+// TestShellTool_KillsProcessGroupOnTimeout khoá lỗ hổng resource-leak/DoS:
+// exec.CommandContext mặc định khi ctx bị timeout/cancel chỉ kill đúng tiến
+// trình con TRỰC TIẾP — nếu lệnh đó tự fork thêm tiến trình cháu (vd:
+// "sh -c 'sleep 100 &'"), tiến trình cháu SỐNG SÓT vô thời hạn sau khi tool đã
+// báo lỗi timeout xong.
+//
+// Test spawn "sh -c 'sleep 5 & echo $! > <pidfile>; wait'": sh fork ra sleep
+// (tiến trình cháu, không phải con trực tiếp của cmd), ghi PID của sleep ra
+// file rồi wait. Ta set timeout rất ngắn để cắt cụt cả sh lẫn sleep, sau đó
+// xác nhận PID của sleep đã chết (syscall.Kill(pid, 0) trả ESRCH) — không dùng
+// "ps" vì không xác định race-free.
+func TestShellTool_KillsProcessGroupOnTimeout(t *testing.T) {
+	pidFile := filepath.Join(t.TempDir(), "grandchild.pid")
+
+	tool := NewShellToolWithTimeout([]string{"sh"}, 150*time.Millisecond)
+	args, _ := json.Marshal(map[string]any{
+		"command": "sh",
+		"args":    []string{"-c", "sleep 5 & echo $! > " + pidFile + "; wait"},
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+	defer cancel()
+
+	if _, err := tool.Execute(ctx, args); err == nil {
+		t.Fatal("expected timeout error, got nil")
+	}
+
+	pidBytes, err := os.ReadFile(pidFile)
+	if err != nil {
+		t.Fatalf("không đọc được pid file của tiến trình cháu (sleep chưa kịp fork trước timeout?): %v", err)
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(pidBytes)))
+	if err != nil {
+		t.Fatalf("nội dung pid file không hợp lệ: %q", pidBytes)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		killErr := syscall.Kill(pid, 0)
+		if errors.Is(killErr, syscall.ESRCH) {
+			return // tiến trình cháu đã chết — đúng kỳ vọng, process group bị kill hết
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("tiến trình cháu (pid %d, sleep) VẪN SỐNG sau khi tool timeout — process group không bị kill hết (leak)", pid)
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 }

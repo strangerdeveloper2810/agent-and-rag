@@ -8,6 +8,8 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"io"
 
 	"github.com/ai-agent-tut/agent-go/internal/guardrails"
@@ -99,11 +101,17 @@ type Observation struct {
 }
 
 // Interrupt mô tả một điểm dừng chờ xác nhận từ người dùng (HITL).
-// Engine phát Event{Type:"interrupt"} rồi DỪNG; client gọi /chat/resume để tiếp tục.
+// Engine phát Event{Type:"interrupt", RunID: s.RunID} rồi DỪNG. Nếu Engine có
+// cấu hình SetInterruptStore, State được lưu lại và client có thể gọi
+// POST /chat/resume {"run_id":"...","answer":"..."} để tiếp tục — xem
+// resume.go (ResolveInterrupt + Engine.Resume). Nếu KHÔNG cấu hình
+// interruptStore, run coi như kết thúc tại đây (hành vi cũ, không đổi).
 type Interrupt struct {
 	Reason string // lý do: "confirm_destructive", "confirm_write", ...
 	Tool   string // tên tool bị chặn
 	Args   string // args của tool call (JSON string, để UI hiển thị)
+	CallID string // provider.ToolCall.ID của lời gọi bị chặn — cần để ghi tool
+	// result đúng chỗ (State.AppendObservation) khi resume xử lý xong.
 }
 
 // State là trạng thái xuyên suốt một lượt chạy (working memory).
@@ -280,6 +288,37 @@ func (s *State) AppendObservation(obs Observation) {
 		ToolCallID: obs.CallID,
 		Content:    content,
 	})
+}
+
+// SerializeForResume trả về State dưới dạng JSON để lưu vào paused_runs khi
+// engine dừng ở NodeInterrupt (xem Engine.saveInterruptedState).
+//
+// CHỈ field EXPORTED được giữ lại — encoding/json bỏ qua field không export
+// một cách im lặng (không lỗi). Các field mất sau khi resume, và vì sao mất
+// vẫn AN TOÀN:
+//   - activatedSkills: nil sau khi phục hồi → skill có thể được kích hoạt
+//     lại (nạp lại prompt) ở bước tiếp theo. Tốn thêm token, không sai chức năng.
+//   - loopBreaker: nil sau khi phục hồi → Engine.Resume tự tạo lại nếu
+//     Engine có circuitBreaker cấu hình (xem Resume), cùng cách Run() làm.
+//   - mcpRegistry/mcpClients: nil sau khi phục hồi → tool MCP (SSE remote)
+//     của lượt gốc KHÔNG còn khả dụng sau resume. Đây là giới hạn có chủ đích
+//     của bản resume tối giản (chỉ cho NodeInterrupt), không phải bug.
+func (s *State) SerializeForResume() ([]byte, error) {
+	data, err := json.Marshal(s)
+	if err != nil {
+		return nil, fmt.Errorf("agent: serialize state: %w", err)
+	}
+	return data, nil
+}
+
+// DeserializeState dựng lại *State từ JSON đã lưu bởi SerializeForResume.
+// Field không export (xem SerializeForResume) giữ giá trị zero-value an toàn.
+func DeserializeState(data []byte) (*State, error) {
+	var s State
+	if err := json.Unmarshal(data, &s); err != nil {
+		return nil, fmt.Errorf("agent: deserialize state: %w", err)
+	}
+	return &s, nil
 }
 
 // EmitFunc là callback engine dùng để phát Event ra ngoài (→ SSE writer).

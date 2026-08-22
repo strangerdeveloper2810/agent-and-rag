@@ -7,12 +7,21 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/ai-agent-tut/agent-go/internal/middleware"
 	"github.com/ai-agent-tut/agent-go/internal/observability"
 	"github.com/ai-agent-tut/agent-go/internal/provider"
 	"github.com/ai-agent-tut/agent-go/internal/skills"
 	"github.com/ai-agent-tut/agent-go/internal/tools"
 )
+
+// modelTracer là tracer OTel dùng riêng cho span quanh mỗi lượt gọi LLM
+// (provider.Generate) — xem observability.SetupTracer cho cách TracerProvider
+// global được dựng thật (stdouttrace/OTLP) thay vì no-op như trước.
+var modelTracer = observability.Tracer("agent-go/model")
 
 // modelEngine là interface engine cung cấp cho node model (tránh import cycle).
 // Engine thật và fakeEngine trong test đều implements interface này.
@@ -261,6 +270,23 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 	slog.Info("model: calling LLM", "provider", prov.Name(), "messages", len(s.Messages), "tools", len(req.Tools), "thinking", string(req.Options.ThinkingLevel))
 	llmStart := time.Now()
 
+	// Span OTel THẬT quanh lượt gọi LLM (khác LangSmith root/child run bên
+	// dưới — đây là tracing hạ tầng chuẩn OTel, đi kèm bất kỳ backend nào cấu
+	// hình qua observability.SetupTracer). defer đóng span ở MỌI điểm return
+	// của nodeModel (thành công hay lỗi) — gán spanErr trước return nào lỗi.
+	ctx, llmSpan := modelTracer.Start(ctx, "llm.generate", trace.WithAttributes(
+		attribute.String("provider", prov.Name()),
+		attribute.Int("step", s.Step),
+	))
+	var spanErr error
+	defer func() {
+		if spanErr != nil {
+			llmSpan.RecordError(spanErr)
+			llmSpan.SetStatus(codes.Error, spanErr.Error())
+		}
+		llmSpan.End()
+	}()
+
 	// LangSmith LLM Child Run
 	llmRunID := observability.NewUUID()
 	ls := observability.GetLangSmith()
@@ -310,6 +336,7 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 			ls.EndRun(llmRunID, nil, err)
 		}
 		emit(ErrorEvent(err.Error()))
+		spanErr = err
 		return NodeEnd, fmt.Errorf("model: generate: %w", err)
 	}
 
@@ -352,6 +379,7 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 				ls.EndRun(llmRunID, nil, chunk.Err)
 			}
 			emit(ErrorEvent(chunk.Err.Error()))
+			spanErr = chunk.Err
 			return NodeEnd, fmt.Errorf("model: provider error: %w", chunk.Err)
 
 		case provider.ChunkDone:
@@ -418,6 +446,7 @@ func nodeModel(ctx context.Context, eng modelEngine, s *State, emit EmitFunc) (N
 			prov.Name(), finish)
 		slog.Error("model: empty response", "provider", prov.Name(), "finish_reason", finish)
 		emit(ErrorEvent(err.Error()))
+		spanErr = err
 		return NodeEnd, err
 	}
 

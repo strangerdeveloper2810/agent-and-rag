@@ -62,6 +62,13 @@ func Open(path string) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("sqlite: migrate: %w", err)
 	}
+	// Bảng paused_runs (resume tối giản cho NodeInterrupt) — tách khỏi migrate()
+	// ở trên để không chạm schema conversations/messages/memories đã ổn định.
+	// Xem paused_runs.go.
+	if err := migratePausedRuns(db); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("sqlite: migrate paused_runs: %w", err)
+	}
 
 	return &Store{db: db}, nil
 }
