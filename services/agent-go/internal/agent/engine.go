@@ -13,8 +13,10 @@ import (
 
 	"github.com/ai-agent-tut/agent-go/internal/guardrails"
 	"github.com/ai-agent-tut/agent-go/internal/mcp"
+	"github.com/ai-agent-tut/agent-go/internal/middleware"
 	"github.com/ai-agent-tut/agent-go/internal/observability"
 	"github.com/ai-agent-tut/agent-go/internal/provider"
+	"github.com/ai-agent-tut/agent-go/internal/provider/pricing"
 	"github.com/ai-agent-tut/agent-go/internal/skills"
 	"github.com/ai-agent-tut/agent-go/internal/tools"
 )
@@ -121,6 +123,12 @@ type Engine struct {
 	// shell.exec/git). Rỗng nếu không gọi SetName (vd cmd/jarvis dùng 1
 	// engine duy nhất, không cần phân biệt).
 	name string
+
+	// costLedger ghi lại chi phí ước tính (USD) mỗi lượt chạy engine, gắn theo
+	// tenant — xem SetCostLedger, CostLedger, recordCost. nil (mặc định) =
+	// tính năng cost ledger TẮT: engine chạy y hệt trước khi có tính năng
+	// này, không tính toán hay ghi gì thêm.
+	costLedger CostLedger
 }
 
 // InterruptStore là nơi lưu/đọc/xoá snapshot MỚI NHẤT của State cho một
@@ -225,6 +233,76 @@ func (e *Engine) deleteCheckpoint(s *State) {
 	if err := e.interruptStore.DeleteInterruptedState(s.RunID); err != nil {
 		slog.Warn("engine: xoá checkpoint sau khi run kết thúc thất bại — bỏ qua, chỉ để lại rác vô hại trong SQLite",
 			"runID", s.RunID, "err", err)
+	}
+}
+
+// CostEntry mô tả chi phí ước tính của các lượt gọi LLM tích luỹ trong MỘT
+// lần chạy runLoop (Run() hoặc 1 lần Resume()) — xem CostLedger, recordCost.
+// InputTokens/OutputTokens là DELTA (chỉ phần token phát sinh trong lần chạy
+// này), không phải tổng cộng dồn từ đầu conversation — quan trọng cho
+// trường hợp resume sau NodeInterrupt để tránh ghi trùng token đã tính trước
+// khi dừng.
+type CostEntry struct {
+	TenantID               string
+	Provider               string
+	Model                  string
+	InputTokens            int
+	OutputTokens           int
+	CostUSD                float64
+	HypotheticalMaxCostUSD float64
+}
+
+// CostLedger là nơi ghi lại chi phí ước tính mỗi lượt chạy engine, gắn theo
+// tenant — implement bởi *sqlite.Store (bảng cost_ledger, xem
+// internal/storage/sqlite/cost_ledger.go). Khai báo interface NHỎ ở đây
+// (cùng lý do và cùng mẫu với InterruptStore ở trên) để package agent không
+// phải import internal/storage/sqlite.
+type CostLedger interface {
+	RecordCost(ctx context.Context, entry CostEntry) error
+}
+
+// SetCostLedger gán nơi ghi lại chi phí ước tính mỗi lượt chạy engine.
+// Truyền nil để tắt tính năng (mặc định) — engine chạy bình thường, chỉ
+// không tính/ghi chi phí gì cả.
+func (e *Engine) SetCostLedger(ledger CostLedger) {
+	e.costLedger = ledger
+}
+
+// recordCost tính chi phí ước tính (qua pricing.Calculate) cho phần usage
+// PHÁT SINH TRONG LẦN CHẠY runLoop NÀY (delta so với startUsage — xem comment
+// CostEntry) và ghi qua e.costLedger, nếu có cấu hình. Lỗi ghi CHỈ log warn —
+// không bao giờ chặn response user, giống triết lý saveInterruptedState ở
+// trên.
+func (e *Engine) recordCost(ctx context.Context, s *State, startUsage provider.Usage) {
+	if e.costLedger == nil {
+		return
+	}
+
+	deltaIn := s.Usage.InputTokens - startUsage.InputTokens
+	deltaOut := s.Usage.OutputTokens - startUsage.OutputTokens
+	if deltaIn <= 0 && deltaOut <= 0 {
+		// Không có lượt gọi LLM nào mới trong lần chạy này (vd dừng ngay ở
+		// NodeInterrupt trước khi tới NodeModel) — không có gì để ghi.
+		return
+	}
+
+	model := ""
+	if mp, ok := e.prov.(interface{ Model() string }); ok {
+		model = mp.Model()
+	}
+
+	actualUSD, hypotheticalUSD := pricing.Calculate(e.prov.Name(), model, deltaIn, deltaOut)
+	entry := CostEntry{
+		TenantID:               middleware.GetTenantID(ctx),
+		Provider:               e.prov.Name(),
+		Model:                  model,
+		InputTokens:            deltaIn,
+		OutputTokens:           deltaOut,
+		CostUSD:                actualUSD,
+		HypotheticalMaxCostUSD: hypotheticalUSD,
+	}
+	if err := e.costLedger.RecordCost(ctx, entry); err != nil {
+		slog.Warn("engine: ghi cost ledger thất bại — không chặn response user", "tenantID", entry.TenantID, "err", err)
 	}
 }
 
@@ -463,6 +541,13 @@ func (e *Engine) Run(ctx context.Context, in RunInput, emit EmitFunc) (provider.
 // Run() để Resume() không phải chạy lại discovery MCP / LangSmith root run,
 // chỉ tiếp tục ĐÚNG state machine từ giữa.
 func (e *Engine) runLoop(ctx context.Context, node NodeID, s *State, emit EmitFunc, start time.Time) (provider.Usage, error) {
+	// Snapshot usage TRƯỚC khi loop này chạy — dùng để tính DELTA cho cost
+	// ledger (xem recordCost). Với Run() bình thường s.Usage bắt đầu từ zero
+	// nên delta = usage đầy đủ; với Resume() (sau NodeInterrupt) s.Usage đã
+	// mang theo usage tích luỹ từ TRƯỚC lúc dừng, nên phải trừ đi để không ghi
+	// trùng phần đã tính ở lần chạy trước.
+	startUsage := s.Usage
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -543,6 +628,7 @@ func (e *Engine) runLoop(ctx context.Context, node NodeID, s *State, emit EmitFu
 	done := DoneEvent(s.Usage, s.TotalTokens, s.Truncated)
 	done.ContextTokens = estimateTokens(s.Messages)
 	done.ContextBudget = e.maxContextTokens
+	e.recordCost(ctx, s, startUsage)
 	emit(done)
 	return s.Usage, nil
 }
