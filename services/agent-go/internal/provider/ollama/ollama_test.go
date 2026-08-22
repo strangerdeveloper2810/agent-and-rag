@@ -47,6 +47,59 @@ func TestToOllamaMessages_WithToolCalls(t *testing.T) {
 	}
 }
 
+// TestToOllamaMessages_ToolResult_UsesNativeToolRole khoá phát hiện bug đã fix:
+// trước đây message role=tool bị giả lập thành role "user" kèm text mô tả
+// "Tool result (call_id=...): ...", khiến model không phân biệt được đây là
+// kết quả tool hay câu người dùng gõ thật. Ollama /api/chat dùng đúng role
+// "tool" kèm "tool_name" (không có "tool_call_id" kiểu OpenAI) — xác nhận từ
+// docs.ollama.com/capabilities/tool-calling và github.com/ollama/ollama
+// docs/api.md, ví dụ chính thức:
+// {"role":"tool","tool_name":"get_weather","content":"11 degrees celsius"}.
+func TestToOllamaMessages_ToolResult_UsesNativeToolRole(t *testing.T) {
+	msgs := []provider.Message{
+		{Role: provider.RoleAssistant, ToolCalls: []provider.ToolCall{
+			{ID: "c1", Name: "get_weather", Args: json.RawMessage(`{}`)},
+		}},
+		{Role: provider.RoleTool, ToolCallID: "c1", Content: "11 degrees celsius"},
+	}
+	result := toOllamaMessages(msgs)
+	if len(result) != 2 {
+		t.Fatalf("len = %d, want 2", len(result))
+	}
+	tm := result[1]
+	if tm.Role != "tool" {
+		t.Errorf("Role = %q, want %q (không còn giả role user)", tm.Role, "tool")
+	}
+	if tm.Content != "11 degrees celsius" {
+		t.Errorf("Content = %q, want %q (content thô, không kèm text mô tả call_id)", tm.Content, "11 degrees celsius")
+	}
+	if tm.ToolName != "get_weather" {
+		t.Errorf("ToolName = %q, want %q", tm.ToolName, "get_weather")
+	}
+}
+
+// Nếu không tra được ToolCallID khớp với tool_call nào (call id lạ hoặc rỗng),
+// gửi tool_name rỗng vẫn AN TOÀN — docs xác nhận field này chỉ optional/thông
+// tin thêm cho model, không bắt buộc để request hợp lệ.
+func TestToOllamaMessages_ToolResult_UnknownCallIDLeavesToolNameEmpty(t *testing.T) {
+	msgs := []provider.Message{
+		{Role: provider.RoleTool, ToolCallID: "unknown-id", Content: "kết quả"},
+	}
+	result := toOllamaMessages(msgs)
+	if len(result) != 1 {
+		t.Fatalf("len = %d, want 1", len(result))
+	}
+	if result[0].Role != "tool" {
+		t.Errorf("Role = %q, want tool", result[0].Role)
+	}
+	if result[0].ToolName != "" {
+		t.Errorf("ToolName = %q, want rỗng khi không khớp được call id nào", result[0].ToolName)
+	}
+	if result[0].Content != "kết quả" {
+		t.Errorf("Content = %q, want %q", result[0].Content, "kết quả")
+	}
+}
+
 func TestToOllamaTools(t *testing.T) {
 	tools := []provider.ToolDef{
 		{Name: "echo", Description: "Echo tool", Schema: json.RawMessage(`{"type":"object"}`)},
