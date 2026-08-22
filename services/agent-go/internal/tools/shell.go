@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -83,6 +84,20 @@ func (t *shellTool) Execute(ctx context.Context, rawArgs json.RawMessage) (Resul
 	// Deadline áp qua TimeoutTool ở Registry.runOne (xem tool.go) — ctx ở đây
 	// đã mang deadline đó khi tool chạy qua registry.
 	cmd := exec.CommandContext(ctx, args.Command, args.Args...)
+
+	// Setpgid gom cả tiến trình con LẪN mọi tiến trình cháu nó tự fork (vd:
+	// "sh -c 'sleep 100 &'") vào 1 process group riêng, tách khỏi group của
+	// agent. Nếu không có dòng này, exec.CommandContext khi timeout/cancel mặc
+	// định chỉ kill đúng tiến trình con trực tiếp — tiến trình cháu SỐNG SÓT vô
+	// thời hạn sau khi tool đã báo timeout (resource leak / DoS).
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	// Ghi đè Cancel mặc định (chỉ gọi cmd.Process.Kill(), tức kill 1 tiến
+	// trình) để kill CẢ process group bằng PID âm — cmd.Process.Pid ở đây
+	// chính là pgid vì Setpgid=true ở trên khiến tiến trình con trở thành
+	// process group leader (pgid == pid của chính nó).
+	cmd.Cancel = func() error {
+		return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+	}
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout

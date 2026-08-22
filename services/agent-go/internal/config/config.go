@@ -107,8 +107,19 @@ type Config struct {
 	// trả tiền lặp lại ở mọi step sau. MaxToolOutput chặn được 1 tool "nói quá
 	// nhiều", nhưng không chặn được nhiều tool "nói vừa phải" cộng dồn thành quá
 	// nhiều. Đặt qua MAX_TOTAL_TOOL_OUTPUT, 0 = không giới hạn.
-	MaxTotalToolOutput    int
-	ShellTimeout          int  // seconds. default: 30
+	MaxTotalToolOutput int
+	ShellTimeout       int // seconds. default: 30
+	// ShellAllowedCommands là allowlist tên lệnh cho phép shell.exec chạy, đọc từ
+	// SHELL_ALLOWED_COMMANDS (phân tách bằng dấu phẩy, xem splitCSV). Để trống →
+	// dùng defaultShellAllowedCommands bên dưới.
+	//
+	// Vì sao cần: trước đây cả 3 call site production (buildRegistries "code" /
+	// "general", promptsize probe) truyền thẳng nil cho NewShellToolWithTimeout,
+	// tức shell.exec cho phép chạy BẤT KỲ lệnh nào — allowlist đã viết sẵn trong
+	// shellTool nhưng không nơi nào thực sự bật nó lên. Khi JARVIS chỉ chạy 1
+	// người trên máy cá nhân thì chấp nhận được; mở cho nhiều người dùng thì đây
+	// là remote code execution trần trụi.
+	ShellAllowedCommands  []string
 	EnableDynamicThinking bool // auto-adjust thinking level based on task complexity
 	EnablePlanning        bool // LLM plan node cho task phức tạp. default: false (tiết kiệm 1 LLM call trước token đầu)
 
@@ -159,6 +170,18 @@ const defaultMaxOutputTokens = 8192
 // phần lớn từ tool output cộng dồn qua nhiều bước).
 const defaultMaxTotalToolOutput = 60000
 
+// defaultShellAllowedCommands là allowlist mặc định cho shell.exec khi
+// SHELL_ALLOWED_COMMANDS không được cấu hình.
+//
+// CHỈ gồm lệnh đọc/inspect vô hại — KHÔNG có interpreter nào (node, python, go,
+// npm, bash, sh...) vì bất kỳ interpreter nào cũng cho phép thực thi mã tuỳ ý,
+// biến allowlist thành vô nghĩa (vd: "python -c 'import os; os.system(...)'").
+// Operator nào thật sự cần mở rộng thì tự set SHELL_ALLOWED_COMMANDS — mặc định
+// phải an toàn theo kiểu fail-closed, không phải "tiện cho dev".
+var defaultShellAllowedCommands = []string{
+	"git", "ls", "grep", "cat", "find", "pwd", "echo", "wc", "head", "tail", "diff",
+}
+
 // Load đọc .env (nếu có) rồi env → Config với defaults hợp lý.
 // Không fail nếu không có .env — chỉ dùng biến môi trường có sẵn.
 func Load() (Config, error) {
@@ -171,6 +194,11 @@ func Load() (Config, error) {
 	langSmithTracing := envOr("LANGSMITH_TRACING", envOr("LANGCHAIN_TRACING_V2", "false")) == "true"
 	if langSmithAPIKey != "" && (os.Getenv("LANGSMITH_TRACING") == "" && os.Getenv("LANGCHAIN_TRACING_V2") == "") {
 		langSmithTracing = true
+	}
+
+	shellAllowedCommands := splitCSV(os.Getenv("SHELL_ALLOWED_COMMANDS"))
+	if len(shellAllowedCommands) == 0 {
+		shellAllowedCommands = defaultShellAllowedCommands
 	}
 
 	c := Config{
@@ -218,6 +246,7 @@ func Load() (Config, error) {
 		MaxToolOutput:         24000,
 		MaxTotalToolOutput:    intEnvOr("MAX_TOTAL_TOOL_OUTPUT", defaultMaxTotalToolOutput),
 		ShellTimeout:          30,
+		ShellAllowedCommands:  shellAllowedCommands,
 		EnableDynamicThinking: envOr("ENABLE_DYNAMIC_THINKING", "false") == "true",
 		EnablePlanning:        envOr("ENABLE_PLANNING", "false") == "true",
 		AllowDestructiveTools: envOr("ALLOW_DESTRUCTIVE_TOOLS", "false") == "true",
