@@ -15,6 +15,8 @@ import (
 	"github.com/ai-agent-tut/agent-go/internal/provider/deepseek"
 	"github.com/ai-agent-tut/agent-go/internal/provider/fallback"
 	"github.com/ai-agent-tut/agent-go/internal/provider/gemini"
+	"github.com/ai-agent-tut/agent-go/internal/provider/ollama"
+	"github.com/ai-agent-tut/agent-go/internal/provider/openai_compat"
 )
 
 // namedOverride bọc 1 provider để đổi Name() hiển thị — dùng khi có NHIỀU
@@ -48,10 +50,12 @@ func (n namedOverride) Model() string {
 
 // New tạo Provider theo cfg.Provider:
 //
-//	"gemini"    → Gemini (single)
-//	"anthropic" → Claude (single)
-//	"deepseek"  → DeepSeek (single)
-//	"auto"      → Fallback chain: Gemini (toàn bộ free-tier pool) → DeepSeek (nếu có key) → Claude (nếu có key)
+//	"gemini"        → Gemini (single)
+//	"anthropic"     → Claude (single)
+//	"deepseek"      → DeepSeek (single)
+//	"ollama"        → Ollama local (single)
+//	"openai_compat" → server local kiểu OpenAI-compatible (vLLM, llama.cpp, LM Studio...) (single)
+//	"auto"          → Fallback chain: Gemini (toàn bộ free-tier pool) → DeepSeek (nếu có key) → Claude (nếu có key)
 func New(cfg config.Config) (provider.Provider, error) {
 	switch cfg.Provider {
 	case "gemini":
@@ -60,10 +64,14 @@ func New(cfg config.Config) (provider.Provider, error) {
 		return newAnthropic(cfg)
 	case "deepseek":
 		return newDeepSeek(cfg)
+	case "ollama":
+		return newOllama(cfg)
+	case "openai_compat":
+		return newOpenAICompat(cfg)
 	case "auto":
 		return newAuto(cfg)
 	default:
-		return nil, fmt.Errorf("unknown LLM_PROVIDER: %q (use gemini, anthropic, deepseek, or auto)", cfg.Provider)
+		return nil, fmt.Errorf("unknown LLM_PROVIDER: %q (use gemini, anthropic, deepseek, ollama, openai_compat, or auto)", cfg.Provider)
 	}
 }
 
@@ -86,6 +94,23 @@ func newDeepSeek(cfg config.Config) (provider.Provider, error) {
 		return nil, fmt.Errorf("DEEPSEEK_API_KEY is required for provider=deepseek")
 	}
 	return deepseek.New(cfg.DeepSeekKey, cfg.DeepSeekFlashModel, cfg.DeepSeekProModel)
+}
+
+// newOllama tạo provider Ollama local — không cần API key, chỉ cần server
+// Ollama đang chạy tại cfg.OllamaURL. cfg.OllamaURL/OllamaModel đã có default
+// hợp lý ("http://localhost:11434"/"llama3.1:8b") ngay trong config.Load(),
+// nên không cần default lại ở đây.
+func newOllama(cfg config.Config) (provider.Provider, error) {
+	return ollama.New(cfg.OllamaURL, cfg.OllamaModel)
+}
+
+// newOpenAICompat tạo provider trỏ tới server local kiểu OpenAI-compatible
+// tuỳ ý (vLLM, llama.cpp server, LM Studio...). Khác Ollama: không có default
+// baseURL/model cố định vì mỗi server local nghe ở cổng khác nhau và chạy
+// model do người dùng tự nạp — cfg.OpenAICompatKey để trống nếu server không
+// yêu cầu auth.
+func newOpenAICompat(cfg config.Config) (provider.Provider, error) {
+	return openai_compat.New(cfg.OpenAICompatBaseURL, cfg.OpenAICompatKey, cfg.OpenAICompatModel)
 }
 
 // newAuto tạo provider chain thông minh:
