@@ -269,8 +269,7 @@ describe("goAgentClient.resume — proxy POST /chat/resume", () => {
 
     const events = await drain(goAgentClient.resume!("run-789", "ok"));
     const done = events.find((e) => e.type === "done") as
-      | { totalTokens?: number }
-      | undefined;
+      { totalTokens?: number } | undefined;
     expect(done?.totalTokens).toBe(10);
   });
 
