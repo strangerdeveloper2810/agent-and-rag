@@ -44,6 +44,7 @@ import (
 	"github.com/ai-agent-tut/agent-go/internal/provider/ollama"
 	"github.com/ai-agent-tut/agent-go/internal/rag"
 	"github.com/ai-agent-tut/agent-go/internal/skills"
+	"github.com/ai-agent-tut/agent-go/internal/storage/sqlite"
 	"github.com/ai-agent-tut/agent-go/internal/tools"
 	agenthttp "github.com/ai-agent-tut/agent-go/internal/transport/http"
 )
@@ -91,6 +92,12 @@ func run(args []string, stdout, stderr io.Writer) int {
 			return 1
 		}
 		return runEval(args[1])
+	case "cost":
+		if len(args) < 2 {
+			fmt.Fprintln(stderr, "usage: jarvis cost <tenantID>")
+			return 1
+		}
+		return runCostCmd(args[1], stdout, stderr)
 	case "help", "-h", "--help":
 		fmt.Fprintln(stdout, usageText)
 	default:
@@ -108,6 +115,7 @@ usage:
   jarvis ask "câu hỏi"               one-shot question
   jarvis chat                        interactive chat (REPL)
   jarvis eval <path-to-cases.json>   run eval cases against the agent
+  jarvis cost <tenantID>             show estimated LLM cost summary for a tenant
   jarvis help                        show this help`
 
 // --- serve ---
@@ -341,6 +349,65 @@ func printEvalReport(w io.Writer, report eval.EvalReport) {
 	}
 	fmt.Fprintf(w, "\n%d/%d passed (%.1f%%), %d failed, %d errored, took %s\n",
 		report.Passed, report.Total, report.PassRate, report.Failed, report.Errored, report.Duration)
+}
+
+// --- cost ---
+
+// runCostCmd là entrypoint mỏng cho subcommand "cost": nạp config để lấy
+// cfg.DBPath (KHÔNG dựng LLM provider/orchestrator đầy đủ như setup() — cost
+// ledger chỉ cần mở SQLite), rồi giao cho runCost. Tách khỏi runCost để phần
+// đọc/tính summary test được mà không cần config.Load() (yêu cầu 1 LLM API
+// key hợp lệ trong env, giống lý do loadEvalCases/runEvalCases tách khỏi
+// runEval).
+func runCostCmd(tenantID string, stdout, stderr io.Writer) int {
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Fprintf(stderr, "cost: config: %v\n", err)
+		return 1
+	}
+	return runCost(cfg.DBPath, tenantID, stdout, stderr)
+}
+
+// runCost mở SQLite tại dbPath, tính tổng chi phí ước tính (+ tiết kiệm) của
+// tenantID qua sqlite.Store.TenantCostSummary, rồi in báo cáo text ra stdout.
+// Tách dbPath/tenantID/stdout/stderr thành tham số tường minh để test được
+// với DB tạm (t.TempDir()) mà không cần setup() hay biến môi trường LLM.
+func runCost(dbPath, tenantID string, stdout, stderr io.Writer) int {
+	st, err := sqlite.Open(dbPath)
+	if err != nil {
+		fmt.Fprintf(stderr, "cost: mở database %s: %v\n", dbPath, err)
+		return 1
+	}
+	defer st.Close()
+
+	summary, err := st.TenantCostSummary(context.Background(), tenantID)
+	if err != nil {
+		fmt.Fprintf(stderr, "cost: %v\n", err)
+		return 1
+	}
+
+	printCostSummary(stdout, summary)
+	return 0
+}
+
+// printCostSummary in CostSummary dạng text ngắn gọn, cùng phong cách với
+// printEvalReport bên trên — không màu mè, dễ đọc trong terminal/CI log.
+func printCostSummary(w io.Writer, s sqlite.CostSummary) {
+	fmt.Fprintf(w, "Cost summary — tenant %q\n", s.TenantID)
+	fmt.Fprintf(w, "  requests:          %d\n", s.RequestCount)
+	fmt.Fprintf(w, "  input tokens:      %d\n", s.TotalInputTokens)
+	fmt.Fprintf(w, "  output tokens:     %d\n", s.TotalOutputTokens)
+	fmt.Fprintf(w, "  total cost (est):  $%.6f\n", s.TotalCostUSD)
+	fmt.Fprintf(w, "  hypothetical max:  $%.6f  (nếu luôn dùng provider/model đắt nhất)\n", s.TotalHypotheticalCostUSD)
+	fmt.Fprintf(w, "  estimated savings: $%.6f\n", s.SavingsUSD)
+	if len(s.ByProvider) > 0 {
+		fmt.Fprintln(w, "  by provider:")
+		for _, b := range s.ByProvider {
+			fmt.Fprintf(w, "    - %-14s requests=%-4d in=%-9d out=%-9d cost=$%.6f\n",
+				b.Provider, b.RequestCount, b.InputTokens, b.OutputTokens, b.CostUSD)
+		}
+	}
+	fmt.Fprintln(w, "\n(*) giá dùng để tính là ƯỚC TÍNH — xem internal/provider/pricing, verify lại trang pricing chính thức trước khi dùng cho quyết định tài chính.")
 }
 
 // --- wiring ---

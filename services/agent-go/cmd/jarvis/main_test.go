@@ -12,6 +12,7 @@ import (
 	"github.com/ai-agent-tut/agent-go/internal/agent"
 	"github.com/ai-agent-tut/agent-go/internal/eval"
 	"github.com/ai-agent-tut/agent-go/internal/provider"
+	"github.com/ai-agent-tut/agent-go/internal/storage/sqlite"
 )
 
 // stubRunner phát sẵn event, ghi lại input mỗi lượt (để kiểm tra history).
@@ -225,10 +226,94 @@ func TestChatLoop_EmptyResponseNotStored(t *testing.T) {
 }
 
 func TestUsageText(t *testing.T) {
-	for _, want := range []string{"jarvis serve", "jarvis ask", "jarvis chat", "jarvis eval", "jarvis help"} {
+	for _, want := range []string{"jarvis serve", "jarvis ask", "jarvis chat", "jarvis eval", "jarvis cost", "jarvis help"} {
 		if !strings.Contains(usageText, want) {
 			t.Errorf("usageText thiếu %q", want)
 		}
+	}
+}
+
+// --- cost ---
+
+func TestRun_CostWithoutTenant(t *testing.T) {
+	var out, errOut bytes.Buffer
+
+	if code := run([]string{"cost"}, &out, &errOut); code != 1 {
+		t.Errorf("exit code = %d, want 1", code)
+	}
+	if !strings.Contains(errOut.String(), "jarvis cost") {
+		t.Errorf("stderr = %q", errOut.String())
+	}
+}
+
+func TestRunCost_PrintsSummary(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "jarvis.db")
+
+	// Ghi trước 2 dòng cost cho tenant "acme" qua chính sqlite.Store — mô
+	// phỏng những gì Engine.recordCost sẽ làm trong production.
+	st, err := sqlite.Open(dbPath)
+	if err != nil {
+		t.Fatalf("sqlite.Open: %v", err)
+	}
+	if err := st.RecordCost(context.Background(), agent.CostEntry{
+		TenantID: "acme", Provider: "gemini", Model: "gemini-3.1-flash-lite",
+		InputTokens: 1000, OutputTokens: 200, CostUSD: 0.0001, HypotheticalMaxCostUSD: 0.002,
+	}); err != nil {
+		t.Fatalf("RecordCost: %v", err)
+	}
+	if err := st.RecordCost(context.Background(), agent.CostEntry{
+		TenantID: "acme", Provider: "deepseek", Model: "deepseek-v4-flash",
+		InputTokens: 500, OutputTokens: 100, CostUSD: 0.00005, HypotheticalMaxCostUSD: 0.001,
+	}); err != nil {
+		t.Fatalf("RecordCost: %v", err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	var out, errOut bytes.Buffer
+	code := runCost(dbPath, "acme", &out, &errOut)
+	if code != 0 {
+		t.Fatalf("runCost exit code = %d, stderr = %q", code, errOut.String())
+	}
+
+	got := out.String()
+	for _, want := range []string{
+		`tenant "acme"`,
+		"requests:          2",
+		"gemini",
+		"deepseek",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("stdout thiếu %q\nfull output:\n%s", want, got)
+		}
+	}
+}
+
+func TestRunCost_UnknownTenant_PrintsZeroSummary(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "jarvis.db")
+
+	var out, errOut bytes.Buffer
+	code := runCost(dbPath, "khong-ai-dung", &out, &errOut)
+	if code != 0 {
+		t.Fatalf("runCost exit code = %d, stderr = %q", code, errOut.String())
+	}
+	if !strings.Contains(out.String(), "requests:          0") {
+		t.Errorf("stdout = %q, muốn requests: 0 cho tenant chưa từng dùng", out.String())
+	}
+}
+
+func TestRunCost_InvalidDBPath_ReturnsError(t *testing.T) {
+	// Thư mục cha không tồn tại → sqlite.Open phải lỗi.
+	dbPath := filepath.Join(t.TempDir(), "khong-ton-tai", "jarvis.db")
+
+	var out, errOut bytes.Buffer
+	code := runCost(dbPath, "acme", &out, &errOut)
+	if code != 1 {
+		t.Errorf("exit code = %d, want 1", code)
+	}
+	if !strings.Contains(errOut.String(), "cost:") {
+		t.Errorf("stderr = %q, muốn thông báo lỗi rõ ràng", errOut.String())
 	}
 }
 
