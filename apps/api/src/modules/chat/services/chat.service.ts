@@ -372,3 +372,85 @@ export async function continueReply(
 
   return { events: generator(), metadata };
 }
+
+/**
+ * Tiếp tục 1 run đã dừng giữa chừng (interrupt HITL hoặc crash) theo
+ * `runId` — xem services/agent-go/internal/agent/resume.go phía Go.
+ *
+ * Giống continueReply hơn là streamReply: KHÔNG gọi appendUserMessage (đây
+ * không phải 1 user turn mới), và response được NỐI vào cuối assistant
+ * message hiện có qua appendToLastAssistantMessage. Lý do dùng đúng cơ chế
+ * này: khi run bị interrupt lần đầu, streamReply đã lưu phần text đã sinh
+ * (nếu có) thành 1 message assistant qua addMessage (finally block) trước
+ * khi dừng — resume tiếp tục PHẦN CÒN LẠI của CHÍNH message đó, không phải
+ * tạo message mới (tránh xé lẻ 1 câu trả lời thành nhiều message rời rạc).
+ *
+ * Ném BadRequestError NGAY (trước khi hijack SSE ở controller) nếu backend
+ * hiện tại (`AGENT_BACKEND`) không hỗ trợ resume — chỉ agent-go có checkpoint,
+ * LangGraph (legacy) không implement AgentClient.resume.
+ */
+export async function resumeReply(
+  conversationId: string,
+  runId: string,
+  answer: string | undefined,
+  signal?: AbortSignal,
+  agent: AgentClient = defaultAgent,
+  tenantId?: string,
+): Promise<StreamResult> {
+  if (!agent.resume) {
+    throw new BadRequestError(
+      `Backend agent "${config.AGENT_BACKEND}" không hỗ trợ resume (chỉ agent-go có checkpoint/resume).`,
+    );
+  }
+
+  const tid = tenantId ?? "default";
+
+  let full = "";
+  let tokensUsed = 0;
+  let truncated = false;
+  let backend: string = config.AGENT_BACKEND;
+  let contextTokens: number | undefined;
+  let contextBudget: number | undefined;
+
+  let metadataResolve!: (meta: StreamMetadata) => void;
+  const metadata = new Promise<StreamMetadata>((resolve) => {
+    metadataResolve = resolve;
+  });
+
+  async function* generator(): AsyncGenerator<AgentEvent> {
+    try {
+      for await (const ev of agent.resume!(runId, answer, {
+        signal,
+        tenantId,
+      })) {
+        if (ev.type === "text") full += ev.text;
+
+        if (ev.type === "truncated") truncated = true;
+
+        if (ev.type === "done") {
+          if (ev.agent) backend = ev.agent;
+          if (ev.tokens) tokensUsed = ev.tokens;
+          if (ev.truncated) truncated = true;
+          if (ev.contextTokens !== undefined) contextTokens = ev.contextTokens;
+          if (ev.contextBudget !== undefined) contextBudget = ev.contextBudget;
+        }
+
+        yield ev;
+      }
+    } finally {
+      metadataResolve({
+        backend,
+        tokensUsed,
+        truncated,
+        contextTokens,
+        contextBudget,
+      });
+
+      if (full.trim().length > 0) {
+        await appendToLastAssistantMessage(tid, conversationId, full);
+      }
+    }
+  }
+
+  return { events: generator(), metadata };
+}

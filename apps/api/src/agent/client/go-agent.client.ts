@@ -23,6 +23,8 @@ interface GoAgentEvent {
   contextTokens?: number;
   /** Ngân sách token context (Type=done). 0 = không giới hạn. */
   contextBudget?: number;
+  /** Định danh run đang dừng (Type=interrupt) — dùng làm runId khi resume. */
+  runId?: string;
 }
 
 // ----- Circuit Breaker -----
@@ -237,6 +239,120 @@ async function* parseSSE(
   }
 }
 
+/**
+ * mapGoAgentEvents — parse SSE body của Go agent (dùng chung cho cả
+ * stream() và resume(), vì cả 2 endpoint /chat và /chat/resume trả về
+ * CÙNG format event). Tách riêng để không lặp lại switch-case ~90 dòng.
+ *
+ * agentName/totalTokens là state CỤC BỘ trong 1 lần gọi (không escape ra
+ * ngoài) — dùng để điền field `agent`/`totalTokens` vào event `done` cuối
+ * cùng, xem case "agent"/"done" bên dưới.
+ */
+async function* mapGoAgentEvents(
+  body: ReadableStream<Uint8Array>,
+): AsyncGenerator<AgentEvent> {
+  // agentName mặc định "go" (phân biệt với "langgraph"), được ghi đè bằng
+  // tên agent thật ngay khi nhận event {type:"agent"} từ orchestrator Go
+  // (general/code/research) — xem case "agent" bên dưới.
+  let agentName = "go";
+  let totalTokens = 0;
+
+  for await (const raw of parseSSE(body)) {
+    switch (raw.type) {
+      case "text":
+        yield { type: "text", text: raw.text ?? "" } as AgentEvent;
+        break;
+      case "tool_start":
+        yield {
+          type: "tool_start",
+          name: raw.name ?? "unknown",
+        } as AgentEvent;
+        break;
+      case "tool_end":
+        yield {
+          type: "tool_end",
+          name: raw.name ?? "unknown",
+          message: raw.message,
+          text: raw.text,
+        } as AgentEvent;
+        break;
+      case "error":
+        yield {
+          type: "error",
+          message: raw.message ?? "Agent error",
+        } as AgentEvent;
+        break;
+      case "truncated":
+        // Model bị cắt vì chạm max output tokens → UI hiện chỉ báo +
+        // nút "Tiếp tục". Không phải lỗi: text đã stream vẫn giữ.
+        yield {
+          type: "truncated",
+          message: raw.message,
+        } as AgentEvent;
+        break;
+      case "done":
+        if (raw.usage) {
+          totalTokens = raw.usage.inputTokens + raw.usage.outputTokens;
+        }
+        yield {
+          type: "done",
+          agent: agentName,
+          tokens: totalTokens,
+          // Forward cả usage + totalTokens: FE đọc `usage`/`totalTokens`
+          // (packages/api-client normalizeEvent) chứ không đọc `tokens`,
+          // nên trước đây meta token luôn undefined.
+          usage: raw.usage,
+          totalTokens: raw.totalTokens ?? totalTokens,
+          truncated: raw.truncated === true,
+          // contextTokens/contextBudget: FE tự tính tỉ lệ để gợi ý bắt
+          // đầu chat mới khi context lớn (Tier 4) — không forward thì
+          // gợi ý này không bao giờ có dữ liệu dù Go đã tính đúng.
+          contextTokens: raw.contextTokens,
+          contextBudget: raw.contextBudget,
+        } as AgentEvent;
+        break;
+      case "step":
+        // Step event: forward nguyên bản (node info).
+        yield {
+          type: "step",
+          node: raw.node,
+        } as AgentEvent;
+        break;
+      case "agent":
+        // Orchestrator Go phát {type:"agent", node:"<tên agent>"} khi
+        // route xong. Trước đây event này rơi vào default → bị skip, nên
+        // BFF phải hardcode agentName="go" và badge agent trên UI không
+        // bao giờ hiện tên thật (general/code/research).
+        // Go dùng field `node`, còn api-client đọc `name` → chuẩn hoá ở đây.
+        if (raw.node) agentName = raw.node;
+        yield { type: "agent", name: raw.node } as unknown as AgentEvent;
+        break;
+      case "usage":
+        // Per-step token usage. Trước đây bị skip nên đồng hồ token trên
+        // UI không có số dù Go tính đúng.
+        yield {
+          type: "usage",
+          usage: raw.usage,
+          totalTokens: raw.totalTokens,
+        } as AgentEvent;
+        break;
+      case "ask_user":
+      case "suggestions":
+      case "citation":
+      case "memory":
+      case "interrupt":
+        // Forward các event type khác (đã gồm runId nếu Go gửi kèm, xem
+        // GoAgentEvent.runId — "as unknown" nên field lạ vẫn đi qua nguyên
+        // trạng dù interface AgentEvent không khai báo hết mọi field).
+        yield raw as unknown as AgentEvent;
+        break;
+      default:
+        // Unknown event type → skip.
+        break;
+    }
+  }
+}
+
 // ----- Go Agent Client -----
 
 /**
@@ -333,106 +449,7 @@ export const goAgentClient: AgentClient = {
           throw new AgentUnavailableError("Go agent trả về response rỗng.");
         }
 
-        // agentName mặc định "go" (phân biệt với "langgraph"), được ghi đè bằng
-        // tên agent thật ngay khi nhận event {type:"agent"} từ orchestrator Go
-        // (general/code/research) — xem case "agent" bên dưới.
-        let agentName = "go";
-        let totalTokens = 0;
-
-        for await (const raw of parseSSE(res.body)) {
-          switch (raw.type) {
-            case "text":
-              yield { type: "text", text: raw.text ?? "" } as AgentEvent;
-              break;
-            case "tool_start":
-              yield {
-                type: "tool_start",
-                name: raw.name ?? "unknown",
-              } as AgentEvent;
-              break;
-            case "tool_end":
-              yield {
-                type: "tool_end",
-                name: raw.name ?? "unknown",
-                message: raw.message,
-                text: raw.text,
-              } as AgentEvent;
-              break;
-            case "error":
-              yield {
-                type: "error",
-                message: raw.message ?? "Agent error",
-              } as AgentEvent;
-              break;
-            case "truncated":
-              // Model bị cắt vì chạm max output tokens → UI hiện chỉ báo +
-              // nút "Tiếp tục". Không phải lỗi: text đã stream vẫn giữ.
-              yield {
-                type: "truncated",
-                message: raw.message,
-              } as AgentEvent;
-              break;
-            case "done":
-              if (raw.usage) {
-                totalTokens = raw.usage.inputTokens + raw.usage.outputTokens;
-              }
-              yield {
-                type: "done",
-                agent: agentName,
-                tokens: totalTokens,
-                // Forward cả usage + totalTokens: FE đọc `usage`/`totalTokens`
-                // (packages/api-client normalizeEvent) chứ không đọc `tokens`,
-                // nên trước đây meta token luôn undefined.
-                usage: raw.usage,
-                totalTokens: raw.totalTokens ?? totalTokens,
-                truncated: raw.truncated === true,
-                // contextTokens/contextBudget: FE tự tính tỉ lệ để gợi ý bắt
-                // đầu chat mới khi context lớn (Tier 4) — không forward thì
-                // gợi ý này không bao giờ có dữ liệu dù Go đã tính đúng.
-                contextTokens: raw.contextTokens,
-                contextBudget: raw.contextBudget,
-              } as AgentEvent;
-              break;
-            case "step":
-              // Step event: forward nguyên bản (node info).
-              yield {
-                type: "step",
-                node: raw.node,
-              } as AgentEvent;
-              break;
-            case "agent":
-              // Orchestrator Go phát {type:"agent", node:"<tên agent>"} khi
-              // route xong. Trước đây event này rơi vào default → bị skip, nên
-              // BFF phải hardcode agentName="go" và badge agent trên UI không
-              // bao giờ hiện tên thật (general/code/research).
-              // Go dùng field `node`, còn api-client đọc `name` → chuẩn hoá ở đây.
-              if (raw.node) agentName = raw.node;
-              yield { type: "agent", name: raw.node } as unknown as AgentEvent;
-              break;
-            case "usage":
-              // Per-step token usage. Trước đây bị skip nên đồng hồ token trên
-              // UI không có số dù Go tính đúng.
-              yield {
-                type: "usage",
-                usage: raw.usage,
-                totalTokens: raw.totalTokens,
-              } as AgentEvent;
-              break;
-            case "ask_user":
-            case "suggestions":
-            case "citation":
-            case "memory":
-            case "interrupt":
-              // Forward các event type khác.
-              yield raw as unknown as AgentEvent;
-              break;
-            default:
-              // Unknown event type → skip.
-              break;
-          }
-
-          // TODO: ghi nhận agent name khi orchestrator Go gửi event identity.
-        }
+        yield* mapGoAgentEvents(res.body);
 
         recordSuccess();
         return; // stream thành công → thoát.
@@ -481,6 +498,77 @@ export const goAgentClient: AgentClient = {
         clearTimeout(timeoutId);
         opts?.signal?.removeEventListener("abort", onAbort);
       }
+    }
+  },
+
+  /**
+   * Gọi POST /chat/resume lên Go agent để tiếp tục 1 run đã dừng giữa
+   * chừng (interrupt HITL hoặc crash) — xem
+   * services/agent-go/internal/transport/http/chat_resume.go.
+   *
+   * KHÁC stream(): KHÔNG retry khi lỗi TRƯỚC response. agent-go XOÁ
+   * checkpoint (paused_runs) ngay sau khi load để resume thành công, nên
+   * gọi lại lần 2 với cùng runId chỉ nhận lỗi "not found" — retry vô nghĩa
+   * (ngược với /chat, nơi agent-go chưa động tới gì trước khi có response
+   * nên retry TTFB timeout là an toàn).
+   */
+  async *resume(runId, answer, opts) {
+    checkCircuit();
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      config.AGENT_GO_TIMEOUT,
+    );
+    const onAbort = () => controller.abort();
+    opts?.signal?.addEventListener("abort", onAbort, { once: true });
+
+    try {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (opts?.tenantId) {
+        headers["X-Tenant-ID"] = opts.tenantId;
+      }
+
+      const res = await fetch(`${config.AGENT_GO_URL}/chat/resume`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ run_id: runId, answer }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!res.ok) {
+        recordFailure();
+        // 404 (run_id không tồn tại/đã resume rồi) hay 400 (thiếu answer khi
+        // đang chờ interrupt) đều là lỗi client rõ ràng — không đoán thêm,
+        // để caller (chat.controller) tự quyết định thông báo gì cho user.
+        throw new AgentUnavailableError(
+          `Go agent trả về lỗi ${res.status} khi resume run "${runId}".`,
+        );
+      }
+
+      if (!res.body) {
+        recordFailure();
+        throw new AgentUnavailableError(
+          "Go agent trả về response rỗng khi resume.",
+        );
+      }
+
+      yield* mapGoAgentEvents(res.body);
+      recordSuccess();
+    } catch (err) {
+      if (opts?.signal?.aborted) return;
+      if (err instanceof AgentUnavailableError) throw err;
+      recordFailure();
+      throw new AgentUnavailableError(
+        `Không thể kết nối đến AI agent để resume run "${runId}".`,
+      );
+    } finally {
+      clearTimeout(timeoutId);
+      opts?.signal?.removeEventListener("abort", onAbort);
     }
   },
 };

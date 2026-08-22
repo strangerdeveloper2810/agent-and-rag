@@ -73,7 +73,8 @@ export type ChatEvent =
   | { type: "citation"; text?: string }
   | { type: "memory"; message?: string }
   | { type: "agent"; name?: string; message?: string }
-  | { type: "interrupt"; name?: string; message?: string }
+  // runId: định danh run đang dừng — dùng để gọi resume (POST .../resume).
+  | { type: "interrupt"; name?: string; message?: string; runId?: string }
   | { type: "error"; message?: string }
   | { type: "usage"; usage?: UsageData; totalTokens?: number }
   | { type: "ask_user"; questions: ClarifyQuestion[] }

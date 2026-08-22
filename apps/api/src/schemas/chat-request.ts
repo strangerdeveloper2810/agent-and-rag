@@ -25,3 +25,15 @@ export const chatBodySchema = z.object({
 export const createConversationBodySchema = z.object({
   firstMessage: z.string().optional(),
 });
+
+/**
+ * Body cho POST /conversations/:id/resume — tiếp tục 1 run đã dừng giữa
+ * chừng (interrupt HITL hoặc crash), xác định qua `runId` mà FE nhận được
+ * từ event SSE `interrupt` (field `runId`, xem packages/types ChatEvent).
+ * `answer` optional: chỉ cần khi run đang chờ trả lời 1 câu hỏi interrupt
+ * thật — thiếu `answer` trong trường hợp đó sẽ bị agent-go trả lỗi 400.
+ */
+export const resumeBodySchema = z.object({
+  runId: z.string().trim().min(1, "runId không được rỗng"),
+  answer: z.string().optional(),
+});

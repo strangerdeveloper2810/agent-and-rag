@@ -12,7 +12,7 @@ vi.mock("../repositories", () => ({
   deleteConversation: vi.fn(),
 }));
 
-import { streamReply, continueReply } from "./chat.service";
+import { streamReply, continueReply, resumeReply } from "./chat.service";
 import { BadRequestError } from "../../../lib/errors";
 import * as repo from "../repositories";
 
@@ -63,7 +63,9 @@ const optsCapturingAgent = (
 };
 
 const drain = async (
-  result: Awaited<ReturnType<typeof streamReply | typeof continueReply>>,
+  result: Awaited<
+    ReturnType<typeof streamReply | typeof continueReply | typeof resumeReply>
+  >,
 ) => {
   const out: AgentEvent[] = [];
   for await (const ev of result.events) out.push(ev);
@@ -398,5 +400,142 @@ describe("continueReply", () => {
     expect(metadata.truncated).toBe(true);
     expect(metadata.contextTokens).toBe(91000);
     expect(metadata.contextBudget).toBe(100000);
+  });
+});
+
+// AgentClient giả CHỈ implement resume() (không implement stream — resumeReply
+// không bao giờ gọi stream nên không cần fake nó).
+const fakeResumeAgent = (events: AgentEvent[]): AgentClient => ({
+  stream: () => fakeStream([]),
+  resume: () => fakeStream(events),
+});
+
+// AgentClient giả CÓ GHI LẠI runId/answer nhận được qua resume().
+const capturingResumeAgent = (
+  events: AgentEvent[],
+): {
+  agent: AgentClient;
+  getReceivedArgs: () => { runId: string; answer: string | undefined };
+} => {
+  let received: { runId: string; answer: string | undefined } = {
+    runId: "",
+    answer: undefined,
+  };
+  return {
+    agent: {
+      stream: () => fakeStream([]),
+      resume: (runId, answer) => {
+        received = { runId, answer };
+        return fakeStream(events);
+      },
+    },
+    getReceivedArgs: () => received,
+  };
+};
+
+describe("resumeReply", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("ném BadRequestError ngay khi backend không hỗ trợ resume (agent.resume undefined)", async () => {
+    const agentWithoutResume: AgentClient = { stream: () => fakeStream([]) };
+
+    await expect(
+      resumeReply("c1", "run-1", undefined, undefined, agentWithoutResume),
+    ).rejects.toBeInstanceOf(BadRequestError);
+    expect(repo.appendToLastAssistantMessage).not.toHaveBeenCalled();
+  });
+
+  it("forward đúng runId + answer xuống agent.resume()", async () => {
+    const { agent, getReceivedArgs } = capturingResumeAgent([
+      { type: "text", text: "tiếp" },
+      { type: "done" },
+    ]);
+
+    await drain(
+      await resumeReply("c1", "run-42", "có, tiếp tục đi", undefined, agent),
+    );
+
+    expect(getReceivedArgs()).toEqual({
+      runId: "run-42",
+      answer: "có, tiếp tục đi",
+    });
+  });
+
+  it("nối text mới vào assistant message CŨ qua appendToLastAssistantMessage, KHÔNG tạo message mới — giống continueReply", async () => {
+    const result = await resumeReply(
+      "c1",
+      "run-1",
+      "yes",
+      undefined,
+      fakeResumeAgent([
+        { type: "text", text: "phần tiếp theo sau khi resume" },
+        { type: "done", agent: "code", tokens: 12 },
+      ]),
+    );
+    await drain(result);
+
+    expect(repo.appendToLastAssistantMessage).toHaveBeenCalledWith(
+      "default",
+      "c1",
+      "phần tiếp theo sau khi resume",
+    );
+    expect(repo.addMessage).not.toHaveBeenCalled();
+  });
+
+  it("không nối gì khi text sinh ra rỗng (vd interrupt bị từ chối, không có nội dung mới)", async () => {
+    await drain(
+      await resumeReply(
+        "c1",
+        "run-1",
+        "no",
+        undefined,
+        fakeResumeAgent([{ type: "done" }]),
+      ),
+    );
+
+    expect(repo.appendToLastAssistantMessage).not.toHaveBeenCalled();
+  });
+
+  it("metadata ghi nhận contextTokens/contextBudget/truncated giống streamReply/continueReply", async () => {
+    const result = await resumeReply(
+      "c1",
+      "run-1",
+      undefined,
+      undefined,
+      fakeResumeAgent([
+        { type: "text", text: "tiếp" },
+        {
+          type: "done",
+          agent: "code",
+          tokens: 5,
+          truncated: true,
+          contextTokens: 91000,
+          contextBudget: 100000,
+        },
+      ]),
+    );
+
+    const { metadata } = await drain(result);
+    expect(metadata.backend).toBe("code");
+    expect(metadata.truncated).toBe(true);
+    expect(metadata.contextTokens).toBe(91000);
+    expect(metadata.contextBudget).toBe(100000);
+  });
+
+  it("forward tenantId xuống agent.resume() qua opts", async () => {
+    let receivedOpts: { tenantId?: string } | undefined;
+    const agent: AgentClient = {
+      stream: () => fakeStream([]),
+      resume: (_runId, _answer, opts) => {
+        receivedOpts = opts;
+        return fakeStream([{ type: "done" }]);
+      },
+    };
+
+    await drain(
+      await resumeReply("c1", "run-1", undefined, undefined, agent, "tenant-x"),
+    );
+
+    expect(receivedOpts?.tenantId).toBe("tenant-x");
   });
 });

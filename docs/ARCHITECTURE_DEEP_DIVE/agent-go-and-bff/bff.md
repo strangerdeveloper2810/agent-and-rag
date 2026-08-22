@@ -14,7 +14,7 @@ Sau khi tách agent ra Go, BFF chỉ còn 5 việc:
 
 BFF **không còn** business logic "agent" nào (không prompt, không tool, không LLM call trực tiếp — trừ nhánh legacy `AGENT_BACKEND=langgraph`, xem [`docs/architecture-backend-agent.md`](../../architecture-backend-agent.md)). Nó là 1 lớp mỏng: xác thực → map path → gọi agent-go → forward kết quả.
 
-> **Khoảng trống tích hợp đã biết**: agent-go đã có `POST /chat/resume` (checkpoint/resume — xem [`agent-go-resilience.md`](./agent-go-resilience.md)) nhưng `go-agent.client.ts` **CHƯA** có hàm proxy tương ứng — nghĩa là tính năng resume hiện chỉ gọi được trực tiếp tới agent-go (dev/test), chưa lộ ra được cho frontend qua BFF. Đây là việc cần làm nếu muốn bật resume cho end-user thật.
+`go-agent.client.ts` giờ có thêm hàm `resume()` (optional trên interface `AgentClient` — chỉ agent-go implement, LangGraph legacy không có khái niệm checkpoint) proxy sang `POST /chat/resume` của agent-go, dùng chung logic map SSE→AgentEvent với `stream()` qua helper `mapGoAgentEvents`. Khác `stream()`: **không retry** khi lỗi trước response, vì agent-go xoá checkpoint ngay sau khi load để resume — gọi lại lần 2 với cùng `runId` chỉ nhận lỗi "not found".
 
 ## Circuit breaker phía BFF
 
@@ -31,6 +31,7 @@ GET    /api/conversations/:id/messages              tin nhắn trong 1 hội tho
 DELETE /api/conversations/:id                       xoá hội thoại
 POST   /api/conversations/:id/chat        ★         CHAT (SSE → agent-go, rate-limit 20/phút)
 POST   /api/conversations/:id/continue    ★         tiếp tục câu trả lời bị cắt (cùng rate-limit)
+POST   /api/conversations/:id/resume      ★         resume 1 run đã dừng giữa chừng (interrupt/crash, cùng rate-limit)
 GET    /api/suggestions                   ★         gợi ý mở hội thoại (proxy có tenant, rate-limit 20/phút)
 
 POST   /api/documents/upload              ★         upload mới (.txt/.md/.pdf, rate-limit 20/phút — gọi Voyage embedding)

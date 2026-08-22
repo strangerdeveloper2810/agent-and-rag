@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { AgentEvent } from "../graph/index";
 
 import { goAgentClient } from "./go-agent.client";
+import { AgentUnavailableError } from "../../lib/errors";
 
 /** Dựng một Response giả có body SSE từ danh sách dòng data. */
 function sseResponse(lines: string[]): Response {
@@ -204,5 +205,84 @@ describe("goAgentClient.stream — map SSE của Go sang AgentEvent", () => {
     const done = events.find((e) => e.type === "done") as
       { agent?: string } | undefined;
     expect(done?.agent).toBe("go");
+  });
+});
+
+describe("goAgentClient.resume — proxy POST /chat/resume", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("gọi đúng URL /chat/resume với body {run_id, answer} và header X-Tenant-ID", async () => {
+    const fetchMock = vi.fn(async () =>
+      sseResponse([JSON.stringify({ type: "text", text: "tiếp tục" })]),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await drain(
+      goAgentClient.resume!("run-123", "yes", { tenantId: "tenant-a" }),
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [
+      string,
+      RequestInit,
+    ];
+    expect(url).toMatch(/\/chat\/resume$/);
+    expect((init.headers as Record<string, string>)["X-Tenant-ID"]).toBe(
+      "tenant-a",
+    );
+    expect(JSON.parse(init.body as string)).toEqual({
+      run_id: "run-123",
+      answer: "yes",
+    });
+  });
+
+  it("answer là undefined khi không truyền (resume không cần trả lời interrupt)", async () => {
+    const fetchMock = vi.fn(async () =>
+      sseResponse([JSON.stringify({ type: "done" })]),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await drain(goAgentClient.resume!("run-456", undefined));
+
+    const [, init] = fetchMock.mock.calls[0] as unknown as [
+      string,
+      RequestInit,
+    ];
+    const body = JSON.parse(init.body as string);
+    expect(body.run_id).toBe("run-456");
+    expect(body.answer).toBeUndefined();
+  });
+
+  it("dùng CHUNG logic map event với stream() — forward event interrupt kèm runId", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        sseResponse([
+          JSON.stringify({ type: "text", text: "phần còn lại" }),
+          JSON.stringify({
+            type: "done",
+            usage: { inputTokens: 3, outputTokens: 7 },
+          }),
+        ]),
+      ),
+    );
+
+    const events = await drain(goAgentClient.resume!("run-789", "ok"));
+    const done = events.find((e) => e.type === "done") as
+      { totalTokens?: number } | undefined;
+    expect(done?.totalTokens).toBe(10);
+  });
+
+  it("ném AgentUnavailableError khi Go trả lỗi (vd 404 — run_id không tồn tại/đã resume rồi), KHÔNG retry", async () => {
+    const fetchMock = vi.fn(async () => new Response(null, { status: 404 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      drain(goAgentClient.resume!("run-not-found", undefined)),
+    ).rejects.toBeInstanceOf(AgentUnavailableError);
+
+    // Khác stream(): resume KHÔNG retry khi lỗi trước response, vì agent-go
+    // đã xoá checkpoint sau lần load đầu — gọi lại chỉ nhận lại đúng lỗi này.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
